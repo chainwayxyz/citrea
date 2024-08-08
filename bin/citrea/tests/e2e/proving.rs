@@ -2,7 +2,6 @@
 use std::time::Duration;
 
 use citrea_stf::genesis_config::GenesisPaths;
-use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
@@ -69,7 +68,6 @@ async fn test_db_get_proof() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                db_config: Some(SharedBackupDbConfig::default().set_db_name(psql_db_name)),
             }),
             NodeMode::Prover(seq_port),
             prover_db_dir,
@@ -193,7 +191,6 @@ async fn full_node_verify_proof_and_store() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                db_config: None,
             }),
             NodeMode::Prover(seq_port),
             prover_db_dir,

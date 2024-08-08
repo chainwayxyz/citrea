@@ -38,8 +38,6 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
-
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
@@ -211,9 +209,6 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         max_account_slots: 100,
         ..Default::default()
     };
-    sequencer_config.db_config = Some(
-        SharedBackupDbConfig::default().set_db_name("sequencer_crash_restore_mempool".to_owned()),
-    );
 
     let da_service =
         MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir.clone());

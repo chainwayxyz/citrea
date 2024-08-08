@@ -57,7 +57,6 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
                 test_mode: true,
                 deposit_mempool_fetch_limit: 10,
                 mempool_conf: Default::default(),
-                db_config: Default::default(),
                 da_update_interval_ms: 500,
                 block_production_interval_ms: 500,
             }),
@@ -151,7 +150,6 @@ async fn test_sequencer_commitment_threshold() {
     let mut sequencer_config =
         create_default_sequencer_config(min_soft_confirmations_per_commitment, Some(true), 10);
 
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
     sequencer_config.mempool_conf = SequencerMempoolConfig {
         max_account_slots: 1000,
         ..Default::default()
@@ -372,7 +370,6 @@ async fn test_gas_limit_too_high() {
                     max_account_slots: tx_count * 2,
                     ..Default::default()
                 },
-                db_config: Default::default(),
                 da_update_interval_ms: 1000,
                 block_production_interval_ms: 1000,
             }),
@@ -514,7 +511,6 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
                     max_account_slots: 100,
                     ..Default::default()
                 },
-                db_config: Default::default(),
                 da_update_interval_ms: 1000,
                 block_production_interval_ms: 500,
             }),
