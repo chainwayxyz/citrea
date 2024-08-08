@@ -6,7 +6,6 @@ use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use shared_backup_db::PostgresConnector;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -287,51 +286,4 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
     }
     // Let knowledge of the new DA block propagate
     sleep(Duration::from_secs(2)).await;
-}
-
-#[instrument(level = "debug", skip(db_test_client))]
-pub async fn wait_for_postgres_commitment(
-    db_test_client: &PostgresConnector,
-    num: usize,
-    timeout: Option<Duration>,
-) {
-    let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
-    loop {
-        debug!("Waiting for {} L1 commitments to be published", num);
-        let commitments = db_test_client.get_all_commitments().await.unwrap().len();
-        if commitments >= num {
-            break;
-        }
-
-        let now = SystemTime::now();
-        if start + timeout <= now {
-            panic!("Timeout. {} commitments exist at this point", commitments);
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
-}
-
-pub async fn wait_for_postgres_proofs(
-    db_test_client: &PostgresConnector,
-    num: usize,
-    timeout: Option<Duration>,
-) {
-    let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
-    loop {
-        debug!("Waiting for {} L1 proofs to be published", num);
-        let commitments = db_test_client.get_all_proof_data().await.unwrap().len();
-        if commitments >= num {
-            break;
-        }
-
-        let now = SystemTime::now();
-        if start + timeout <= now {
-            panic!("Timeout. {} proofs exist at this point", commitments);
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
 }

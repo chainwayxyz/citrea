@@ -244,13 +244,6 @@ mod tests {
         let config = r#"
             proving_mode = "skip"
             proof_sampling_number = 500
-
-            [db_config]
-            db_host = "localhost"
-            db_port = 5432
-            db_user = "postgres"
-            db_password = "postgres"
-            db_name = "postgres"
         "#;
 
         let config_file = create_config_from(config);

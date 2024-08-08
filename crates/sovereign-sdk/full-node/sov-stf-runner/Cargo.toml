@@ -34,9 +34,6 @@ sov-db = { path = "../db/sov-db", optional = true }
 sov-modules-api = { path = "../../module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../../rollup-interface" }
 
-# Citrea-Deps
-shared-backup-db = { path = "../../../shared-backup-db", optional = true }
-
 [dev-dependencies]
 sha2 = { workspace = true }
 tempfile = { workspace = true }
@@ -59,7 +56,6 @@ native = [
   "futures",
   "async-trait",
   "thiserror",
-  "shared-backup-db",
   "rand",
   "tower",
   "hyper",

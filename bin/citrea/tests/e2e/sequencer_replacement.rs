@@ -9,7 +9,6 @@ use alloy_rlp::Decodable;
 use citrea_sequencer::SequencerMempoolConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
-use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
 
@@ -17,7 +16,7 @@ use crate::e2e::{copy_dir_recursive, execute_blocks, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_postgres_commitment, NodeMode,
+    wait_for_l2_block, NodeMode,
 };
 use crate::{
     DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, DEFAULT_PROOF_WAIT_DURATION,
