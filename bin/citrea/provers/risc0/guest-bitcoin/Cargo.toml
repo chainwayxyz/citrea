@@ -33,19 +33,9 @@ lto = true
 opt-level = 3
 codegen-units = 1
 
-[profile.dev.build-override]
-debug = 0
-opt-level = 3
-codegen-units = 1
-
 [profile.release]
 debug = 0
 lto = true
-opt-level = 3
-codegen-units = 1
-
-[profile.release.build-override]
-debug = 0
 opt-level = 3
 codegen-units = 1
 
