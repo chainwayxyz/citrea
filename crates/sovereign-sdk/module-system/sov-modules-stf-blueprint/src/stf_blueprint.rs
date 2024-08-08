@@ -62,6 +62,7 @@ where
     pub fn apply_sov_txs_inner(
         &self,
         txs: Vec<Vec<u8>>,
+        current_spec: SpecId,
         mut batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let txs = self.verify_txs_stateless_soft(&txs);
@@ -86,6 +87,7 @@ where
             let hook = RuntimeTxHook {
                 height: 1,
                 sequencer: tx.pub_key().clone(),
+                current_spec,
             };
             let ctx = match self
                 .runtime
@@ -244,7 +246,7 @@ where
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
                 let (batch_workspace, tx_receipts) =
-                    self.apply_sov_txs_inner(soft_batch.txs(), batch_workspace);
+                    self.apply_sov_txs_inner(soft_batch.txs(), current_spec, batch_workspace);
 
                 self.end_soft_confirmation_inner(soft_batch, tx_receipts, batch_workspace)
             }

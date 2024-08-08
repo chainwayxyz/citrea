@@ -38,6 +38,8 @@ pub struct RuntimeTxHook<C: Context> {
     pub height: u64,
     /// Sequencer public key
     pub sequencer: C::PublicKey,
+    /// Current spec
+    pub current_spec: SpecId,
 }
 
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -224,11 +226,11 @@ where
 
     fn apply_soft_batch_txs(
         &self,
-        _current_spec: SpecId,
+        current_spec: SpecId,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(txs, batch_workspace)
+        self.apply_sov_txs_inner(txs, current_spec, batch_workspace)
     }
 
     fn end_soft_batch(
