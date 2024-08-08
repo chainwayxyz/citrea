@@ -8,6 +8,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
@@ -55,6 +56,7 @@ fn call_multiple_test() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -163,6 +165,7 @@ fn call_test() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -242,6 +245,7 @@ fn failed_transaction_test() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -299,6 +303,7 @@ fn self_destruct_test() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -359,6 +364,7 @@ fn self_destruct_test() {
             da_slot_height: 2,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -440,6 +446,7 @@ fn test_block_hash_in_evm() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -475,6 +482,7 @@ fn test_block_hash_in_evm() {
                 da_slot_height: 1,
                 da_slot_txs_commitment: [42u8; 32],
                 pre_state_root: [99u8; 32].to_vec(),
+                current_spec: SovSpecId::Genesis,
                 pub_key: vec![],
                 deposit_data: vec![],
                 l1_fee_rate,
@@ -551,6 +559,7 @@ fn test_block_gas_limit() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -830,6 +839,7 @@ fn test_l1_fee_success() {
                 da_slot_height: 1,
                 da_slot_txs_commitment: [42u8; 32],
                 pre_state_root: [10u8; 32].to_vec(),
+                current_spec: SovSpecId::Genesis,
                 pub_key: vec![],
                 deposit_data: vec![],
                 l1_fee_rate,
@@ -933,6 +943,7 @@ fn test_l1_fee_not_enough_funds() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -993,6 +1004,7 @@ fn test_l1_fee_halt() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,

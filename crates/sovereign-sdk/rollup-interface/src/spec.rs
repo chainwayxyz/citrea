@@ -46,6 +46,7 @@ mod spec {
         Debug,
         Clone,
         Copy,
+        Eq,
         PartialEq,
         Default,
         BorshDeserialize,

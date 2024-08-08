@@ -1840,6 +1840,7 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-prover-storage-manager",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
  "thiserror",
