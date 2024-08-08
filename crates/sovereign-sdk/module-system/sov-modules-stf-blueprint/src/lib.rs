@@ -186,7 +186,7 @@ where
 {
     fn begin_soft_batch(
         &self,
-        _current_spec: SpecId,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: <C>::Storage,
@@ -219,7 +219,7 @@ where
 
         let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
 
-        self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root)
+        self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root, current_spec)
     }
 
     fn apply_soft_batch_txs(

@@ -394,6 +394,7 @@ where
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
+            current_spec: self.fork_manager.active_fork(),
             pub_key,
             l1_fee_rate,
             timestamp,

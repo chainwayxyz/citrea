@@ -5,6 +5,7 @@ use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -156,6 +157,7 @@ where
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
+        current_spec: SpecId,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
             "Beginning soft batch 0x{} from sequencer: 0x{}",
@@ -170,6 +172,7 @@ where
             &mut HookSoftConfirmationInfo::new(
                 soft_batch.clone(),
                 pre_state_root.as_ref().to_vec(),
+                current_spec,
             ),
             &mut batch_workspace,
         ) {
@@ -230,8 +233,14 @@ where
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
+        current_spec: SpecId,
     ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
-        match self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root) {
+        match self.begin_soft_confirmation_inner(
+            checkpoint,
+            soft_batch,
+            pre_state_root,
+            current_spec,
+        ) {
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
                 let (batch_workspace, tx_receipts) =
