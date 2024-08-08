@@ -6,7 +6,8 @@ lazy_static! {
     /// at specific heights.
     pub static ref FORKS: Vec<(SpecId, u64)> = vec![
         (SpecId::Genesis, 0),
-        (SpecId::Fork1, 100),
-        (SpecId::Fork2, 200)
+        // Examples of how we can define further forks
+        // (SpecId::Fork1, 100),
+        // (SpecId::Fork2, 200)
     ];
 }
