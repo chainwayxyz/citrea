@@ -211,10 +211,10 @@ impl BitcoinNode {
     // get_utxos returns all unspent transaction outputs for the wallets of bitcoind
     pub async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
         let utxos = self
-            .call::<Vec<UTXO>>("listunspent", vec![to_value(0)?, to_value(9999999)?])
+            .call::<Vec<ListUnspentEntry>>("listunspent", vec![to_value(0)?, to_value(9999999)?])
             .await?;
 
-        Ok(utxos)
+        Ok(utxos.into_iter().map(|u| u.into()).collect())
     }
 
     // estimate_smart_fee estimates the fee to confirm a transaction in the next block
