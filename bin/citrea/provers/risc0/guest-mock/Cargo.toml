@@ -25,12 +25,6 @@ crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag
 secp256k1_v028 = { package = "secp256k1", version = "0.28", git = "https://github.com/Sovereign-Labs/rust-secp256k1.git", branch = "risc0-compatible-0-28-2" }
 k256 = { package = "k256", version = "0.13.3", git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "k256/v0.13.3-risczero.0" }
 
-[profile.dev]
-debug = 0
-lto = true
-opt-level = 3
-codegen-units = 1
-
 [profile.release]
 debug = 0
 lto = true
