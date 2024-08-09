@@ -5,6 +5,7 @@ use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -61,6 +62,7 @@ where
     pub fn apply_sov_txs_inner(
         &self,
         txs: Vec<Vec<u8>>,
+        current_spec: SpecId,
         mut batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let txs = self.verify_txs_stateless_soft(&txs);
@@ -85,6 +87,7 @@ where
             let hook = RuntimeTxHook {
                 height: 1,
                 sequencer: tx.pub_key().clone(),
+                current_spec,
             };
             let ctx = match self
                 .runtime
@@ -109,7 +112,9 @@ where
             // Commit changes after pre_dispatch_tx_hook
             batch_workspace = batch_workspace.checkpoint().to_revertable();
 
-            let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
+            let tx_result =
+                self.runtime
+                    .dispatch_call(msg, &mut batch_workspace, current_spec, &ctx);
 
             let events = batch_workspace.take_events();
             let tx_effect = match tx_result {
@@ -156,6 +161,7 @@ where
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
+        current_spec: SpecId,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
             "Beginning soft batch 0x{} from sequencer: 0x{}",
@@ -170,6 +176,7 @@ where
             &mut HookSoftConfirmationInfo::new(
                 soft_batch.clone(),
                 pre_state_root.as_ref().to_vec(),
+                current_spec,
             ),
             &mut batch_workspace,
         ) {
@@ -230,12 +237,18 @@ where
         checkpoint: StateCheckpoint<C>,
         soft_batch: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
+        current_spec: SpecId,
     ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
-        match self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root) {
+        match self.begin_soft_confirmation_inner(
+            checkpoint,
+            soft_batch,
+            pre_state_root,
+            current_spec,
+        ) {
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
                 let (batch_workspace, tx_receipts) =
-                    self.apply_sov_txs_inner(soft_batch.txs(), batch_workspace);
+                    self.apply_sov_txs_inner(soft_batch.txs(), current_spec, batch_workspace);
 
                 self.end_soft_confirmation_inner(soft_batch, tx_receipts, batch_workspace)
             }

@@ -1,7 +1,6 @@
 #![no_main]
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
-
 use citrea_primitives::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
 use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;

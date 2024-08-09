@@ -7,6 +7,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec, StateValueAccessor};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
 use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
@@ -55,6 +56,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
                 &mut HookSoftConfirmationInfo::new(
                     signed_soft_confirmation_batch.clone(),
                     vec![0; 32],
+                    SpecId::Genesis,
                 ),
                 &mut working_set,
             )
@@ -87,7 +89,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
 
     // call first with 100 fee rate to set last_l1_fee_rate
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -98,7 +104,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(111);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -123,7 +133,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(110);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -133,7 +147,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(122);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -142,7 +160,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(121);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -152,13 +174,21 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(109);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
     assert!(res.is_ok());
     signed_soft_confirmation_batch.set_l1_fee_rate(100);
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
     assert!(res.is_ok());
@@ -170,7 +200,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(89);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -194,7 +228,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(90);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -205,7 +243,11 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     signed_soft_confirmation_batch.set_l1_fee_rate(89);
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -235,7 +277,11 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     // call first with `original_timestamp`
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -258,7 +304,11 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     );
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 
@@ -296,7 +346,11 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     );
 
     let res = soft_confirmation_rule_enforcer.begin_soft_confirmation_hook(
-        &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+        &mut HookSoftConfirmationInfo::new(
+            signed_soft_confirmation_batch.clone(),
+            vec![0; 32],
+            SpecId::Genesis,
+        ),
         &mut working_set,
     );
 

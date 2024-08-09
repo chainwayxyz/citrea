@@ -1,16 +1,16 @@
 [package]
 name = "sov-modules-macros"
-description = "Macros for use with the Sovereign SDK module system"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Macros for use with the Sovereign SDK module system"
 
 version = { workspace = true }
+autotests = false
 readme = "README.md"
 resolver = "2"
-autotests = false
 
 [lib]
 proc-macro = true
@@ -25,8 +25,9 @@ jsonrpsee = { workspace = true, features = ["macros", "http-client", "server"] }
 serde = { workspace = true }
 trybuild = "1.0"
 
-sov-modules-api = { path = "../sov-modules-api", features = [ "native" ] }
+sov-modules-api = { path = "../sov-modules-api", features = ["native"] }
 sov-modules-core = { path = "../sov-modules-core" }
+sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 
 [dependencies]
@@ -38,7 +39,6 @@ quote = "1.0"
 serde_json = { workspace = true }
 syn = { version = "1.0", features = ["full"] }
 
-
 [build-dependencies]
 anyhow = { workspace = true }
 
@@ -48,4 +48,4 @@ native = ["jsonrpsee"]
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["borsh"]
-development = ["clap", "sov-modules-core", "sov-modules-api", "sov-state"]
+development = ["clap", "sov-modules-core", "sov-modules-api", "sov-state", "sov-rollup-interface"]

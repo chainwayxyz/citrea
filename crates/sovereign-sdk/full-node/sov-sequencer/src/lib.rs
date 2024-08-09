@@ -14,6 +14,7 @@ use jsonrpsee::RpcModule;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::spec::SpecId;
 
 const SEQUENCER_RPC_ERROR: &str = "SEQUENCER_RPC_ERROR";
 
@@ -43,7 +44,7 @@ impl<B: BatchBuilder + Send + Sync, T: DaService + Send + Sync> Sequencer<B, T> 
                 .batch_builder
                 .lock()
                 .map_err(|e| anyhow!("failed to lock mempool: {}", e.to_string()))?;
-            batch_builder.get_next_blob()?
+            batch_builder.get_next_blob(SpecId::Genesis)?
         };
         let num_txs = blob.len();
         let blob: Vec<u8> = borsh::to_vec(&blob)?;
@@ -154,7 +155,7 @@ mod tests {
             Ok(())
         }
 
-        fn get_next_blob(&mut self) -> anyhow::Result<Vec<Vec<u8>>> {
+        fn get_next_blob(&mut self, _current_spec: SpecId) -> anyhow::Result<Vec<Vec<u8>>> {
             if self.mempool.is_empty() {
                 anyhow::bail!("Mock mempool is empty");
             }

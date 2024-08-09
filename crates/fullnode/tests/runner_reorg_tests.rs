@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use citrea_fullnode::CitreaFullnode;
+use citrea_primitives::fork::ForkManager;
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
     MockValidityCond, PlannedFork,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_context::DefaultContext;
+use sov_rollup_interface::spec::SpecId;
 use sov_stf_runner::{
     FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
@@ -120,6 +122,7 @@ async fn runner_execution(
     init_variant: MockInitVariant,
     da_service: Arc<MockDaService>,
 ) -> ([u8; 32], [u8; 32]) {
+    let specs = vec![(SpecId::Genesis, 0)];
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
     let rollup_config = FullNodeConfig::<MockDaConfig> {
         storage: StorageConfig {
@@ -161,6 +164,8 @@ async fn runner_execution(
     };
     let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 
+    let fork_manager = ForkManager::new(0, SpecId::Genesis, specs);
+
     let mut runner: CitreaFullnode<_, _, _, _, DefaultContext, _> = CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
@@ -172,6 +177,7 @@ async fn runner_execution(
         init_variant,
         MockCodeCommitment([1u8; 32]),
         10,
+        fork_manager,
         broadcast::channel(1).0,
     )
     .unwrap();

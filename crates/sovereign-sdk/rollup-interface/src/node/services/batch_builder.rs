@@ -4,6 +4,8 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
+use crate::spec::SpecId;
+
 /// BlockBuilder trait is responsible for managing mempool and building batches.
 pub trait BatchBuilder {
     /// Accept a new transaction.
@@ -12,5 +14,5 @@ pub trait BatchBuilder {
 
     /// Builds a new batch out of transactions in mempool.
     /// Logic of which transactions and how many of them is included in batch is up to implementation.
-    fn get_next_blob(&mut self) -> anyhow::Result<Vec<Vec<u8>>>;
+    fn get_next_blob(&mut self, current_spec: SpecId) -> anyhow::Result<Vec<Vec<u8>>>;
 }

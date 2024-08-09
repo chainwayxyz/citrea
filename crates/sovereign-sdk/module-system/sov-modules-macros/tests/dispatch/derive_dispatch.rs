@@ -6,6 +6,7 @@ use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{
     Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo,
 };
+use sov_rollup_interface::spec::SpecId;
 use sov_state::ZkStorage;
 
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
@@ -42,7 +43,7 @@ fn main() {
 
         assert_eq!(runtime.module_address(&module), runtime.first.address());
         let _ = runtime
-            .dispatch_call(module, working_set, &context)
+            .dispatch_call(module, working_set, SpecId::Genesis, &context)
             .unwrap();
     }
 
@@ -62,7 +63,7 @@ fn main() {
         assert_eq!(runtime.module_address(&module), runtime.second.address());
 
         let _ = runtime
-            .dispatch_call(module, working_set, &context)
+            .dispatch_call(module, working_set, SpecId::Genesis, &context)
             .unwrap();
     }
 

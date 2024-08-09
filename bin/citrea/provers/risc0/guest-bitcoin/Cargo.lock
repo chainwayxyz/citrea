@@ -904,6 +904,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "citrea-evm",
+ "citrea-primitives",
  "hex",
  "secp256k1",
  "serde",
@@ -3101,6 +3102,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "itertools 0.13.0",
  "jmt",
@@ -3171,6 +3173,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "num_cpus",
  "serde",

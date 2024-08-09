@@ -1,12 +1,8 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod batch;
-mod stf_blueprint;
-mod tx_verifier;
-
-pub use batch::Batch;
 use borsh::BorshDeserialize;
+use citrea_primitives::fork::{fork_from_block_number, Fork, ForkManager};
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -22,10 +18,17 @@ use sov_modules_api::{
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
+
+mod batch;
+mod stf_blueprint;
+mod tx_verifier;
+
+pub use batch::Batch;
 pub use stf_blueprint::StfBlueprint;
 pub use tx_verifier::RawTx;
 
@@ -35,6 +38,8 @@ pub struct RuntimeTxHook<C: Context> {
     pub height: u64,
     /// Sequencer public key
     pub sequencer: C::PublicKey,
+    /// Current spec
+    pub current_spec: SpecId,
 }
 
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -127,8 +132,10 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     StateTransitionFunction<Vm, Da>
 {
     /// Begin a soft batch
+    #[allow(clippy::too_many_arguments)]
     fn begin_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
@@ -140,6 +147,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Apply soft batch transactions
     fn apply_soft_batch_txs(
         &self,
+        current_spec: SpecId,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
@@ -147,6 +155,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// End a soft batch
     fn end_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -156,6 +165,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Finalizes a soft batch
     fn finalize_soft_batch(
         &self,
+        current_spec: SpecId,
         batch_receipt: BatchReceipt<(), TxEffect>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
@@ -178,6 +188,7 @@ where
 {
     fn begin_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: <C>::Storage,
@@ -210,19 +221,21 @@ where
 
         let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
 
-        self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root)
+        self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root, current_spec)
     }
 
     fn apply_soft_batch_txs(
         &self,
+        current_spec: SpecId,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(txs, batch_workspace)
+        self.apply_sov_txs_inner(txs, current_spec, batch_workspace)
     }
 
     fn end_soft_batch(
         &self,
+        _current_spec: SpecId,
         sequencer_public_key: &[u8],
         soft_batch: &mut SignedSoftConfirmationBatch,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -266,6 +279,7 @@ where
 
     fn finalize_soft_batch(
         &self,
+        _current_spec: SpecId,
         batch_receipt: BatchReceipt<(), TxEffect>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
@@ -386,6 +400,7 @@ where
 
     fn apply_slot<'a, I>(
         &self,
+        _current_spec: SpecId,
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: Self::Witness,
@@ -407,6 +422,7 @@ where
 
     fn apply_soft_batch(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
@@ -422,6 +438,7 @@ where
         Self::Witness,
     > {
         match self.begin_soft_batch(
+            current_spec,
             sequencer_public_key,
             pre_state_root,
             pre_state.clone(),
@@ -431,16 +448,23 @@ where
         ) {
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) =
-                    self.apply_soft_batch_txs(soft_batch.txs(), batch_workspace);
+                    self.apply_soft_batch_txs(current_spec, soft_batch.txs(), batch_workspace);
 
                 let (batch_receipt, checkpoint) = self.end_soft_batch(
+                    current_spec,
                     sequencer_public_key,
                     soft_batch,
                     tx_receipts,
                     batch_workspace,
                 );
 
-                self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
+                self.finalize_soft_batch(
+                    current_spec,
+                    batch_receipt,
+                    checkpoint,
+                    pre_state,
+                    soft_batch,
+                )
             }
             (Err(err), batch_workspace) => {
                 native_warn!(
@@ -472,6 +496,7 @@ where
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -638,6 +663,10 @@ where
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
+            let mut l2_height = sequencer_commitment.l2_start_block_number;
+            let mut current_spec = fork_from_block_number(&forks, l2_height);
+            let mut fork_manager = ForkManager::new(l2_height, current_spec, forks.clone());
+
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
             for (mut soft_confirmation, witness) in soft_confirmations.into_iter().zip_eq(witnesses)
@@ -647,6 +676,7 @@ where
                 }
 
                 let result = self.apply_soft_batch(
+                    current_spec,
                     sequencer_public_key,
                     &current_state_root,
                     pre_state.clone(),
@@ -658,7 +688,18 @@ where
 
                 current_state_root = result.state_root;
                 state_diff.extend(result.state_diff);
+
+                // Notify fork manager about the block so that the next spec / fork
+                // is transitioned into if criteria is met.
+                if let Err(e) = fork_manager.register_block(l2_height) {
+                    panic!("Fork transition failed {}", e);
+                }
+                l2_height += 1;
+
+                // Update current spec for the next iteration
+                current_spec = fork_manager.active_fork();
             }
+            assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
         (current_state_root, state_diff)

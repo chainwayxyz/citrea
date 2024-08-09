@@ -11,6 +11,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
+use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
@@ -67,6 +68,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -107,6 +109,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -148,6 +151,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [100u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -224,6 +228,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [0u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -295,6 +300,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [0u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -334,6 +340,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner) {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [2u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,

@@ -31,6 +31,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 citrea-evm = { path = "../evm" }
+citrea-primitives = { path = "../primitives" }
 soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" }
 
 [dev-dependencies]

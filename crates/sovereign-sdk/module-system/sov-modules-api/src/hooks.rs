@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 use thiserror::Error;
 
 use crate::transaction::Transaction;
@@ -123,6 +124,8 @@ pub struct HookSoftConfirmationInfo {
     pub da_slot_txs_commitment: [u8; 32],
     /// Previous batch's pre state root
     pub pre_state_root: Vec<u8>,
+    /// The current spec
+    pub current_spec: SpecId,
     /// Public key of signer
     pub pub_key: Vec<u8>,
     /// Deposit data from the L1 chain
@@ -137,12 +140,14 @@ impl HookSoftConfirmationInfo {
     pub fn new(
         signed_soft_confirmation: SignedSoftConfirmationBatch,
         pre_state_root: Vec<u8>,
+        current_spec: SpecId,
     ) -> Self {
         HookSoftConfirmationInfo {
             da_slot_height: signed_soft_confirmation.da_slot_height(),
             da_slot_hash: signed_soft_confirmation.da_slot_hash(),
             da_slot_txs_commitment: signed_soft_confirmation.da_slot_txs_commitment(),
             pre_state_root: pre_state_root.to_vec(),
+            current_spec,
             pub_key: signed_soft_confirmation.sequencer_pub_key().to_vec(),
             deposit_data: signed_soft_confirmation.deposit_data(),
             l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),

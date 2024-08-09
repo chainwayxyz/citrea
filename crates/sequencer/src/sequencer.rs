@@ -9,6 +9,7 @@ use std::vec;
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
@@ -92,6 +93,7 @@ where
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
+    fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
@@ -126,6 +128,7 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         rpc_config: RpcConfig,
+        fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
@@ -184,6 +187,7 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
+            fork_manager,
             soft_confirmation_tx,
         })
     }
@@ -267,6 +271,7 @@ where
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         match self.stf.begin_soft_batch(
+            self.fork_manager.active_fork(),
             pub_key,
             &self.state_root,
             prestate.clone(),
@@ -303,9 +308,11 @@ where
 
                             let txs = vec![signed_blob.clone()];
 
-                            let (batch_workspace, _) = self
-                                .stf
-                                .apply_soft_batch_txs(txs.clone(), working_set_to_discard);
+                            let (batch_workspace, _) = self.stf.apply_soft_batch_txs(
+                                self.fork_manager.active_fork(),
+                                txs.clone(),
+                                working_set_to_discard,
+                            );
 
                             working_set_to_discard = batch_workspace;
 
@@ -387,6 +394,7 @@ where
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
+            current_spec: self.fork_manager.active_fork(),
             pub_key,
             l1_fee_rate,
             timestamp,
@@ -428,6 +436,7 @@ where
 
         // Execute the selected transactions
         match self.stf.begin_soft_batch(
+            self.fork_manager.active_fork(),
             &pub_key,
             &self.state_root,
             prestate.clone(),
@@ -443,8 +452,11 @@ where
                 let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
 
-                let (batch_workspace, tx_receipts) =
-                    self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+                let (batch_workspace, tx_receipts) = self.stf.apply_soft_batch_txs(
+                    self.fork_manager.active_fork(),
+                    txs.clone(),
+                    batch_workspace,
+                );
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -461,6 +473,7 @@ where
                     self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
                 let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                    self.fork_manager.active_fork(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_batch,
                     tx_receipts,
@@ -469,6 +482,7 @@ where
 
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_batch(
+                    self.fork_manager.active_fork(),
                     batch_receipt,
                     checkpoint,
                     prestate,
@@ -533,6 +547,10 @@ where
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+
+                // Register this new block with the fork manager to active
+                // the new fork on the next block
+                self.fork_manager.register_block(l2_height)?;
 
                 // Only errors when there are no receivers
                 let _ = self.soft_confirmation_tx.send(l2_height);
