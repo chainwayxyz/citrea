@@ -3,6 +3,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{Event, SoftBatchReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
@@ -120,7 +121,7 @@ pub trait SharedLedgerOps {
     fn get_soft_batch_by_number(&self, number: &BatchNumber) -> Result<Option<StoredSoftBatch>>;
 
     /// Gets the currently active fork
-    fn get_active_fork(&self) -> Result<u32, anyhow::Error>;
+    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error>;
 }
 
 /// Node ledger operations

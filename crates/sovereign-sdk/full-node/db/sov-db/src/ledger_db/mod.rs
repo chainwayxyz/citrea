@@ -461,7 +461,7 @@ impl SharedLedgerOps for LedgerDB {
 
     /// Gets the currently active fork
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_active_fork(&self) -> Result<u32, anyhow::Error> {
+    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error> {
         self.db
             .get::<ActiveFork>(&())
             .map(|fork| fork.unwrap_or_default())

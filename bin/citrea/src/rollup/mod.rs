@@ -91,7 +91,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
+        let active_spec: SpecId = ledger_db.get_active_fork()?;
 
         let mut fork_manager =
             ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
@@ -186,7 +186,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
+        let active_spec: SpecId = ledger_db.get_active_fork()?;
         let mut fork_manager =
             ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
@@ -285,7 +285,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?.try_into()?;
+        let active_spec: SpecId = ledger_db.get_active_fork()?;
         let mut fork_manager =
             ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
