@@ -105,6 +105,7 @@ pub trait ProverService<Vm: Zkvm> {
     async fn prove(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
+        l1_block_height: u64,
     ) -> Result<ProofProcessingStatus, ProverServiceError>;
 
     /// Sends the ZK proof to the DA.
@@ -113,4 +114,13 @@ pub trait ProverService<Vm: Zkvm> {
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
         da_service: &Arc<Self::DaService>,
     ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
+
+    /// Recovers proving state after restart.
+    async fn recover_proving_and_send_to_da(
+        &self,
+        stark_id: Option<String>,
+        snark_id: Option<String>,
+        da_service: &Self::DaService,
+        l1_block_height: u64,
+    ) -> Result<Option<(<Self::DaService as DaService>::TransactionId, Proof)>, anyhow::Error>;
 }

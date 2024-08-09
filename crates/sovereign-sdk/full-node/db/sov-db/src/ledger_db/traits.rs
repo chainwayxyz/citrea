@@ -83,6 +83,9 @@ pub trait SharedLedgerOps {
     /// Sets l1 height of l1 hash
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> Result<()>;
 
+    /// Gets l1 height of l1 hash
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
+
     /// Saves a soft confirmation status for a given L1 height
     fn put_soft_confirmation_status(
         &self,
@@ -141,13 +144,10 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
-
-    /// Gets l1 height of l1 hash
-    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 }
 
 /// Prover ledger operations
-pub trait ProverLedgerOps: SharedLedgerOps {
+pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get the state root by L2 height
     fn get_l2_state_root<StateRoot: DeserializeOwned>(
         &self,
@@ -175,6 +175,28 @@ pub trait ProverLedgerOps: SharedLedgerOps {
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
+
+    /// Returns the uuid of the bonsai session at l1 height, if not completed
+    /// Only returns a value if proof submission is not complete
+    fn get_bonsai_session_by_l1_height(&self, l1_height: u64) -> Result<Option<String>>;
+
+    /// Returns the uuid of the bonsai snark session at l1 height, if not completed
+    /// Only returns a value if proof submission is not complete
+    fn get_bonsai_snark_session_by_l1_height(&self, l1_height: u64) -> Result<Option<String>>;
+
+    /// Sets the uuid of the latest bonsai session
+    fn set_bonsai_session_by_l1_height(
+        &self,
+        l1_height: u64,
+        session_id: &String,
+    ) -> anyhow::Result<()>;
+
+    /// Sets the uuid of the latest bonsai snark session
+    fn set_bonsai_snark_session_by_l1_height(
+        &self,
+        l1_height: u64,
+        session_id: &String,
+    ) -> anyhow::Result<()>;
 }
 
 /// Sequencer ledger operations

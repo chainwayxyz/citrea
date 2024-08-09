@@ -13,11 +13,12 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
-    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    BatchByHash, BatchByNumber, BonsaiSessionByL1Height, BonsaiSnarkSessionByL1Height,
+    CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot, L2RangeByL1Height,
+    L2Witness, LastSequencerCommitmentSent, LastStateDiff, PendingSequencerCommitmentL2Range,
+    ProofBySlotNumber, ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftBatchByHash,
+    SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -368,6 +369,12 @@ impl SharedLedgerOps for LedgerDB {
         self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
     }
 
+    /// Gets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
+        self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+
     /// Saves a soft confirmation status for a given L1 height
     #[instrument(level = "trace", skip(self), err, ret)]
     fn put_soft_confirmation_status(
@@ -482,6 +489,43 @@ impl ProverLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<ProverLastScannedSlot>(&())
+    }
+
+    /// Returns the uuid of the a bonsai session at l1 height, if not completed
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_bonsai_session_by_l1_height(&self, l1_height: u64) -> anyhow::Result<Option<String>> {
+        self.db.get::<BonsaiSessionByL1Height>(&l1_height)
+    }
+
+    /// Returns the uuid of a bonsai snark session at l1 height, if not completed
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_bonsai_snark_session_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<String>> {
+        self.db.get::<BonsaiSnarkSessionByL1Height>(&l1_height)
+    }
+
+    /// Sets the uuid of the latest bonsai session
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_bonsai_session_by_l1_height(
+        &self,
+        l1_height: u64,
+        session_id: &String,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<BonsaiSessionByL1Height>(&l1_height, session_id)
+    }
+
+    /// Sets the uuid of the latest bonsai snark session
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_bonsai_snark_session_by_l1_height(
+        &self,
+        l1_height: u64,
+        session_id: &String,
+    ) -> anyhow::Result<()> {
+        self.db
+            .put::<BonsaiSnarkSessionByL1Height>(&l1_height, session_id)
     }
 
     /// Set the last scanned slot by the prover
@@ -786,11 +830,5 @@ impl NodeLedgerOps for LedgerDB {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
         self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
-    }
-
-    /// Gets l1 height of l1 hash
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
-        self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
     }
 }

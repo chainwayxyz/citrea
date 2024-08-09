@@ -9,7 +9,7 @@ use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::zk::{Matches, StateTransitionData, ValidityCondition};
+use sov_rollup_interface::zk::{Matches, Proof, StateTransitionData, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -164,7 +164,11 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         MockZkGuest {}
     }
 
-    fn run(&mut self, _with_proof: bool) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
+    fn run(
+        &mut self,
+        _with_proof: bool,
+        _l1_block_height: u64,
+    ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
         self.worker_thread_notifier.wait();
         let data = self.committed_data.pop_front().unwrap_or_default();
         Ok(sov_rollup_interface::zk::Proof::PublicInput(data))
@@ -195,6 +199,23 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                 panic!("Mock DA doesn't generate real proofs")
             }
         }
+    }
+
+    fn wait_for_receipt(&self, _session: &String) -> Result<Vec<u8>, anyhow::Error> {
+        unimplemented!()
+    }
+
+    fn create_new_snark_session(&self, _session: &String) -> Result<String, anyhow::Error> {
+        unimplemented!()
+    }
+
+    fn wait_for_stark_to_snark_conversion(
+        &self,
+        _snark_session: &String,
+        _receipt_buf: Vec<u8>,
+        _l1_block_height: u64,
+    ) -> Result<Proof, anyhow::Error> {
+        unimplemented!()
     }
 }
 
