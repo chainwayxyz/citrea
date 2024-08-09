@@ -152,7 +152,7 @@ alloy-primitives = { version = "0.7.6", default-features = false }
 alloy-sol-types = { version = "0.7.6", default-features = false, features = ["json"] }
 alloy = { git = "https://github.com/alloy-rs/alloy", rev = "77c1240", default-features = false }
 
-ed25519-dalek = { version = "2", default-features = false, features = ["serde"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
 secp256k1 = { version = "0.28.2", default-features = false, features = ["global-context", "recovery"] }
 
 tower-http = { version = "0.4.0", features = ["full"] }
