@@ -49,7 +49,7 @@ contract Bridge is Ownable2StepUpgradeable {
     mapping(uint256 => bytes32) public operatorAddresses;
     bytes32 public kickoff2AddressRoot;
     
-    event Deposit(bytes32 wtxId, address recipient, uint256 timestamp);
+    event Deposit(bytes32 wtxId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
     event OperatorUpdated(address oldOperator, address newOperator);
@@ -110,29 +110,22 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
-    /// @param tp The deposit parameters that contains the info of the deposit transaction on Bitcoin
     function deposit(
-        TransactionParams calldata commitTp, 
         TransactionParams calldata revealTp 
     ) external onlyOperator {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        bytes32 wtxId = validateAndCheckInclusion(commitTp);
+        bytes32 wtxId = validateAndCheckInclusion(revealTp);
         require(!spentWtxIds[wtxId], "wtxId already spent");
         spentWtxIds[wtxId] = true;
-        validateAndCheckInclusion(revealTp);
-
-        bytes32 commitTxId = ValidateSPV.calculateTxId(commitTp.version, commitTp.vin, commitTp.vout, commitTp.locktime);
-        bytes memory input0 = BTCUtils.extractInputAtIndex(revealTp.vin, 0);
-        require(BTCUtils.extractInputTxIdLE(input0) == commitTxId, "Reveal tx's input does not match commit tx");
         
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(commitTp.witness, 0);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(revealTp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
-        require(_nItems == requiredSigsCount + 2, "Invalid witness items"); // verifier sigs + deposit script + witness script
+        require(_nItems == 2 + requiredSigsCount, "Invalid witness items"); // musig + deposit script + witness script TODO: make requiredSigsCount = 1
 
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, requiredSigsCount);
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, requiredSigsCount); // skip musig TODO: make requiredSigsCount = 1
         uint256 _len = depositScript.length;
         bytes memory _depositScript = script.slice(0, _len);
         require(isBytesEqual(_depositScript, depositScript), "Invalid deposit script");
@@ -143,7 +136,7 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 kickoffRoot = extractKickoffRoot(script);
         kickoffRoots.push(kickoffRoot);
 
-        emit Deposit(wtxId, recipient, block.timestamp); // TODO: Emit deposit index
+        emit Deposit(wtxId, recipient, block.timestamp, kickoffRoots.length - 1);
 
         (bool success, ) = recipient.call{value: DEPOSIT_AMOUNT}("");
         require(success, "Transfer failed");
@@ -156,7 +149,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(msg.value == DEPOSIT_AMOUNT, "Invalid withdraw amount");
         UTXO memory utxo = UTXO({
             txId: txId,
-         outputId: outputId
+            outputId: outputId
         });
         uint256 index = withdrawalUTXOs.length;
         withdrawalUTXOs.push(utxo);
@@ -193,27 +186,32 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
-    function declareWithdrawFiller(TransactionParams calldata tp, uint256 inputIndex, uint256 outputIndex, uint256 withdrawId) external {
-        validateAndCheckInclusion(tp);
-        require(bytesToBytes32(BTCUtils.extractInputAtIndex(tp.vin, inputIndex)) == withdrawalUTXOs[withdrawId].txId);
-        bytes memory _output = BTCUtils.extractOutputAtIndex(tp.vout, outputIndex);//do we have to take output index is there a constant val for it
+    function declareWithdrawFiller(TransactionParams calldata withdrawTp, uint256 inputIndex, uint256 outputIndex, uint256 withdrawId) external {
+        validateAndCheckInclusion(withdrawTp);
+        bytes memory input = BTCUtils.extractInputAtIndex(withdrawTp.vin, inputIndex);
+        bytes32 txId = BTCUtils.extractInputTxIdLE(input);
+        uint32 index = uint32(BTCUtils.extractTxIndexLE(input));
+        UTXO memory utxo = withdrawalUTXOs[withdrawId];
+        require(utxo.txId == txId && utxo.outputId == index, "not matching UTXO");
+        
+        bytes memory _output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, outputIndex);
         uint256 withdrawFillerId = uint256(bytesToBytes32(BTCUtils.extractOpReturnData(_output)));
         withdrawFillers[withdrawId] = operatorAddresses[withdrawFillerId];
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
     }
 
-    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId, bytes32 kickoff2Address, bytes memory proofToKickoff2Address) external {
-        validateAndCheckInclusion(tp);
-        require(ValidateSPV.prove(kickoff2Address, kickoff2AddressRoot, proofToKickoff2Address, operatorId), "Invalid kickoff2Address proof");
-        bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(tp.vout, 0));
+    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata kickoff2Tp, uint256 inputIndex, uint256 depositId, uint256 operatorId, bytes32 kickoff2Address, bytes memory proofToKickoff2Address) external {
+        validateAndCheckInclusion(kickoff2Tp);
+        require(ValidateSPV.prove(kickoff2Address, kickoff2AddressRoot, proofToKickoff2Address, operatorId), "Invalid kickoff2Address proof"); // TODO: change to the proper merkle verifier
+        bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(kickoff2Tp.vout, 0));
         require(bytesToBytes32(scriptPubkey) == kickoff2Address, "Invalid kickoff2Address");
 
-        bytes memory input = BTCUtils.extractInputAtIndex(tp.vin, inputIndex);
+        bytes memory input = BTCUtils.extractInputAtIndex(kickoff2Tp.vin, inputIndex);
         bytes32 txId = BTCUtils.extractInputTxIdLE(input);
         bytes4 index = BTCUtils.extractTxIndexLE(input);
         bytes32 kickoffHash = keccak256(abi.encodePacked(txId, index));
         bytes32 root = kickoffRoots[depositId];
-        require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof");
+        require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof"); // TODO: change to the proper merkle verifier
         if(withdrawFillers[depositId] == bytes32(0) || withdrawFillers[depositId] != operatorAddresses[operatorId]){
             isOperatorMalicious[operatorId] = true;
         }
@@ -257,12 +255,7 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     // TODO: Consider not validating witness for non-deposit functions
-    function validateAndCheckInclusion(TransactionParams calldata tp) internal view {
-        bytes32 wtxId = validate(tp);
-        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
-    }
-
-    function validate(TransactionParams calldata tp) internal view returns (bytes32) {
+    function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32) {
         bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
@@ -271,6 +264,8 @@ contract Bridge is Ownable2StepUpgradeable {
         require(_nIns == 1, "Only one input allowed");
         // Number of inputs == number of witnesses
         require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
+
+        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
         return wtxId;
     }
 
@@ -281,21 +276,10 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     function extractKickoffRoot(bytes memory _script) internal view returns (bytes32) {
-        uint256 offset = depositScript.length + 20;
-        uint256 kickoffsLength = _script.length - offset - scriptSuffix.length;
-        require(kickoffsLength % 36 == 0, "Invalid kickoff roots length");
-        uint256 nKickoffs = kickoffsLength / 36;
-        bytes32[] memory kickoffHashes = new bytes32[](nKickoffs);
-        for (uint256 i = 0; i < nKickoffs; i++) {
-            kickoffHashes[i] = keccak256(abi.encodePacked(_script.slice(offset + i * 36, 36)));
-        }
-        bytes32 kickoffRoot = constructMerkle(kickoffHashes);
+        uint256 offset = depositScript.length + 20; // skip depositScript + EVM address
+        bytes32 kickoffRoot = bytesToBytes32(_script.slice(offset, 32));
         return kickoffRoot;
     }
-
-    function constructMerkle(bytes32[] memory leaves) internal pure returns (bytes32) {
-
-    } 
 
     function bytesToBytes32(bytes memory source) internal pure returns (bytes32 result) {
         require(source.length > 0 && source.length <= 32, "Invalid source length");
