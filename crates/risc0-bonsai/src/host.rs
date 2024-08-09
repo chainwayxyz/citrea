@@ -12,11 +12,9 @@ use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
     Receipt,
 };
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 /// Requests to bonsai client. Each variant represents its own method.
 #[derive(Clone)]
@@ -287,7 +285,7 @@ impl BonsaiClient {
 #[derive(Clone)]
 pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
-    env: Vec<u32>,
+    env: Vec<u8>,
     image_id: Digest,
     client: Option<BonsaiClient>,
     last_input_id: Option<String>,
@@ -325,28 +323,13 @@ impl<'a> Risc0BonsaiHost<'a> {
         }
     }
 
-    fn add_hint_bonsai<T: BorshSerialize>(&mut self, item: T) {
-        // For running in "prove" mode.
-
-        // Prepare input data and upload it.
-        let client = self.client.as_ref().unwrap();
-
-        let mut input_data = vec![];
-        let mut buf = borsh::to_vec(&item).unwrap();
-        // append [0..] alignment
-        let rem = buf.len() % 4;
-        if rem > 0 {
-            buf.extend(vec![0; 4 - rem]);
-        }
-        let buf_u32: &[u32] = bytemuck::cast_slice(&buf);
-        // write len(u64) in LE
-        let len = buf_u32.len() as u64;
-        input_data.extend(len.to_le_bytes());
-        // write buf
-        input_data.extend(buf);
-
+    fn upload_to_bonsai(&mut self, buf: Vec<u8>) {
         // handle error
-        let input_id = client.upload_input(input_data);
+        let input_id = self
+            .client
+            .as_ref()
+            .expect("Bonsai client is not initialized")
+            .upload_input(buf);
         tracing::info!("Uploaded input with id: {}", input_id);
         self.last_input_id = Some(input_id);
     }
@@ -358,23 +341,14 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     fn add_hint<T: BorshSerialize>(&mut self, item: T) {
         // For running in "execute" mode.
 
-        let mut buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
-        // append [0..] alignment to cast &[u8] to &[u32]
-        let rem = buf.len() % 4;
-        if rem > 0 {
-            buf.extend(vec![0; 4 - rem]);
-        }
-        let buf: &[u32] = bytemuck::cast_slice(&buf);
-        // write len(u64) in LE
-        let len = buf.len() as u64;
-        let len_buf = &len.to_le_bytes()[..];
-        let len_buf: &[u32] = bytemuck::cast_slice(len_buf);
-        self.env.extend_from_slice(len_buf);
+        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        info!("Added hint to guest with size {}", buf.len());
+
         // write buf
-        self.env.extend_from_slice(buf);
+        self.env.extend_from_slice(&buf);
 
         if self.client.is_some() {
-            self.add_hint_bonsai(item)
+            self.upload_to_bonsai(buf);
         }
     }
 
@@ -440,6 +414,15 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .expect("API error, missing receipt on completed session");
 
                     tracing::info!("Receipt URL: {}", receipt_url);
+                    if let Some(stats) = res.stats {
+                        tracing::info!(
+                            "User cycles: {} - Total cycles: {} - Segments: {}",
+                            stats.cycles,
+                            stats.total_cycles,
+                            stats.segments,
+                        );
+                    }
+
                     let receipt_buf = client.download(receipt_url);
 
                     let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
@@ -537,10 +520,7 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         unimplemented!();
     }
 
-    fn verify_and_extract_output<
-        Da: sov_rollup_interface::da::DaSpec,
-        Root: Serialize + DeserializeOwned,
-    >(
+    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
@@ -549,6 +529,8 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
-        Ok(receipt.journal.decode()?)
+        Ok(BorshDeserialize::deserialize(
+            &mut receipt.journal.bytes.as_slice(),
+        )?)
     }
 }

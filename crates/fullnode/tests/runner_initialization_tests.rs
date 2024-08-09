@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use citrea_fullnode::CitreaFullnode;
 use citrea_primitives::fork::ForkManager;
 use sov_db::ledger_db::LedgerDB;
@@ -116,7 +118,7 @@ fn initialize_runner(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
-        da_service,
+        Arc::new(da_service),
         ledger_db,
         stf,
         storage_manager,

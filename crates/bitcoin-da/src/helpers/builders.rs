@@ -162,7 +162,7 @@ fn build_commit_transaction(
         tx_id: tx.id,
         vout: 0,
         script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-        address: "ANY".into(),
+        address: None,
         amount: tx.tx.output[0].value.to_sat(),
         confirmations: 0,
         spendable: true,
@@ -592,8 +592,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 1_000_000,
                 confirmations: 100,
@@ -606,8 +610,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 100_000,
                 confirmations: 100,
@@ -620,8 +628,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 10_000,
                 confirmations: 100,
@@ -827,7 +839,7 @@ mod tests {
                 tx_id: prev_tx_id,
                 vout: i as u32,
                 script_pubkey: o.script_pubkey.to_hex_string(),
-                address: "ANY".into(),
+                address: None,
                 confirmations: 0,
                 amount: o.value.to_sat(),
                 spendable: true,
@@ -872,8 +884,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 152,
                 confirmations: 100,

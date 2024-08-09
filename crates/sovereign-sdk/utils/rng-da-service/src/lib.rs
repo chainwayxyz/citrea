@@ -98,6 +98,7 @@ impl DaService for RngDaService {
     type HeaderStream = RngHeaderStream;
     type TransactionId = RngHash;
     type Error = anyhow::Error;
+    type BlockHash = [u8; 32];
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let num_bytes = height.to_le_bytes();
@@ -135,7 +136,10 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+    async fn get_block_by_hash(
+        &self,
+        _hash: Self::BlockHash,
+    ) -> Result<Self::FilteredBlock, Self::Error> {
         unimplemented!()
     }
 

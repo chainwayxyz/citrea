@@ -11,6 +11,7 @@ use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -49,7 +50,7 @@ where
 {
     start_l2_height: u64,
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
@@ -72,7 +73,7 @@ where
 
 impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
 where
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
@@ -95,7 +96,7 @@ where
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
-        da_service: Da,
+        da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
@@ -176,11 +177,17 @@ where
 
         let max_connections = self.rpc_config.max_connections;
         let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
+        let max_request_body_size = self.rpc_config.max_request_body_size;
+        let max_response_body_size = self.rpc_config.max_response_body_size;
+        let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .build([listen_address].as_ref())
                 .await;
 
@@ -654,7 +661,7 @@ where
 
 async fn l1_sync<Da>(
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) where
