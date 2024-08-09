@@ -112,7 +112,9 @@ where
             // Commit changes after pre_dispatch_tx_hook
             batch_workspace = batch_workspace.checkpoint().to_revertable();
 
-            let tx_result = self.runtime.dispatch_call(msg, &mut batch_workspace, &ctx);
+            let tx_result =
+                self.runtime
+                    .dispatch_call(msg, &mut batch_workspace, current_spec, &ctx);
 
             let events = batch_workspace.take_events();
             let tx_effect = match tx_result {

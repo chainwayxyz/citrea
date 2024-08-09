@@ -67,6 +67,7 @@ impl<'a> StructDef<'a> {
                     &self,
                     decodable: Self::Decodable,
                     working_set: &mut ::sov_modules_api::WorkingSet<Self::Context>,
+                    current_spec: ::sov_rollup_interface::spec::SpecId,
                     context: &Self::Context,
                 ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::Error> {
 
