@@ -397,7 +397,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
-    fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
+    fn run(&mut self, with_proof: bool, l1_block_height: u64) -> Result<Proof, anyhow::Error> {
         if !with_proof {
             let env =
                 sov_risc0_adapter::host::add_benchmarking_callbacks(ExecutorEnvBuilder::default())
@@ -433,7 +433,8 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let session = client.create_session(hex::encode(self.image_id), input_id, vec![]);
 
             // Save session id to the ledger
-            self.ledger_db.set_latest_bonsai_session(&session.uuid)?;
+            self.ledger_db
+                .set_bonsai_session_by_l1_height(l1_block_height, &session.uuid)?;
             tracing::info!("Session created: {}", session.uuid);
 
             let receipt = self.wait_for_receipt(&session.uuid)?;
@@ -444,7 +445,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             tracing::info!("SNARK session created: {}", snark_session.uuid);
 
-            self.wait_for_stark_to_snark_conversion(&snark_session.uuid, receipt)
+            self.wait_for_stark_to_snark_conversion(&snark_session.uuid, receipt, l1_block_height)
         }
     }
 
@@ -481,10 +482,11 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         &self,
         snark_session: &String,
         receipt_buf: Vec<u8>,
+        l1_block_height: u64,
     ) -> Result<Proof, anyhow::Error> {
         // Save snark session id to the ledger
         self.ledger_db
-            .set_latest_bonsai_snark_session(&snark_session)?;
+            .set_bonsai_snark_session_by_l1_height(l1_block_height, &snark_session)?;
         // let session = SessionId::new(session.clone());
         let snark_session = SnarkId::new(snark_session.clone());
         let client = self.client.as_ref().unwrap();

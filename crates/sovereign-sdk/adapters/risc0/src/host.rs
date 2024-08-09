@@ -78,7 +78,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         Risc0Guest::with_hints(std::mem::take(&mut self.env))
     }
 
-    fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
+    fn run(&mut self, with_proof: bool, _l1_block_height: u64) -> Result<Proof, anyhow::Error> {
         if with_proof {
             let receipt = self.run()?;
             let data = bincode::serialize(&receipt)?;
@@ -118,6 +118,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         &self,
         _snark_session: &String,
         _receipt_buf: Vec<u8>,
+        _l1_block_height: u64,
     ) -> Result<Proof, anyhow::Error> {
         unimplemented!()
     }

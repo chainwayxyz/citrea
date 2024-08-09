@@ -219,37 +219,38 @@ where
         });
     }
 
-    async fn recover_ongoing_bonsai_sessions(
+    async fn check_and_recover_ongoing_bonsai_sessions(
         &self,
         pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
-    ) -> Result<(), anyhow::Error> {
+        l1_height: u64,
+    ) -> Result<bool, anyhow::Error> {
         let prover_service = self
             .prover_service
             .as_ref()
             .expect("Prover service should be present");
 
-        let stark_session = self.ledger_db.get_latest_bonsai_session()?;
-        let snark_session = self.ledger_db.get_latest_bonsai_snark_session()?;
-        let proof_l1_hash = self.ledger_db.get_latest_proof_l1_hash()?;
+        let stark_session = self.ledger_db.get_bonsai_session_by_l1_height(l1_height)?;
+        let snark_session = self
+            .ledger_db
+            .get_bonsai_snark_session_by_l1_height(l1_height)?;
 
         let Some((tx_id, proof)) = prover_service
-            .recover_proving_and_send_to_da(stark_session, snark_session, &self.da_service)
+            .recover_proving_and_send_to_da(
+                stark_session,
+                snark_session,
+                &self.da_service,
+                l1_height,
+            )
             .await?
         else {
             // No ongoing session exists
-            return Ok(());
+            return Ok(false);
         };
-
-        // extract proof and store here
-        let l1_height = self
-            .ledger_db
-            .get_l1_height_of_l1_hash(proof_l1_hash.expect("L1 hash should exist"))?
-            .expect("L1 height should exist");
 
         self.extract_and_store_proof(tx_id, proof, pg_client, l1_height)
             .await?;
 
-        Ok(())
+        Ok(true)
     }
 
     /// Runs the rollup.
@@ -500,13 +501,10 @@ where
                 l1_block.header().clone();
 
             let hash = da_block_header_of_commitments.hash();
-            if self.ledger_db.get_latest_proof_l1_hash()? == Some(hash.clone().into()) {
-                warn!(
-                    "Detected ongoing proving session for l1 block {}",
-                    l1_height
-                );
-                self.recover_ongoing_bonsai_sessions(pg_client).await?;
-            } else {
+            let bonsai_session_exists = self
+                .check_and_recover_ongoing_bonsai_sessions(pg_client, l1_height)
+                .await?;
+            if !bonsai_session_exists {
                 // There is no ongoing bonsai session to recover
                 let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
                     self.create_state_transition_data(
@@ -541,10 +539,6 @@ where
             }
 
             pending_l1_blocks.pop_front();
-
-            self.ledger_db.clear_latest_bonsai_session()?;
-            self.ledger_db.clear_latest_bonsai_snark_session()?;
-            self.ledger_db.clear_latest_proof_l1_hash()?;
         }
         Ok(())
     }
@@ -571,8 +565,6 @@ where
 
         // Skip submission until l1 height
         if l1_height >= skip_submission_until_l1 && should_prove {
-            self.ledger_db
-                .set_latest_proof_l1_hash(hash.clone().into())?;
             self.generate_and_submit_proof(transition_data, pg_client, l1_height, hash)
                 .await?;
         } else {
@@ -782,7 +774,7 @@ where
 
         prover_service.submit_witness(transition_data).await;
 
-        prover_service.prove(hash.clone()).await?;
+        prover_service.prove(hash.clone(), l1_height).await?;
 
         let (tx_id, proof) = match prover_service
             .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)

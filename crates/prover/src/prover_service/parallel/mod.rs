@@ -161,6 +161,7 @@ where
     async fn prove(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+        l1_block_height: u64,
     ) -> Result<ProofProcessingStatus, ProverServiceError> {
         let vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
@@ -168,6 +169,7 @@ where
         tracing::info!("Starting proving for da  block: {:?},", block_header_hash,);
         self.prover_state.start_proving(
             block_header_hash,
+            l1_block_height,
             self.prover_config.clone(),
             vm,
             zk_storage,
@@ -213,6 +215,7 @@ where
         stark_id: Option<String>,
         snark_id: Option<String>,
         da_service: &Self::DaService,
+        l1_block_height: u64,
     ) -> Result<Option<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
         let vm = self.vm.clone();
 
@@ -228,7 +231,8 @@ where
                 // Get receipt from stark
                 let receipt_buf = vm.wait_for_receipt(&stark_id.clone())?;
                 // wait for the stark to snark conversion to complete
-                let proof = vm.wait_for_stark_to_snark_conversion(&snark_id, receipt_buf)?;
+                let proof =
+                    vm.wait_for_stark_to_snark_conversion(&snark_id, receipt_buf, l1_block_height)?;
                 // Send to da
                 let da_data = DaData::ZKProof(proof.clone());
                 let tx_id = da_service
@@ -251,11 +255,14 @@ where
                         // Create new snark session
                         let snark_uuid = vm.create_new_snark_session(&stark_id)?;
                         // wait for the stark to snark conversion to complete
-                        let proof =
-                            vm.wait_for_stark_to_snark_conversion(&snark_uuid, receipt_buf)?;
+                        let proof = vm.wait_for_stark_to_snark_conversion(
+                            &snark_uuid,
+                            receipt_buf,
+                            l1_block_height,
+                        )?;
 
-                            let da_data = DaData::ZKProof(proof.clone());
-                            // Send to da
+                        let da_data = DaData::ZKProof(proof.clone());
+                        // Send to da
                         let tx_id = da_service
                             .send_transaction(
                                 borsh::to_vec(&da_data)
