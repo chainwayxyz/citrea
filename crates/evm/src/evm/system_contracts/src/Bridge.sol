@@ -47,7 +47,7 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes32[] public kickoffRoots;
     mapping(uint256 => bytes32) public withdrawFillers;
     mapping(uint256 => bytes32) public operatorAddresses;
-    mapping(uint256 => bytes32) public kickoff2Addresses;
+    bytes32 public kickoff2AddressRoot;
     
     event Deposit(bytes32 wtxId, address recipient, uint256 timestamp);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
@@ -55,6 +55,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event OperatorUpdated(address oldOperator, address newOperator);
     event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
     event MaliciousOperatorMarked(uint256 operatorId);
+    event Kickoff2AddressRootSet(bytes32 kickoff2AddressRoot);
 
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
@@ -101,6 +102,11 @@ contract Bridge is Ownable2StepUpgradeable {
         requiredSigsCount = _requiredSigsCount;
 
         emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
+    }
+
+    function setKickoff2AddressRoot(bytes32 _kickoff2AddressRoot) external onlyOwner {
+        kickoff2AddressRoot = _kickoff2AddressRoot;
+        emit Kickoff2AddressRootSet(_kickoff2AddressRoot);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
@@ -196,11 +202,11 @@ contract Bridge is Ownable2StepUpgradeable {
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
     }
 
-    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId) external {
+    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata tp, uint256 inputIndex, uint256 depositId, uint256 operatorId, bytes32 kickoff2Address, bytes memory proofToKickoff2Address) external {
         validateAndCheckInclusion(tp);
-
+        require(ValidateSPV.prove(kickoff2Address, kickoff2AddressRoot, proofToKickoff2Address, operatorId), "Invalid kickoff2Address proof");
         bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(tp.vout, 0));
-        require(bytesToBytes32(scriptPubkey) == kickoff2Addresses[operatorId], "Invalid kickoff2Address");
+        require(bytesToBytes32(scriptPubkey) == kickoff2Address, "Invalid kickoff2Address");
 
         bytes memory input = BTCUtils.extractInputAtIndex(tp.vin, inputIndex);
         bytes32 txId = BTCUtils.extractInputTxIdLE(input);
@@ -208,7 +214,6 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 kickoffHash = keccak256(abi.encodePacked(txId, index));
         bytes32 root = kickoffRoots[depositId];
         require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof");
-
         if(withdrawFillers[depositId] == bytes32(0) || withdrawFillers[depositId] != operatorAddresses[operatorId]){
             isOperatorMalicious[operatorId] = true;
         }
@@ -289,7 +294,7 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     function constructMerkle(bytes32[] memory leaves) internal pure returns (bytes32) {
-        
+
     } 
 
     function bytesToBytes32(bytes memory source) internal pure returns (bytes32 result) {
