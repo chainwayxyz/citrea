@@ -31,7 +31,7 @@ bitcoin = { workspace = true }
 brotli = { workspace = true }
 futures.workspace = true
 
-bitcoincore-rpc.workspace = true
+bitcoincore-rpc = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -40,4 +40,5 @@ native = [
   "dep:pin-project",
   "dep:tracing",
   "sov-rollup-interface/native",
+  "dep:bitcoincore-rpc",
 ]
