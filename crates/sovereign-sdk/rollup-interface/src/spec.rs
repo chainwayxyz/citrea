@@ -1,5 +1,4 @@
 #![allow(clippy::module_inception)]
-use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 pub use spec::*;

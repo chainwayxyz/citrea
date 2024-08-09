@@ -94,7 +94,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let active_spec: SpecId = ledger_db.get_active_fork()?;
 
         let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
@@ -188,7 +188,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let active_spec: SpecId = ledger_db.get_active_fork()?;
         let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaFullnode::new(
@@ -287,7 +287,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let active_spec: SpecId = ledger_db.get_active_fork()?;
         let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.clone());
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaProver::new(
