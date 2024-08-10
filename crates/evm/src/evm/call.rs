@@ -3,7 +3,7 @@
 use std::cmp::min;
 
 use reth_primitives::{TxKind, B256, U256};
-use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
+// use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
 
@@ -229,12 +229,13 @@ pub(crate) fn prepare_call_env(
 
     let to = if let Some(kind) = to {
         match kind {
-            TxKind::Create => TransactTo::create(),
-            TxKind::Call(address) => TransactTo::call(address),
+            TxKind::Create => TransactTo::Create,
+            TxKind::Call(address) => TransactTo::Call(address),
         }
     } else {
-        TransactTo::create()
+        TransactTo::Create
     };
+
 
     let env = TxEnv {
         gas_price,
@@ -248,13 +249,12 @@ pub(crate) fn prepare_call_env(
         transact_to: to,
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
-        access_list: access_list
-            .map(reth_rpc_types::AccessList::into_flattened)
-            .unwrap_or_default(),
+        access_list: access_list.unwrap_or_default().to_vec(),
         // EIP-4844 related fields
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
+        authorization_list: None,
     };
 
     Ok(env)

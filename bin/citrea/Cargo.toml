@@ -63,7 +63,7 @@ sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-fe
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
 
-alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signer-wallet", "signers"] }
+alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers"] }
 alloy-rlp = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }

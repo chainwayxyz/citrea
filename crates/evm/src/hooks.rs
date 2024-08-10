@@ -198,6 +198,7 @@ where
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
+            requests_root: None,
         };
 
         let block = Block {

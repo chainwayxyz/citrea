@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use alloy_eips::eip1559::BaseFeeParams;
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
@@ -124,7 +125,7 @@ pub struct EvmConfig {
     /// Gas limit for single block
     pub block_gas_limit: u64,
     /// Base fee params.
-    pub base_fee_params: reth_primitives::BaseFeeParams,
+    pub base_fee_params: BaseFeeParams,
     /// Timestamp of the genesis block.
     pub timestamp: u64,
     /// Extra data for the genesis block.
@@ -146,7 +147,7 @@ impl Default for EvmConfig {
             coinbase: Address::ZERO,
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-            base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
+            base_fee_params: BaseFeeParams::ethereum(),
             timestamp: 0,
             extra_data: Bytes::default(),
             nonce: 0,
@@ -242,6 +243,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
+            requests_root: None,
         };
 
         let block = Block {

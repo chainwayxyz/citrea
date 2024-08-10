@@ -25,7 +25,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     tx_hash: TxHash,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
-) -> EthResult<(GethTrace, revm::primitives::State)> {
+) -> EthResult<(GethTrace, revm::primitives::state::EvmState)> {
     let GethDebugTracingOptions {
         config,
         tracer,

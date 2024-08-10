@@ -34,16 +34,23 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install cargo-udeps
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
-	cargo install --version 1.6.9 cargo-binstall
+	cargo install --version 1.7.0 cargo-binstall
 	cargo binstall cargo-risczero
 ifeq ($(shell uname -ms), Darwin x86_64)
 	cargo risczero build-toolchain
 else
-	cargo risczero install --version r0.1.78.0
+	cargo risczero install --version r0.1.79.0
 endif
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
 	cargo install cargo-llvm-cov
+
+lol:
+ifeq ($(shell uname -ms), Darwin x86_64)
+	cargo risczero build-toolchain
+else
+	cargo risczero install --version r0.1.79.0
+endif
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest

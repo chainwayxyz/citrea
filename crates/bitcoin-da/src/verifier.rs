@@ -104,13 +104,13 @@ impl DaVerifier for BitcoinVerifier {
         let mut completeness_tx_hashes = BTreeSet::new();
 
         for (index_completeness, tx) in completeness_proof.iter().enumerate() {
-            let txid = tx.txid().to_byte_array();
+            let txid = tx.compute_txid().to_byte_array();
             // make sure it starts with the correct prefix
             if !txid.starts_with(prefix) {
                 return Err(ValidationError::NonRelevantTxInProof);
             }
 
-            let wtxid = tx.wtxid();
+            let wtxid = tx.compute_wtxid();
             let wtxid = wtxid.as_byte_array();
 
             // make sure completeness txs are ordered same in inclusion proof
@@ -272,7 +272,6 @@ mod tests {
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
-    use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
     use sov_rollup_interface::da::DaVerifier;
 
@@ -325,7 +324,7 @@ mod tests {
                 ])
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             6,
@@ -355,11 +354,11 @@ mod tests {
         let inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
@@ -400,7 +399,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             13,
@@ -431,11 +430,11 @@ mod tests {
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
@@ -480,7 +479,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             13,
@@ -527,11 +526,11 @@ mod tests {
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
@@ -576,7 +575,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             13,
@@ -643,11 +642,11 @@ mod tests {
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };

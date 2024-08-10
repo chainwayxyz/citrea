@@ -1,21 +1,23 @@
 use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
+use alloy_consensus::Eip658Value;
+use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
-use reth_interfaces::provider::ProviderError;
 use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::revm::env::tx_env_with_recovered;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
 };
+use reth_provider::ProviderError;
 use reth_rpc::eth::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
-use reth_rpc_types::other::OtherFields;
+use reth_rpc_types::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{
-    AccessListWithGasUsed, AnyReceiptEnvelope, AnyTransactionReceipt, Log, ReceiptWithBloom,
+    AnyReceiptEnvelope, AnyTransactionReceipt, Log, ReceiptWithBloom,
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -182,6 +184,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .collect(),
             ommers: Default::default(),
             withdrawals: Default::default(),
+            requests: None,
         };
 
         let size = block.length();
@@ -1682,7 +1685,7 @@ pub(crate) fn build_rpc_receipt(
     }
 
     let rpc_receipt = reth_rpc_types::Receipt {
-        status: receipt.receipt.success,
+        status: Eip658Value::Eip658(receipt.receipt.success),
         cumulative_gas_used: receipt.receipt.cumulative_gas_used as u128,
         logs,
     };
@@ -1702,7 +1705,7 @@ pub(crate) fn build_rpc_receipt(
         from: transaction.signer(),
         to: match transaction_kind {
             Create => None,
-            Call(addr) => Some(*addr),
+            Call(addr) => Some(addr),
         },
         gas_used: receipt.gas_used,
         contract_address: match transaction_kind {
@@ -1716,6 +1719,7 @@ pub(crate) fn build_rpc_receipt(
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_gas_price: None,
         blob_gas_used: None,
+        authorization_list: None,
     };
     AnyTransactionReceipt {
         inner: res_receipt,

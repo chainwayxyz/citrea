@@ -154,8 +154,8 @@ where
     fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         self.inspector.step_end(interp, context)
     }
-    fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
-        self.inspector.log(context, log)
+    fn log(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, log: &Log) {
+        self.inspector.log(interp, context, log)
     }
     fn call(
         &mut self,
@@ -411,7 +411,7 @@ fn calc_diff_size<EXT, DB: Database>(
                 let to = account_changes.entry(to).or_default();
                 to.balance_changed = true;
             }
-            JournalEntry::StorageChange { address, key, .. } => {
+            JournalEntry::StorageChanged { address, key, .. } => {
                 let account = account_changes.entry(address).or_default();
                 account.storage_changes.insert(key);
             }
