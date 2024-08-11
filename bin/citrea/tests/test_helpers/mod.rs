@@ -285,7 +285,7 @@ pub async fn wait_for_commitment(
 
         let (sequencer_commitments, _) = extract_da_data(da_service, l1_block.clone());
 
-        if sequencer_commitments.len() > 0 {
+        if !sequencer_commitments.is_empty() {
             return sequencer_commitments;
         }
 
