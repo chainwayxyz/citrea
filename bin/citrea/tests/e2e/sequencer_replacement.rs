@@ -9,6 +9,7 @@ use alloy_rlp::Decodable;
 use citrea_sequencer::SequencerMempoolConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
 
@@ -199,11 +200,6 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
-    let db_test_client =
-        PostgresConnector::new_test_client("sequencer_crash_restore_mempool".to_owned())
-            .await
-            .unwrap();
-
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
     sequencer_config.mempool_conf = SequencerMempoolConfig {
         max_account_slots: 100,
@@ -265,18 +261,31 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     assert_eq!(tx_1.hash, *tx_hash);
     assert_eq!(tx_2.hash, *tx_hash2);
 
-    let txs = db_test_client.get_all_txs().await.unwrap();
+    // crash and reopen and check if the txs are in the mempool
+    seq_task.abort();
+
+    // Copy data into a separate directory since the original sequencer
+    // directory is locked by a LOCK file.
+    // This would enable us to access ledger DB directly.
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_unlocked"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
+    let ledger_db = LedgerDB::with_path(sequencer_db_dir.clone())
+        .expect("Should be able to open after stopping the sequencer");
+    let txs = ledger_db.get_mempool_txs().unwrap();
     assert_eq!(txs.len(), 2);
-    assert_eq!(txs[0].tx_hash, tx_hash.to_vec());
-    assert_eq!(txs[1].tx_hash, tx_hash2.to_vec());
+    assert_eq!(txs[1].0, tx_hash.to_vec());
+    assert_eq!(txs[0].0, tx_hash2.to_vec());
 
     let signed_tx = Signed::<TxEip1559>::try_from(tx_1.clone()).unwrap();
     let envelope = TxEnvelope::Eip1559(signed_tx);
-    let decoded = TxEnvelope::decode(&mut txs[0].tx.as_ref()).unwrap();
+    let decoded = TxEnvelope::decode(&mut txs[1].1.as_ref()).unwrap();
     assert_eq!(envelope, decoded);
 
-    // crash and reopen and check if the txs are in the mempool
-    seq_task.abort();
+    // Remove lock
+    drop(ledger_db);
 
     let _ = copy_dir_recursive(
         &sequencer_db_dir,
@@ -288,13 +297,14 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let config1 = sequencer_config.clone();
     let da_db_dir_cloned = da_db_dir.clone();
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy").to_path_buf();
+    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
-            sequencer_db_dir,
+            sequencer_db_dir_cloned,
             da_db_dir_cloned,
             4,
             true,
@@ -343,11 +353,22 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         .await
         .is_none());
 
-    let txs = db_test_client.get_all_txs().await.unwrap();
+    seq_task.abort();
+
+    // Copy data into a separate directory since the original sequencer
+    // directory is locked by a LOCK file.
+    // This would enable us to access ledger DB directly.
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_unlocked"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
+    let ledger_db = LedgerDB::with_path(sequencer_db_dir.clone())
+        .expect("Should be able to open after stopping the sequencer");
+    let txs = ledger_db.get_mempool_txs().unwrap();
     // should be removed from db
     assert_eq!(txs.len(), 0);
 
-    seq_task.abort();
     Ok(())
 }
 
