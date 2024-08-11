@@ -7,6 +7,7 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Context, DispatchCall, PublicKey, Spec, WorkingSet};
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
+use sov_rollup_interface::spec::SpecId;
 use tracing::{info, warn};
 
 /// Transaction stored in the mempool.
@@ -122,7 +123,7 @@ where
 
     /// Builds a new batch of valid transactions in order they were added to mempool
     /// Only transactions, which are dispatched successfully are included in the batch
-    fn get_next_blob(&mut self) -> anyhow::Result<Vec<Vec<u8>>> {
+    fn get_next_blob(&mut self, current_spec: SpecId) -> anyhow::Result<Vec<Vec<u8>>> {
         let mut working_set = WorkingSet::new(self.current_storage.clone());
         let mut txs = Vec::new();
         let mut current_batch_size = 0;
@@ -144,7 +145,10 @@ where
                 // FIXME! This should use the correct height
                 let ctx = C::new(sender_address, self.sequencer.clone(), 0);
 
-                if let Err(error) = self.runtime.dispatch_call(msg, &mut working_set, &ctx) {
+                if let Err(error) =
+                    self.runtime
+                        .dispatch_call(msg, &mut working_set, current_spec, &ctx)
+                {
                     warn!(%error, tx = hex::encode(&pooled.raw), "Error during transaction dispatch");
                     continue;
                 }
@@ -381,7 +385,7 @@ mod tests {
             let (mut batch_builder, storage) = create_batch_builder(10, &tmpdir);
             setup_runtime(storage, None);
 
-            let build_result = batch_builder.get_next_blob();
+            let build_result = batch_builder.get_next_blob(SpecId::Genesis);
             assert!(build_result.is_err());
             assert_eq!(
                 "No valid transactions are available",
@@ -409,7 +413,7 @@ mod tests {
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            let build_result = batch_builder.get_next_blob();
+            let build_result = batch_builder.get_next_blob(SpecId::Genesis);
             assert!(build_result.is_err());
             assert_eq!(
                 "No valid transactions are available",
@@ -442,7 +446,7 @@ mod tests {
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
 
-            let build_result = batch_builder.get_next_blob();
+            let build_result = batch_builder.get_next_blob(SpecId::Genesis);
             assert!(build_result.is_ok());
             let blob = build_result.unwrap();
             assert_eq!(2, blob.len());

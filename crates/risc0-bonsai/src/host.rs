@@ -14,7 +14,7 @@ use risc0_zkvm::{
 };
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 /// Requests to bonsai client. Each variant represents its own method.
 #[derive(Clone)]
@@ -342,6 +342,8 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         // For running in "execute" mode.
 
         let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        info!("Added hint to guest with size {}", buf.len());
+
         // write buf
         self.env.extend_from_slice(&buf);
 
@@ -412,6 +414,15 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .expect("API error, missing receipt on completed session");
 
                     tracing::info!("Receipt URL: {}", receipt_url);
+                    if let Some(stats) = res.stats {
+                        tracing::info!(
+                            "User cycles: {} - Total cycles: {} - Segments: {}",
+                            stats.cycles,
+                            stats.total_cycles,
+                            stats.segments,
+                        );
+                    }
+
                     let receipt_buf = client.download(receipt_url);
 
                     let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();

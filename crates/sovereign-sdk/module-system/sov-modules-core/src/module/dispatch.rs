@@ -1,6 +1,7 @@
 //! Runtime call message definitions.
 
 use borsh::io;
+use sov_rollup_interface::spec::SpecId;
 
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
@@ -22,6 +23,7 @@ pub trait DispatchCall: Send + Sync {
         &self,
         message: Self::Decodable,
         working_set: &mut WorkingSet<Self::Context>,
+        current_spec: SpecId,
         context: &Self::Context,
     ) -> Result<CallResponse, ModuleError>;
 

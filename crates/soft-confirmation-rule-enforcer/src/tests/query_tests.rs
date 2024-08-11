@@ -2,6 +2,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::StateMapAccessor;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::spec::SpecId;
 
 use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
 
@@ -30,6 +31,7 @@ fn block_count_per_da_hash_must_be_correct() {
                 &mut HookSoftConfirmationInfo::new(
                     signed_soft_confirmation_batch.clone(),
                     vec![0; 32],
+                    SpecId::Genesis,
                 ),
                 &mut working_set,
             )
@@ -49,7 +51,11 @@ fn block_count_per_da_hash_must_be_correct() {
     // call with a different da hash
     soft_confirmation_rule_enforcer
         .begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+            &mut HookSoftConfirmationInfo::new(
+                signed_soft_confirmation_batch.clone(),
+                vec![0; 32],
+                SpecId::Genesis,
+            ),
             &mut working_set,
         )
         .unwrap();
@@ -91,7 +97,11 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
 
     soft_confirmation_rule_enforcer
         .begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+            &mut HookSoftConfirmationInfo::new(
+                signed_soft_confirmation_batch.clone(),
+                vec![0; 32],
+                SpecId::Genesis,
+            ),
             &mut working_set,
         )
         .unwrap();
@@ -132,7 +142,11 @@ fn get_last_l1_fee_rate_must_be_correct() {
     );
     soft_confirmation_rule_enforcer
         .begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+            &mut HookSoftConfirmationInfo::new(
+                signed_soft_confirmation_batch.clone(),
+                vec![0; 32],
+                SpecId::Genesis,
+            ),
             &mut working_set,
         )
         .unwrap();
@@ -174,7 +188,11 @@ fn get_last_timestamp_must_be_correct() {
     );
     soft_confirmation_rule_enforcer
         .begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::new(signed_soft_confirmation_batch.clone(), vec![0; 32]),
+            &mut HookSoftConfirmationInfo::new(
+                signed_soft_confirmation_batch.clone(),
+                vec![0; 32],
+                SpecId::Genesis,
+            ),
             &mut working_set,
         )
         .unwrap();

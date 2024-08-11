@@ -1,8 +1,8 @@
-use sov_db::schema::types::BatchNumber;
+use crate::types::BlockNumber;
 
 #[derive(Debug)]
 pub enum SyncError {
-    MissingL2(&'static str, BatchNumber, BatchNumber),
+    MissingL2(&'static str, BlockNumber, BlockNumber),
     Error(anyhow::Error),
 }
 

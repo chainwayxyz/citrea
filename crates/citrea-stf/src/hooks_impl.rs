@@ -25,7 +25,11 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         working_set: &mut WorkingSet<C>,
         arg: &RuntimeTxHook<C>,
     ) -> anyhow::Result<C> {
-        let RuntimeTxHook { height, sequencer } = arg;
+        let RuntimeTxHook {
+            height,
+            sequencer,
+            current_spec: _current_spec,
+        } = arg;
         let AccountsTxHook { sender, sequencer } =
             self.accounts
                 .pre_dispatch_tx_hook(tx, working_set, sequencer)?;
