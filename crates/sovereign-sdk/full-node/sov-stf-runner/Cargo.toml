@@ -35,6 +35,7 @@ sov-modules-api = { path = "../../module-system/sov-modules-api", default-featur
 sov-rollup-interface = { path = "../../rollup-interface" }
 
 # Citrea-Deps
+citrea-primitives = { path = "../../../primitives" }
 shared-backup-db = { path = "../../../shared-backup-db", optional = true }
 
 [dev-dependencies]

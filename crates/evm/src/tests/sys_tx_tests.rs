@@ -10,6 +10,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
@@ -144,6 +145,7 @@ fn test_sys_bitcoin_light_client() {
             da_slot_height: 2,
             da_slot_txs_commitment: [3u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -280,6 +282,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -311,6 +314,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             da_slot_height: 2,
             da_slot_txs_commitment: [43u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -387,6 +391,7 @@ fn test_bridge() {
                 214, 251, 181, 122, 169, 246, 188, 29, 186, 32, 227, 33, 199, 38,
             ],
             pre_state_root: [1u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![[
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -521,6 +526,7 @@ fn test_upgrade_light_client() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -645,6 +651,7 @@ fn test_change_upgrade_owner() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -680,6 +687,7 @@ fn test_change_upgrade_owner() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,

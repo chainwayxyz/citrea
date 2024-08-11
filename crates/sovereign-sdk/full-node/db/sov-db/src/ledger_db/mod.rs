@@ -1,10 +1,12 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use citrea_primitives::fork::ForkMigration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftBatchReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -13,8 +15,8 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
+    ActiveFork, BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber,
+    L2GenesisStateRoot, L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
     PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
     VerifiedProofsBySlotNumber, LEDGER_TABLES,
@@ -456,6 +458,14 @@ impl SharedLedgerOps for LedgerDB {
     ) -> Result<Option<StoredSoftBatch>, anyhow::Error> {
         self.db.get::<SoftBatchByNumber>(number)
     }
+
+    /// Gets the currently active fork
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error> {
+        self.db
+            .get::<ActiveFork>(&())
+            .map(|fork| fork.unwrap_or_default())
+    }
 }
 
 impl ProverLedgerOps for LedgerDB {
@@ -792,5 +802,12 @@ impl NodeLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+}
+
+impl ForkMigration for LedgerDB {
+    fn spec_activated(&self, _spec_id: SpecId) -> anyhow::Result<()> {
+        // TODO: Implement later
+        Ok(())
     }
 }
