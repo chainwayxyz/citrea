@@ -3,7 +3,7 @@
 use std::cmp::min;
 
 use reth_primitives::{TxKind, B256, U256};
-// use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
+use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{TransactTo, TxEnv};
 

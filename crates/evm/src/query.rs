@@ -13,7 +13,7 @@ use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
 };
 use reth_provider::ProviderError;
-use reth_rpc::eth::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
+use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{

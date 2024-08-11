@@ -85,8 +85,8 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 }
 
 #[cfg(feature = "native")]
-impl From<DBError> for reth_rpc::eth::error::EthApiError {
+impl From<DBError> for reth_rpc_eth_types::error::EthApiError {
     fn from(_value: DBError) -> Self {
-        reth_rpc::eth::error::EthApiError::InternalEthError
+        reth_rpc_eth_types::error::EthApiError::InternalEthError
     }
 }

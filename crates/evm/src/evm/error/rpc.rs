@@ -2,7 +2,7 @@
 
 use jsonrpsee::types::ErrorObject;
 use reth_primitives::{Bytes, U256};
-use reth_rpc::eth::error::{EthResult, RevertError, RpcInvalidTransactionError};
+use reth_rpc_eth_types::error::{EthResult, RevertError, RpcInvalidTransactionError};
 use revm::primitives::{ExecutionResult, HaltReason, OutOfGasError};
 
 use super::pool::{
