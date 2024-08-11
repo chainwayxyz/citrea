@@ -1,7 +1,7 @@
 //! Implementation specific Errors for the `eth_` namespace.
 
 use jsonrpsee::types::ErrorObject;
-use reth_primitives::{Bytes, U256};
+use reth_primitives::Bytes;
 use reth_rpc_eth_types::error::{EthResult, RevertError, RpcInvalidTransactionError};
 use revm::primitives::{ExecutionResult, HaltReason, OutOfGasError};
 
@@ -184,7 +184,6 @@ pub enum SignError {
 pub trait RpcInvalidTransactionErrorExt {
     /// Converts the out of gas error
     fn out_of_gas(reason: OutOfGasError, gas_limit: u64) -> RpcInvalidTransactionError {
-        let gas_limit = U256::from(gas_limit);
         match reason {
             OutOfGasError::Basic => RpcInvalidTransactionError::BasicOutOfGas(gas_limit),
             OutOfGasError::Memory => RpcInvalidTransactionError::MemoryOutOfGas(gas_limit),

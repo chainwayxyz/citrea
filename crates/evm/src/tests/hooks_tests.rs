@@ -126,6 +126,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 blob_gas_used: None,
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
+                requests_root: None,
             },
             l1_fee_rate: 0,
             l1_hash: B256::from(DA_ROOT_HASH.0),
@@ -327,6 +328,7 @@ fn finalize_hook_creates_final_block() {
                     blob_gas_used: None,
                     excess_blob_gas: None,
                     parent_beacon_block_root: None,
+                    requests_root: None,
                 },
                 B256::from(hex!(
                     "fd01e66ab6de887f27d53f9d71f32137e9e8e9c8550ff01aa5303557c539bb8d"

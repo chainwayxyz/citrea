@@ -3,8 +3,9 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 
+use reth_chainspec::{ChainSpec, ChainSpecBuilder};
 use reth_primitives::{
-    Address, Bloom, Bytes, ChainSpec, ChainSpecBuilder, Header as RethHeader, SealedHeader,
+    Address, Bloom, Bytes, Header as RethHeader, SealedHeader,
     Withdrawals, B256, B64, U256,
 };
 use serde::Deserialize;
@@ -106,6 +107,7 @@ impl From<Header> for SealedHeader {
             blob_gas_used: value.blob_gas_used.map(|v| v.to::<u64>()),
             excess_blob_gas: value.excess_blob_gas.map(|v| v.to::<u64>()),
             parent_beacon_block_root: value.parent_beacon_block_root,
+            requests_root: None,
         };
         header.seal(value.hash)
     }

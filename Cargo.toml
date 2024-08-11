@@ -128,6 +128,8 @@ bonsai-sdk = { version = "0.8.0" }
 
 revm-inspectors = { version = "=0.5.5", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
+reth-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false, features = ["jsonrpsee-types"] }
 reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
 reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }

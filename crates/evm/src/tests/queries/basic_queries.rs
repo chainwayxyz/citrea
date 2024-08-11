@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use reth_primitives::{address, b256, BlockId, BlockNumberOrTag, TxKind, U64};
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{AnyTransactionReceipt, Block, Rich};
 use revm::primitives::{B256, U256};

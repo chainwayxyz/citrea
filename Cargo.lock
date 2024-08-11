@@ -90,6 +90,7 @@ dependencies = [
  "alloy-rpc-client",
  "alloy-rpc-types",
  "alloy-signer",
+ "alloy-signer-local",
  "alloy-transport",
  "alloy-transport-http",
 ]
@@ -481,6 +482,22 @@ dependencies = [
  "auto_impl",
  "elliptic-curve",
  "k256",
+ "thiserror",
+]
+
+[[package]]
+name = "alloy-signer-local"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b0707d4f63e4356a110b30ef3add8732ab6d181dd7be4607bf79b8777105cee"
+dependencies = [
+ "alloy-consensus",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-signer",
+ "async-trait",
+ "k256",
+ "rand 0.8.5",
  "thiserror",
 ]
 
@@ -1847,7 +1864,9 @@ dependencies = [
  "lazy_static",
  "rand 0.8.5",
  "rayon",
+ "reth-chainspec",
  "reth-db",
+ "reth-errors",
  "reth-primitives",
  "reth-provider",
  "reth-rpc",
@@ -2811,6 +2830,7 @@ dependencies = [
  "proptest",
  "reth-primitives",
  "reth-rpc",
+ "reth-rpc-eth-types",
  "reth-rpc-types",
  "reth-rpc-types-compat",
  "rustc_version_runtime",

@@ -6,7 +6,7 @@ use citrea_evm::Evm;
 use jsonrpsee::types::{ErrorObjectOwned, ParamsSequence};
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use reth_primitives::BlockNumberOrTag;
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,

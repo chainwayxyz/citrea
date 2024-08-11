@@ -46,12 +46,14 @@ revm-inspectors = { workspace = true, optional = true }
 secp256k1 = { workspace = true, optional = true }
 
 [dev-dependencies]
-alloy = { workspace = true, features = ["consensus", "providers", "signers"] }
+alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }
 bytes = { workspace = true }
 lazy_static = "1.4.0"
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-db = { workspace = true }
+reth-chainspec = { workspace = true }
+reth-errors = { workspace = true }
 revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }

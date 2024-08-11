@@ -7,7 +7,6 @@ use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::revm::env::tx_env_with_recovered;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
@@ -22,8 +21,7 @@ use reth_rpc_types::{
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
-    TxEnv, KECCAK_EMPTY,
+    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, TxEnv, KECCAK_EMPTY
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -35,7 +33,8 @@ use sov_modules_api::WorkingSet;
 use tracing::debug;
 
 use crate::call::get_cfg_env;
-use crate::error::rpc::{ensure_success, RpcInvalidTransactionErrorExt};
+use crate::conversions::create_tx_env;
+use crate::error::rpc::ensure_success;
 use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
@@ -822,7 +821,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let access_list = inspector.into_access_list();
 
         request.access_list = Some(access_list.clone());
-        tx_env.access_list = access_list.clone().into_flattened();
+        tx_env.access_list = access_list.to_vec();
 
         let estimated = self.estimate_gas_with_env(
             request,
@@ -1321,7 +1320,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
                 block_env,
-                tx_env_with_recovered(&tx),
+                create_tx_env(&tx),
                 tx.hash(),
                 &mut evm_db,
                 l1_fee_rate,
@@ -1753,7 +1752,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to
                 // highest, which means the caller lacks funds to pay for the tx
-                RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
+                RpcInvalidTransactionError::BasicOutOfGas(req_gas_limit).into()
             }
             ExecutionResult::Revert { output, .. } => {
                 // reverted again after bumping the limit

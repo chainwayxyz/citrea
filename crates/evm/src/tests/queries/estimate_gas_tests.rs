@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
+use alloy_eips::eip2930::AccessListWithGasUsed;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{
     address, b256, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind, U256,
 };
-use reth_rpc::eth::error::RpcInvalidTransactionError;
+use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::AccessListWithGasUsed;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
