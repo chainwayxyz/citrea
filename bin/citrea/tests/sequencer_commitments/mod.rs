@@ -13,8 +13,8 @@ use sov_stf_runner::ProverConfig;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
-    wait_for_l1_block, wait_for_l2_block, wait_for_prover_l1_height, NodeMode,
+    start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
