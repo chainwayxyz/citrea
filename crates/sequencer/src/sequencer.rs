@@ -18,7 +18,7 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
+use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
@@ -54,6 +54,7 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
+use crate::utils::recover_raw_transaction;
 
 const MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
@@ -113,7 +114,7 @@ where
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
-    DB: SequencerLedgerOps + Send + Clone + 'static,
+    DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -589,6 +590,14 @@ where
                         .set_state_diff(self.last_state_diff.clone())?;
                 }
 
+                let txs = txs_to_remove
+                    .iter()
+                    .map(|tx_hash| tx_hash.to_vec())
+                    .collect::<Vec<Vec<u8>>>();
+                if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
+                    warn!("Failed to remove txs from mempool: {:?}", e);
+                }
+
                 Ok((da_block.header().height(), state_diff_threshold_reached))
             }
             (Err(err), batch_workspace) => {
@@ -831,6 +840,13 @@ where
             .get_block_at(1)
             .await
             .map_err(|e| anyhow!(e))?;
+
+        match self.restore_mempool().await {
+            Ok(()) => debug!("Sequencer: Mempool restored"),
+            Err(e) => {
+                warn!("Sequencer: Mempool restore error: {:?}", e);
+            }
+        }
 
         // Initialize our knowledge of the state of the DA-layer
         let fee_rate_range = get_l1_fee_rate_range::<C, Da>(
@@ -1103,7 +1119,7 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    async fn create_rpc_context(&self) -> RpcContext<C> {
+    async fn create_rpc_context(&self) -> RpcContext<C, DB> {
         let l2_force_block_tx = self.l2_force_block_tx.clone();
 
         RpcContext {
@@ -1111,6 +1127,7 @@ where
             deposit_mempool: self.deposit_mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
+            ledger: self.ledger_db.clone(),
             test_mode: self.config.test_mode,
         }
     }
@@ -1124,6 +1141,18 @@ where
         let rpc = create_rpc_module(rpc_context)?;
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
+    }
+
+    pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
+        let mempool_txs = self.ledger_db.get_mempool_txs()?;
+        for (_, tx) in mempool_txs {
+            let recovered =
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.as_slice().to_vec()))?;
+            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
+
+            let _ = self.mempool.add_external_transaction(pooled_tx).await?;
+        }
+        Ok(())
     }
 
     fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {

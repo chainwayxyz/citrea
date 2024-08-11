@@ -17,9 +17,9 @@ use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     ActiveFork, BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber,
     L2GenesisStateRoot, L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
-    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    MempoolTxs, PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot,
+    SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash,
+    TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -728,6 +728,35 @@ impl SequencerLedgerOps for LedgerDB {
             }
             None => Ok(None),
         }
+    }
+
+    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<MempoolTxs>(&tx_hash, &tx)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        let mut iter = self.db.iter::<MempoolTxs>()?;
+        iter.seek_to_first();
+
+        let txs = iter
+            .map(|item| item.map(|item| (item.key, item.value)))
+            .collect::<Result<Vec<(Vec<u8>, Vec<u8>)>, _>>()?;
+
+        Ok(txs)
+    }
+
+    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        for tx_hash in tx_hashes {
+            schema_batch.delete::<MempoolTxs>(&tx_hash)?;
+        }
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
     }
 }
 

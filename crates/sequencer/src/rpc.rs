@@ -9,6 +9,7 @@ use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransa
 use reth_rpc::eth::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::EthPooledTransaction;
+use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
 use tracing::{debug, error};
@@ -17,17 +18,21 @@ use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::utils::recover_raw_transaction;
 
-pub(crate) struct RpcContext<C: sov_modules_api::Context> {
+pub(crate) struct RpcContext<C: sov_modules_api::Context, DB: SequencerLedgerOps> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
+    pub ledger: DB,
     pub test_mode: bool,
 }
 
-pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
-    rpc_context: RpcContext<C>,
-) -> Result<RpcModule<RpcContext<C>>, jsonrpsee::core::RegisterMethodError> {
+pub(crate) fn create_rpc_module<
+    C: sov_modules_api::Context,
+    DB: SequencerLedgerOps + Send + Sync + 'static,
+>(
+    rpc_context: RpcContext<C, DB>,
+) -> Result<RpcModule<RpcContext<C, DB>>, jsonrpsee::core::RegisterMethodError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
     rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
@@ -46,6 +51,16 @@ pub(crate) fn create_rpc_module<C: sov_modules_api::Context>(
             .add_external_transaction(pool_transaction.clone())
             .await
             .map_err(EthApiError::from)?;
+
+        let mut rlp_encoded_tx = Vec::new();
+        pool_transaction
+            .to_recovered_transaction()
+            .into_signed()
+            .encode_enveloped(&mut rlp_encoded_tx);
+        // Do not return error here just log
+        if let Err(e) = ctx.ledger.insert_mempool_tx(hash.to_vec(), rlp_encoded_tx) {
+            tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
+        }
 
         Ok::<B256, ErrorObjectOwned>(hash)
     })?;
