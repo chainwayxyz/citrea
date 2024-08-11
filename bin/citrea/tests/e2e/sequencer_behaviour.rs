@@ -17,8 +17,8 @@ use crate::e2e::{initialize_test, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_postgres_commitment, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
@@ -139,11 +139,7 @@ async fn test_sequencer_commitment_threshold() {
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
-    let psql_db_name = "test_sequencer_commitment_threshold".to_owned();
-
-    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
-        .await
-        .unwrap();
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     // Put a large number for commitment threshold
     let min_soft_confirmations_per_commitment = 1_000_000;
@@ -196,8 +192,7 @@ async fn test_sequencer_commitment_threshold() {
     wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
 
     // At block 725, the state diff should be large enough to trigger a commitment.
-    wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
     for _ in 0..10 {
@@ -215,9 +210,8 @@ async fn test_sequencer_commitment_threshold() {
 
     // At block 1450, the state diff should be large enough to trigger a commitment.
     // But the 50 remaining blocks state diff should NOT trigger a third.
-    wait_for_postgres_commitment(&db_test_client, 2, Some(Duration::from_secs(60))).await;
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
-    assert_eq!(commitments.len(), 2);
+    let commitments = wait_for_commitment(&da_service, 3, Some(Duration::from_secs(60))).await;
+    assert_eq!(commitments.len(), 1);
 
     seq_task.abort();
 }

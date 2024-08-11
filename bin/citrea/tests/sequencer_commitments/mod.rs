@@ -13,8 +13,8 @@ use sov_stf_runner::ProverConfig;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_prover_l1_height, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
@@ -191,7 +191,7 @@ async fn check_commitment_in_offchain_db() {
     let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+    let sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
     let da_db_dir_cloned = da_db_dir.clone();
     let seq_task = tokio::spawn(async move {
@@ -237,17 +237,16 @@ async fn check_commitment_in_offchain_db() {
     wait_for_l1_block(&da_service, 4, None).await;
     wait_for_l1_block(&da_service, 5, None).await;
 
-    wait_for_postgres_commitment(
-        &db_test_client,
-        1,
+    let commitments = wait_for_commitment(
+        &da_service,
+        5,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
 
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
     assert_eq!(commitments.len(), 1);
-    assert_eq!(commitments[0].l2_start_height, 1);
-    assert_eq!(commitments[0].l2_end_height, 4);
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     seq_task.abort();
 }

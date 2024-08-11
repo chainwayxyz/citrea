@@ -16,8 +16,8 @@ use tokio::time::sleep;
 use crate::e2e::{copy_dir_recursive, execute_blocks, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
 use crate::{
     DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, DEFAULT_PROOF_WAIT_DURATION,
@@ -30,14 +30,14 @@ use crate::{
 /// Check if the full node can continue block production.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
+    let sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
@@ -120,9 +120,10 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     // assume sequencer craashed
     seq_task.abort();
 
-    wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     full_node_task.abort();
 
@@ -167,19 +168,16 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     wait_for_l1_block(&da_service, 3, None).await;
 
-    wait_for_postgres_commitment(
-        &db_test_client,
-        2,
+    let commitments = wait_for_commitment(
+        &da_service,
+        3,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
 
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
-    assert_eq!(commitments.len(), 2);
-    assert_eq!(commitments[0].l2_start_height, 1);
-    assert_eq!(commitments[0].l2_end_height, 4);
-    assert_eq!(commitments[1].l2_start_height, 5);
-    assert_eq!(commitments[1].l2_end_height, 8);
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_start_block_number, 5);
+    assert_eq!(commitments[0].l2_end_block_number, 8);
 
     seq_task.abort();
 

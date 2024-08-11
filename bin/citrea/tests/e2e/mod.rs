@@ -205,19 +205,6 @@ async fn test_all_flow() {
         .ledger_get_proof_by_slot_height(3)
         .await;
 
-    let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
-
-    assert_eq!(db_proofs.len(), 1);
-    assert_eq!(
-        db_proofs[0].state_transition.0.sequencer_da_public_key,
-        prover_proof.state_transition.sequencer_da_public_key
-    );
-    assert_eq!(
-        db_proofs[0].state_transition.0.sequencer_public_key,
-        prover_proof.state_transition.sequencer_public_key
-    );
-    assert_eq!(db_proofs[0].l1_tx_id, prover_proof.l1_tx_id);
-
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
     // 6th soft batch
@@ -319,18 +306,6 @@ async fn test_all_flow() {
     let prover_proof_data = prover_node_test_client
         .ledger_get_proof_by_slot_height(5)
         .await;
-
-    let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
-
-    assert_eq!(db_proofs.len(), 2);
-    assert_eq!(
-        db_proofs[1].state_transition.0.sequencer_da_public_key,
-        prover_proof_data.state_transition.sequencer_da_public_key
-    );
-    assert_eq!(
-        db_proofs[1].state_transition.0.sequencer_public_key,
-        prover_proof_data.state_transition.sequencer_public_key
-    );
 
     wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
