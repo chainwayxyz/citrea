@@ -122,6 +122,13 @@ pub trait SharedLedgerOps {
 
     /// Gets the currently active fork
     fn get_active_fork(&self) -> Result<SpecId, anyhow::Error>;
+
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
+    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
 }
 
 /// Node ledger operations
@@ -198,9 +205,6 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
         data_to_commit: SlotCommit<S, B, T>,
     ) -> Result<()>;
 
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    fn set_last_sequencer_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
-
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights.
     fn get_pending_commitments_l2_range(&self) -> Result<Vec<L2HeightRange>>;
@@ -213,10 +217,6 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
     /// Sets the latest state diff
     fn set_state_diff(&self, state_diff: StateDiff) -> Result<()>;
-
-    /// Get the most recent committed batch
-    /// Returns L2 height.
-    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
 
     /// Get the most recent commitment's l1 height
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>>;

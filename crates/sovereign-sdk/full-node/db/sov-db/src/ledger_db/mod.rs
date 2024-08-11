@@ -466,6 +466,24 @@ impl SharedLedgerOps for LedgerDB {
             .get::<ActiveFork>(&())
             .map(|fork| fork.unwrap_or_default())
     }
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
+        self.db.get::<LastSequencerCommitmentSent>(&())
+    }
+
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<LastSequencerCommitmentSent>(&(), &l2_height)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
 }
 
 impl ProverLedgerOps for LedgerDB {
@@ -653,20 +671,6 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_last_sequencer_commitment_l2_height(
-        &self,
-        l2_height: BatchNumber,
-    ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), &l2_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights.
     #[instrument(level = "trace", skip(self), err)]
@@ -708,17 +712,10 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Get the most recent committed batch
-    /// Returns L2 height.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
-        self.db.get::<LastSequencerCommitmentSent>(&())
-    }
-
     /// Get the most recent commitment's l1 height
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
-        let l2_height = self.get_last_sequencer_commitment_l2_height()?;
+        let l2_height = self.get_last_commitment_l2_height()?;
         match l2_height {
             Some(l2_height) => {
                 let soft_confirmation = self

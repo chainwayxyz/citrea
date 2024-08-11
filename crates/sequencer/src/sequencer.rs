@@ -667,11 +667,10 @@ where
                     && commitment.l2_end_block_number == l2_end.0
             }) {
                 // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_sequencer_commitment_l2_height()? {
+                match self.ledger_db.get_last_commitment_l2_height()? {
                     Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
                     _ => {
-                        self.ledger_db
-                            .set_last_sequencer_commitment_l2_height(l2_end)?;
+                        self.ledger_db.set_last_commitment_l2_height(l2_end)?;
                     }
                 };
 
@@ -740,7 +739,7 @@ where
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
                 ledger_db
-                    .set_last_sequencer_commitment_l2_height(l2_end)
+                    .set_last_commitment_l2_height(l2_end)
                     .map_err(|_| {
                         anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                     })?;
