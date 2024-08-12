@@ -207,7 +207,7 @@ async fn test_all_flow() {
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
-    // 6th soft batch
+    // 6th soft confirmation
     wait_for_l1_block(&da_service, 4, None).await;
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&full_node_test_client, 6, None).await;
@@ -369,9 +369,9 @@ async fn test_all_flow() {
     full_node_task.abort();
 }
 
-/// Test RPC `ledger_getHeadSoftBatch`
+/// Test RPC `ledger_getHeadSoftConfirmation`
 #[tokio::test(flavor = "multi_thread")]
-async fn test_ledger_get_head_soft_batch() {
+async fn test_ledger_get_head_soft_confirmation() {
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -416,24 +416,24 @@ async fn test_ledger_get_head_soft_batch() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    let head_soft_batch = seq_test_client
-        .ledger_get_head_soft_batch()
+    let head_soft_confirmation = seq_test_client
+        .ledger_get_head_soft_confirmation()
         .await
         .unwrap()
         .unwrap();
     assert_eq!(latest_block.header.number.unwrap(), 2);
     assert_eq!(
-        head_soft_batch.state_root.as_slice(),
+        head_soft_confirmation.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
-    assert_eq!(head_soft_batch.l2_height, 2);
+    assert_eq!(head_soft_confirmation.l2_height, 2);
 
-    let head_soft_batch_height = seq_test_client
-        .ledger_get_head_soft_batch_height()
+    let head_soft_confirmation_height = seq_test_client
+        .ledger_get_head_soft_confirmation_height()
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(head_soft_batch_height, 2);
+    assert_eq!(head_soft_confirmation_height, 2);
 
     seq_task.abort();
 }

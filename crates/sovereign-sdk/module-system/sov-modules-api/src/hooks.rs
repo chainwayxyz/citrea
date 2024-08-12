@@ -100,7 +100,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut HookSoftConfirmationInfo,
+        soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), ApplySoftConfirmationError>;
 
