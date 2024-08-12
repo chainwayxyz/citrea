@@ -12,7 +12,7 @@ use crate::ProverGuestRunConfig;
 pub struct RunnerConfig {
     /// Sequencer client configuration.
     pub sequencer_client_url: String,
-    /// Saves sequencer soft batches if set to true
+    /// Saves sequencer soft confirmations if set to true
     pub include_tx_body: bool,
     /// Only true for tests
     pub accept_public_input_as_proven: Option<bool>,

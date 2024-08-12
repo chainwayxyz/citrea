@@ -183,11 +183,11 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     // now retrieve soft confirmations from the sequencer and full node and check if they are the same
     for i in 1..=6 {
         let seq_soft_conf = seq_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
         let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
 
@@ -220,11 +220,11 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
     for i in 7..=12 {
         let seq_soft_conf = seq_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
         let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
 

@@ -76,7 +76,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        _soft_batch: &mut HookSoftConfirmationInfo,
+        _soft_confirmation: &mut HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), ApplySoftConfirmationError> {
         // Before executing each batch, check that the sender is registered as a sequencer

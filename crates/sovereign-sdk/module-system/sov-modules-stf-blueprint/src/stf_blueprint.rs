@@ -159,14 +159,14 @@ where
     pub fn begin_soft_confirmation_inner(
         &self,
         checkpoint: StateCheckpoint<C>,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
     ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
-            "Beginning soft batch 0x{} from sequencer: 0x{}",
-            hex::encode(soft_batch.hash()),
-            hex::encode(soft_batch.sequencer_pub_key())
+            "Beginning soft confirmation 0x{} from sequencer: 0x{}",
+            hex::encode(soft_confirmation.hash()),
+            hex::encode(soft_confirmation.sequencer_pub_key())
         );
 
         let mut batch_workspace = checkpoint.to_revertable();
@@ -174,7 +174,7 @@ where
         // ApplySoftConfirmationHook: begin
         if let Err(e) = self.runtime.begin_soft_confirmation_hook(
             &mut HookSoftConfirmationInfo::new(
-                soft_batch.clone(),
+                soft_confirmation.clone(),
                 pre_state_root.as_ref().to_vec(),
                 current_spec,
             ),
@@ -187,16 +187,13 @@ where
 
             return (
                 Err(e),
-                // Reverted in apply_soft_batch and sequencer
+                // Reverted in apply_soft_confirmation and sequencer
                 batch_workspace,
             );
         }
 
         // Write changes from begin_blob_hook
         batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-        // TODO: don't ignore these events: https://github.com/Sovereign-Labs/sovereign/issues/350
-        let _ = batch_workspace.take_events();
 
         (Ok(()), batch_workspace)
     }
@@ -206,7 +203,7 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
         &self,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmationBatch,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
@@ -222,8 +219,8 @@ where
 
         (
             Ok(BatchReceipt {
-                hash: soft_batch.hash(),
-                prev_hash: soft_batch.prev_hash(),
+                hash: soft_confirmation.hash(),
+                prev_hash: soft_confirmation.prev_hash(),
                 tx_receipts,
                 phantom_data: PhantomData,
             }),
@@ -235,22 +232,25 @@ where
     pub(crate) fn _apply_soft_confirmation_inner(
         &self,
         checkpoint: StateCheckpoint<C>,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
     ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
         match self.begin_soft_confirmation_inner(
             checkpoint,
-            soft_batch,
+            soft_confirmation,
             pre_state_root,
             current_spec,
         ) {
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
-                let (batch_workspace, tx_receipts) =
-                    self.apply_sov_txs_inner(soft_batch.txs(), current_spec, batch_workspace);
+                let (batch_workspace, tx_receipts) = self.apply_sov_txs_inner(
+                    soft_confirmation.txs(),
+                    current_spec,
+                    batch_workspace,
+                );
 
-                self.end_soft_confirmation_inner(soft_batch, tx_receipts, batch_workspace)
+                self.end_soft_confirmation_inner(soft_confirmation, tx_receipts, batch_workspace)
             }
             (Err(err), batch_workspace) => (Err(err), batch_workspace.revert()),
         }
