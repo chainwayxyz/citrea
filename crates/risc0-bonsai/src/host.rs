@@ -443,15 +443,13 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             tracing::info!("SNARK session created: {}", snark_session.uuid);
 
-            self.wait_for_stark_to_snark_conversion(&snark_session.uuid, receipt, l1_block_height)
+            self.wait_for_stark_to_snark_conversion(
+                Some(&snark_session.uuid),
+                None,
+                receipt,
+                l1_block_height,
+            )
         }
-    }
-
-    fn create_new_snark_session(&self, session: &str) -> Result<String, anyhow::Error> {
-        let client = self.client.as_ref().unwrap();
-        let session = SessionId::new(session.to_string());
-        let snark_session = client.create_snark(&session);
-        Ok(snark_session.uuid)
     }
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
@@ -478,15 +476,28 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     fn wait_for_stark_to_snark_conversion(
         &self,
-        snark_session: &str,
+        snark_session: Option<&str>,
+        stark_session: Option<&str>,
         receipt_buf: Vec<u8>,
         l1_block_height: u64,
     ) -> Result<Proof, anyhow::Error> {
+        // If snark session exists use it else create one from stark
+        let snark_session = match snark_session {
+            Some(snark_session) => SnarkId::new(snark_session.to_string()),
+            None => {
+                let client = self.client.as_ref().unwrap();
+                let session = SessionId::new(
+                    stark_session
+                        .expect("Stark session has to exist if snark session does not exists")
+                        .to_string(),
+                );
+                
+                client.create_snark(&session)
+            }
+        };
         // Save snark session id to the ledger
         self.ledger_db
-            .set_bonsai_snark_session_by_l1_height(l1_block_height, snark_session)?;
-        // let session = SessionId::new(session.clone());
-        let snark_session = SnarkId::new(snark_session.to_string());
+            .set_bonsai_snark_session_by_l1_height(l1_block_height, &snark_session.uuid)?;
         let client = self.client.as_ref().unwrap();
         let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
         loop {

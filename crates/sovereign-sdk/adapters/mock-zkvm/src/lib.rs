@@ -205,13 +205,10 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         unimplemented!()
     }
 
-    fn create_new_snark_session(&self, _session: &str) -> Result<String, anyhow::Error> {
-        unimplemented!()
-    }
-
     fn wait_for_stark_to_snark_conversion(
         &self,
-        _snark_session: &str,
+        _snark_session: Option<&str>,
+        _stark_session: Option<&str>,
         _receipt_buf: Vec<u8>,
         _l1_block_height: u64,
     ) -> Result<Proof, anyhow::Error> {

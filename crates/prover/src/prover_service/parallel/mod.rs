@@ -231,8 +231,12 @@ where
                 // Get receipt from stark
                 let receipt_buf = vm.wait_for_receipt(&stark_id.clone())?;
                 // wait for the stark to snark conversion to complete
-                let proof =
-                    vm.wait_for_stark_to_snark_conversion(&snark_id, receipt_buf, l1_block_height)?;
+                let proof = vm.wait_for_stark_to_snark_conversion(
+                    Some(&snark_id),
+                    Some(&stark_id),
+                    receipt_buf,
+                    l1_block_height,
+                )?;
                 // Send to da
                 let da_data = DaData::ZKProof(proof.clone());
                 let tx_id = da_service
@@ -252,11 +256,10 @@ where
                         // Only stark id is present, prover crashed at receipt generation
                         // wait for the stark proof generation to complete
                         let receipt_buf = vm.wait_for_receipt(&stark_id)?;
-                        // Create new snark session
-                        let snark_uuid = vm.create_new_snark_session(&stark_id)?;
                         // wait for the stark to snark conversion to complete
                         let proof = vm.wait_for_stark_to_snark_conversion(
-                            &snark_uuid,
+                            None,
+                            Some(&stark_id),
                             receipt_buf,
                             l1_block_height,
                         )?;
