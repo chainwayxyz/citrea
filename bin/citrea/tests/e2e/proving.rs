@@ -2,147 +2,19 @@
 use std::time::Duration;
 
 use citrea_stf::genesis_config::GenesisPaths;
-use shared_backup_db::{PostgresConnector, ProofType, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_rollup_interface::rpc::{ProofRpcResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{
-    start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block,
-    wait_for_postgres_proofs, wait_for_proof, wait_for_prover_l1_height, NodeMode,
+    start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, wait_for_proof,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
 };
-
-/// Run the sequencer and the prover node.
-/// Trigger proof production.
-/// Check if the proof can be queried from the prover node and the database.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_db_get_proof() {
-    // citrea::initialize_logging(tracing::Level::INFO);
-
-    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
-    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
-    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
-    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
-
-    let psql_db_name = "test_db_get_proof".to_string();
-    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
-        .await
-        .unwrap();
-
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
-
-    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-
-    let da_db_dir_cloned = da_db_dir.clone();
-    let prover_node_task = tokio::spawn(async move {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
-                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                proof_sampling_number: 0,
-                db_config: Some(SharedBackupDbConfig::default().set_db_name(psql_db_name)),
-            }),
-            NodeMode::Prover(seq_port),
-            prover_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
-        )
-        .await;
-    });
-
-    let prover_node_port = prover_node_port_rx.await.unwrap();
-
-    let prover_node_test_client = make_test_client(prover_node_port).await;
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 2, None).await;
-
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&test_client, 4, None).await;
-
-    // Commitment
-    wait_for_l1_block(&da_service, 3, None).await;
-
-    // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        4,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
-
-    wait_for_postgres_proofs(&db_test_client, 1, Some(Duration::from_secs(60))).await;
-
-    let ledger_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(3)
-        .await;
-
-    let db_proofs = db_test_client.get_all_proof_data().await.unwrap();
-
-    assert_eq!(db_proofs.len(), 1);
-
-    let db_state_transition = &db_proofs[0].state_transition.0;
-
-    assert_eq!(
-        db_state_transition.sequencer_da_public_key,
-        ledger_proof.state_transition.sequencer_da_public_key
-    );
-    assert_eq!(
-        db_state_transition.sequencer_public_key,
-        ledger_proof.state_transition.sequencer_public_key
-    );
-    assert_eq!(db_proofs[0].l1_tx_id, ledger_proof.l1_tx_id);
-
-    match ledger_proof.proof {
-        ProofRpcResponse::Full(p) => {
-            assert_eq!(db_proofs[0].proof_type, ProofType::Full);
-            assert_eq!(db_proofs[0].proof_data, p)
-        }
-        ProofRpcResponse::PublicInput(p) => {
-            assert_eq!(db_proofs[0].proof_type, ProofType::PublicInput);
-            assert_eq!(db_proofs[0].proof_data, p)
-        }
-    };
-
-    seq_task.abort();
-    prover_node_task.abort();
-}
 
 /// Run the sequencer, prover and full node.
 /// Trigger proof production.
@@ -193,7 +65,6 @@ async fn full_node_verify_proof_and_store() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                db_config: None,
             }),
             NodeMode::Prover(seq_port),
             prover_db_dir,

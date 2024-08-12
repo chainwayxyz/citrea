@@ -12,7 +12,6 @@ members = [
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
-  "crates/shared-backup-db",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/risc0",
@@ -84,10 +83,8 @@ byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.2.1", default-features = false }
 chrono = { version = "0.4.37", default-features = false }
 digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
-deadpool-postgres = "0.13.1"
 itertools = { version = "0.13.0", default-features = false }
 lru = "0.12.3"
-postgres-types = "0.2.6"
 rs_merkle = "1.4.2"
 futures = "0.3"
 pin-project = { version = "1.1.3" }

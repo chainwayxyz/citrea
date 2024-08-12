@@ -17,9 +17,9 @@ use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     ActiveFork, BatchByHash, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber,
     L2GenesisStateRoot, L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
-    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    MempoolTxs, PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot,
+    SlotByHash, SlotByNumber, SoftBatchByHash, SoftBatchByNumber, SoftConfirmationStatus, TxByHash,
+    TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch,
@@ -466,6 +466,26 @@ impl SharedLedgerOps for LedgerDB {
             .get::<ActiveFork>(&())
             .map(|fork| fork.unwrap_or_default())
     }
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
+        self.db.get::<LastSequencerCommitmentSent>(&())
+    }
+
+    /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
+    /// For a sequencer, the last commitment height is set when the block is produced.
+    /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<LastSequencerCommitmentSent>(&(), &l2_height)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
 }
 
 impl ProverLedgerOps for LedgerDB {
@@ -653,20 +673,6 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_last_sequencer_commitment_l2_height(
-        &self,
-        l2_height: BatchNumber,
-    ) -> Result<(), anyhow::Error> {
-        let mut schema_batch = SchemaBatch::new();
-
-        schema_batch.put::<LastSequencerCommitmentSent>(&(), &l2_height)?;
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
-
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights.
     #[instrument(level = "trace", skip(self), err)]
@@ -708,17 +714,10 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Get the most recent committed batch
-    /// Returns L2 height.
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
-        self.db.get::<LastSequencerCommitmentSent>(&())
-    }
-
     /// Get the most recent commitment's l1 height
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
-        let l2_height = self.get_last_sequencer_commitment_l2_height()?;
+        let l2_height = self.get_last_commitment_l2_height()?;
         match l2_height {
             Some(l2_height) => {
                 let soft_confirmation = self
@@ -728,6 +727,35 @@ impl SequencerLedgerOps for LedgerDB {
             }
             None => Ok(None),
         }
+    }
+
+    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<MempoolTxs>(&tx_hash, &tx)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        let mut iter = self.db.iter::<MempoolTxs>()?;
+        iter.seek_to_first();
+
+        let txs = iter
+            .map(|item| item.map(|item| (item.key, item.value)))
+            .collect::<Result<Vec<(Vec<u8>, Vec<u8>)>, _>>()?;
+
+        Ok(txs)
+    }
+
+    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        for tx_hash in tx_hashes {
+            schema_batch.delete::<MempoolTxs>(&tx_hash)?;
+        }
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
     }
 }
 

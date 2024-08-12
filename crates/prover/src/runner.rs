@@ -17,7 +17,6 @@ use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
-use shared_backup_db::{DbPoolError, PostgresConnector, ProofType};
 use sov_db::ledger_db::{ProverLedgerOps, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
@@ -243,14 +242,6 @@ where
 
         let prover_config = self.prover_config.clone().unwrap();
 
-        let pg_client = match prover_config.clone().db_config {
-            Some(db_config) => {
-                info!("Connecting to postgres");
-                Some(PostgresConnector::new(db_config.clone()).await)
-            }
-            None => None,
-        };
-
         // Create l1 sync worker task
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
 
@@ -295,7 +286,7 @@ where
                     if let Err(e) = self.process_l1_block(
                         pending_l1,
                         skip_submission_until_l1,
-                        &pg_client, &prover_config,
+                        &prover_config,
                     ).await {
                         error!("Could not process L1 block and generate proof: {:?}", e);
                     }
@@ -413,7 +404,6 @@ where
         &mut self,
         pending_l1_blocks: &mut VecDeque<<Da as DaService>::FilteredBlock>,
         skip_submission_until_l1: u64,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) -> Result<(), anyhow::Error> {
         while !pending_l1_blocks.is_empty() {
@@ -543,7 +533,7 @@ where
 
             // Skip submission until l1 height
             if l1_height >= skip_submission_until_l1 && should_prove {
-                self.generate_and_submit_proof(transition_data, pg_client, l1_height, hash)
+                self.generate_and_submit_proof(transition_data, l1_height, hash)
                     .await?;
             } else {
                 info!("Skipping proving for l1 height {}", l1_height);
@@ -691,7 +681,6 @@ where
     async fn generate_and_submit_proof(
         &self,
         transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         l1_height: u64,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
@@ -755,27 +744,6 @@ where
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
         };
-
-        match pg_client.as_ref() {
-            Some(Ok(pool)) => {
-                info!("Inserting proof data into postgres");
-                let (proof_data, proof_type) = match proof.clone() {
-                    Proof::Full(full_proof) => (full_proof, ProofType::Full),
-                    Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
-                };
-                pool.insert_proof_data(
-                    tx_id_u8.to_vec(),
-                    proof_data,
-                    stored_state_transition.clone().into(),
-                    proof_type,
-                )
-                .await
-                .unwrap();
-            }
-            _ => {
-                warn!("No postgres client found");
-            }
-        }
 
         if let Err(e) =
             self.ledger_db

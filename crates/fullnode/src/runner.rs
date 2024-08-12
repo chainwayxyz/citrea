@@ -404,6 +404,8 @@ where
                     SoftConfirmationStatus::Finalized,
                 )?;
             }
+            self.ledger_db
+                .set_last_commitment_l2_height(BatchNumber(end_l2_height))?;
         }
         Ok(())
     }

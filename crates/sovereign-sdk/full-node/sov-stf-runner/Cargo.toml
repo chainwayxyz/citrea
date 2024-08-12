@@ -36,7 +36,6 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 
 # Citrea-Deps
 citrea-primitives = { path = "../../../primitives" }
-shared-backup-db = { path = "../../../shared-backup-db", optional = true }
 
 [dev-dependencies]
 sha2 = { workspace = true }
@@ -60,7 +59,6 @@ native = [
   "futures",
   "async-trait",
   "thiserror",
-  "shared-backup-db",
   "rand",
   "tower",
   "hyper",
