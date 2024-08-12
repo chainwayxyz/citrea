@@ -45,13 +45,6 @@ endif
 	rustup component add llvm-tools-preview
 	cargo install cargo-llvm-cov
 
-lol:
-ifeq ($(shell uname -ms), Darwin x86_64)
-	cargo risczero build-toolchain
-else
-	cargo risczero install --version r0.1.79.0
-endif
-
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
 	dprint check
