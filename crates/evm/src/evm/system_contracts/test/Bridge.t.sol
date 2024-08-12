@@ -287,10 +287,9 @@ contract BridgeTest is Test {
 
     function testSetDepositScript() public {
         vm.prank(owner);
-        bridge.setDepositScript(depositScript, scriptSuffix, 5);
+        bridge.setDepositScript(depositScript, scriptSuffix);
         assert(bridge.isBytesEqual_(depositScript, bridge.depositScript()));
         assert(bridge.isBytesEqual_(scriptSuffix, bridge.scriptSuffix()));
-        assertEq(5, bridge.requiredSigsCount());
     }
 
     function testUpgrade() public {

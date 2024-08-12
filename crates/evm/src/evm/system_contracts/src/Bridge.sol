@@ -44,8 +44,7 @@ contract Bridge is Ownable2StepUpgradeable {
     bool[1000] public isOperatorMalicious;
     UTXO[] public withdrawalUTXOs;
     bytes32[] public kickoffRoots;
-    mapping(uint256 => bytes32) public withdrawFillers;
-    mapping(uint256 => bytes32) public operatorAddresses;
+    mapping(uint256 => uint256) public withdrawFillers;
     bytes32 public kickoff2AddressRoot;
     
     event Deposit(bytes32 wtxId, address recipient, uint256 timestamp, uint256 depositId);
@@ -192,7 +191,7 @@ contract Bridge is Ownable2StepUpgradeable {
         
         bytes memory _output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, outputIndex);
         uint256 withdrawFillerId = uint256(bytesToBytes32(BTCUtils.extractOpReturnData(_output)));
-        withdrawFillers[withdrawId] = operatorAddresses[withdrawFillerId];
+        withdrawFillers[withdrawId] = getInternalOperatorId(withdrawFillerId);
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
     }
 
@@ -209,14 +208,17 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 kickoffHash = sha256(abi.encodePacked(txId, index));
         bytes32 root = kickoffRoots[depositId];
         require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof");
-        if(withdrawFillers[depositId] == bytes32(0) || withdrawFillers[depositId] != operatorAddresses[operatorId]){
+        if(withdrawFillers[depositId] == 0 || withdrawFillers[depositId] != getInternalOperatorId(operatorId)) {
             isOperatorMalicious[operatorId] = true;
         }
 
         emit MaliciousOperatorMarked(operatorId);
     }
 
-    
+    function getInternalOperatorId(uint256 operatorId) internal pure returns (uint256) {
+        return operatorId + 1;
+    }
+
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
     /// @dev This approach compares chunks of 32 bytes using bytes32 equality checks for optimization
     /// @param a First byte sequence
