@@ -236,7 +236,7 @@ where
             .ledger_db
             .get_bonsai_snark_session_by_l1_height(l1_height)?;
 
-        let Some((tx_id, proof)) = prover_service
+        if let Some((tx_id, proof)) = prover_service
             .recover_proving_and_send_to_da(
                 stark_session,
                 snark_session,
@@ -244,15 +244,13 @@ where
                 l1_height,
             )
             .await?
-        else {
-            // No ongoing session exists
-            return Ok(false);
-        };
-
-        self.extract_and_store_proof(tx_id, proof, l1_height)
-            .await?;
-
-        Ok(true)
+        {
+            self.extract_and_store_proof(tx_id, proof, l1_height)
+                .await?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Runs the rollup.
@@ -548,16 +546,10 @@ where
         l1_height: u64,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
-        let should_prove: bool = {
-            let mut rng = rand::thread_rng();
-            // if proof_sampling_number is 0, then we always prove and submit
-            // otherwise we submit and prove with a probability of 1/proof_sampling_number
-            if prover_config.proof_sampling_number == 0 {
-                true
-            } else {
-                rng.gen_range(0..prover_config.proof_sampling_number) == 0
-            }
-        };
+        // if proof_sampling_number is 0, then we always prove and submit
+        // otherwise we submit and prove with a probability of 1/proof_sampling_number
+        let should_prove = prover_config.proof_sampling_number == 0
+            || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
         // Skip submission until l1 height
         if l1_height >= skip_submission_until_l1 && should_prove {
