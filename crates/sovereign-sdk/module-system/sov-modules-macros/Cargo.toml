@@ -31,16 +31,12 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
 
 [dependencies]
-anyhow = { workspace = true }
 borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
 proc-macro2 = "1.0"
 quote = "1.0"
 serde_json = { workspace = true }
 syn = { version = "1.0", features = ["full"] }
-
-[build-dependencies]
-anyhow = { workspace = true }
 
 [features]
 default = ["native"]

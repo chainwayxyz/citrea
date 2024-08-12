@@ -35,8 +35,6 @@ alloy-sol-types = { workspace = true }
 itertools = { workspace = true, optional = true }
 reth-primitives = { workspace = true, default-features = false }
 reth-provider = { workspace = true, optional = true }
-reth-rpc = { workspace = true, optional = true }
-reth-rpc-eth-api = { workspace = true, optional = true }
 reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-server-types = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
@@ -70,11 +68,9 @@ native = [
 
   "reth-rpc-types",
   "reth-rpc-eth-types",
-  "reth-rpc-eth-api",
   "reth-rpc-server-types",
   "reth-rpc-types-compat",
   "revm-inspectors",
-  "reth-rpc",
   "reth-provider",
   "alloy-rlp",
 
