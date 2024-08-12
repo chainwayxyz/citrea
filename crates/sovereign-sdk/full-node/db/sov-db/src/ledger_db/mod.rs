@@ -541,10 +541,10 @@ impl ProverLedgerOps for LedgerDB {
     fn set_bonsai_session_by_l1_height(
         &self,
         l1_height: u64,
-        session_id: &String,
+        session_id: &str,
     ) -> anyhow::Result<()> {
         self.db
-            .put::<BonsaiSessionByL1Height>(&l1_height, session_id)
+            .put::<BonsaiSessionByL1Height>(&l1_height, &session_id.to_owned())
     }
 
     /// Sets the uuid of the latest bonsai snark session
@@ -552,10 +552,10 @@ impl ProverLedgerOps for LedgerDB {
     fn set_bonsai_snark_session_by_l1_height(
         &self,
         l1_height: u64,
-        session_id: &String,
+        session_id: &str,
     ) -> anyhow::Result<()> {
         self.db
-            .put::<BonsaiSnarkSessionByL1Height>(&l1_height, session_id)
+            .put::<BonsaiSnarkSessionByL1Height>(&l1_height, &session_id.to_owned())
     }
 
     /// Set the last scanned slot by the prover

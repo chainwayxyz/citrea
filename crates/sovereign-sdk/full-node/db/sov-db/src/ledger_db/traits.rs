@@ -199,14 +199,14 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn set_bonsai_session_by_l1_height(
         &self,
         l1_height: u64,
-        session_id: &String,
+        session_id: &str,
     ) -> anyhow::Result<()>;
 
     /// Sets the uuid of the latest bonsai snark session
     fn set_bonsai_snark_session_by_l1_height(
         &self,
         l1_height: u64,
-        session_id: &String,
+        session_id: &str,
     ) -> anyhow::Result<()>;
 }
 

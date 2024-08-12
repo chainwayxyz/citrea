@@ -584,7 +584,7 @@ where
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
         ) = self
-            .get_state_transition_data_from_commitments(&sequencer_commitments, &self.da_service)
+            .get_state_transition_data_from_commitments(sequencer_commitments, &self.da_service)
             .await?;
         let initial_state_root = self
             .ledger_db

@@ -337,12 +337,8 @@ impl<'a> Risc0BonsaiHost<'a> {
         self.last_input_id = Some(input_id);
     }
 
-    fn receipt_loop(
-        &self,
-        session: &String,
-        client: &BonsaiClient,
-    ) -> Result<Vec<u8>, anyhow::Error> {
-        let session = SessionId::new(session.clone());
+    fn receipt_loop(&self, session: &str, client: &BonsaiClient) -> Result<Vec<u8>, anyhow::Error> {
+        let session = SessionId::new(session.to_owned());
         loop {
             // handle error
             let res = client.status(&session);
@@ -451,9 +447,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         }
     }
 
-    fn create_new_snark_session(&self, session: &String) -> Result<String, anyhow::Error> {
+    fn create_new_snark_session(&self, session: &str) -> Result<String, anyhow::Error> {
         let client = self.client.as_ref().unwrap();
-        let session = SessionId::new(session.clone());
+        let session = SessionId::new(session.to_string());
         let snark_session = client.create_snark(&session);
         Ok(snark_session.uuid)
     }
@@ -474,23 +470,23 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
     }
 
-    fn wait_for_receipt(&self, session: &String) -> Result<Vec<u8>, anyhow::Error> {
-        let session = SessionId::new(session.clone());
+    fn wait_for_receipt(&self, session: &str) -> Result<Vec<u8>, anyhow::Error> {
+        let session = SessionId::new(session.to_string());
         let client = self.client.as_ref().unwrap();
         self.receipt_loop(&session.uuid, client)
     }
 
     fn wait_for_stark_to_snark_conversion(
         &self,
-        snark_session: &String,
+        snark_session: &str,
         receipt_buf: Vec<u8>,
         l1_block_height: u64,
     ) -> Result<Proof, anyhow::Error> {
         // Save snark session id to the ledger
         self.ledger_db
-            .set_bonsai_snark_session_by_l1_height(l1_block_height, &snark_session)?;
+            .set_bonsai_snark_session_by_l1_height(l1_block_height, snark_session)?;
         // let session = SessionId::new(session.clone());
-        let snark_session = SnarkId::new(snark_session.clone());
+        let snark_session = SnarkId::new(snark_session.to_string());
         let client = self.client.as_ref().unwrap();
         let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
         loop {
