@@ -67,9 +67,9 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Initializes the bridge contract and sets the deposit script
-    /// @param _depositAmount 
+    /// @param _depositScript The deposit script expected in the witness field for all L1 deposits 
     /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
-    /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
+    /// @param _depositAmount The CBTC amount that can be deposited and withdrawn
     function initialize(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
         require(_depositAmount != 0, "Deposit amount cannot be 0");
