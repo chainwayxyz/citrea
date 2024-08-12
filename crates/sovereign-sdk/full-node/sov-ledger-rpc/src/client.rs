@@ -3,7 +3,6 @@
 //!
 //! See [`RpcClient`].
 
-use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
     ProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse, SoftConfirmationStatus,
