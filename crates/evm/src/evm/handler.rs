@@ -26,6 +26,7 @@ use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub l1_diff_size: u64,
+    #[allow(unused)]
     pub l1_fee: U256,
 }
 
