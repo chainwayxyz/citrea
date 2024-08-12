@@ -1,9 +1,10 @@
 use core::ops::Deref;
 
-use bitcoin::block::{Header as BitcoinHeader, Version};
+use bitcoin::block::Header as BitcoinHeader;
+use bitcoin::consensus::{Decodable, Encodable};
 use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::Hash;
-use bitcoin::{BlockHash, CompactTarget, TxMerkleNode};
+use bitcoin::BlockHash;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -70,55 +71,46 @@ impl HeaderWrapper {
 }
 
 /// BitcoinHeaderWrapper is a wrapper around BitcoinHeaderWrapper to implement borsh serde
-#[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Deserialize, Serialize)]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct BitcoinHeaderWrapper(BitcoinHeader);
+pub struct BitcoinHeaderWrapper {
+    header: BitcoinHeader,
+}
 
 impl BorshSerialize for BitcoinHeaderWrapper {
     #[inline]
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        BorshSerialize::serialize(&self.0.version.to_consensus(), writer)?;
-        BorshSerialize::serialize(&self.0.prev_blockhash.to_byte_array(), writer)?;
-        BorshSerialize::serialize(&self.0.merkle_root.to_byte_array(), writer)?;
-        BorshSerialize::serialize(&self.0.time, writer)?;
-        BorshSerialize::serialize(&self.0.bits.to_consensus(), writer)?;
-        BorshSerialize::serialize(&self.0.nonce, writer)
+        let mut buf = vec![];
+        Encodable::consensus_encode(&self.header, &mut buf)
+            .expect("Bitcoin Header serialization cannot fail");
+
+        writer.write(&buf).expect("Borsh writer should never fail");
+        Ok(())
     }
 }
 
 impl BorshDeserialize for BitcoinHeaderWrapper {
     #[inline]
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let version = i32::deserialize_reader(reader)?;
-        let prev_blockhash = <[u8; 32]>::deserialize_reader(reader)?;
-        let merkle_root = <[u8; 32]>::deserialize_reader(reader)?;
-        let time = u32::deserialize_reader(reader)?;
-        let bits = u32::deserialize_reader(reader)?;
-        let nonce = u32::deserialize_reader(reader)?;
+        let mut buf = vec![];
+        reader.read(&mut buf).expect("Borsh reader should never fail");
 
-        let header = BitcoinHeader {
-            version: Version::from_consensus(version),
-            prev_blockhash: BlockHash::from_byte_array(prev_blockhash),
-            merkle_root: TxMerkleNode::from_byte_array(merkle_root),
-            time,
-            bits: CompactTarget::from_consensus(bits),
-            nonce,
-        };
-
-        Ok(Self(header))
+        let header = Decodable::consensus_decode(&mut &*buf)
+            .expect("Bitcoin Header deserialization cannot fail");
+        Ok(Self { header })
     }
 }
 
 impl Deref for BitcoinHeaderWrapper {
     type Target = BitcoinHeader;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.header
     }
 }
 
 impl From<BitcoinHeader> for BitcoinHeaderWrapper {
     fn from(header: BitcoinHeader) -> Self {
-        Self(header)
+        Self { header }
     }
 }
