@@ -156,11 +156,14 @@ where
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
-    rpc.register_async_method("ledger_getHeadSoftConfirmation", |_, ledger, _| async move {
-        ledger
-            .get_head_soft_confirmation()
-            .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
+    rpc.register_async_method(
+        "ledger_getHeadSoftConfirmation",
+        |_, ledger, _| async move {
+            ledger
+                .get_head_soft_confirmation()
+                .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
 
     rpc.register_async_method(
         "ledger_getHeadSoftConfirmationHeight",
