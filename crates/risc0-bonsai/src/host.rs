@@ -152,7 +152,7 @@ impl BonsaiClient {
                         } => {
                             debug!(%img_id, %input_id, "Bonsai:create_session");
                             // TODO: think about whether we should have a case where we use Bonsai with only execute mode
-                            let res = client.create_session(img_id, input_id, assumptions, true);
+                            let res = client.create_session(img_id, input_id, assumptions, false);
                             let res = unwrap_bonsai_response!(res, 'client, 'queue);
                             let _ = notify.send(res);
                         }
