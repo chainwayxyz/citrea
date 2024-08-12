@@ -491,7 +491,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .expect("Stark session has to exist if snark session does not exists")
                         .to_string(),
                 );
-                
+
                 client.create_snark(&session)
             }
         };
