@@ -30,6 +30,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{Event, EventKey, StateDiff};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
@@ -51,6 +52,7 @@ pub const STATE_TABLES: &[&str] = &[
 /// A list of all tables used by the LedgerDB. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[&str] = &[
+    ActiveFork::table_name(),
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
     SoftBatchByNumber::table_name(),
@@ -74,6 +76,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     VerifiedProofsBySlotNumber::table_name(),
     BonsaiSessionByL1Height::table_name(),
     BonsaiSnarkSessionByL1Height::table_name(),
+    MempoolTxs::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -223,6 +226,11 @@ macro_rules! define_table_with_seek_key_codec {
 }
 
 define_table_with_seek_key_codec!(
+    /// The currently active fork
+    (ActiveFork) () => SpecId
+);
+
+define_table_with_seek_key_codec!(
     /// The State diff storage
     (LastStateDiff) () => StateDiff
 );
@@ -340,6 +348,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Prover uses this table to store the latest ongoing bonsai snark session, the value is the uuid of the session
     (BonsaiSnarkSessionByL1Height) u64 => String
+);
+
+define_table_with_default_codec!(
+    /// Transactions in mempool (TxHash, TxData)
+    (MempoolTxs) Vec<u8> => Vec<u8>
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

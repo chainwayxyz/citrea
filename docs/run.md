@@ -14,19 +14,6 @@ Build citrea:
 make build
 ```
 
-### Prequisites
-
-For production use cases, we leverage PostgreSQL for a few extra features in the sequencer. These features are optional, if you don't want to run them, make sure the `sequencer_config.toml` file does not contain the db_config altogether in order to skip using a storage DB backend such as postgres.
-
-If running Postgres is prefered, you can execute the following command:
-
-```sh
-docker compose -f docker-compose.postgres.yml up -d
-
-```
-
-this will run postgres in a dockerized daemon mode.
-
 ### Run on Mock DA
 
 Run on a local da layer, sharable between nodes that run on your computer.

@@ -26,3 +26,6 @@ pub use alloc::sync::Arc as RefCount;
 
 pub use node::*;
 pub use {anyhow, digest};
+
+/// Specs module
+pub mod spec;

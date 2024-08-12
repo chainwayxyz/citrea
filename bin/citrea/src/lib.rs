@@ -29,8 +29,6 @@ pub fn initialize_logging(level: Level) {
             "jsonrpsee-server=info".to_owned(),
             "sov_schema_db=info".to_owned(),
             "sov_prover_storage_manager=info".to_owned(),
-            // Limit output as much as possible, use WARN.
-            "tokio_postgres=warn".to_owned(),
         ];
         debug_components.join(",")
     }))

@@ -9,6 +9,7 @@ use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -16,7 +17,6 @@ use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftBatchResponse, SequencerClient};
-use shared_backup_db::{DbPoolError, PostgresConnector, ProofType};
 use sov_db::ledger_db::{ProverLedgerOps, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
@@ -73,6 +73,7 @@ where
     code_commitment: Vm::CodeCommitment,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
+    fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
@@ -111,6 +112,7 @@ where
         prover_config: Option<ProverConfig>,
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
+        fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
@@ -157,6 +159,7 @@ where
             code_commitment,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             sync_blocks_count,
+            fork_manager,
             soft_confirmation_tx,
         })
     }
@@ -221,7 +224,6 @@ where
 
     async fn check_and_recover_ongoing_bonsai_sessions(
         &self,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         l1_height: u64,
     ) -> Result<bool, anyhow::Error> {
         let prover_service = self
@@ -247,7 +249,7 @@ where
             return Ok(false);
         };
 
-        self.extract_and_store_proof(tx_id, proof, pg_client, l1_height)
+        self.extract_and_store_proof(tx_id, proof, l1_height)
             .await?;
 
         Ok(true)
@@ -272,14 +274,6 @@ where
         };
 
         let prover_config = self.prover_config.clone().unwrap();
-
-        let pg_client = match prover_config.clone().db_config {
-            Some(db_config) => {
-                info!("Connecting to postgres");
-                Some(PostgresConnector::new(db_config.clone()).await)
-            }
-            None => None,
-        };
 
         // Create l1 sync worker task
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
@@ -325,7 +319,7 @@ where
                     if let Err(e) = self.process_l1_block(
                         pending_l1,
                         skip_submission_until_l1,
-                        &pg_client, &prover_config,
+                        &prover_config,
                     ).await {
                         error!("Could not process L1 block and generate proof: {:?}", e);
                     }
@@ -366,6 +360,7 @@ where
             .create_storage_on_l2_height(l2_height)?;
 
         let slot_result = self.stf.apply_soft_batch(
+            self.fork_manager.active_fork(),
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -420,6 +415,10 @@ where
             BatchNumber(l2_height),
         )?;
 
+        // Register this new block with the fork manager to active
+        // the new fork on the next block
+        self.fork_manager.register_block(l2_height)?;
+
         // Only errors when there are no receivers
         let _ = self.soft_confirmation_tx.send(l2_height);
 
@@ -438,7 +437,6 @@ where
         &mut self,
         pending_l1_blocks: &mut VecDeque<<Da as DaService>::FilteredBlock>,
         skip_submission_until_l1: u64,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) -> Result<(), anyhow::Error> {
         while !pending_l1_blocks.is_empty() {
@@ -502,7 +500,7 @@ where
 
             let hash = da_block_header_of_commitments.hash();
             let bonsai_session_exists = self
-                .check_and_recover_ongoing_bonsai_sessions(pg_client, l1_height)
+                .check_and_recover_ongoing_bonsai_sessions(l1_height)
                 .await?;
             if !bonsai_session_exists {
                 // There is no ongoing bonsai session to recover
@@ -520,7 +518,6 @@ where
                     prover_config,
                     skip_submission_until_l1,
                     l1_height,
-                    pg_client,
                     hash,
                 )
                 .await?;
@@ -549,7 +546,6 @@ where
         prover_config: &ProverConfig,
         skip_submission_until_l1: u64,
         l1_height: u64,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
         let should_prove: bool = {
@@ -565,7 +561,7 @@ where
 
         // Skip submission until l1 height
         if l1_height >= skip_submission_until_l1 && should_prove {
-            self.generate_and_submit_proof(transition_data, pg_client, l1_height, hash)
+            self.generate_and_submit_proof(transition_data, l1_height, hash)
                 .await?;
         } else {
             info!("Skipping proving for l1 height {}", l1_height);
@@ -763,7 +759,6 @@ where
     async fn generate_and_submit_proof(
         &self,
         transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         l1_height: u64,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
@@ -786,15 +781,13 @@ where
             }
         };
 
-        self.extract_and_store_proof(tx_id, proof, pg_client, l1_height)
-            .await
+        self.extract_and_store_proof(tx_id, proof, l1_height).await
     }
 
     async fn extract_and_store_proof(
         &self,
         tx_id: <Da as DaService>::TransactionId,
         proof: Proof,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         l1_height: u64,
     ) -> Result<(), anyhow::Error> {
         let tx_id_u8 = tx_id.into();
@@ -838,27 +831,6 @@ where
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
         };
-
-        match pg_client.as_ref() {
-            Some(Ok(pool)) => {
-                info!("Inserting proof data into postgres");
-                let (proof_data, proof_type) = match proof.clone() {
-                    Proof::Full(full_proof) => (full_proof, ProofType::Full),
-                    Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
-                };
-                pool.insert_proof_data(
-                    tx_id_u8.to_vec(),
-                    proof_data,
-                    stored_state_transition.clone().into(),
-                    proof_type,
-                )
-                .await
-                .unwrap();
-            }
-            _ => {
-                warn!("No postgres client found");
-            }
-        }
 
         if let Err(e) =
             self.ledger_db

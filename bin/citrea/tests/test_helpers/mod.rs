@@ -2,14 +2,17 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use shared_backup_db::PostgresConnector;
-use sov_mock_da::{MockAddress, MockDaConfig, MockDaService};
+use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
+use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
+use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::zk::Proof;
 use sov_stf_runner::{
     FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
@@ -173,8 +176,6 @@ pub fn create_default_sequencer_config(
         test_mode: test_mode.unwrap_or(false),
         deposit_mempool_fetch_limit,
         mempool_conf: Default::default(),
-        // Offchain db will be active only in some tests
-        db_config: None,
         da_update_interval_ms: 500,
         block_production_interval_ms: 500, // since running in test mode, we can set this to a lower value
     }
@@ -263,6 +264,43 @@ pub async fn wait_for_l1_block(da_service: &MockDaService, num: u64, timeout: Op
     sleep(Duration::from_secs(2)).await;
 }
 
+#[instrument(level = "debug", skip(da_service))]
+pub async fn wait_for_commitment(
+    da_service: &MockDaService,
+    l1_height: u64,
+    timeout: Option<Duration>,
+) -> Vec<SequencerCommitment> {
+    let start = SystemTime::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    loop {
+        debug!(
+            "Waiting for an L1 commitments to be published at L1 height {}",
+            l1_height
+        );
+
+        let Ok(l1_block) = da_service.get_block_at(l1_height).await else {
+            sleep(Duration::from_secs(1)).await;
+            continue;
+        };
+
+        let (sequencer_commitments, _) = extract_da_data(da_service, l1_block.clone());
+
+        if !sequencer_commitments.is_empty() {
+            return sequencer_commitments;
+        }
+
+        let now = SystemTime::now();
+        if start + timeout <= now {
+            panic!(
+                "Timeout. {} commitments exist at this point",
+                sequencer_commitments.len()
+            );
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    }
+}
+
 pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout: Option<Duration>) {
     let start = SystemTime::now();
     let timeout = timeout.unwrap_or(Duration::from_secs(60)); // Default 60 seconds timeout
@@ -289,49 +327,29 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
     sleep(Duration::from_secs(2)).await;
 }
 
-#[instrument(level = "debug", skip(db_test_client))]
-pub async fn wait_for_postgres_commitment(
-    db_test_client: &PostgresConnector,
-    num: usize,
-    timeout: Option<Duration>,
-) {
-    let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
-    loop {
-        debug!("Waiting for {} L1 commitments to be published", num);
-        let commitments = db_test_client.get_all_commitments().await.unwrap().len();
-        if commitments >= num {
-            break;
-        }
+fn extract_da_data(
+    da_service: &MockDaService,
+    block: MockBlock,
+) -> (Vec<SequencerCommitment>, Vec<Proof>) {
+    let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
+    let mut zk_proofs = Vec::<Proof>::new();
 
-        let now = SystemTime::now();
-        if start + timeout <= now {
-            panic!("Timeout. {} commitments exist at this point", commitments);
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
-}
-
-pub async fn wait_for_postgres_proofs(
-    db_test_client: &PostgresConnector,
-    num: usize,
-    timeout: Option<Duration>,
-) {
-    let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
-    loop {
-        debug!("Waiting for {} L1 proofs to be published", num);
-        let commitments = db_test_client.get_all_proof_data().await.unwrap().len();
-        if commitments >= num {
-            break;
-        }
-
-        let now = SystemTime::now();
-        if start + timeout <= now {
-            panic!("Timeout. {} proofs exist at this point", commitments);
-        }
-
-        sleep(Duration::from_secs(1)).await;
-    }
+    da_service
+        .extract_relevant_blobs(&block)
+        .into_iter()
+        .for_each(|mut tx| {
+            let data = DaData::try_from_slice(tx.full_data());
+            if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                sequencer_commitments.push(seq_com);
+            } else if let Ok(DaData::ZKProof(proof)) = data {
+                zk_proofs.push(proof);
+            } else {
+                tracing::warn!(
+                    "Found broken DA data in block 0x{}: {:?}",
+                    hex::encode(block.hash()),
+                    data
+                );
+            }
+        });
+    (sequencer_commitments, zk_proofs)
 }
