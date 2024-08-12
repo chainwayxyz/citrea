@@ -1,6 +1,6 @@
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, Env, ExecutionResult, ResultAndState, EvmState
+    CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use sov_modules_api::{native_error, native_trace};

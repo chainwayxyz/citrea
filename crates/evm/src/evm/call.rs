@@ -236,7 +236,6 @@ pub(crate) fn prepare_call_env(
         TransactTo::Create
     };
 
-
     let env = TxEnv {
         gas_price,
         nonce,

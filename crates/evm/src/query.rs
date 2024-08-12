@@ -13,15 +13,15 @@ use reth_primitives::{
 };
 use reth_provider::ProviderError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
-use reth_rpc_types::OtherFields;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{
-    AnyReceiptEnvelope, AnyTransactionReceipt, Log, ReceiptWithBloom,
+    AnyReceiptEnvelope, AnyTransactionReceipt, Log, OtherFields, ReceiptWithBloom,
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, TxEnv, KECCAK_EMPTY
+    CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
+    TxEnv, KECCAK_EMPTY,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;

@@ -5,8 +5,7 @@ use std::ops::Deref;
 
 use reth_chainspec::{ChainSpec, ChainSpecBuilder};
 use reth_primitives::{
-    Address, Bloom, Bytes, Header as RethHeader, SealedHeader,
-    Withdrawals, B256, B64, U256,
+    Address, Bloom, Bytes, Header as RethHeader, SealedHeader, Withdrawals, B256, B64, U256,
 };
 use serde::Deserialize;
 

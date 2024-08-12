@@ -110,27 +110,33 @@ where
         },
     )?;
 
-    rpc.register_async_method("ledger_getProofBySlotHeight", |params, ledger, _| async move {
-        // Returns proof on DA slot with given height
-        let height: u64 = params.one()?;
-        ledger
-            .get_proof_data_by_l1_height(height)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-
-    rpc.register_async_method("ledger_getProofBySlotHash", |params, ledger, _| async move {
-        // Returns proof on DA slot with given height
-        let hash: [u8; 32] = params.one()?;
-        let height = ledger
-            .get_slot_number_by_hash(hash)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
-        match height {
-            Some(height) => ledger
+    rpc.register_async_method(
+        "ledger_getProofBySlotHeight",
+        |params, ledger, _| async move {
+            // Returns proof on DA slot with given height
+            let height: u64 = params.one()?;
+            ledger
                 .get_proof_data_by_l1_height(height)
-                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
-            None => Ok(None),
-        }
-    })?;
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
+
+    rpc.register_async_method(
+        "ledger_getProofBySlotHash",
+        |params, ledger, _| async move {
+            // Returns proof on DA slot with given height
+            let hash: [u8; 32] = params.one()?;
+            let height = ledger
+                .get_slot_number_by_hash(hash)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
+            match height {
+                Some(height) => ledger
+                    .get_proof_data_by_l1_height(height)
+                    .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
+                None => Ok(None),
+            }
+        },
+    )?;
 
     rpc.register_async_method(
         "ledger_getVerifiedProofsBySlotHeight",

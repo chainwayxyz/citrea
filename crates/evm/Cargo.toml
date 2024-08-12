@@ -36,10 +36,10 @@ itertools = { workspace = true, optional = true }
 reth-primitives = { workspace = true, default-features = false }
 reth-provider = { workspace = true, optional = true }
 reth-rpc = { workspace = true, optional = true }
-reth-rpc-types = { workspace = true, optional = true }
-reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-eth-api = { workspace = true, optional = true }
+reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-server-types = { workspace = true, optional = true }
+reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 revm = { workspace = true }
 revm-inspectors = { workspace = true, optional = true }
@@ -51,8 +51,8 @@ bytes = { workspace = true }
 lazy_static = "1.4.0"
 rand = { workspace = true }
 rayon = { workspace = true }
-reth-db = { workspace = true }
 reth-chainspec = { workspace = true }
+reth-db = { workspace = true }
 reth-errors = { workspace = true }
 revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }

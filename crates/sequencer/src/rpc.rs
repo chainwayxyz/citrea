@@ -80,35 +80,42 @@ pub(crate) fn create_rpc_module<
         })?;
     }
 
-    rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx, _| async move {
-        let mut params = parameters.sequence();
-        let hash: B256 = params.next()?;
-        let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
-        debug!(
-            "Sequencer: eth_getTransactionByHash({}, {:?})",
-            hash, mempool_only
-        );
+    rpc.register_async_method(
+        "eth_getTransactionByHash",
+        |parameters, ctx, _| async move {
+            let mut params = parameters.sequence();
+            let hash: B256 = params.next()?;
+            let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
+            debug!(
+                "Sequencer: eth_getTransactionByHash({}, {:?})",
+                hash, mempool_only
+            );
 
-        match ctx.mempool.get(&hash) {
-            Some(tx) => {
-                let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
-                let tx: reth_rpc_types::Transaction = from_recovered(tx_signed_ec_recovered);
-                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
-            }
-            None => match mempool_only {
-                Ok(Some(true)) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
-                _ => {
-                    let evm = Evm::<C>::default();
-                    let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
-
-                    match evm.get_transaction_by_hash(hash, &mut working_set) {
-                        Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
-                        Err(e) => Err(e),
-                    }
+            match ctx.mempool.get(&hash) {
+                Some(tx) => {
+                    let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
+                    let tx: reth_rpc_types::Transaction = from_recovered(tx_signed_ec_recovered);
+                    Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
                 }
-            },
-        }
-    })?;
+                None => match mempool_only {
+                    Ok(Some(true)) => {
+                        Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None)
+                    }
+                    _ => {
+                        let evm = Evm::<C>::default();
+                        let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+
+                        match evm.get_transaction_by_hash(hash, &mut working_set) {
+                            Ok(tx) => {
+                                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
+                            }
+                            Err(e) => Err(e),
+                        }
+                    }
+                },
+            }
+        },
+    )?;
 
     rpc.register_async_method(
         "citrea_sendRawDepositTransaction",

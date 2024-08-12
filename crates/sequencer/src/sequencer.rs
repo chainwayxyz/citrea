@@ -21,7 +21,8 @@ use jsonrpsee::RpcModule;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction, PoolTransaction, ValidPoolTransaction
+    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
+    PoolTransaction, ValidPoolTransaction,
 };
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;

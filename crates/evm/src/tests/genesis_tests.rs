@@ -5,8 +5,7 @@ use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
-    KECCAK_EMPTY, U256,
+    Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
 use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;

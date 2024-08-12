@@ -285,7 +285,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
                     .with_tracer(GethDebugTracerType::BuiltInTracer(
                         GethDebugBuiltInTracerType::CallTracer,
                     ))
-                    .call_config(CallConfig {
+                    .with_call_config(CallConfig {
                         only_top_call: Some(true),
                         with_log: Some(false),
                     }),

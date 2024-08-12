@@ -6,10 +6,14 @@ use jsonrpsee::core::RpcResult;
 use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db::models::StoredBlockBodyIndices;
 use reth_primitives::{
-    Account, Address, BlockNumber, BlockNumberOrTag, BlockWithSenders, Bytecode, SealedBlockWithSenders, SealedHeader, StorageKey, StorageValue, B256, U256
+    Account, Address, BlockNumber, BlockNumberOrTag, BlockWithSenders, Bytecode,
+    SealedBlockWithSenders, SealedHeader, StorageKey, StorageValue, B256, U256,
 };
 use reth_provider::{
-    AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt, ChainSpecProvider, HeaderProvider, ProviderResult, ReceiptProvider, ReceiptProviderIdExt, RequestsProvider, StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider, TransactionsProvider, WithdrawalsProvider
+    AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
+    ChainSpecProvider, HeaderProvider, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
+    RequestsProvider, StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider,
+    TransactionsProvider, WithdrawalsProvider,
 };
 use reth_rpc_types::{Block, BlockTransactions, Rich};
 use reth_trie::updates::TrieUpdates;
@@ -75,7 +79,11 @@ impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
 }
 
 impl<C: sov_modules_api::Context> RequestsProvider for DbProvider<C> {
-    fn requests_by_block(&self, _id: reth_primitives::BlockHashOrNumber, _timestamp: u64) -> ProviderResult<Option<reth_primitives::Requests>>  {
+    fn requests_by_block(
+        &self,
+        _id: reth_primitives::BlockHashOrNumber,
+        _timestamp: u64,
+    ) -> ProviderResult<Option<reth_primitives::Requests>> {
         unimplemented!("requests_by_block")
     }
 }
@@ -342,8 +350,7 @@ impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
     }
     fn pending_block_with_senders(
         &self,
-    ) -> ProviderResult<Option<reth_primitives::SealedBlockWithSenders>>
-    {
+    ) -> ProviderResult<Option<reth_primitives::SealedBlockWithSenders>> {
         unimplemented!("pending_block_with_senders")
     }
     fn block_with_senders_range(
@@ -352,12 +359,19 @@ impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
     ) -> ProviderResult<Vec<BlockWithSenders>> {
         unimplemented!("block_with_senders_range")
     }
-    
-    fn sealed_block_with_senders(&self, _id: reth_primitives::BlockHashOrNumber, _transaction_kind: reth_provider::TransactionVariant) -> ProviderResult<Option<SealedBlockWithSenders>>  {
+
+    fn sealed_block_with_senders(
+        &self,
+        _id: reth_primitives::BlockHashOrNumber,
+        _transaction_kind: reth_provider::TransactionVariant,
+    ) -> ProviderResult<Option<SealedBlockWithSenders>> {
         unimplemented!("sealed_block_with_senders")
     }
-    
-    fn sealed_block_with_senders_range(&self, _range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<SealedBlockWithSenders>>  {
+
+    fn sealed_block_with_senders_range(
+        &self,
+        _range: RangeInclusive<BlockNumber>,
+    ) -> ProviderResult<Vec<SealedBlockWithSenders>> {
         unimplemented!("sealed_block_with_senders_range")
     }
 }
@@ -553,23 +567,39 @@ impl<C: sov_modules_api::Context> StateRootProvider for DbProvider<C> {
     ) -> ProviderResult<(reth_primitives::B256, TrieUpdates)> {
         unimplemented!("state_root_with_updates")
     }
-    fn hashed_state_root(&self, _hashed_state: reth_trie::HashedPostState) -> ProviderResult<B256>  {
+    fn hashed_state_root(&self, _hashed_state: reth_trie::HashedPostState) -> ProviderResult<B256> {
         unimplemented!("hashed_state_root")
     }
-    fn hashed_state_root_with_updates(&self, _hashed_state: reth_trie::HashedPostState) -> ProviderResult<(B256, TrieUpdates)>  {
+    fn hashed_state_root_with_updates(
+        &self,
+        _hashed_state: reth_trie::HashedPostState,
+    ) -> ProviderResult<(B256, TrieUpdates)> {
         unimplemented!("hashed_state_root_with_updates")
     }
-    fn hashed_storage_root(&self, _address: Address, _hashed_storage: reth_trie::HashedStorage) -> ProviderResult<B256>  {
+    fn hashed_storage_root(
+        &self,
+        _address: Address,
+        _hashed_storage: reth_trie::HashedStorage,
+    ) -> ProviderResult<B256> {
         unimplemented!("hashed_storage_root")
     }
 }
 
 impl<C: sov_modules_api::Context> StateProofProvider for DbProvider<C> {
-    fn hashed_proof(&self, _hashed_state: reth_trie::HashedPostState, _address: Address, _slots: &[B256]) -> ProviderResult<reth_trie::AccountProof> {
+    fn hashed_proof(
+        &self,
+        _hashed_state: reth_trie::HashedPostState,
+        _address: Address,
+        _slots: &[B256],
+    ) -> ProviderResult<reth_trie::AccountProof> {
         unimplemented!("hashed_proof")
     }
 
-    fn witness(&self, _overlay: reth_trie::HashedPostState, _target: reth_trie::HashedPostState) -> ProviderResult<HashMap<B256, reth_primitives::Bytes>> {
+    fn witness(
+        &self,
+        _overlay: reth_trie::HashedPostState,
+        _target: reth_trie::HashedPostState,
+    ) -> ProviderResult<HashMap<B256, reth_primitives::Bytes>> {
         unimplemented!("hashed_proof")
     }
 }

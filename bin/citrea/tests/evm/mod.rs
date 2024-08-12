@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 // use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
@@ -434,7 +434,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // None should return the latest block
     // It should have a single transaction, setting the value
     let latest_block = client.eth_get_block_by_number_with_detail(None).await;
-    let block_transactions: Vec<_> = latest_block.transactions.hashes().copied().collect();
+    let block_transactions: Vec<_> = latest_block.transactions.hashes().clone().collect();
     assert_eq!(latest_block.header.number.unwrap(), 2);
     assert_eq!(block_transactions.len(), 1);
     assert_eq!(block_transactions[0], tx_hash);
@@ -561,7 +561,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
 pub async fn make_test_client(rpc_address: SocketAddr) -> Box<TestClient> {
     let chain_id: u64 = 5655;
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        .parse::<LocalWallet>()
+        .parse::<PrivateKeySigner>()
         .unwrap()
         .with_chain_id(Some(chain_id));
 
