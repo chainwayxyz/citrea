@@ -1,10 +1,12 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use citrea_primitives::fork::ForkMigration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -12,8 +14,8 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff,
+    ActiveFork, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
+    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
     PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
     SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
     TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
@@ -430,6 +432,34 @@ impl SharedLedgerOps for LedgerDB {
     ) -> Result<Option<StoredSoftConfirmation>, anyhow::Error> {
         self.db.get::<SoftConfirmationByNumber>(number)
     }
+
+    /// Gets the currently active fork
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error> {
+        self.db
+            .get::<ActiveFork>(&())
+            .map(|fork| fork.unwrap_or_default())
+    }
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
+        self.db.get::<LastSequencerCommitmentSent>(&())
+    }
+
+    /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
+    /// For a sequencer, the last commitment height is set when the block is produced.
+    /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<(), anyhow::Error> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<LastSequencerCommitmentSent>(&(), &l2_height)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
 }
 
 impl ProverLedgerOps for LedgerDB {
@@ -590,11 +620,48 @@ impl SequencerLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Get the most recent committed batch
-    /// Returns L2 height.
+    /// Get the most recent commitment's l1 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>> {
-        self.db.get::<LastSequencerCommitmentSent>(&())
+    fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>> {
+        let l2_height = self.get_last_commitment_l2_height()?;
+        match l2_height {
+            Some(l2_height) => {
+                let soft_confirmation = self
+                    .get_soft_confirmation_by_number(&l2_height)?
+                    .expect("Expected soft confirmation to exist");
+                Ok(Some(SlotNumber(soft_confirmation.da_slot_height)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<MempoolTxs>(&tx_hash, &tx)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>> {
+        let mut iter = self.db.iter::<MempoolTxs>()?;
+        iter.seek_to_first();
+
+        let txs = iter
+            .map(|item| item.map(|item| (item.key, item.value)))
+            .collect::<Result<Vec<(Vec<u8>, Vec<u8>)>, _>>()?;
+
+        Ok(txs)
+    }
+
+    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        for tx_hash in tx_hashes {
+            schema_batch.delete::<MempoolTxs>(&tx_hash)?;
+        }
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
     }
 }
 
@@ -669,5 +736,12 @@ impl NodeLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+}
+
+impl ForkMigration for LedgerDB {
+    fn spec_activated(&self, _spec_id: SpecId) -> anyhow::Result<()> {
+        // TODO: Implement later
+        Ok(())
     }
 }

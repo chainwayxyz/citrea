@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmationBatch;
+use crate::spec::SpecId;
 use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
@@ -197,8 +198,10 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     ///
     /// Commits state changes to the database
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments)]
     fn apply_slot<'a, I>(
         &self,
+        current_spec: SpecId,
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
@@ -230,6 +233,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     #[allow(clippy::too_many_arguments)]
     fn apply_soft_confirmation(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
@@ -263,6 +267,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff);
 }
 

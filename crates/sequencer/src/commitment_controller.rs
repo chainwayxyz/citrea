@@ -31,7 +31,7 @@ pub fn get_commitment_info<T: SequencerLedgerOps>(
 
     // Get latest finalized and pending commitments and find the max height
     let last_finalized_l2_height = ledger_db
-        .get_last_sequencer_commitment_l2_height()?
+        .get_last_commitment_l2_height()?
         .unwrap_or(BatchNumber(0));
     let last_pending_l2_height = ledger_db
         .get_pending_commitments_l2_range()?

@@ -7,9 +7,11 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -50,7 +52,7 @@ where
 {
     start_l2_height: u64,
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
@@ -67,12 +69,13 @@ where
     accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
+    fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
 impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
 where
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
@@ -95,13 +98,14 @@ where
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
-        da_service: Da,
+        da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
+        fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
@@ -153,6 +157,7 @@ where
                 .unwrap_or(false),
             sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
+            fork_manager,
             soft_confirmation_tx,
         })
     }
@@ -174,11 +179,17 @@ where
 
         let max_connections = self.rpc_config.max_connections;
         let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
+        let max_request_body_size = self.rpc_config.max_request_body_size;
+        let max_response_body_size = self.rpc_config.max_response_body_size;
+        let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .build([listen_address].as_ref())
                 .await;
 
@@ -360,8 +371,8 @@ where
         if stored_soft_confirmations.len() < ((end_l2_height - start_l2_height) as usize) {
             return Err(SyncError::MissingL2(
                 "L2 range not synced yet",
-                BatchNumber(start_l2_height),
-                BatchNumber(end_l2_height),
+                start_l2_height,
+                end_l2_height,
             ));
         }
 
@@ -396,6 +407,8 @@ where
                     SoftConfirmationStatus::Finalized,
                 )?;
             }
+            self.ledger_db
+                .set_last_commitment_l2_height(BatchNumber(end_l2_height))?;
         }
         Ok(())
     }
@@ -424,6 +437,7 @@ where
             .create_storage_on_l2_height(l2_height)?;
 
         let slot_result = self.stf.apply_soft_confirmation(
+            self.fork_manager.active_fork(),
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -478,6 +492,10 @@ where
             SlotNumber(current_l1_block.header().height()),
             BatchNumber(l2_height),
         )?;
+
+        // Register this new block with the fork manager to active
+        // the new fork on the next block.
+        self.fork_manager.register_block(l2_height)?;
 
         // Only errors when there are no receivers
         let _ = self.soft_confirmation_tx.send(l2_height);
@@ -652,7 +670,7 @@ where
 
 async fn l1_sync<Da>(
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) where

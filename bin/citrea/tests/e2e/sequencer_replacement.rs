@@ -9,15 +9,15 @@ use alloy_rlp::Decodable;
 use citrea_sequencer::SequencerMempoolConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
-use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
+use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
 
 use crate::e2e::{copy_dir_recursive, execute_blocks, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_postgres_commitment, NodeMode,
+    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
 use crate::{
     DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, DEFAULT_PROOF_WAIT_DURATION,
@@ -30,22 +30,14 @@ use crate::{
 /// Check if the full node can continue block production.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let psql_db_name = "sequencer_crash_and_replace_full_node".to_owned();
-
-    let db_test_client = PostgresConnector::new_test_client(psql_db_name.clone())
-        .await
-        .unwrap();
-
-    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
-
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(psql_db_name));
+    let sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
@@ -128,9 +120,10 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     // assume sequencer craashed
     seq_task.abort();
 
-    wait_for_postgres_commitment(&db_test_client, 1, Some(Duration::from_secs(60))).await;
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
+    let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_start_block_number, 1);
+    assert_eq!(commitments[0].l2_end_block_number, 4);
 
     full_node_task.abort();
 
@@ -175,19 +168,16 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     wait_for_l1_block(&da_service, 3, None).await;
 
-    wait_for_postgres_commitment(
-        &db_test_client,
-        2,
+    let commitments = wait_for_commitment(
+        &da_service,
+        3,
         Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
     )
     .await;
 
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
-    assert_eq!(commitments.len(), 2);
-    assert_eq!(commitments[0].l2_start_height, 1);
-    assert_eq!(commitments[0].l2_end_height, 4);
-    assert_eq!(commitments[1].l2_start_height, 5);
-    assert_eq!(commitments[1].l2_end_height, 8);
+    assert_eq!(commitments.len(), 1);
+    assert_eq!(commitments[0].l2_start_block_number, 5);
+    assert_eq!(commitments[0].l2_end_block_number, 8);
 
     seq_task.abort();
 
@@ -208,19 +198,11 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
-    let db_test_client =
-        PostgresConnector::new_test_client("sequencer_crash_restore_mempool".to_owned())
-            .await
-            .unwrap();
-
     let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
     sequencer_config.mempool_conf = SequencerMempoolConfig {
         max_account_slots: 100,
         ..Default::default()
     };
-    sequencer_config.db_config = Some(
-        SharedBackupDbConfig::default().set_db_name("sequencer_crash_restore_mempool".to_owned()),
-    );
 
     let da_service =
         MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir.clone());
@@ -277,18 +259,31 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     assert_eq!(tx_1.hash, *tx_hash);
     assert_eq!(tx_2.hash, *tx_hash2);
 
-    let txs = db_test_client.get_all_txs().await.unwrap();
+    // crash and reopen and check if the txs are in the mempool
+    seq_task.abort();
+
+    // Copy data into a separate directory since the original sequencer
+    // directory is locked by a LOCK file.
+    // This would enable us to access ledger DB directly.
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_unlocked"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
+    let ledger_db = LedgerDB::with_path(sequencer_db_dir.clone())
+        .expect("Should be able to open after stopping the sequencer");
+    let txs = ledger_db.get_mempool_txs().unwrap();
     assert_eq!(txs.len(), 2);
-    assert_eq!(txs[0].tx_hash, tx_hash.to_vec());
-    assert_eq!(txs[1].tx_hash, tx_hash2.to_vec());
+    assert_eq!(txs[1].0, tx_hash.to_vec());
+    assert_eq!(txs[0].0, tx_hash2.to_vec());
 
     let signed_tx = Signed::<TxEip1559>::try_from(tx_1.clone()).unwrap();
     let envelope = TxEnvelope::Eip1559(signed_tx);
-    let decoded = TxEnvelope::decode(&mut txs[0].tx.as_ref()).unwrap();
+    let decoded = TxEnvelope::decode(&mut txs[1].1.as_ref()).unwrap();
     assert_eq!(envelope, decoded);
 
-    // crash and reopen and check if the txs are in the mempool
-    seq_task.abort();
+    // Remove lock
+    drop(ledger_db);
 
     let _ = copy_dir_recursive(
         &sequencer_db_dir,
@@ -300,13 +295,14 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let config1 = sequencer_config.clone();
     let da_db_dir_cloned = da_db_dir.clone();
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy").to_path_buf();
+    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
-            sequencer_db_dir,
+            sequencer_db_dir_cloned,
             da_db_dir_cloned,
             4,
             true,
@@ -337,7 +333,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     assert_eq!(tx_1_mempool, tx_1);
     assert_eq!(tx_2_mempool, tx_2);
 
-    // publish block and check if the txs are deleted from pg
+    // publish block and check if the txs are deleted from ledger
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 1, None).await;
 
@@ -355,11 +351,22 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         .await
         .is_none());
 
-    let txs = db_test_client.get_all_txs().await.unwrap();
+    seq_task.abort();
+
+    // Copy data into a separate directory since the original sequencer
+    // directory is locked by a LOCK file.
+    // This would enable us to access ledger DB directly.
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_unlocked"),
+    );
+    let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
+    let ledger_db = LedgerDB::with_path(sequencer_db_dir.clone())
+        .expect("Should be able to open after stopping the sequencer");
+    let txs = ledger_db.get_mempool_txs().unwrap();
     // should be removed from db
     assert_eq!(txs.len(), 0);
 
-    seq_task.abort();
     Ok(())
 }
 

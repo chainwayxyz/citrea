@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 use crate::L1BlockCache;
 
 pub async fn get_da_block_at_height<Da: DaService>(
-    da_service: &Da,
+    da_service: &Arc<Da>,
     height: u64,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) -> anyhow::Result<Da::FilteredBlock> {

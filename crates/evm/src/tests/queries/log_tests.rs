@@ -8,6 +8,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateVecAccessor};
+use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::LogsContract;
@@ -71,6 +72,7 @@ fn log_filter_test_at_block_hash() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -277,6 +279,7 @@ fn log_filter_test_with_range() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -338,6 +341,7 @@ fn log_filter_test_with_range() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -399,6 +403,7 @@ fn test_log_limits() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -499,6 +504,7 @@ fn test_log_limits() {
                 da_slot_height: 1,
                 da_slot_txs_commitment: [42u8; 32],
                 pre_state_root: [99u8; 32].to_vec(),
+                current_spec: SpecId::Genesis,
                 pub_key: vec![],
                 deposit_data: vec![],
                 l1_fee_rate: 1,

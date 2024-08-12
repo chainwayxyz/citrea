@@ -7,6 +7,7 @@ use reth_primitives::{
 };
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
+use sov_rollup_interface::spec::SpecId;
 
 use super::genesis_tests::{GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
@@ -31,6 +32,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -66,6 +68,7 @@ fn end_soft_confirmation_hook_sets_head() {
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
             pre_state_root: pre_state_root.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -141,6 +144,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -246,6 +250,7 @@ fn finalize_hook_creates_final_block() {
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
             pre_state_root: root.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -276,6 +281,7 @@ fn finalize_hook_creates_final_block() {
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
             pre_state_root: root_hash.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -362,6 +368,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
             pre_state_root: root.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -403,6 +410,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
                 da_slot_height: 1,
                 da_slot_txs_commitment: random_32_bytes,
                 pre_state_root: random_32_bytes.to_vec(),
+                current_spec: SpecId::Genesis,
                 pub_key: vec![],
                 deposit_data: vec![],
                 l1_fee_rate,
@@ -425,6 +433,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             da_slot_height: 1,
             da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
