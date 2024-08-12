@@ -35,9 +35,8 @@ contract Bridge is Ownable2StepUpgradeable {
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     bool public initialized;
-    uint256 public constant DEPOSIT_AMOUNT = 0.01 ether;
+    uint256 public depositAmount;
     address public operator;
-    uint256 public requiredSigsCount;
     bytes public depositScript;
     bytes public scriptSuffix;
     
@@ -51,7 +50,7 @@ contract Bridge is Ownable2StepUpgradeable {
     
     event Deposit(bytes32 wtxId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
-    event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix, uint256 requiredSigsCount);
+    event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix);
     event OperatorUpdated(address oldOperator, address newOperator);
     event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
     event MaliciousOperatorMarked(uint256 operatorId);
@@ -68,40 +67,37 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Initializes the bridge contract and sets the deposit script
-    /// @param _depositScript The deposit script expected in the witness field for all L1 deposits
+    /// @param _depositAmount 
     /// @param _scriptSuffix The suffix of the deposit script that follows the receiver address
     /// @param _requiredSigsCount The number of signatures that is contained in the deposit script
-    function initialize(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlySystem {
+    function initialize(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _depositAmount) external onlySystem {
         require(!initialized, "Contract is already initialized");
-        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
+        require(_depositAmount != 0, "Deposit amount cannot be 0");
         require(_depositScript.length != 0, "Deposit script cannot be empty");
 
         initialized = true;
         depositScript = _depositScript;
         scriptSuffix = _scriptSuffix;
-        requiredSigsCount = _requiredSigsCount;
+        depositAmount = _depositAmount;
         
         // Set initial operator to SYSTEM_CALLER so that Citrea can get operational by starting to process deposits
         operator = SYSTEM_CALLER;
 
         emit OperatorUpdated(address(0), SYSTEM_CALLER);
-        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix);
     }
 
     /// @notice Sets the expected deposit script of the deposit transaction on Bitcoin, contained in the witness
     /// @dev Deposit script contains a fixed script that checks signatures of verifiers and pushes EVM address of the receiver
     /// @param _depositScript The new deposit script
     /// @param _scriptSuffix The part of the deposit script that succeeds the receiver address
-    /// @param _requiredSigsCount The number of signatures that are needed for deposit transaction
-    function setDepositScript(bytes calldata _depositScript, bytes calldata _scriptSuffix, uint256 _requiredSigsCount) external onlyOwner {
-        require(_requiredSigsCount != 0, "Verifier count cannot be 0");
+    function setDepositScript(bytes calldata _depositScript, bytes calldata _scriptSuffix) external onlyOwner {
         require(_depositScript.length != 0, "Deposit script cannot be empty");
 
         depositScript = _depositScript;
         scriptSuffix = _scriptSuffix;
-        requiredSigsCount = _requiredSigsCount;
 
-        emit DepositScriptUpdate(_depositScript, _scriptSuffix, _requiredSigsCount);
+        emit DepositScriptUpdate(_depositScript, _scriptSuffix);
     }
 
     function setKickoff2AddressRoot(bytes32 _kickoff2AddressRoot) external onlyOwner {
@@ -123,9 +119,9 @@ contract Bridge is Ownable2StepUpgradeable {
         
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(revealTp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
-        require(_nItems == 2 + requiredSigsCount, "Invalid witness items"); // musig + deposit script + witness script TODO: make requiredSigsCount = 1
+        require(_nItems == 3, "Invalid witness items"); // musig + deposit script + witness script
 
-        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, requiredSigsCount); // skip musig TODO: make requiredSigsCount = 1
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
         uint256 _len = depositScript.length;
         bytes memory _depositScript = script.slice(0, _len);
         require(isBytesEqual(_depositScript, depositScript), "Invalid deposit script");
@@ -138,7 +134,7 @@ contract Bridge is Ownable2StepUpgradeable {
 
         emit Deposit(wtxId, recipient, block.timestamp, kickoffRoots.length - 1);
 
-        (bool success, ) = recipient.call{value: DEPOSIT_AMOUNT}("");
+        (bool success, ) = recipient.call{value: depositAmount}("");
         require(success, "Transfer failed");
     }
 
@@ -146,7 +142,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param txId The txId of the withdrawal transaction on Bitcoin
     /// @param outputId The outputId of the output in the withdrawal transaction
     function withdraw(bytes32 txId, uint32 outputId) external payable {
-        require(msg.value == DEPOSIT_AMOUNT, "Invalid withdraw amount");
+        require(msg.value == depositAmount, "Invalid withdraw amount");
         UTXO memory utxo = UTXO({
             txId: txId,
             outputId: outputId
@@ -162,7 +158,7 @@ contract Bridge is Ownable2StepUpgradeable {
     /// @param outputIds the outputIds of the outputs in the withdrawal transactions
     function batchWithdraw(bytes32[] calldata txIds, uint32[] calldata outputIds) external payable {
         require(txIds.length == outputIds.length, "Length mismatch");
-        require(msg.value == DEPOSIT_AMOUNT * txIds.length, "Invalid withdraw amount");
+        require(msg.value == depositAmount * txIds.length, "Invalid withdraw amount");
         uint256 index = withdrawalUTXOs.length;
         for (uint i = 0; i < txIds.length; i++) {
             UTXO memory utxo = UTXO({
@@ -200,18 +196,19 @@ contract Bridge is Ownable2StepUpgradeable {
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
     }
 
+    // TODO: Add comment about using ValidateSPV for regular merkle proofs in natspec of this function
     function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata kickoff2Tp, uint256 inputIndex, uint256 depositId, uint256 operatorId, bytes32 kickoff2Address, bytes memory proofToKickoff2Address) external {
         validateAndCheckInclusion(kickoff2Tp);
-        require(ValidateSPV.prove(kickoff2Address, kickoff2AddressRoot, proofToKickoff2Address, operatorId), "Invalid kickoff2Address proof"); // TODO: change to the proper merkle verifier
+        require(ValidateSPV.prove(kickoff2Address, kickoff2AddressRoot, proofToKickoff2Address, operatorId), "Invalid kickoff2Address proof"); // We utilize SPV proving as a method to do regular merkle proofs
         bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(kickoff2Tp.vout, 0));
         require(bytesToBytes32(scriptPubkey) == kickoff2Address, "Invalid kickoff2Address");
 
         bytes memory input = BTCUtils.extractInputAtIndex(kickoff2Tp.vin, inputIndex);
         bytes32 txId = BTCUtils.extractInputTxIdLE(input);
         bytes4 index = BTCUtils.extractTxIndexLE(input);
-        bytes32 kickoffHash = keccak256(abi.encodePacked(txId, index));
+        bytes32 kickoffHash = sha256(abi.encodePacked(txId, index));
         bytes32 root = kickoffRoots[depositId];
-        require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof"); // TODO: change to the proper merkle verifier
+        require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof");
         if(withdrawFillers[depositId] == bytes32(0) || withdrawFillers[depositId] != operatorAddresses[operatorId]){
             isOperatorMalicious[operatorId] = true;
         }
