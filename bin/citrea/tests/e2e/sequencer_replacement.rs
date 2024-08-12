@@ -333,7 +333,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     assert_eq!(tx_1_mempool, tx_1);
     assert_eq!(tx_2_mempool, tx_2);
 
-    // publish block and check if the txs are deleted from pg
+    // publish block and check if the txs are deleted from ledger
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 1, None).await;
 

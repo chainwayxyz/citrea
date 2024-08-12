@@ -474,7 +474,9 @@ impl SharedLedgerOps for LedgerDB {
         self.db.get::<LastSequencerCommitmentSent>(&())
     }
 
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
+    /// Used by the nodes to record that it has committed a soft confirmations on a given L2 height.
+    /// For a sequencer, the last commitment height is set when the block is produced.
+    /// For a full node the last commitment is set when a commitment is read from a finalized DA layer block.
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<(), anyhow::Error> {
         let mut schema_batch = SchemaBatch::new();
