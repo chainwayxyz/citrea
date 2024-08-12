@@ -45,7 +45,6 @@ tracing = { workspace = true }
 criterion = "0.5.1"
 rand = { workspace = true }
 sha2 = { workspace = true }
-sov-mock-da = { path = "../../../adapters/mock-da", features = ["native"] }
 tempfile = { workspace = true }
 
 [features]
