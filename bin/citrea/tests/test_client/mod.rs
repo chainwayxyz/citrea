@@ -122,11 +122,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into());
         req.to = Some(TxKind::Create);
-        let gas = self
-            .client
-            .estimate_gas(&req)
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -152,11 +148,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into())
             .nonce(nonce);
-        let gas = self
-            .client
-            .estimate_gas(&req)
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -183,11 +175,7 @@ impl TestClient {
             .to(contract_address)
             .input(data.into());
 
-        let gas = self
-            .client
-            .estimate_gas(&req)
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -218,11 +206,7 @@ impl TestClient {
             .input(data.into())
             .value(value.map(U256::from).unwrap_or_default());
 
-        let gas = self
-            .client
-            .estimate_gas(&req)
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -267,11 +251,7 @@ impl TestClient {
             .to(to_addr)
             .value(U256::from(value));
 
-        let gas = self
-            .client
-            .estimate_gas(&req)
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
