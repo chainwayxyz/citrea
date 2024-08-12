@@ -98,7 +98,7 @@ proptest-derive = "0.3.0"
 rand = "0.8"
 rayon = "1.8.0"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
-reqwest = { version = "0.12", features = ["rustls-tls", "json", "http2"], default-features = false }
+reqwest = { version = "0.12.5", features = ["rustls-tls", "json", "http2"], default-features = false }
 rocksdb = { version = "0.22.0", features = ["lz4"] }
 serde = { version = "1.0.192", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
@@ -158,9 +158,9 @@ alloy-consensus = { version = "0.2.1", default-features = false }
 ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
 secp256k1 = { version = "0.29.0", default-features = false, features = ["global-context", "recovery"] }
 
-tower-http = { version = "0.4.0", features = ["full"] }
+tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
-hyper = { version = "0.14" }
+hyper = { version = "1.4.0" }
 
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes

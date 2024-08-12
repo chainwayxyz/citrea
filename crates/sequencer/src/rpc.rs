@@ -5,11 +5,11 @@ use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::{Bytes, FromRecoveredPooledTransaction, IntoRecoveredTransaction, B256};
-use reth_rpc::eth::error::EthApiError;
+use reth_primitives::{Bytes, IntoRecoveredTransaction, B256};
+use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
-use reth_transaction_pool::EthPooledTransaction;
 use sov_db::ledger_db::SequencerLedgerOps;
+use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_modules_api::WorkingSet;
 use tokio::sync::Mutex;
 use tracing::{debug, error};
@@ -35,7 +35,7 @@ pub(crate) fn create_rpc_module<
 ) -> Result<RpcModule<RpcContext<C, DB>>, jsonrpsee::core::RegisterMethodError> {
     let test_mode = rpc_context.test_mode;
     let mut rpc = RpcModule::new(rpc_context);
-    rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx| async move {
+    rpc.register_async_method("eth_sendRawTransaction", |parameters, ctx, _| async move {
         debug!("Sequencer: eth_sendRawTransaction");
         let data: Bytes = parameters.one()?;
 
@@ -43,7 +43,7 @@ pub(crate) fn create_rpc_module<
         let recovered: reth_primitives::PooledTransactionsElementEcRecovered =
             recover_raw_transaction(data.clone())?;
 
-        let pool_transaction = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
+        let pool_transaction = EthPooledTransaction::from_pooled(recovered);
 
         // submit the transaction to the pool with an `External` origin
         let hash: B256 = ctx
@@ -54,7 +54,8 @@ pub(crate) fn create_rpc_module<
 
         let mut rlp_encoded_tx = Vec::new();
         pool_transaction
-            .to_recovered_transaction()
+            .transaction()
+            .clone()
             .into_signed()
             .encode_enveloped(&mut rlp_encoded_tx);
         // Do not return error here just log
@@ -66,7 +67,7 @@ pub(crate) fn create_rpc_module<
     })?;
 
     if test_mode {
-        rpc.register_async_method("citrea_testPublishBlock", |_, ctx| async move {
+        rpc.register_async_method("citrea_testPublishBlock", |_, ctx, _| async move {
             debug!("Sequencer: citrea_testPublishBlock");
             ctx.l2_force_block_tx.unbounded_send(()).map_err(|e| {
                 ErrorObjectOwned::owned(
@@ -79,7 +80,7 @@ pub(crate) fn create_rpc_module<
         })?;
     }
 
-    rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx| async move {
+    rpc.register_async_method("eth_getTransactionByHash", |parameters, ctx, _| async move {
         let mut params = parameters.sequence();
         let hash: B256 = params.next()?;
         let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
@@ -111,7 +112,7 @@ pub(crate) fn create_rpc_module<
 
     rpc.register_async_method(
         "citrea_sendRawDepositTransaction",
-        |parameters, ctx| async move {
+        |parameters, ctx, _| async move {
             let mut params = parameters.sequence();
             let deposit: Bytes = params.next()?;
 

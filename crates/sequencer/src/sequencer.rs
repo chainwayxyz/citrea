@@ -18,11 +18,10 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::{Address, FromRecoveredPooledTransaction, IntoRecoveredTransaction, TxHash};
+use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
-    ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction, PoolTransaction, ValidPoolTransaction
 };
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
@@ -1148,7 +1147,7 @@ where
         for (_, tx) in mempool_txs {
             let recovered =
                 recover_raw_transaction(reth_primitives::Bytes::from(tx.as_slice().to_vec()))?;
-            let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
+            let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
             let _ = self.mempool.add_external_transaction(pooled_tx).await?;
         }
