@@ -87,7 +87,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
@@ -124,7 +124,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
@@ -150,7 +150,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: dtolnay/rust-toolchain@1.79.0
         with:
           components: llvm-tools-preview
       - name: Rust Cache
@@ -162,7 +162,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
@@ -184,7 +184,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -196,7 +196,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
@@ -234,14 +234,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
-      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@v3
@@ -268,7 +268,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -280,7 +280,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
@@ -306,13 +306,13 @@ jobs:
       - name: Install Rust Bare Metal
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.78.0
+          toolchain: 1.79.0
           target: thumbv6m-none-eabi
           override: true
       - name: Install Rust WASM
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.78.0
+          toolchain: 1.79.0
           target: wasm32-unknown-unknown
           override: true
       - name: cargo install cargo-hack
@@ -337,7 +337,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@1.78.0
+        uses: dtolnay/rust-toolchain@1.79.0
         with:
           override: true
           components: rustfmt, clippy
@@ -348,7 +348,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.1
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.78.0
+        run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
