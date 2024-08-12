@@ -94,7 +94,9 @@ impl BorshDeserialize for BitcoinHeaderWrapper {
     #[inline]
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
         let mut buf = vec![];
-        reader.read(&mut buf).expect("Borsh reader should never fail");
+        reader
+            .read(&mut buf)
+            .expect("Borsh reader should never fail");
 
         let header = Decodable::consensus_decode(&mut &*buf)
             .expect("Bitcoin Header deserialization cannot fail");
