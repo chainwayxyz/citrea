@@ -841,6 +841,12 @@ where
             }
         }
 
+        // If the last group hasn't been reset because it has not reached the threshold,
+        // Add it anyway
+        if !group.is_empty() {
+            result.push(group);
+        }
+
         Ok(result)
     }
 }
