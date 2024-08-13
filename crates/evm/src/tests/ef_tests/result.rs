@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use reth_db::DatabaseError;
-use reth_interfaces::RethError;
+use reth_errors::RethError;
 use thiserror::Error;
 
 use super::Case;

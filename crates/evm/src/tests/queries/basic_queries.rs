@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use reth_primitives::{address, b256, BlockId, BlockNumberOrTag, TxKind, U64};
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{AnyTransactionReceipt, Block, Rich};
 use revm::primitives::{B256, U256};
@@ -453,7 +453,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x34",
         "contractAddress": null,
         "logs": [
             {
@@ -504,7 +504,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x34",
         "contractAddress": null,
         "logs": [
             {
@@ -555,7 +555,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x34",
         "contractAddress": null,
         "logs": [
             {
@@ -606,7 +606,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x34",
         "contractAddress": null,
         "logs": [
             {

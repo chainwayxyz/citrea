@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Encodable};
 use citrea_primitives::TEST_PRIVATE_KEY;
@@ -237,7 +237,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         })
         .await;
 
-    let random_wallet = LocalWallet::random().with_chain_id(Some(seq_test_client.chain_id));
+    let random_wallet = PrivateKeySigner::random().with_chain_id(Some(seq_test_client.chain_id));
 
     let random_wallet_address = random_wallet.address();
 

@@ -15,7 +15,6 @@ use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::string::FromHexStr;
 use bitcoin::{merkle_tree, Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
@@ -117,7 +116,7 @@ impl BitcoinService {
                     Ok(pending_txs) => {
                         if !pending_txs.is_empty() {
                             let tx = pending_txs.first().unwrap().clone();
-                            let txid = tx.txid();
+                            let txid = tx.compute_txid();
                             Some(TxWithId { tx, id: txid })
                         } else {
                             None
@@ -350,7 +349,7 @@ impl BitcoinService {
         // write reveal tx to file, it can be used to continue revealing blob if something goes wrong
         write_reveal_tx(
             serialized_reveal_tx,
-            unsigned_commit_tx.txid().to_raw_hash().to_string(),
+            unsigned_commit_tx.compute_txid().to_raw_hash().to_string(),
         );
 
         // send reveal tx
@@ -393,7 +392,7 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkle
             // Replace the first hash with zeroes.
             Wtxid::all_zeros().to_raw_hash()
         } else {
-            t.wtxid().to_raw_hash()
+            t.compute_wtxid().to_raw_hash()
         }
     });
     merkle_tree::calculate_root(hashes).map(|h| h.into())
@@ -517,15 +516,15 @@ impl DaService for BitcoinService {
         let mut txids = Vec::with_capacity(block.txdata.len());
         let mut wtxids = Vec::with_capacity(block.txdata.len());
         wtxids.push([0u8; 32]);
-        let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
+        let coinbase_tx_hash = block.txdata[0].compute_txid().to_raw_hash().to_byte_array();
         txids.push(coinbase_tx_hash);
         if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
             completeness_proof.push(block.txdata[0].clone());
         }
 
         block.txdata[1..].iter().for_each(|tx| {
-            let txid = tx.txid().to_raw_hash().to_byte_array();
-            let wtxid = tx.wtxid().to_raw_hash().to_byte_array();
+            let txid = tx.compute_txid().to_raw_hash().to_byte_array();
+            let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
 
             // if tx_hash has two leading zeros, it is in the completeness proof
             if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
@@ -611,7 +610,7 @@ impl DaService for BitcoinService {
         let block = self.client.get_block_verbose(&hash).await?;
 
         let header: Header = Header {
-            bits: CompactTarget::from_hex_str_no_prefix(block.bits)?,
+            bits: CompactTarget::from_unprefixed_hex(&block.bits)?,
             merkle_root: block.merkleroot,
             nonce: block.nonce,
             prev_blockhash: block.previousblockhash.unwrap_or_else(BlockHash::all_zeros),
@@ -658,7 +657,7 @@ fn get_relevant_blobs_from_txs(
 
     for tx in txs {
         if !tx
-            .txid()
+            .compute_txid()
             .to_byte_array()
             .as_slice()
             .starts_with(reveal_tx_id_prefix)
@@ -694,7 +693,6 @@ mod tests {
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::secp256k1::Keypair;
-    use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::DaVerifier;
     use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -866,7 +864,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             3,
@@ -927,7 +925,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             3,

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use bonsai_sdk::{alpha as bonsai_sdk, SessionId, SnarkId};
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
@@ -58,18 +57,18 @@ enum BonsaiRequest {
         img_id: String,
         input_id: String,
         assumptions: Vec<String>,
-        notify: Sender<bonsai_sdk::SessionId>,
+        notify: Sender<bonsai_sdk::blocking::SessionId>,
     },
     CreateSnark {
-        session: bonsai_sdk::SessionId,
-        notify: Sender<bonsai_sdk::SnarkId>,
+        session: bonsai_sdk::blocking::SessionId,
+        notify: Sender<bonsai_sdk::blocking::SnarkId>,
     },
     Status {
-        session: bonsai_sdk::SessionId,
+        session: bonsai_sdk::blocking::SessionId,
         notify: Sender<bonsai_sdk::responses::SessionStatusRes>,
     },
     SnarkStatus {
-        session: bonsai_sdk::SnarkId,
+        session: bonsai_sdk::blocking::SnarkId,
         notify: Sender<bonsai_sdk::responses::SnarkStatusRes>,
     },
 }
@@ -89,7 +88,7 @@ impl BonsaiClient {
                 match $response {
                     Ok(r) => r,
                     Err(e) => {
-                        use ::bonsai_sdk::alpha::SdkErr::*;
+                        use ::bonsai_sdk::SdkErr::*;
                         match e {
                             InternalServerErr(s) => {
                                 warn!(%s, "Got HHTP 500 from Bonsai");
@@ -121,7 +120,7 @@ impl BonsaiClient {
             let mut last_request: Option<BonsaiRequest> = None;
             'client: loop {
                 debug!("Connecting to Bonsai");
-                let client = match bonsai_sdk::Client::from_parts(
+                let client = match bonsai_sdk::blocking::Client::from_parts(
                     api_url.clone(),
                     api_key.clone(),
                     &risc0_version,
@@ -174,7 +173,8 @@ impl BonsaiClient {
                             notify,
                         } => {
                             debug!(%img_id, %input_id, "Bonsai:create_session");
-                            let res = client.create_session(img_id, input_id, assumptions);
+                            // TODO: think about whether we should have a case where we use Bonsai with only execute mode
+                            let res = client.create_session(img_id, input_id, assumptions, false);
                             let res = unwrap_bonsai_response!(res, 'client, 'queue);
                             let _ = notify.send(res);
                         }
@@ -246,7 +246,7 @@ impl BonsaiClient {
         img_id: String,
         input_id: String,
         assumptions: Vec<String>,
-    ) -> bonsai_sdk::SessionId {
+    ) -> bonsai_sdk::blocking::SessionId {
         let (notify, rx) = mpsc::channel();
         self.queue
             .send(BonsaiRequest::CreateSession {
@@ -260,7 +260,10 @@ impl BonsaiClient {
     }
 
     #[instrument(level = "trace", skip(self))]
-    fn status(&self, session: &bonsai_sdk::SessionId) -> bonsai_sdk::responses::SessionStatusRes {
+    fn status(
+        &self,
+        session: &bonsai_sdk::blocking::SessionId,
+    ) -> bonsai_sdk::responses::SessionStatusRes {
         let session = session.clone();
         let (notify, rx) = mpsc::channel();
         self.queue
@@ -275,7 +278,10 @@ impl BonsaiClient {
     }
 
     #[instrument(level = "trace", skip(self), ret)]
-    fn create_snark(&self, session: &bonsai_sdk::SessionId) -> bonsai_sdk::SnarkId {
+    fn create_snark(
+        &self,
+        session: &bonsai_sdk::blocking::SessionId,
+    ) -> bonsai_sdk::blocking::SnarkId {
         let session = session.clone();
         let (notify, rx) = mpsc::channel();
         self.queue
@@ -287,7 +293,7 @@ impl BonsaiClient {
     #[instrument(level = "trace", skip(self))]
     fn snark_status(
         &self,
-        snark_session: &bonsai_sdk::SnarkId,
+        snark_session: &bonsai_sdk::blocking::SnarkId,
     ) -> bonsai_sdk::responses::SnarkStatusRes {
         let snark_session = snark_session.clone();
         let (notify, rx) = mpsc::channel();
@@ -359,7 +365,7 @@ impl<'a> Risc0BonsaiHost<'a> {
     }
 
     fn receipt_loop(&self, session: &str, client: &BonsaiClient) -> Result<Vec<u8>, anyhow::Error> {
-        let session = SessionId::new(session.to_owned());
+        let session = bonsai_sdk::blocking::SessionId::new(session.to_owned());
         loop {
             // handle error
             let res = client.status(&session);
@@ -392,7 +398,7 @@ impl<'a> Risc0BonsaiHost<'a> {
     }
 
     fn wait_for_receipt(&self, session: &str) -> Result<Vec<u8>, anyhow::Error> {
-        let session = SessionId::new(session.to_string());
+        let session = bonsai_sdk::blocking::SessionId::new(session.to_string());
         let client = self.client.as_ref().unwrap();
         self.receipt_loop(&session.uuid, client)
     }
@@ -405,10 +411,10 @@ impl<'a> Risc0BonsaiHost<'a> {
     ) -> Result<Proof, anyhow::Error> {
         // If snark session exists use it else create one from stark
         let snark_session = match snark_session {
-            Some(snark_session) => SnarkId::new(snark_session.to_string()),
+            Some(snark_session) => bonsai_sdk::blocking::SnarkId::new(snark_session.to_string()),
             None => {
                 let client = self.client.as_ref().unwrap();
-                let session = SessionId::new(stark_session.to_string());
+                let session = bonsai_sdk::blocking::SessionId::new(stark_session.to_string());
                 client.create_snark(&session)
             }
         };
