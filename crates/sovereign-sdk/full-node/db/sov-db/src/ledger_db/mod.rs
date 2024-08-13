@@ -16,9 +16,9 @@ use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     ActiveFork, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
-    TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
+    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof,
@@ -549,6 +549,23 @@ impl ProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    fn set_l2_state_diff(
+        &self,
+        l2_height: BatchNumber,
+        state_diff: StateDiff,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<ProverStateDiffs>(&l2_height, &state_diff)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> anyhow::Result<Option<StateDiff>> {
+        self.db.get::<ProverStateDiffs>(&l2_height)
     }
 }
 
