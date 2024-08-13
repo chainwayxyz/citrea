@@ -85,7 +85,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
         env:
@@ -122,7 +122,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
         env:
@@ -160,7 +160,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
       - name: Cache ethereum-tests
@@ -194,7 +194,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
         env:
@@ -239,7 +239,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
         env:
@@ -278,7 +278,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
         env:
@@ -346,7 +346,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.1
+          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
         run: cargo risczero install --version r0.1.79.0
         env:
