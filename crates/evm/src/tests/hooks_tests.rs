@@ -100,7 +100,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "f664bb45f3cde370b0e86edee379d69d2d88c4bc636fdc2155795028561f92c7"
+                    "f9afaff2262dfc911bd96e8092dfb183e5a2d5e3a803492b6f2b3679a4a40cc4"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
