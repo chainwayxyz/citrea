@@ -23,7 +23,6 @@ members = [
   "crates/sovereign-sdk/examples/demo-stf",
   # Full Node
   "crates/sovereign-sdk/full-node/db/sov-db",
-  "crates/sovereign-sdk/full-node/sov-sequencer",
   "crates/sovereign-sdk/full-node/sov-ledger-rpc",
   "crates/sovereign-sdk/full-node/sov-stf-runner",
   "crates/sovereign-sdk/full-node/sov-prover-storage-manager",
