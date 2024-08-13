@@ -331,7 +331,7 @@ fn finalize_hook_creates_final_block() {
                     requests_root: None,
                 },
                 B256::from(hex!(
-                    "fd01e66ab6de887f27d53f9d71f32137e9e8e9c8550ff01aa5303557c539bb8d"
+                    "34a41cc49fb5f0bbf3192596d87c6a0cc813e3f33c22af6951efdf57d02c175a"
                 ))
             ),
             l1_fee_rate: 0,
