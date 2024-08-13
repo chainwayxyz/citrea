@@ -12,10 +12,31 @@ use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
     Receipt,
 };
-use sov_db::ledger_db::{LedgerDB, ProverLedgerOps};
+use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{debug, error, info, instrument, trace, warn};
+
+type StarkSession = String;
+type SnarkSession = String;
+
+/// Bonsai sessions to be recovered in case of a crash.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+pub enum BonsaiSession {
+    /// Stark session id if the prover crashed during stark proof generation.
+    Session(StarkSession),
+    /// Both Stark and Snark session id if the prover crashed during stark to snarkconversion.
+    Snark(StarkSession, SnarkSession),
+}
+
+/// Recovered bonsai session.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+pub struct RecoveredBonsaiSession {
+    /// Used for sending proofs in order
+    pub id: u8,
+    /// Recovered session
+    pub session: BonsaiSession,
+}
 
 /// Requests to bonsai client. Each variant represents its own method.
 #[derive(Clone)]
@@ -369,104 +390,6 @@ impl<'a> Risc0BonsaiHost<'a> {
             }
         }
     }
-}
-
-impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
-    type Guest = Risc0Guest;
-
-    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
-        // For running in "execute" mode.
-
-        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
-        info!("Added hint to guest with size {}", buf.len());
-
-        // write buf
-        self.env.extend_from_slice(&buf);
-
-        if self.client.is_some() {
-            self.upload_to_bonsai(buf);
-        }
-    }
-
-    /// Guest simulation (execute mode) is run inside the Risc0 VM locally
-    fn simulate_with_hints(&mut self) -> Self::Guest {
-        Risc0Guest::with_hints(std::mem::take(&mut self.env))
-    }
-
-    /// Only with_proof = true is supported.
-    /// Proofs are created on the Bonsai API.
-    fn run(&mut self, with_proof: bool, l1_block_height: u64) -> Result<Proof, anyhow::Error> {
-        if !with_proof {
-            let env =
-                sov_risc0_adapter::host::add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
-            let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
-
-            let session = executor.run()?;
-            // don't delete useful while benchmarking
-            // println!(
-            //     "user cycles: {}\ntotal cycles: {}\nsegments: {}",
-            //     session.user_cycles,
-            //     session.total_cycles,
-            //     session.segments.len()
-            // );
-            let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
-
-            Ok(Proof::PublicInput(data))
-        } else {
-            let client = self.client.as_ref().ok_or_else(|| {
-                anyhow!("Bonsai client is not initialized running in full node mode or missing API URL or API key")
-            })?;
-
-            let input_id = self.last_input_id.take();
-
-            let input_id = match input_id {
-                Some(input_id) => input_id,
-                None => return Err(anyhow::anyhow!("No input data provided")),
-            };
-
-            // Start a session running the prover
-            let session = client.create_session(hex::encode(self.image_id), input_id, vec![]);
-
-            // Save session id to the ledger
-            self.ledger_db
-                .set_bonsai_session_by_l1_height(l1_block_height, &session.uuid)?;
-            tracing::info!("Session created: {}", session.uuid);
-
-            let receipt = self.wait_for_receipt(&session.uuid)?;
-
-            tracing::info!("Creating the SNARK");
-
-            let snark_session = client.create_snark(&session);
-
-            tracing::info!("SNARK session created: {}", snark_session.uuid);
-
-            self.wait_for_stark_to_snark_conversion(
-                Some(&snark_session.uuid),
-                None,
-                receipt,
-                l1_block_height,
-            )
-        }
-    }
-
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let journal = match proof {
-            Proof::PublicInput(journal) => {
-                let journal: Journal = bincode::deserialize(journal)?;
-                journal
-            }
-            Proof::Full(data) => {
-                let receipt: Receipt = bincode::deserialize(data)?;
-                receipt.journal
-            }
-        };
-        Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
-    }
 
     fn wait_for_receipt(&self, session: &str) -> Result<Vec<u8>, anyhow::Error> {
         let session = SessionId::new(session.to_string());
@@ -477,27 +400,26 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     fn wait_for_stark_to_snark_conversion(
         &self,
         snark_session: Option<&str>,
-        stark_session: Option<&str>,
+        stark_session: &str,
         receipt_buf: Vec<u8>,
-        l1_block_height: u64,
     ) -> Result<Proof, anyhow::Error> {
         // If snark session exists use it else create one from stark
         let snark_session = match snark_session {
             Some(snark_session) => SnarkId::new(snark_session.to_string()),
             None => {
                 let client = self.client.as_ref().unwrap();
-                let session = SessionId::new(
-                    stark_session
-                        .expect("Stark session has to exist if snark session does not exists")
-                        .to_string(),
-                );
-
+                let session = SessionId::new(stark_session.to_string());
                 client.create_snark(&session)
             }
         };
-        // Save snark session id to the ledger
+
+        let recovered_serialized_snark_session = borsh::to_vec(&RecoveredBonsaiSession {
+            id: 0,
+            session: BonsaiSession::Snark(stark_session.to_string(), snark_session.uuid.clone()),
+        })?;
         self.ledger_db
-            .set_bonsai_snark_session_by_l1_height(l1_block_height, &snark_session.uuid)?;
+            .add_pending_proving_session(&recovered_serialized_snark_session)?;
+
         let client = self.client.as_ref().unwrap();
         let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
         loop {
@@ -545,6 +467,140 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 }
             }
         }
+    }
+}
+
+impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
+    type Guest = Risc0Guest;
+
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
+        // For running in "execute" mode.
+
+        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        info!("Added hint to guest with size {}", buf.len());
+
+        // write buf
+        self.env.extend_from_slice(&buf);
+
+        if self.client.is_some() {
+            self.upload_to_bonsai(buf);
+        }
+    }
+
+    /// Guest simulation (execute mode) is run inside the Risc0 VM locally
+    fn simulate_with_hints(&mut self) -> Self::Guest {
+        Risc0Guest::with_hints(std::mem::take(&mut self.env))
+    }
+
+    /// Only with_proof = true is supported.
+    /// Proofs are created on the Bonsai API.
+    fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
+        if !with_proof {
+            let env =
+                sov_risc0_adapter::host::add_benchmarking_callbacks(ExecutorEnvBuilder::default())
+                    .write_slice(&self.env)
+                    .build()
+                    .unwrap();
+            let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
+
+            let session = executor.run()?;
+            // don't delete useful while benchmarking
+            // println!(
+            //     "user cycles: {}\ntotal cycles: {}\nsegments: {}",
+            //     session.user_cycles,
+            //     session.total_cycles,
+            //     session.segments.len()
+            // );
+            let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
+
+            Ok(Proof::PublicInput(data))
+        } else {
+            let client = self.client.as_ref().ok_or_else(|| {
+                anyhow!("Bonsai client is not initialized running in full node mode or missing API URL or API key")
+            })?;
+
+            let input_id = self.last_input_id.take();
+
+            let input_id = match input_id {
+                Some(input_id) => input_id,
+                None => return Err(anyhow::anyhow!("No input data provided")),
+            };
+
+            // Start a session running the prover
+            let session = client.create_session(hex::encode(self.image_id), input_id, vec![]);
+            let stark_session = RecoveredBonsaiSession {
+                id: 0,
+                session: BonsaiSession::Session(session.uuid.clone()),
+            };
+            let serialized_stark_session = borsh::to_vec(&stark_session)
+                .expect("Bonsai host should be able to serialize bonsai sessions");
+            self.ledger_db
+                .add_pending_proving_session(&serialized_stark_session)?;
+
+            tracing::info!("Session created: {}", session.uuid);
+
+            let receipt = self.wait_for_receipt(&session.uuid)?;
+
+            tracing::info!("Creating the SNARK");
+
+            let snark_session = client.create_snark(&session);
+
+            // Remove the stark session as it is finished
+            self.ledger_db
+                .remove_pending_proving_session(&serialized_stark_session)?;
+
+            tracing::info!("SNARK session created: {}", snark_session.uuid);
+
+            // Snark session is saved in the function
+            self.wait_for_stark_to_snark_conversion(
+                Some(&snark_session.uuid),
+                &session.uuid,
+                receipt,
+            )
+        }
+    }
+
+    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+        proof: &Proof,
+    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+        let journal = match proof {
+            Proof::PublicInput(journal) => {
+                let journal: Journal = bincode::deserialize(journal)?;
+                journal
+            }
+            Proof::Full(data) => {
+                let receipt: Receipt = bincode::deserialize(data)?;
+                receipt.journal
+            }
+        };
+        Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
+    }
+
+    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
+        let sessions = self.ledger_db.get_pending_proving_sessions()?;
+        let mut proofs = Vec::new();
+        for session in sessions {
+            let bonsai_session: RecoveredBonsaiSession = BorshDeserialize::try_from_slice(&session)
+                .expect("Bonsai host should be able to recover bonsai sessions");
+            match bonsai_session.session {
+                BonsaiSession::Session(stark_session) => {
+                    let receipt = self.wait_for_receipt(&stark_session)?;
+                    let proof =
+                        self.wait_for_stark_to_snark_conversion(None, &stark_session, receipt)?;
+                    proofs.push(proof);
+                }
+                BonsaiSession::Snark(stark_session, snark_session) => {
+                    let receipt = self.wait_for_receipt(&stark_session)?;
+                    let proof = self.wait_for_stark_to_snark_conversion(
+                        Some(&snark_session),
+                        &stark_session,
+                        receipt,
+                    )?;
+                    proofs.push(proof)
+                }
+            }
+        }
+        Ok(proofs)
     }
 }
 

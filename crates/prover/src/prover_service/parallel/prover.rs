@@ -134,7 +134,6 @@ where
     pub(crate) fn start_proving<Vm, V>(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        l1_block_height: u64,
         config: Arc<ProofGenConfig<V, Da, Vm>>,
         mut vm: Vm,
         zk_storage: V::PreState,
@@ -161,7 +160,7 @@ where
 
                     self.pool.spawn(move || {
                         tracing::debug_span!("guest_execution").in_scope(|| {
-                            let proof = make_proof(vm, config, zk_storage, l1_block_height);
+                            let proof = make_proof(vm, config, zk_storage);
 
                             let mut prover_state =
                                 prover_state_clone.write().expect("Lock was poisoned");
@@ -223,7 +222,6 @@ fn make_proof<V, Vm, Da>(
     mut vm: Vm,
     config: Arc<ProofGenConfig<V, Da, Vm>>,
     zk_storage: V::PreState,
-    l1_block_height: u64,
 ) -> Result<Proof, anyhow::Error>
 where
     Da: DaService,
@@ -237,7 +235,7 @@ where
             .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
             .map(|_| Proof::PublicInput(Vec::default()))
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        ProofGenConfig::Execute => vm.run(false, l1_block_height),
-        ProofGenConfig::Prover => vm.run(true, l1_block_height),
+        ProofGenConfig::Execute => vm.run(false),
+        ProofGenConfig::Prover => vm.run(true),
     }
 }

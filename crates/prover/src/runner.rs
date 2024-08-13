@@ -223,7 +223,7 @@ where
         });
     }
 
-    async fn check_and_recover_ongoing_bonsai_sessions(
+    async fn check_and_recover_ongoing_proving_sessions(
         &self,
         l1_height: u64,
     ) -> Result<bool, anyhow::Error> {
@@ -231,26 +231,18 @@ where
             .prover_service
             .as_ref()
             .expect("Prover service should be present");
-
-        let stark_session = self.ledger_db.get_bonsai_session_by_l1_height(l1_height)?;
-        let snark_session = self
-            .ledger_db
-            .get_bonsai_snark_session_by_l1_height(l1_height)?;
-
-        if let Some((tx_id, proof)) = prover_service
-            .recover_proving_and_send_to_da(
-                stark_session,
-                snark_session,
-                &self.da_service,
-                l1_height,
-            )
-            .await?
-        {
-            self.extract_and_store_proof(tx_id, proof, l1_height)
-                .await?;
-            Ok(true)
+        let results = prover_service
+            .recover_proving_sessions_and_send_to_da(&self.da_service)
+            .await?;
+        if results.is_empty() {
+            return Ok(false);
         } else {
-            Ok(false)
+            for (tx_id, proof) in results {
+                self.extract_and_store_proof(tx_id, proof, l1_height)
+                    .await?;
+            }
+            self.ledger_db.clear_pending_proving_sessions()?;
+            Ok(true)
         }
     }
 
@@ -503,10 +495,10 @@ where
                 l1_block.header().clone();
 
             let hash = da_block_header_of_commitments.hash();
-            let bonsai_session_exists = self
-                .check_and_recover_ongoing_bonsai_sessions(l1_height)
+            let proving_session_exists = self
+                .check_and_recover_ongoing_proving_sessions(l1_height)
                 .await?;
-            if !bonsai_session_exists {
+            if !proving_session_exists {
                 // There is no ongoing bonsai session to recover
                 let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
                     self.create_state_transition_data(
@@ -767,7 +759,7 @@ where
 
         prover_service.submit_witness(transition_data).await;
 
-        prover_service.prove(hash.clone(), l1_height).await?;
+        prover_service.prove(hash.clone()).await?;
 
         let (tx_id, proof) = match prover_service
             .wait_for_proving_and_send_to_da(hash.clone(), &self.da_service)

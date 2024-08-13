@@ -176,27 +176,20 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
 
-    /// Returns the uuid of the bonsai session at l1 height, if not completed
-    /// Only returns a value if proof submission is not complete
-    fn get_bonsai_session_by_l1_height(&self, l1_height: u64) -> Result<Option<String>>;
+    /// Clears all pending proving sessions
+    fn clear_pending_proving_sessions(&self) -> Result<()>;
+}
 
-    /// Returns the uuid of the bonsai snark session at l1 height, if not completed
-    /// Only returns a value if proof submission is not complete
-    fn get_bonsai_snark_session_by_l1_height(&self, l1_height: u64) -> Result<Option<String>>;
+/// Ledger operations for the prover service
+pub trait ProvingServiceLedgerOps: ProverLedgerOps + SharedLedgerOps + Send + Sync {
+    /// Gets all pending sessions and step numbers
+    fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
 
-    /// Sets the uuid of the latest bonsai session
-    fn set_bonsai_session_by_l1_height(
-        &self,
-        l1_height: u64,
-        session_id: &str,
-    ) -> anyhow::Result<()>;
+    /// Adds a pending proving session
+    fn add_pending_proving_session(&self, session: &Vec<u8>) -> Result<()>;
 
-    /// Sets the uuid of the latest bonsai snark session
-    fn set_bonsai_snark_session_by_l1_height(
-        &self,
-        l1_height: u64,
-        session_id: &str,
-    ) -> anyhow::Result<()>;
+    /// Removes a pending proving session
+    fn remove_pending_proving_session(&self, session: &Vec<u8>) -> Result<()>;
 }
 
 /// Sequencer ledger operations

@@ -164,11 +164,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         MockZkGuest {}
     }
 
-    fn run(
-        &mut self,
-        _with_proof: bool,
-        _l1_block_height: u64,
-    ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
+    fn run(&mut self, _with_proof: bool) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
         self.worker_thread_notifier.wait();
         let data = self.committed_data.pop_front().unwrap_or_default();
         Ok(sov_rollup_interface::zk::Proof::PublicInput(data))
@@ -201,17 +197,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         }
     }
 
-    fn wait_for_receipt(&self, _session: &str) -> Result<Vec<u8>, anyhow::Error> {
-        unimplemented!()
-    }
-
-    fn wait_for_stark_to_snark_conversion(
-        &self,
-        _snark_session: Option<&str>,
-        _stark_session: Option<&str>,
-        _receipt_buf: Vec<u8>,
-        _l1_block_height: u64,
-    ) -> Result<Proof, anyhow::Error> {
+    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
         unimplemented!()
     }
 }

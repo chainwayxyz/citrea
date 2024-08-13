@@ -161,7 +161,6 @@ where
     async fn prove(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        l1_block_height: u64,
     ) -> Result<ProofProcessingStatus, ProverServiceError> {
         let vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
@@ -169,7 +168,6 @@ where
         tracing::info!("Starting proving for da  block: {:?},", block_header_hash,);
         self.prover_state.start_proving(
             block_header_hash,
-            l1_block_height,
             self.prover_config.clone(),
             vm,
             zk_storage,
@@ -210,79 +208,29 @@ where
         }
     }
 
-    async fn recover_proving_and_send_to_da(
+    async fn recover_proving_sessions_and_send_to_da(
         &self,
-        stark_id: Option<String>,
-        snark_id: Option<String>,
-        da_service: &Self::DaService,
-        l1_block_height: u64,
-    ) -> Result<Option<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
-        let vm = self.vm.clone();
-
+        da_service: &Arc<Self::DaService>,
+    ) -> Result<Vec<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
         tracing::info!("Checking if ongoing bonsai session exists");
 
-        match snark_id {
-            Some(snark_id) => {
-                tracing::warn!(
-                    "There is an ongoing stark to snark conversion, waiting for it to complete"
-                );
-                // Stark id is present, prover crashed at an ongoing stark to snark conversion
-                let stark_id = stark_id.expect("Stark id should be present");
-                // Get receipt from stark
-                let receipt_buf = vm.wait_for_receipt(&stark_id.clone())?;
-                // wait for the stark to snark conversion to complete
-                let proof = vm.wait_for_stark_to_snark_conversion(
-                    Some(&snark_id),
-                    Some(&stark_id),
-                    receipt_buf,
-                    l1_block_height,
-                )?;
-                // Send to da
-                let da_data = DaData::ZKProof(proof.clone());
-                let tx_id = da_service
-                    .send_transaction(
-                        borsh::to_vec(&da_data)
-                            .expect("Should serialize")
-                            .as_slice(),
-                    )
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?;
-                Ok(Some((tx_id, proof)))
-            }
-            None => {
-                match stark_id {
-                    Some(stark_id) => {
-                        tracing::warn!("There is an ongoing stark proof generation, waiting for it to complete");
-                        // Only stark id is present, prover crashed at receipt generation
-                        // wait for the stark proof generation to complete
-                        let receipt_buf = vm.wait_for_receipt(&stark_id)?;
-                        // wait for the stark to snark conversion to complete
-                        let proof = vm.wait_for_stark_to_snark_conversion(
-                            None,
-                            Some(&stark_id),
-                            receipt_buf,
-                            l1_block_height,
-                        )?;
+        let vm = self.vm.clone();
+        let proofs = vm.recover_proving_sessions()?;
 
-                        let da_data = DaData::ZKProof(proof.clone());
-                        // Send to da
-                        let tx_id = da_service
-                            .send_transaction(
-                                borsh::to_vec(&da_data)
-                                    .expect("Should serialize")
-                                    .as_slice(),
-                            )
-                            .await
-                            .map_err(|e| anyhow::anyhow!(e))?;
-                        Ok(Some((tx_id, proof)))
-                    }
-                    None => {
-                        // No stark id, no snark id, prover has not crashed
-                        tracing::info!("Prover has no existing ongoing bonsai session");
-                        Ok(None)
-                    }
-                }
-            }
+        let mut results = Vec::new();
+
+        for proof in proofs.into_iter() {
+            let da_data = DaData::ZKProof(proof.clone());
+            let tx_id = da_service
+                .send_transaction(
+                    borsh::to_vec(&da_data)
+                        .expect("Should serialize")
+                        .as_slice(),
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?;
+            results.push((tx_id, proof));
         }
+        Ok(results)
     }
 }

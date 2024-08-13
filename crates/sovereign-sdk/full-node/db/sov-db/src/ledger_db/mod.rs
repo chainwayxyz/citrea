@@ -14,12 +14,12 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    ActiveFork, BatchByNumber, BonsaiSessionByL1Height, BonsaiSnarkSessionByL1Height,
-    CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot, L2RangeByL1Height,
-    L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
-    TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    ActiveFork, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
+    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
+    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofBySlotNumber,
+    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof,
@@ -497,43 +497,6 @@ impl ProverLedgerOps for LedgerDB {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
-    /// Returns the uuid of the a bonsai session at l1 height, if not completed
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_bonsai_session_by_l1_height(&self, l1_height: u64) -> anyhow::Result<Option<String>> {
-        self.db.get::<BonsaiSessionByL1Height>(&l1_height)
-    }
-
-    /// Returns the uuid of a bonsai snark session at l1 height, if not completed
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_bonsai_snark_session_by_l1_height(
-        &self,
-        l1_height: u64,
-    ) -> anyhow::Result<Option<String>> {
-        self.db.get::<BonsaiSnarkSessionByL1Height>(&l1_height)
-    }
-
-    /// Sets the uuid of the latest bonsai session
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_bonsai_session_by_l1_height(
-        &self,
-        l1_height: u64,
-        session_id: &str,
-    ) -> anyhow::Result<()> {
-        self.db
-            .put::<BonsaiSessionByL1Height>(&l1_height, &session_id.to_owned())
-    }
-
-    /// Sets the uuid of the latest bonsai snark session
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_bonsai_snark_session_by_l1_height(
-        &self,
-        l1_height: u64,
-        session_id: &str,
-    ) -> anyhow::Result<()> {
-        self.db
-            .put::<BonsaiSnarkSessionByL1Height>(&l1_height, &session_id.to_owned())
-    }
-
     /// Set the last scanned slot by the prover
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -593,6 +556,46 @@ impl ProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+        iter.seek_to_first();
+
+        for item in iter {
+            let item = item?;
+            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
+        }
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+}
+
+impl ProvingServiceLedgerOps for LedgerDB {
+    /// Gets all pending sessions and step numbers
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_pending_proving_sessions(&self) -> anyhow::Result<Vec<Vec<u8>>> {
+        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+        iter.seek_to_first();
+
+        let sessions = iter
+            .map(|item| item.map(|item| (item.key)))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(sessions)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn add_pending_proving_session(&self, session: &Vec<u8>) -> anyhow::Result<()> {
+        self.db.put::<PendingProvingSessions>(session, &())
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn remove_pending_proving_session(&self, session: &Vec<u8>) -> anyhow::Result<()> {
+        self.db.delete::<PendingProvingSessions>(session)
     }
 }
 

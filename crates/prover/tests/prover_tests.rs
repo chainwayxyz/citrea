@@ -29,7 +29,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     prover_service
         .submit_witness(make_transition_data(header_hash))
         .await;
-    prover_service.prove(header_hash, 0).await?;
+    prover_service.prove(header_hash).await?;
     vm.make_proof();
     prover_service
         .wait_for_proving_and_send_to_da(header_hash, &da_service)
@@ -68,7 +68,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
             .submit_witness(make_transition_data(header_hash))
             .await;
 
-        let poof_processing_status = prover_service.prove(header_hash, 0).await?;
+        let poof_processing_status = prover_service.prove(header_hash).await?;
         assert_eq!(
             ProofProcessingStatus::ProvingInProgress,
             poof_processing_status
@@ -82,7 +82,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
             .submit_witness(make_transition_data(header_hash))
             .await;
 
-        let status = prover_service.prove(header_hash, 0).await?;
+        let status = prover_service.prove(header_hash).await?;
         // The prover is busy and won't accept any new jobs.
         assert_eq!(ProofProcessingStatus::Busy, status);
 
@@ -111,7 +111,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
             .submit_witness(make_transition_data(header_hash))
             .await;
 
-        let status = prover_service.prove(header_hash, 0).await?;
+        let status = prover_service.prove(header_hash).await?;
         assert_eq!(ProofProcessingStatus::ProvingInProgress, status);
     }
 
@@ -122,7 +122,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
 async fn test_missing_witness() -> Result<(), anyhow::Error> {
     let TestProver { prover_service, .. } = make_new_prover();
     let header_hash = MockHash::from([0; 32]);
-    let err = prover_service.prove(header_hash, 0).await.unwrap_err();
+    let err = prover_service.prove(header_hash).await.unwrap_err();
 
     assert_eq!(
         err.to_string(),
@@ -163,10 +163,10 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
         .submit_witness(make_transition_data(header_hash))
         .await;
 
-    let status = prover_service.prove(header_hash, 0).await?;
+    let status = prover_service.prove(header_hash).await?;
     assert_eq!(ProofProcessingStatus::ProvingInProgress, status);
 
-    let err = prover_service.prove(header_hash, 0).await.unwrap_err();
+    let err = prover_service.prove(header_hash).await.unwrap_err();
     assert_eq!(err.to_string(), "Proof generation for 0x0000000000000000000000000000000000000000000000000000000000000000 still in progress");
     Ok(())
 }
