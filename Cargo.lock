@@ -1924,6 +1924,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
+ "bincode",
  "borsh",
  "citrea-primitives",
  "citrea-stf",
