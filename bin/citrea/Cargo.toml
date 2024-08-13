@@ -68,7 +68,6 @@ alloy-rlp = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
-humantime = "2.1"
 proptest = { workspace = true }
 reqwest = { workspace = true }
 rs_merkle = { workspace = true }
