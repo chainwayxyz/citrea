@@ -119,7 +119,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     // It was replaced with the gas limit in our trace.
     let reth_json = serde_json::from_value::<CallFrame>(json![{
         "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-        "gas": "0xbbe0",
+        "gas": "0x679c",
         "gasUsed": "0xba65",
         "to": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
         "input": "0xb7d5b6580000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000000000000000000000000000000000000000000003",
@@ -181,7 +181,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     let expected_send_eth_trace = serde_json::from_value::<CallFrame>(
-        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0x5209","gasUsed":"0x5208",
+        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0x1","gasUsed":"0x5208",
                 "to":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92255","input":"0x","value":"0x4563918244f40000","type":"CALL"}],
     ).unwrap();
     assert_eq!(send_eth_trace, CallTracer(expected_send_eth_trace.clone()));
@@ -210,7 +210,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let expected_call_get_trace = serde_json::from_value::<CallFrame>(
-        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0x6c3e","gasUsed":"0x6b64","to":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0x1886","gasUsed":"0x6b64","to":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
                 "input":"0x35c152bd0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3",
                 "output":"0x0000000000000000000000000000000000000000000000000000000000000000",
                 "calls":[{"from":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
@@ -285,7 +285,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
                     .with_tracer(GethDebugTracerType::BuiltInTracer(
                         GethDebugBuiltInTracerType::CallTracer,
                     ))
-                    .call_config(CallConfig {
+                    .with_call_config(CallConfig {
                         only_top_call: Some(true),
                         with_log: Some(false),
                     }),
@@ -294,7 +294,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     let expected_top_call_only_call_get_trace = serde_json::from_value::<CallFrame>(
-        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0x6c3e","gasUsed":"0x6b64","to":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+        json![{"from":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","gas":"0x1886","gasUsed":"0x6b64","to":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
                 "input":"0x35c152bd0000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3",
                 "output":"0x0000000000000000000000000000000000000000000000000000000000000000",
                 "calls":[],

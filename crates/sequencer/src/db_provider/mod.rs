@@ -1,17 +1,19 @@
 use core::ops::RangeInclusive;
+use std::collections::HashMap;
 
 use citrea_evm::{Evm, EvmChainConfig};
 use jsonrpsee::core::RpcResult;
+use reth_chainspec::{ChainInfo, ChainSpec};
 use reth_db::models::StoredBlockBodyIndices;
-use reth_interfaces::provider::ProviderResult;
 use reth_primitives::{
-    Account, Address, BlockNumber, BlockNumberOrTag, BlockWithSenders, Bytecode, SealedHeader,
-    StorageKey, StorageValue, B256, U256,
+    Account, Address, BlockNumber, BlockNumberOrTag, BlockWithSenders, Bytecode,
+    SealedBlockWithSenders, SealedHeader, StorageKey, StorageValue, B256, U256,
 };
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockReaderIdExt,
-    ChainSpecProvider, HeaderProvider, ReceiptProvider, ReceiptProviderIdExt, StateProvider,
-    StateProviderFactory, StateRootProvider, TransactionsProvider, WithdrawalsProvider,
+    ChainSpecProvider, HeaderProvider, ProviderResult, ReceiptProvider, ReceiptProviderIdExt,
+    RequestsProvider, StateProofProvider, StateProvider, StateProviderFactory, StateRootProvider,
+    TransactionsProvider, WithdrawalsProvider,
 };
 use reth_rpc_types::{Block, BlockTransactions, Rich};
 use reth_trie::updates::TrieUpdates;
@@ -73,6 +75,16 @@ impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
             self.evm.basic_account(&address, &mut working_set)
         };
         Ok(account)
+    }
+}
+
+impl<C: sov_modules_api::Context> RequestsProvider for DbProvider<C> {
+    fn requests_by_block(
+        &self,
+        _id: reth_primitives::BlockHashOrNumber,
+        _timestamp: u64,
+    ) -> ProviderResult<Option<reth_primitives::Requests>> {
+        unimplemented!("requests_by_block")
     }
 }
 
@@ -193,7 +205,7 @@ impl<C: sov_modules_api::Context> HeaderProvider for DbProvider<C> {
         &self,
         _range: impl std::ops::RangeBounds<reth_primitives::BlockNumber>,
         _predicate: impl FnMut(&SealedHeader) -> bool,
-    ) -> reth_interfaces::provider::ProviderResult<Vec<SealedHeader>> {
+    ) -> ProviderResult<Vec<SealedHeader>> {
         unimplemented!("sealed_headers_while")
     }
 }
@@ -224,7 +236,7 @@ impl<C: sov_modules_api::Context> BlockNumReader for DbProvider<C> {
     fn block_number(&self, _hash: B256) -> ProviderResult<Option<reth_primitives::BlockNumber>> {
         unimplemented!("block_number")
     }
-    fn chain_info(&self) -> ProviderResult<reth_primitives::ChainInfo> {
+    fn chain_info(&self) -> ProviderResult<ChainInfo> {
         unimplemented!("chain_info")
     }
     fn convert_hash_or_number(
@@ -333,13 +345,12 @@ impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
     fn block_range(
         &self,
         _range: std::ops::RangeInclusive<reth_primitives::BlockNumber>,
-    ) -> reth_interfaces::provider::ProviderResult<Vec<reth_primitives::Block>> {
+    ) -> ProviderResult<Vec<reth_primitives::Block>> {
         unimplemented!("block_range")
     }
     fn pending_block_with_senders(
         &self,
-    ) -> reth_interfaces::provider::ProviderResult<Option<reth_primitives::SealedBlockWithSenders>>
-    {
+    ) -> ProviderResult<Option<reth_primitives::SealedBlockWithSenders>> {
         unimplemented!("pending_block_with_senders")
     }
     fn block_with_senders_range(
@@ -347,6 +358,21 @@ impl<C: sov_modules_api::Context> BlockReader for DbProvider<C> {
         _range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<BlockWithSenders>> {
         unimplemented!("block_with_senders_range")
+    }
+
+    fn sealed_block_with_senders(
+        &self,
+        _id: reth_primitives::BlockHashOrNumber,
+        _transaction_kind: reth_provider::TransactionVariant,
+    ) -> ProviderResult<Option<SealedBlockWithSenders>> {
+        unimplemented!("sealed_block_with_senders")
+    }
+
+    fn sealed_block_with_senders_range(
+        &self,
+        _range: RangeInclusive<BlockNumber>,
+    ) -> ProviderResult<Vec<SealedBlockWithSenders>> {
+        unimplemented!("sealed_block_with_senders_range")
     }
 }
 
@@ -446,7 +472,7 @@ impl<C: sov_modules_api::Context> ReceiptProvider for DbProvider<C> {
     fn receipts_by_tx_range(
         &self,
         _range: impl std::ops::RangeBounds<reth_primitives::TxNumber>,
-    ) -> reth_interfaces::provider::ProviderResult<Vec<reth_primitives::Receipt>> {
+    ) -> ProviderResult<Vec<reth_primitives::Receipt>> {
         unimplemented!("receipts_by_tx_range")
     }
 }
@@ -480,7 +506,7 @@ impl<C: sov_modules_api::Context> WithdrawalsProvider for DbProvider<C> {
 }
 
 impl<C: sov_modules_api::Context> ChainSpecProvider for DbProvider<C> {
-    fn chain_spec(&self) -> std::sync::Arc<reth_primitives::ChainSpec> {
+    fn chain_spec(&self) -> std::sync::Arc<ChainSpec> {
         unimplemented!("chain_spec")
     }
 }
@@ -510,12 +536,6 @@ impl<C: sov_modules_api::Context> StateProviderFactory for DbProvider<C> {
     ) -> ProviderResult<Option<reth_provider::StateProviderBox>> {
         unimplemented!("pending_state_by_hash")
     }
-    fn pending_with_provider(
-        &self,
-        _post_state_data: Box<dyn reth_provider::BundleStateDataProvider>,
-    ) -> ProviderResult<reth_provider::StateProviderBox> {
-        unimplemented!("pending_with_provider")
-    }
     fn state_by_block_hash(
         &self,
         _block: reth_primitives::BlockHash,
@@ -544,8 +564,43 @@ impl<C: sov_modules_api::Context> StateRootProvider for DbProvider<C> {
     fn state_root_with_updates(
         &self,
         _bundle_state: &BundleState,
-    ) -> reth_interfaces::provider::ProviderResult<(reth_primitives::B256, TrieUpdates)> {
+    ) -> ProviderResult<(reth_primitives::B256, TrieUpdates)> {
         unimplemented!("state_root_with_updates")
+    }
+    fn hashed_state_root(&self, _hashed_state: reth_trie::HashedPostState) -> ProviderResult<B256> {
+        unimplemented!("hashed_state_root")
+    }
+    fn hashed_state_root_with_updates(
+        &self,
+        _hashed_state: reth_trie::HashedPostState,
+    ) -> ProviderResult<(B256, TrieUpdates)> {
+        unimplemented!("hashed_state_root_with_updates")
+    }
+    fn hashed_storage_root(
+        &self,
+        _address: Address,
+        _hashed_storage: reth_trie::HashedStorage,
+    ) -> ProviderResult<B256> {
+        unimplemented!("hashed_storage_root")
+    }
+}
+
+impl<C: sov_modules_api::Context> StateProofProvider for DbProvider<C> {
+    fn hashed_proof(
+        &self,
+        _hashed_state: reth_trie::HashedPostState,
+        _address: Address,
+        _slots: &[B256],
+    ) -> ProviderResult<reth_trie::AccountProof> {
+        unimplemented!("hashed_proof")
+    }
+
+    fn witness(
+        &self,
+        _overlay: reth_trie::HashedPostState,
+        _target: reth_trie::HashedPostState,
+    ) -> ProviderResult<HashMap<B256, reth_primitives::Bytes>> {
+        unimplemented!("hashed_proof")
     }
 }
 
@@ -572,13 +627,6 @@ impl<C: sov_modules_api::Context> StateProvider for DbProvider<C> {
         unimplemented!("bytecode_by_hash")
     }
 
-    fn proof(
-        &self,
-        _address: Address,
-        _keys: &[reth_primitives::B256],
-    ) -> ProviderResult<reth_primitives::trie::AccountProof> {
-        unimplemented!("proof")
-    }
     fn account_nonce(&self, _addr: Address) -> ProviderResult<Option<u64>> {
         unimplemented!("account_nonce")
     }

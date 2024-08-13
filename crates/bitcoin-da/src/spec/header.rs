@@ -81,8 +81,11 @@ pub struct BitcoinHeaderWrapper {
 impl BorshSerialize for BitcoinHeaderWrapper {
     #[inline]
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        Encodable::consensus_encode(&self.header, writer)
+        let mut buf = vec![];
+        Encodable::consensus_encode(&self.header, &mut buf)
             .expect("Bitcoin Header serialization cannot fail");
+
+        let _ = writer.write(&buf).expect("Borsh writer should never fail");
         Ok(())
     }
 }
@@ -90,7 +93,12 @@ impl BorshSerialize for BitcoinHeaderWrapper {
 impl BorshDeserialize for BitcoinHeaderWrapper {
     #[inline]
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let header = Decodable::consensus_decode(reader)
+        let mut buf = vec![];
+        let _ = reader
+            .read(&mut buf)
+            .expect("Borsh reader should never fail");
+
+        let header = Decodable::consensus_decode(&mut &*buf)
             .expect("Bitcoin Header deserialization cannot fail");
         Ok(Self { header })
     }

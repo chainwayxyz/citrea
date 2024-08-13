@@ -448,7 +448,7 @@ pub fn create_inscription_transactions(
 
         let mut reveal_tx = build_reveal_transaction(
             output_to_reveal.clone(),
-            unsigned_commit_tx.txid(),
+            unsigned_commit_tx.compute_txid(),
             0,
             recipient,
             reveal_value,
@@ -457,7 +457,7 @@ pub fn create_inscription_transactions(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.txid();
+        let reveal_tx_id = reveal_tx.compute_txid();
         let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
@@ -815,7 +815,7 @@ mod tests {
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let prev_tx = tx;
-        let prev_tx_id = prev_tx.txid();
+        let prev_tx_id = prev_tx.compute_txid();
         let tx = super::build_commit_transaction(
             Some(super::TxWithId {
                 id: prev_tx_id,
@@ -1024,7 +1024,7 @@ mod tests {
 
         assert_eq!(
             reveal.input[0].previous_output.txid,
-            commit.txid(),
+            commit.compute_txid(),
             "reveal should use commit as input"
         );
         assert_eq!(

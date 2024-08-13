@@ -1,4 +1,5 @@
-use reth_primitives::{address, Address, BaseFeeParams, B256, KECCAK_EMPTY, U256};
+use alloy_eips::eip1559::BaseFeeParams;
+use reth_primitives::{address, Address, B256, KECCAK_EMPTY, U256};
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
