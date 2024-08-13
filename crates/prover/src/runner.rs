@@ -660,6 +660,15 @@ where
                         return Err(anyhow!("Failed to get witness from the ledger db: {}", e))
                     }
                 };
+                let state_diff = match self.ledger_db.get_l2_state_diff(BatchNumber(l2_height)) {
+                    Ok(state_diff) => state_diff,
+                    Err(e) => {
+                        return Err(anyhow!(
+                            "Failed to get state diff from the ledger db: {}",
+                            e
+                        ))
+                    }
+                };
 
                 witnesses.push(witness.expect("A witness must be present"));
             }

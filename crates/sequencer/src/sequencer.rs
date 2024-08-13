@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -11,6 +11,7 @@ use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
@@ -571,10 +572,9 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
-                let merged_state_diff = self.merge_state_diffs(
-                    self.last_state_diff.clone(),
-                    slot_result.state_diff.clone(),
-                );
+                let merged_state_diff =
+                    merge_state_diffs(self.last_state_diff.clone(), slot_result.state_diff.clone());
+
                 // Serialize the state diff to check size later.
                 let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
                 let state_diff_threshold_reached =
@@ -1182,13 +1182,6 @@ where
         }
 
         Ok(updates)
-    }
-
-    fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
-        let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
-
-        new_diff_map.extend(new_diff);
-        new_diff_map.into_iter().collect()
     }
 }
 
