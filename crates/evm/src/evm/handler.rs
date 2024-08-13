@@ -357,9 +357,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             l1_diff_size: diff_size,
             l1_fee,
         });
-        if context.is_system_caller() {
-            // System caller doesn't pay L1 fee.
-        } else {
+        // System caller doesn't pay L1 fee.
+        if !context.is_system_caller() {
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enough funds for L1 fee: {}",
