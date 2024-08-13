@@ -27,13 +27,16 @@ serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
 
+alloy-consensus = { workspace = true }
+alloy-eips = { workspace = true }
 alloy-primitives = { workspace = true, features = ["rand", "serde"] }
 alloy-rlp = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true }
 itertools = { workspace = true, optional = true }
-reth-interfaces = { workspace = true, optional = true }
 reth-primitives = { workspace = true, default-features = false }
-reth-rpc = { workspace = true, optional = true }
+reth-provider = { workspace = true, optional = true }
+reth-rpc-eth-types = { workspace = true, optional = true }
+reth-rpc-server-types = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 revm = { workspace = true }
@@ -41,16 +44,18 @@ revm-inspectors = { workspace = true, optional = true }
 secp256k1 = { workspace = true, optional = true }
 
 [dev-dependencies]
-alloy = { workspace = true, features = ["consensus", "providers", "signer-wallet", "signers"] }
+alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }
 bytes = { workspace = true }
 lazy_static = "1.4.0"
 rand = { workspace = true }
 rayon = { workspace = true }
+reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
-reth-provider = { workspace = true }
+reth-errors = { workspace = true }
 revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 tempfile = { workspace = true }
 tracing-subscriber = { workspace = true }
 walkdir = "2.3.3"
@@ -61,11 +66,12 @@ native = [
   "sov-state/native",
   "sov-modules-api/native",
 
-  "reth-interfaces",
   "reth-rpc-types",
+  "reth-rpc-eth-types",
+  "reth-rpc-server-types",
   "reth-rpc-types-compat",
   "revm-inspectors",
-  "reth-rpc",
+  "reth-provider",
   "alloy-rlp",
 
   "jsonrpsee",

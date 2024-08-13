@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use shared_backup_db::SharedBackupDbConfig;
 
 use crate::ProverGuestRunConfig;
 
@@ -13,7 +12,7 @@ use crate::ProverGuestRunConfig;
 pub struct RunnerConfig {
     /// Sequencer client configuration.
     pub sequencer_client_url: String,
-    /// Saves sequencer soft batches if set to true
+    /// Saves sequencer soft confirmations if set to true
     pub include_tx_body: bool,
     /// Only true for tests
     pub accept_public_input_as_proven: Option<bool>,
@@ -130,8 +129,6 @@ pub struct ProverConfig {
     pub proving_mode: ProverGuestRunConfig,
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
-    /// Offchain db config
-    pub db_config: Option<SharedBackupDbConfig>,
 }
 
 impl Default for ProverConfig {
@@ -139,7 +136,6 @@ impl Default for ProverConfig {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
-            db_config: None,
         }
     }
 }
@@ -244,13 +240,6 @@ mod tests {
         let config = r#"
             proving_mode = "skip"
             proof_sampling_number = 500
-
-            [db_config]
-            db_host = "localhost"
-            db_port = 5432
-            db_user = "postgres"
-            db_password = "postgres"
-            db_name = "postgres"
         "#;
 
         let config_file = create_config_from(config);
@@ -259,7 +248,6 @@ mod tests {
         let expected = ProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
-            db_config: Some(SharedBackupDbConfig::default()),
         };
         assert_eq!(config, expected);
     }

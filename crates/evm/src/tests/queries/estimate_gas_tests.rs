@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
+use alloy_eips::eip2930::AccessListWithGasUsed;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{
     address, b256, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind, U256,
 };
-use reth_rpc::eth::error::RpcInvalidTransactionError;
+use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::AccessListWithGasUsed;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
@@ -93,7 +93,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0xdc"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x34"}])
             .unwrap()
     );
 

@@ -3,7 +3,7 @@ use reth_primitives::{
     KECCAK_EMPTY,
 };
 use revm::primitives::{
-    AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, CreateScheme, TransactTo, TxEnv, U256,
+    AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, TransactTo, TxEnv, U256,
 };
 
 use super::primitive_types::{BlockEnv, RlpEvmTransaction, TransactionSignedAndRecovered};
@@ -64,7 +64,7 @@ impl From<BlockEnv> for ReVmBlockEnv {
 pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TransactTo::Call(addr),
-        None => TransactTo::Create(CreateScheme::Create),
+        None => TransactTo::Create,
     };
 
     TxEnv {
@@ -83,6 +83,7 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedEcRecovered) -> TxEnv {
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
+        authorization_list: None,
     }
 }
 

@@ -2,11 +2,12 @@ use std::str::FromStr;
 
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
-use reth_rpc::eth::error::RpcInvalidTransactionError;
+use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::U256;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::WorkingSet;
+use sov_rollup_interface::spec::SpecId;
 
 use super::C;
 use crate::smart_contracts::SimpleStorageContract;
@@ -76,6 +77,7 @@ fn test_state_change() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 1,
@@ -378,7 +380,7 @@ fn gas_price_call_test() {
 
     assert_eq!(
         result_low_gas,
-        Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(21000)).into())
+        Err(RpcInvalidTransactionError::BasicOutOfGas(21000).into())
     );
     working_set.unset_archival_version();
 
@@ -413,7 +415,7 @@ fn gas_price_call_test() {
 
     assert_eq!(
         result_gas_and_gas_price,
-        Err(RpcInvalidTransactionError::BasicOutOfGas(U256::from(25000)).into())
+        Err(RpcInvalidTransactionError::BasicOutOfGas(25000).into())
     );
     working_set.unset_archival_version();
 

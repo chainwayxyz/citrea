@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy::consensus::{SignableTransaction, TxEnvelope};
 use alloy::providers::network::TxSignerSync;
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy_rlp::{Decodable, Encodable};
 use bytes::BytesMut;
 use reth_primitives::{
@@ -19,7 +19,7 @@ use crate::tests::DEFAULT_CHAIN_ID;
 #[test]
 fn tx_rlp_encoding_test() {
     let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
-        .parse::<LocalWallet>()
+        .parse::<PrivateKeySigner>()
         .unwrap();
     let from_addr = wallet.address();
     let to_addr = Address::from_str("0x0aa7420c43b8c1a7b165d216948870c8ecfe1ee1").unwrap();
@@ -122,6 +122,7 @@ fn prepare_call_env_conversion() {
         access_list: vec![],
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
+        authorization_list: None,
     };
 
     assert_eq!(tx_env.caller, expected.caller);

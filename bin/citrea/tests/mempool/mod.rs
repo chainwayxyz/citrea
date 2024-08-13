@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
@@ -155,7 +155,7 @@ async fn test_order_by_fee() {
 
     let chain_id: u64 = 5655;
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
-        .parse::<LocalWallet>()
+        .parse::<PrivateKeySigner>()
         .unwrap()
         .with_chain_id(Some(chain_id));
     let poor_addr = key.address();
@@ -265,7 +265,7 @@ async fn test_tx_with_low_base_fee() {
 
     let chain_id: u64 = 5655;
     let key = "0xdcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
-        .parse::<LocalWallet>()
+        .parse::<PrivateKeySigner>()
         .unwrap()
         .with_chain_id(Some(chain_id));
     let poor_addr = key.address();
@@ -295,7 +295,7 @@ async fn test_tx_with_low_base_fee() {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
 
-    let block_transactions: Vec<_> = block.transactions.hashes().copied().collect();
+    let block_transactions: Vec<_> = block.transactions.hashes().clone().collect();
     assert!(!block_transactions.contains(tx_hash_low_fee.tx_hash()));
 
     // TODO: also check if tx is in the mempool after https://github.com/chainwayxyz/citrea/issues/83

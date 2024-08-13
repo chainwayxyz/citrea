@@ -2,31 +2,23 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{Event, SoftBatchReceipt, StateDiff};
+use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
-use super::{ItemNumbers, SlotCommit};
+use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch, StoredSlot, StoredSoftBatch,
+    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredSlot, StoredSoftConfirmation,
     StoredStateTransition, StoredTransaction, TxNumber,
 };
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
-    /// Put soft batch to db
-    fn put_soft_batch(
+    /// Put soft confirmation to db
+    fn put_soft_confirmation(
         &self,
-        batch: &StoredSoftBatch,
-        batch_number: &BatchNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Put batch to db
-    fn put_batch(
-        &self,
-        batch: &StoredBatch,
+        batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
@@ -48,10 +40,10 @@ pub trait SharedLedgerOps {
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
-    /// Commits a soft batch to the database by inserting its transactions and batches before
-    fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
+    /// Commits a soft confirmation to the database by inserting its transactions and batches before
+    fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
         &self,
-        batch_receipt: SoftBatchReceipt<B, T, DS>,
+        batch_receipt: SoftConfirmationReceipt<B, T, DS>,
         include_tx_body: bool,
     ) -> Result<()>;
 
@@ -70,12 +62,6 @@ pub trait SharedLedgerOps {
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
     fn _get_slot_range(&self, range: &std::ops::Range<SlotNumber>) -> Result<Vec<StoredSlot>>;
-
-    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    fn get_batch_range(&self, range: &std::ops::Range<BatchNumber>) -> Result<Vec<StoredBatch>>;
 
     /// Gets l1 height of l1 hash
     fn get_state_diff(&self) -> Result<StateDiff>;
@@ -104,20 +90,34 @@ pub trait SharedLedgerOps {
         state_root: &StateRoot,
     ) -> anyhow::Result<()>;
 
-    /// Get the most recent committed soft batch, if any
-    fn get_head_soft_batch(&self) -> Result<Option<(BatchNumber, StoredSoftBatch)>>;
+    /// Get the most recent committed soft confirmation, if any
+    fn get_head_soft_confirmation(&self) -> Result<Option<(BatchNumber, StoredSoftConfirmation)>>;
 
     /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
-    fn get_soft_batch_range(
+    fn get_soft_confirmation_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredSoftBatch>>;
+    ) -> Result<Vec<StoredSoftConfirmation>>;
 
     /// Gets all soft confirmations by numbers
-    fn get_soft_batch_by_number(&self, number: &BatchNumber) -> Result<Option<StoredSoftBatch>>;
+
+    fn get_soft_confirmation_by_number(
+        &self,
+        number: &BatchNumber,
+    ) -> Result<Option<StoredSoftConfirmation>>;
+
+    /// Gets the currently active fork
+    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error>;
+
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
+    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
 }
 
 /// Node ledger operations
@@ -187,13 +187,6 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
-    /// Commits a slot to the database by inserting its events, transactions, and batches before
-    /// inserting the slot metadata.
-    fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
-        &self,
-        data_to_commit: SlotCommit<S, B, T>,
-    ) -> Result<()>;
-
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
     fn set_last_sequencer_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
 
@@ -210,10 +203,15 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     /// Sets the latest state diff
     fn set_state_diff(&self, state_diff: StateDiff) -> Result<()>;
 
-    /// Get the most recent committed batch
-    /// Returns L2 height.
-    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
-
     /// Get the most recent commitment's l1 height
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>>;
+
+    /// Insert mempool transaction
+    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()>;
+
+    /// Insert mempool transaction
+    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()>;
+
+    /// Fetch mempool transactions
+    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
 }

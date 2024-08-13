@@ -162,7 +162,7 @@ fn build_commit_transaction(
         tx_id: tx.id,
         vout: 0,
         script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-        address: "ANY".into(),
+        address: None,
         amount: tx.tx.output[0].value.to_sat(),
         confirmations: 0,
         spendable: true,
@@ -448,7 +448,7 @@ pub fn create_inscription_transactions(
 
         let mut reveal_tx = build_reveal_transaction(
             output_to_reveal.clone(),
-            unsigned_commit_tx.txid(),
+            unsigned_commit_tx.compute_txid(),
             0,
             recipient,
             reveal_value,
@@ -457,7 +457,7 @@ pub fn create_inscription_transactions(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.txid();
+        let reveal_tx_id = reveal_tx.compute_txid();
         let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
@@ -592,8 +592,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 1_000_000,
                 confirmations: 100,
@@ -606,8 +610,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 100_000,
                 confirmations: 100,
@@ -620,8 +628,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 10_000,
                 confirmations: 100,
@@ -803,7 +815,7 @@ mod tests {
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let prev_tx = tx;
-        let prev_tx_id = prev_tx.txid();
+        let prev_tx_id = prev_tx.compute_txid();
         let tx = super::build_commit_transaction(
             Some(super::TxWithId {
                 id: prev_tx_id,
@@ -827,7 +839,7 @@ mod tests {
                 tx_id: prev_tx_id,
                 vout: i as u32,
                 script_pubkey: o.script_pubkey.to_hex_string(),
-                address: "ANY".into(),
+                address: None,
                 confirmations: 0,
                 amount: o.value.to_sat(),
                 spendable: true,
@@ -872,8 +884,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 152,
                 confirmations: 100,
@@ -1008,7 +1024,7 @@ mod tests {
 
         assert_eq!(
             reveal.input[0].previous_output.txid,
-            commit.txid(),
+            commit.compute_txid(),
             "reveal should use commit as input"
         );
         assert_eq!(

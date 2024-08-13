@@ -5,6 +5,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
+use sov_rollup_interface::spec::SpecId;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 
 use crate::{Evm, EvmConfig};
@@ -13,10 +14,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "1a86d36a981d7ba74d7ac04d9c2210dad8a0232a2abf6736f742c29dbc771e78"
+        "8fdab216733b9bc03ebe33723b5adcc67e4b9ae8a30080db6d1e7ea76fe73ebc"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "0b0fde2efb62188b0455473d53d116c9248a1a5de37c5c377f1baa194212575e"
+        "28e573e742b68bc63b3c07df8b87a2c781d3cdce7197a598cf1629aa2017f7ae"
     ));
 }
 
@@ -61,6 +62,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
             da_slot_height: 1,
             da_slot_txs_commitment: [2u8; 32],
             pre_state_root: root.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate: 0,

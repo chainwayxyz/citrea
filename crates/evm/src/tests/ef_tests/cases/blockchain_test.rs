@@ -14,6 +14,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_prover_storage_manager::SnapshotManager;
+use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
 use crate::primitive_types::Block;
@@ -69,6 +70,7 @@ impl BlockchainTestCase {
                 da_slot_height: 0,
                 da_slot_txs_commitment: [0u8; 32],
                 pre_state_root: root.to_vec(),
+                current_spec: SovSpecId::Genesis,
                 pub_key: vec![],
                 deposit_data: vec![],
                 l1_fee_rate: 0,
@@ -153,6 +155,7 @@ impl Case for BlockchainTestCase {
                     // EIP-4788 related field
                     // unrelated for rollups
                     parent_beacon_block_root: None,
+                    requests_root: None,
                 };
 
                 let block = Block {

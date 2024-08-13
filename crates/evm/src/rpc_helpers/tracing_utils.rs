@@ -1,6 +1,6 @@
 use reth_primitives::revm_primitives::TxEnv;
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, U256};
-use reth_rpc::eth::error::{EthApiError, EthResult, RpcInvalidTransactionError};
+use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
@@ -25,7 +25,7 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
     tx_hash: TxHash,
     db: &mut EvmDb<'_, C>,
     l1_fee_rate: u128,
-) -> EthResult<(GethTrace, revm::primitives::State)> {
+) -> EthResult<(GethTrace, revm::primitives::state::EvmState)> {
     let GethDebugTracingOptions {
         config,
         tracer,

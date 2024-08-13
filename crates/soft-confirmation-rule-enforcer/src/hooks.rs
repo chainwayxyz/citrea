@@ -18,10 +18,10 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_block_count_rule(
         &self,
-        soft_batch_info: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
-        let da_root_hash = soft_batch_info.da_slot_hash();
+        let da_root_hash = soft_confirmation_info.da_slot_hash();
         let l2_block_count = self
             .da_root_hash_to_number
             .get(&da_root_hash, working_set)
@@ -37,7 +37,7 @@ where
             return Err(
                 ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
                     hash: da_root_hash,
-                    sequencer_pub_key: soft_batch_info.sequencer_pub_key().to_vec(),
+                    sequencer_pub_key: soft_confirmation_info.sequencer_pub_key().to_vec(),
                     max_l2_blocks_per_l1,
                 },
             );
@@ -59,10 +59,10 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_fee_rate_rule(
         &self,
-        soft_batch: &mut HookSoftConfirmationInfo,
+        soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
-        let l1_fee_rate = soft_batch.l1_fee_rate();
+        let l1_fee_rate = soft_confirmation.l1_fee_rate();
         let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
 
         // if we are in the block right after genesis, we don't have a last fee rate
@@ -70,7 +70,7 @@ where
         if last_l1_fee_rate == 0 {
             // early return so don't forget to set
             self.last_l1_fee_rate
-                .set(&soft_batch.l1_fee_rate, working_set);
+                .set(&soft_confirmation.l1_fee_rate, working_set);
             return Ok(());
         }
 
@@ -92,7 +92,7 @@ where
         }
 
         self.last_l1_fee_rate
-            .set(&soft_batch.l1_fee_rate, working_set);
+            .set(&soft_confirmation.l1_fee_rate, working_set);
 
         Ok(())
     }
@@ -102,10 +102,10 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_timestamp_rule(
         &self,
-        soft_batch: &mut HookSoftConfirmationInfo,
+        soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
-        let current_timestamp = soft_batch.timestamp();
+        let current_timestamp = soft_confirmation.timestamp();
         let last_timestamp = self.last_timestamp.get(working_set).unwrap_or(0);
 
         if current_timestamp < last_timestamp {
@@ -130,14 +130,14 @@ where
     )]
     pub fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut HookSoftConfirmationInfo,
+        soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), ApplySoftConfirmationError> {
-        self.apply_block_count_rule(soft_batch, working_set)?;
+        self.apply_block_count_rule(soft_confirmation, working_set)?;
 
-        self.apply_fee_rate_rule(soft_batch, working_set)?;
+        self.apply_fee_rate_rule(soft_confirmation, working_set)?;
 
-        self.apply_timestamp_rule(soft_batch, working_set)?;
+        self.apply_timestamp_rule(soft_confirmation, working_set)?;
 
         Ok(())
     }

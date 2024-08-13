@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use bitcoin::hashes::{sha256d, Hash};
 use bitcoin::{merkle_tree, Txid};
@@ -12,6 +12,8 @@ use thiserror::Error;
 use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::parse_transaction;
 use crate::spec::BitcoinSpec;
+
+pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 pub struct BitcoinVerifier {
     rollup_name: String,
@@ -89,102 +91,33 @@ impl DaVerifier for BitcoinVerifier {
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        let validity_condition = ChainValidityCondition {
-            prev_hash: block_header.prev_hash().to_byte_array(),
-            block_hash: block_header.block_hash().to_byte_array(),
-        };
-
-        // check that wtxid's of transactions in completeness proof are included in the InclusionMultiProof
-        // and are in the same order as in the completeness proof
-        let mut iter = inclusion_proof.wtxids.iter();
-        completeness_proof
-            .iter()
-            .all(|tx| iter.any(|&y| y == tx.wtxid().to_byte_array()));
-
-        // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
-        // and the rest of the script pub key is the commitment of witness data.
-        if !completeness_proof.is_empty() {
-            let coinbase_tx = &inclusion_proof.coinbase_tx;
-            // If there are more than one scriptPubKey matching the pattern,
-            // the one with highest output index is assumed to be the commitment.
-            // That  is why the iterator is reversed.
-            let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
-                output
-                    .script_pubkey
-                    .to_bytes()
-                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
-            });
-            match commitment_idx {
-                // If commitmet does not exist
-                None => {
-                    // Relevant txs should be empty if there is no wtiness data because data is inscribed in the witness
-                    if !blobs.is_empty() {
-                        return Err(ValidationError::InvalidBlock);
-                    }
-                    // Check if all the wtxids are equal to txids
-                    for (wtxid, txid) in inclusion_proof
-                        .wtxids
-                        .iter()
-                        .zip(inclusion_proof.txids.iter())
-                    {
-                        if wtxid != txid {
-                            return Err(ValidationError::InvalidSegWitCommitment);
-                        }
-                    }
-                }
-                Some(mut commitment_idx) => {
-                    let wtxids = inclusion_proof
-                        .wtxids
-                        .iter()
-                        .copied()
-                        .map(Txid::from_byte_array);
-
-                    let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
-
-                    let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
-
-                    let mut vec_merkle = merkle_root.to_byte_array().to_vec();
-
-                    vec_merkle.extend_from_slice(input_witness_value);
-
-                    // check with sha256(sha256(<merkle root><witness value>))
-                    let commitment = sha256d::Hash::hash(&vec_merkle);
-
-                    // check if the commitment is correct
-                    // on signet there is an additional commitment after the segwit commitment
-                    // so we check only the first 32 bytes after commitment header (bytes [2, 5])
-                    commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
-                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.to_bytes();
-                    if script_pubkey[6..38] != *commitment.as_byte_array() {
-                        return Err(ValidationError::NonMatchingScript);
-                    }
-                }
-            }
-        }
-
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
-        let mut inclusion_iter = inclusion_proof.txids.iter();
+        let mut inclusion_iter = inclusion_proof
+            .txids
+            .iter()
+            .zip(inclusion_proof.wtxids.iter());
 
         let prefix = self.reveal_tx_id_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
-        let mut completeness_tx_hashes = HashSet::new();
+        let mut completeness_tx_hashes = BTreeSet::new();
 
         for (index_completeness, tx) in completeness_proof.iter().enumerate() {
-            let txid = tx.txid().to_byte_array();
-
+            let txid = tx.compute_txid().to_byte_array();
             // make sure it starts with the correct prefix
             if !txid.starts_with(prefix) {
                 return Err(ValidationError::NonRelevantTxInProof);
             }
 
+            let wtxid = tx.compute_wtxid();
+            let wtxid = wtxid.as_byte_array();
+
             // make sure completeness txs are ordered same in inclusion proof
             // this logic always start seaching from the last found index
             // ordering should be preserved naturally
-            let is_found_in_block = inclusion_iter.any(|&txid_in_proof| txid_in_proof == txid);
-
-            // assert tx is included in inclusion proof, thus in block
+            let is_found_in_block =
+                inclusion_iter.any(|(txid_inc, wtxid_inc)| *txid_inc == txid && wtxid_inc == wtxid);
             if !is_found_in_block {
                 return Err(ValidationError::RelevantTxNotFoundInBlock);
             }
@@ -246,27 +179,85 @@ impl DaVerifier for BitcoinVerifier {
             return Err(ValidationError::NonRelevantTxInProof);
         }
 
+        // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
+        // and the rest of the script pub key is the commitment of witness data.
+        if !completeness_proof.is_empty() {
+            let coinbase_tx = &inclusion_proof.coinbase_tx;
+            // If there are more than one scriptPubKey matching the pattern,
+            // the one with highest output index is assumed to be the commitment.
+            // That  is why the iterator is reversed.
+            let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
+                output
+                    .script_pubkey
+                    .as_bytes()
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
+            });
+            match commitment_idx {
+                // If commitmet does not exist
+                None => {
+                    // Relevant txs should be empty if there is no wtiness data because data is inscribed in the witness
+                    if !blobs.is_empty() {
+                        return Err(ValidationError::InvalidBlock);
+                    }
+                    // Check if all the wtxids are equal to txids
+                    for (wtxid, txid) in inclusion_proof
+                        .wtxids
+                        .iter()
+                        .zip(inclusion_proof.txids.iter())
+                    {
+                        if wtxid != txid {
+                            return Err(ValidationError::InvalidSegWitCommitment);
+                        }
+                    }
+                }
+                Some(mut commitment_idx) => {
+                    let wtxids = inclusion_proof
+                        .wtxids
+                        .iter()
+                        .map(|wtxid| Txid::from_byte_array(*wtxid));
+
+                    let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
+
+                    let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
+
+                    let mut vec_merkle = merkle_root.as_byte_array().to_vec();
+
+                    vec_merkle.extend_from_slice(input_witness_value);
+
+                    // check with sha256(sha256(<merkle root><witness value>))
+                    let commitment = sha256d::Hash::hash(&vec_merkle);
+
+                    // check if the commitment is correct
+                    // on signet there is an additional commitment after the segwit commitment
+                    // so we check only the first 32 bytes after commitment header (bytes [2, 5])
+                    commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
+                    let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
+                    if script_pubkey[6..38] != *commitment.as_byte_array() {
+                        return Err(ValidationError::NonMatchingScript);
+                    }
+                }
+            }
+        }
+
         let tx_root = block_header.merkle_root();
 
         // Inclusion proof is all the txs in the block.
-        let tx_hashes = inclusion_proof
-            .txids
-            .iter()
-            .map(|tx| Txid::from_slice(tx).unwrap())
-            .collect::<Vec<_>>();
+        let tx_hashes = inclusion_proof.txids.into_iter().map(Txid::from_byte_array);
 
-        if let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes.into_iter()) {
-            let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
+        let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) else {
+            return Err(ValidationError::FailedToCalculateMerkleRoot);
+        };
 
-            // Check that the tx root in the block header matches the tx root in the inclusion proof.
-            if root_from_inclusion != tx_root {
-                return Err(ValidationError::IncorrectInclusionProof);
-            }
-
-            Ok(validity_condition)
-        } else {
-            Err(ValidationError::FailedToCalculateMerkleRoot)
+        let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
+        // Check that the tx root in the block header matches the tx root in the inclusion proof.
+        if root_from_inclusion != tx_root {
+            return Err(ValidationError::IncorrectInclusionProof);
         }
+
+        Ok(ChainValidityCondition {
+            prev_hash: block_header.prev_hash().to_byte_array(),
+            block_hash: block_header.block_hash().to_byte_array(),
+        })
     }
 }
 
@@ -281,7 +272,6 @@ mod tests {
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
-    use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
     use sov_rollup_interface::da::DaVerifier;
 
@@ -295,7 +285,7 @@ mod tests {
     use crate::spec::proof::InclusionMultiProof;
     use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
-    use crate::verifier::{ChainValidityCondition, ValidationError};
+    use crate::verifier::{ChainValidityCondition, ValidationError, WITNESS_COMMITMENT_PREFIX};
 
     #[test]
     fn correct() {
@@ -334,7 +324,7 @@ mod tests {
                 ])
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             6,
@@ -353,7 +343,7 @@ mod tests {
             output
                 .script_pubkey
                 .to_bytes()
-                .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+                .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
         assert!(idx.is_none());
 
@@ -364,11 +354,11 @@ mod tests {
         let inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
@@ -409,7 +399,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             13,
@@ -440,11 +430,11 @@ mod tests {
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
@@ -489,7 +479,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             13,
@@ -511,7 +501,7 @@ mod tests {
                 output
                     .script_pubkey
                     .to_bytes()
-                    .starts_with(&[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed])
+                    .starts_with(WITNESS_COMMITMENT_PREFIX)
             })
             .unwrap();
 
@@ -536,11 +526,11 @@ mod tests {
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };
@@ -585,7 +575,7 @@ mod tests {
                 )
                 .unwrap(),
                 time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             13,
@@ -652,11 +642,11 @@ mod tests {
         let mut inclusion_proof = InclusionMultiProof {
             txids: block_txs
                 .iter()
-                .map(|t| t.txid().to_raw_hash().to_byte_array())
+                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
                 .collect(),
             wtxids: block_txs
                 .iter()
-                .map(|t| t.wtxid().to_byte_array())
+                .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
             coinbase_tx: block_txs[0].clone(),
         };

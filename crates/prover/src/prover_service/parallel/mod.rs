@@ -177,7 +177,7 @@ where
     async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
     ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
         loop {
             let status = self

@@ -3,10 +3,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use alloy::providers::network::{Ethereum, EthereumSigner};
+use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::{Filter, LogResponse};
 use ethereum_rpc::CitreaStatus;
@@ -18,10 +18,10 @@ use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind,
 // use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
-use sequencer_client::GetSoftBatchResponse;
+use sequencer_client::GetSoftConfirmationResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse, SoftBatchResponse,
-    SoftConfirmationStatus, VerifiedProofResponse,
+    LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse,
+    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
 };
 
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
@@ -29,7 +29,7 @@ pub const MAX_FEE_PER_GAS: u128 = 1000000001;
 pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
-    //client: SignerMiddleware<Provider<Http>, LocalWallet>,
+    //client: SignerMiddleware<Provider<Http>, PrivateKeySigner>,
     client: Box<dyn AlloyProvider<Http<HyperClient>>>,
     http_client: HttpClient,
     ws_client: WsClient,
@@ -40,7 +40,7 @@ pub struct TestClient {
 impl TestClient {
     pub(crate) async fn new(
         chain_id: u64,
-        key: LocalWallet,
+        key: PrivateKeySigner,
         from_addr: Address,
         rpc_addr: std::net::SocketAddr,
     ) -> Self {
@@ -50,7 +50,7 @@ impl TestClient {
         let provider = ProviderBuilder::new()
             // .with_recommended_fillers()
             .with_chain_id(chain_id)
-            .signer(EthereumSigner::from(key))
+            .wallet(EthereumWallet::from(key))
             .on_hyper_http(http_host.parse().unwrap());
         let client: Box<dyn AlloyProvider<Http<HyperClient>>> = Box::new(provider);
 
@@ -122,11 +122,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into());
         req.to = Some(TxKind::Create);
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -152,11 +148,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into())
             .nonce(nonce);
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -183,11 +175,7 @@ impl TestClient {
             .to(contract_address)
             .input(data.into());
 
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -218,11 +206,7 @@ impl TestClient {
             .input(data.into())
             .value(value.map(U256::from).unwrap_or_default());
 
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -267,11 +251,7 @@ impl TestClient {
             .to(to_addr)
             .value(U256::from(value));
 
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -517,26 +497,26 @@ impl TestClient {
     }
 
     #[allow(clippy::extra_unused_type_parameters)]
-    pub(crate) async fn ledger_get_soft_batch_by_number<
+    pub(crate) async fn ledger_get_soft_confirmation_by_number<
         DaSpec: sov_rollup_interface::da::DaSpec,
     >(
         &self,
         num: u64,
-    ) -> Option<GetSoftBatchResponse> {
+    ) -> Option<GetSoftConfirmationResponse> {
         self.http_client
-            .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .request("ledger_getSoftConfirmationByNumber", rpc_params![num])
             .await
             .unwrap()
     }
 
     pub(crate) async fn ledger_get_soft_confirmation_status(
         &self,
-        soft_batch_receipt: u64,
+        soft_confirmation_receipt: u64,
     ) -> Result<Option<SoftConfirmationStatus>, Box<dyn std::error::Error>> {
         self.http_client
             .request(
                 "ledger_getSoftConfirmationStatus",
-                rpc_params![soft_batch_receipt],
+                rpc_params![soft_confirmation_receipt],
             )
             .await
             .map_err(|e| e.into())
@@ -599,20 +579,20 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_head_soft_batch(
+    pub(crate) async fn ledger_get_head_soft_confirmation(
         &self,
-    ) -> Result<Option<SoftBatchResponse>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<SoftConfirmationResponse>, Box<dyn std::error::Error>> {
         self.http_client
-            .request("ledger_getHeadSoftBatch", rpc_params![])
+            .request("ledger_getHeadSoftConfirmation", rpc_params![])
             .await
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_head_soft_batch_height(
+    pub(crate) async fn ledger_get_head_soft_confirmation_height(
         &self,
     ) -> Result<Option<u64>, Box<dyn std::error::Error>> {
         self.http_client
-            .request("ledger_getHeadSoftBatchHeight", rpc_params![])
+            .request("ledger_getHeadSoftConfirmationHeight", rpc_params![])
             .await
             .map_err(|e| e.into())
     }

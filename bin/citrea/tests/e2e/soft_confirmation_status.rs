@@ -124,7 +124,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     let mut batch_infos = vec![];
     for i in 1..=6 {
         let full_node_soft_conf = full_node_test_client
-            .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
             .await
             .unwrap();
         batch_infos.push(full_node_soft_conf);

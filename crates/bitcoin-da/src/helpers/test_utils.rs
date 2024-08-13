@@ -3,7 +3,6 @@ use core::str::FromStr;
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::string::FromHexStr;
 use bitcoin::{BlockHash, CompactTarget, Transaction};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
@@ -59,7 +58,7 @@ pub(crate) fn get_mock_data() -> (
             )
             .unwrap(),
             time: 1694177029,
-            bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+            bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
             nonce: 0,
         },
         13,
@@ -86,11 +85,11 @@ pub(crate) fn get_mock_data() -> (
     let mut inclusion_proof = InclusionMultiProof {
         txids: block_txs
             .iter()
-            .map(|t| t.txid().to_raw_hash().to_byte_array())
+            .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
             .collect(),
         wtxids: block_txs
             .iter()
-            .map(|t| t.wtxid().to_byte_array())
+            .map(|t| t.compute_wtxid().to_byte_array())
             .collect(),
         coinbase_tx: block_txs[0].clone().into(),
     };
