@@ -14,9 +14,10 @@ use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{error, info, warn};
 
 macro_rules! unwrap_bonsai_response {
-    ($response:expr) => (
+    ($bonsai_call:expr) => (
         loop {
-            match $response {
+            let response = $bonsai_call;
+            match response {
                 Ok(r) => break r,
                 Err(e) => {
                     use ::bonsai_sdk::SdkErr::*;
