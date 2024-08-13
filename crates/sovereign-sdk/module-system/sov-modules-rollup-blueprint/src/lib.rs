@@ -24,8 +24,10 @@ pub use wallet::*;
 pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability service.
     type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Send + Sync;
+
     /// A specification for the types used by a DA layer.
     type DaSpec: DaSpec + Send + Sync;
+
     /// Data Availability config.
     type DaConfig: Send + Sync;
 
@@ -34,6 +36,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
+
     /// Context for Native environment.
     type NativeContext: Context;
 
