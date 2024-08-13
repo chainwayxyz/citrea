@@ -186,10 +186,10 @@ pub trait ProvingServiceLedgerOps: ProverLedgerOps + SharedLedgerOps + Send + Sy
     fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
 
     /// Adds a pending proving session
-    fn add_pending_proving_session(&self, session: &Vec<u8>) -> Result<()>;
+    fn add_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
 
     /// Removes a pending proving session
-    fn remove_pending_proving_session(&self, session: &Vec<u8>) -> Result<()>;
+    fn remove_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
 }
 
 /// Sequencer ledger operations

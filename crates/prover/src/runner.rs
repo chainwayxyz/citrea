@@ -235,7 +235,7 @@ where
             .recover_proving_sessions_and_send_to_da(&self.da_service)
             .await?;
         if results.is_empty() {
-            return Ok(false);
+            Ok(false)
         } else {
             for (tx_id, proof) in results {
                 self.extract_and_store_proof(tx_id, proof, l1_height)

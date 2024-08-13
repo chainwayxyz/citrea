@@ -424,7 +424,7 @@ impl<'a> Risc0BonsaiHost<'a> {
             session: BonsaiSession::Snark(stark_session.to_string(), snark_session.uuid.clone()),
         })?;
         self.ledger_db
-            .add_pending_proving_session(&recovered_serialized_snark_session)?;
+            .add_pending_proving_session(recovered_serialized_snark_session.clone())?;
 
         let client = self.client.as_ref().unwrap();
         let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
@@ -541,7 +541,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let serialized_stark_session = borsh::to_vec(&stark_session)
                 .expect("Bonsai host should be able to serialize bonsai sessions");
             self.ledger_db
-                .add_pending_proving_session(&serialized_stark_session)?;
+                .add_pending_proving_session(serialized_stark_session.clone())?;
 
             tracing::info!("Session created: {}", session.uuid);
 
@@ -553,7 +553,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             // Remove the stark session as it is finished
             self.ledger_db
-                .remove_pending_proving_session(&serialized_stark_session)?;
+                .remove_pending_proving_session(serialized_stark_session.clone())?;
 
             tracing::info!("SNARK session created: {}", snark_session.uuid);
 

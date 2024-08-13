@@ -589,13 +589,13 @@ impl ProvingServiceLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn add_pending_proving_session(&self, session: &Vec<u8>) -> anyhow::Result<()> {
-        self.db.put::<PendingProvingSessions>(session, &())
+    fn add_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
+        self.db.put::<PendingProvingSessions>(&session, &())
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn remove_pending_proving_session(&self, session: &Vec<u8>) -> anyhow::Result<()> {
-        self.db.delete::<PendingProvingSessions>(session)
+    fn remove_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
+        self.db.delete::<PendingProvingSessions>(&session)
     }
 }
 
