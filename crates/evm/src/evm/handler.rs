@@ -301,8 +301,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
                     .inner
                     .journaled_state
                     .load_account(tx_caller, &mut context.evm.inner.db)?;
+                // Update nonce and mark account touched
                 caller_account.info.nonce = caller_account.info.nonce.saturating_add(1);
-                // Updated nonce, must mark touched
                 caller_account.mark_touch();
             }
             return Ok(());

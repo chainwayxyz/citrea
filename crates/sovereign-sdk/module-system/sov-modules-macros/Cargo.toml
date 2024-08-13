@@ -44,5 +44,5 @@ default = ["native"]
 native = ["jsonrpsee"]
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["borsh"]
+normal = ["anyhow", "borsh"]
 development = ["clap", "sov-modules-core", "sov-modules-api", "sov-state", "sov-rollup-interface"]
