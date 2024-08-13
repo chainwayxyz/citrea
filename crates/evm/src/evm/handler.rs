@@ -26,6 +26,7 @@ use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub l1_diff_size: u64,
+    #[allow(unused)]
     pub l1_fee: U256,
 }
 
@@ -154,8 +155,8 @@ where
     fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         self.inspector.step_end(interp, context)
     }
-    fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
-        self.inspector.log(context, log)
+    fn log(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, log: &Log) {
+        self.inspector.log(interp, context, log)
     }
     fn call(
         &mut self,
@@ -300,7 +301,9 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
                     .inner
                     .journaled_state
                     .load_account(tx_caller, &mut context.evm.inner.db)?;
+                // Update nonce and mark account touched
                 caller_account.info.nonce = caller_account.info.nonce.saturating_add(1);
+                caller_account.mark_touch();
             }
             return Ok(());
         }
@@ -354,9 +357,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             l1_diff_size: diff_size,
             l1_fee,
         });
-        if context.is_system_caller() {
-            // System caller doesn't pay L1 fee.
-        } else {
+        // System caller doesn't pay L1 fee.
+        if !context.is_system_caller() {
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enough funds for L1 fee: {}",
@@ -411,7 +413,7 @@ fn calc_diff_size<EXT, DB: Database>(
                 let to = account_changes.entry(to).or_default();
                 to.balance_changed = true;
             }
-            JournalEntry::StorageChange { address, key, .. } => {
+            JournalEntry::StorageChanged { address, key, .. } => {
                 let account = account_changes.entry(address).or_default();
                 account.storage_changes.insert(key);
             }

@@ -39,13 +39,10 @@ quote = "1.0"
 serde_json = { workspace = true }
 syn = { version = "1.0", features = ["full"] }
 
-[build-dependencies]
-anyhow = { workspace = true }
-
 [features]
 default = ["native"]
 native = ["jsonrpsee"]
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["borsh"]
+normal = ["anyhow", "borsh"]
 development = ["clap", "sov-modules-core", "sov-modules-api", "sov-state", "sov-rollup-interface"]

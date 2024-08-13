@@ -74,10 +74,10 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         Ok(storage_value)
     }
 
-    fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
+    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
         let block_hash = self
             .last_block_hashes
-            .get(&number, self.working_set)
+            .get(&U256::from(number), self.working_set)
             .unwrap_or(B256::ZERO);
 
         Ok(block_hash)
@@ -85,8 +85,8 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 }
 
 #[cfg(feature = "native")]
-impl From<DBError> for reth_rpc::eth::error::EthApiError {
+impl From<DBError> for reth_rpc_eth_types::error::EthApiError {
     fn from(_value: DBError) -> Self {
-        reth_rpc::eth::error::EthApiError::InternalEthError
+        reth_rpc_eth_types::error::EthApiError::InternalEthError
     }
 }

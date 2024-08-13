@@ -538,7 +538,7 @@ pub fn create_inscription_type_0(
 
         let mut reveal_tx = build_reveal_transaction(
             output_to_reveal.clone(),
-            unsigned_commit_tx.txid(),
+            unsigned_commit_tx.compute_txid(),
             0,
             recipient,
             reveal_value,
@@ -547,7 +547,7 @@ pub fn create_inscription_type_0(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.txid();
+        let reveal_tx_id = reveal_tx.compute_txid();
         let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
@@ -710,7 +710,7 @@ pub fn create_inscription_type_1(
         // If commit
         let commit_change = if unsigned_commit_tx.output.len() > 1 {
             Some(UTXO {
-                tx_id: unsigned_commit_tx.txid(),
+                tx_id: unsigned_commit_tx.compute_txid(),
                 vout: 1,
                 address: None,
                 script_pubkey: unsigned_commit_tx.output[0].script_pubkey.to_hex_string(),
@@ -725,7 +725,7 @@ pub fn create_inscription_type_1(
 
         let mut reveal_tx = build_reveal_transaction(
             output_to_reveal.clone(),
-            unsigned_commit_tx.txid(),
+            unsigned_commit_tx.compute_txid(),
             0,
             recipient.clone(),
             reveal_value,
@@ -774,7 +774,7 @@ pub fn create_inscription_type_1(
 
         // set prev tx to last reveal tx to chain txs in order
         prev_tx = Some(TxWithId {
-            id: reveal_tx.txid(),
+            id: reveal_tx.compute_txid(),
             tx: reveal_tx.clone(),
         });
 
@@ -807,7 +807,7 @@ pub fn create_inscription_type_1(
         );
     // push txids
     for tx in &reveal_chunks {
-        reveal_script_builder = reveal_script_builder.push_slice(tx.txid().as_byte_array());
+        reveal_script_builder = reveal_script_builder.push_slice(tx.compute_txid().as_byte_array());
     }
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
@@ -891,7 +891,7 @@ pub fn create_inscription_type_1(
 
         let mut reveal_tx = build_reveal_transaction(
             output_to_reveal.clone(),
-            unsigned_commit_tx.txid(),
+            unsigned_commit_tx.compute_txid(),
             0,
             recipient,
             reveal_value,
@@ -900,7 +900,7 @@ pub fn create_inscription_type_1(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.txid();
+        let reveal_tx_id = reveal_tx.compute_txid();
         let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
@@ -1260,7 +1260,7 @@ mod tests {
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let prev_tx = tx;
-        let prev_tx_id = prev_tx.txid();
+        let prev_tx_id = prev_tx.compute_txid();
         let tx = super::build_commit_transaction(
             Some(super::TxWithId {
                 id: prev_tx_id,
@@ -1473,7 +1473,7 @@ mod tests {
 
         assert_eq!(
             reveal.input[0].previous_output.txid,
-            commit.txid(),
+            commit.compute_txid(),
             "reveal should use commit as input"
         );
         assert_eq!(

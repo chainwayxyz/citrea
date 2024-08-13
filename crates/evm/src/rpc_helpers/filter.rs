@@ -8,7 +8,7 @@ use alloy_primitives::{Bloom, BloomInput, U64};
 use itertools::EitherOrBoth::*;
 use itertools::Itertools;
 use reth_primitives::{Address, BlockHash, BlockNumberOrTag, B256};
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::error::EthApiError;
 use serde::de::{DeserializeOwned, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

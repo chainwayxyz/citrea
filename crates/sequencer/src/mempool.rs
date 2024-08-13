@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
 use citrea_evm::SYSTEM_SIGNER;
-use reth_primitives::{Chain, ChainSpecBuilder, Genesis, TxHash};
+use reth_chainspec::{Chain, ChainSpecBuilder};
+use reth_primitives::{Genesis, TxHash};
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::PoolError;

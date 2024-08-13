@@ -33,8 +33,11 @@ impl TransactionWrapper {
 impl BorshSerialize for TransactionWrapper {
     #[inline]
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        Encodable::consensus_encode(&self.tx, writer)
+        let mut buf = vec![];
+        Encodable::consensus_encode(&self.tx, &mut buf)
             .expect("Bitcoin Transaction serialization cannot fail");
+
+        let _ = writer.write(&buf).expect("Borsh writer should never fail");
         Ok(())
     }
 }
@@ -42,7 +45,12 @@ impl BorshSerialize for TransactionWrapper {
 impl BorshDeserialize for TransactionWrapper {
     #[inline]
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let tx = Decodable::consensus_decode(reader)
+        let mut buf = vec![];
+        let _ = reader
+            .read(&mut buf)
+            .expect("Borsh reader should never fail");
+
+        let tx = Decodable::consensus_decode(&mut &*buf)
             .expect("Bitcoin Transaction deserialization cannot fail");
         Ok(Self { tx })
     }

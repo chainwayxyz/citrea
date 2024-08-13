@@ -3,10 +3,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use alloy::providers::network::{Ethereum, EthereumSigner};
+use alloy::providers::network::{Ethereum, EthereumWallet};
 use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, ProviderBuilder};
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::{Filter, LogResponse};
 use ethereum_rpc::CitreaStatus;
@@ -29,7 +29,7 @@ pub const MAX_FEE_PER_GAS: u128 = 1000000001;
 pub struct TestClient {
     pub(crate) chain_id: u64,
     pub(crate) from_addr: Address,
-    //client: SignerMiddleware<Provider<Http>, LocalWallet>,
+    //client: SignerMiddleware<Provider<Http>, PrivateKeySigner>,
     client: Box<dyn AlloyProvider<Http<HyperClient>>>,
     http_client: HttpClient,
     ws_client: WsClient,
@@ -40,7 +40,7 @@ pub struct TestClient {
 impl TestClient {
     pub(crate) async fn new(
         chain_id: u64,
-        key: LocalWallet,
+        key: PrivateKeySigner,
         from_addr: Address,
         rpc_addr: std::net::SocketAddr,
     ) -> Self {
@@ -50,7 +50,7 @@ impl TestClient {
         let provider = ProviderBuilder::new()
             // .with_recommended_fillers()
             .with_chain_id(chain_id)
-            .signer(EthereumSigner::from(key))
+            .wallet(EthereumWallet::from(key))
             .on_hyper_http(http_host.parse().unwrap());
         let client: Box<dyn AlloyProvider<Http<HyperClient>>> = Box::new(provider);
 
@@ -122,11 +122,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into());
         req.to = Some(TxKind::Create);
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -152,11 +148,7 @@ impl TestClient {
             .from(self.from_addr)
             .input(byte_code.into())
             .nonce(nonce);
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -183,11 +175,7 @@ impl TestClient {
             .to(contract_address)
             .input(data.into());
 
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -218,11 +206,7 @@ impl TestClient {
             .input(data.into())
             .value(value.map(U256::from).unwrap_or_default());
 
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
@@ -267,11 +251,7 @@ impl TestClient {
             .to(to_addr)
             .value(U256::from(value));
 
-        let gas = self
-            .client
-            .estimate_gas(&req, BlockNumberOrTag::Latest.into())
-            .await
-            .unwrap();
+        let gas = self.client.estimate_gas(&req).await.unwrap();
 
         let req = req
             .gas_limit(gas)
