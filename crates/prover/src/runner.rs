@@ -233,7 +233,7 @@ where
         // Check da block get and sync up to the latest block in the latest commitment
         let last_scanned_l1_height = self
             .ledger_db
-            .get_prover_last_scanned_l1_height()
+            .get_last_scanned_l1_height()
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
 
         let start_l1_height = match last_scanned_l1_height {
@@ -438,7 +438,7 @@ where
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
                 self.ledger_db
-                    .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
+                    .set_last_scanned_l1_height(SlotNumber(l1_height))
                     .unwrap_or_else(|_| {
                         panic!(
                             "Failed to put prover last scanned l1 height in the ledger db {}",
@@ -548,7 +548,7 @@ where
 
             if let Err(e) = self
                 .ledger_db
-                .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
+                .set_last_scanned_l1_height(SlotNumber(l1_height))
             {
                 panic!(
                     "Failed to put prover last scanned l1 height in the ledger db: {}",

@@ -486,14 +486,14 @@ impl ProverLedgerOps for LedgerDB {
 
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+    fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
