@@ -4,6 +4,8 @@
 mod runtime_rpc;
 mod wallet;
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
@@ -14,13 +16,14 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::Storage;
 use sov_stf_runner::{FullNodeConfig, ProverConfig, ProverService};
+use tokio::sync::broadcast;
 pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
 #[async_trait]
 pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability service.
-    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Clone + Send + Sync;
+    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Send + Sync;
     /// A specification for the types used by a DA layer.
     type DaSpec: DaSpec + Send + Sync;
     /// Data Availability config.
@@ -65,8 +68,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
+        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.
@@ -97,14 +101,14 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService;
+    ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].

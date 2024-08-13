@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use anyhow::anyhow;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_rollup_interface::da::SequencerCommitment;
 use tracing::{debug, instrument};
@@ -19,19 +19,19 @@ pub struct CommitmentInfo {
 /// Returns none if the commitable L2 block range is shorter than `min_soft_confirmations_per_commitment`
 /// Returns `CommitmentInfo` if the sequencer should commit
 #[instrument(level = "debug", skip_all, fields(prev_l1_height), err)]
-pub fn get_commitment_info(
-    ledger_db: &LedgerDB,
+pub fn get_commitment_info<T: SequencerLedgerOps>(
+    ledger_db: &T,
     min_soft_confirmations_per_commitment: u64,
     state_diff_threshold_reached: bool,
 ) -> anyhow::Result<Option<CommitmentInfo>> {
-    let Some((head_soft_batch_number, _)) = ledger_db.get_head_soft_batch()? else {
-        // No soft batches have been created yet.
+    let Some((head_soft_confirmation_number, _)) = ledger_db.get_head_soft_confirmation()? else {
+        // No soft confirmations have been created yet.
         return Ok(None);
     };
 
     // Get latest finalized and pending commitments and find the max height
     let last_finalized_l2_height = ledger_db
-        .get_last_sequencer_commitment_l2_height()?
+        .get_last_commitment_l2_height()?
         .unwrap_or(BatchNumber(0));
     let last_pending_l2_height = ledger_db
         .get_pending_commitments_l2_range()?
@@ -42,14 +42,14 @@ pub fn get_commitment_info(
     let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
     // If the last commitment made is on par with the head
-    // soft batch, we have already committed the latest block.
-    if last_committed_l2_height >= head_soft_batch_number {
+    // soft confirmation, we have already committed the latest block.
+    if last_committed_l2_height >= head_soft_confirmation_number {
         // Already committed.
         return Ok(None);
     }
 
     let l2_start = last_committed_l2_height.0 + 1;
-    let l2_end = head_soft_batch_number.0;
+    let l2_end = head_soft_confirmation_number.0;
 
     let l2_range_length = 1 + l2_end - l2_start;
     if !state_diff_threshold_reached && (l2_range_length < min_soft_confirmations_per_commitment) {

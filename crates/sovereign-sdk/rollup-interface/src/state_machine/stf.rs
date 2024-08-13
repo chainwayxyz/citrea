@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmationBatch;
+use crate::spec::SpecId;
 use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
@@ -82,9 +83,9 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub phantom_data: PhantomData<BatchReceiptContents>,
 }
 
-/// A receipt for a soft batch of transactions. These receipts are stored in the rollup's database
+/// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftBatchReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
+pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
     /// DA layer block number
     pub da_slot_height: u64,
     /// DA layer block hash
@@ -197,8 +198,10 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     ///
     /// Commits state changes to the database
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments)]
     fn apply_slot<'a, I>(
         &self,
+        current_spec: SpecId,
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
@@ -228,15 +231,16 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     /// Commits state changes to the database
     #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -263,6 +267,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff);
 }
 

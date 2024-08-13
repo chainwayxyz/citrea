@@ -4,7 +4,6 @@ use borsh::BorshDeserialize;
 use citrea_stf::genesis_config::GenesisPaths;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use shared_backup_db::{PostgresConnector, SharedBackupDbConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::DaData;
@@ -14,8 +13,8 @@ use sov_stf_runner::ProverConfig;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_l1_block,
-    wait_for_l2_block, wait_for_postgres_commitment, wait_for_prover_l1_height, NodeMode,
+    start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block,
+    wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
@@ -163,7 +162,7 @@ async fn check_sequencer_commitment(
     for i in start_l2_block..=end_l2_block {
         batch_receipts.push(
             test_client
-                .ledger_get_soft_batch_by_number::<MockDaSpec>(i)
+                .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
                 .await
                 .unwrap(),
         );
@@ -181,82 +180,6 @@ async fn check_sequencer_commitment(
     assert_eq!(commitment.l2_start_block_number, start_l2_block);
     assert_eq!(commitment.l2_end_block_number, end_l2_block);
     assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn check_commitment_in_offchain_db() {
-    // citrea::initialize_logging(tracing::Level::INFO);
-
-    let db_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
-    let da_db_dir = db_dir.path().join("DA").to_path_buf();
-    let sequencer_db_dir = db_dir.path().join("sequencer").to_path_buf();
-
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-    let mut sequencer_config = create_default_sequencer_config(4, Some(true), 10);
-
-    let db_name = "check_commitment_in_offchain_db".to_owned();
-    sequencer_config.db_config = Some(SharedBackupDbConfig::default().set_db_name(db_name.clone()));
-
-    // drops db if exists from previous test runs, recreates the db
-    let db_test_client = PostgresConnector::new_test_client(db_name).await.unwrap();
-
-    let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async move {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            Some(sequencer_config),
-            Some(true),
-            10,
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
-
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 2, None).await;
-
-    // publish 3 soft confirmations, no commitment should be sent
-    for _ in 0..3 {
-        test_client.send_publish_batch_request().await;
-    }
-    wait_for_l2_block(&test_client, 3, None).await;
-
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 3, None).await;
-
-    // publish 4th block
-    test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&test_client, 4, None).await;
-
-    // commitment should be published with this call
-    da_service.publish_test_block().await.unwrap();
-    wait_for_l1_block(&da_service, 4, None).await;
-    wait_for_l1_block(&da_service, 5, None).await;
-
-    wait_for_postgres_commitment(
-        &db_test_client,
-        1,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
-
-    let commitments = db_test_client.get_all_commitments().await.unwrap();
-    assert_eq!(commitments.len(), 1);
-    assert_eq!(commitments[0].l2_start_height, 1);
-    assert_eq!(commitments[0].l2_end_height, 4);
-
-    seq_task.abort();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -398,7 +321,6 @@ async fn test_ledger_get_commitments_on_slot_prover() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                db_config: None,
             }),
             NodeMode::Prover(seq_port),
             prover_db_dir,

@@ -7,6 +7,7 @@ use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
@@ -68,14 +69,15 @@ impl<Cond> HashStf<Cond> {
 impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrait<C, Da, Vm>
     for HashStf<Cond>
 {
-    fn begin_soft_batch(
+    fn begin_soft_confirmation(
         &self,
+        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> (
         Result<(), sov_modules_api::hooks::ApplySoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
@@ -83,8 +85,9 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         unimplemented!()
     }
 
-    fn apply_soft_batch_txs(
+    fn apply_soft_confirmation_txs(
         &self,
+        _current_spec: SpecId,
         _txs: Vec<Vec<u8>>,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (
@@ -94,10 +97,11 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         unimplemented!()
     }
 
-    fn end_soft_batch(
+    fn end_soft_confirmation(
         &self,
+        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
         _tx_receipts: Vec<
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,
@@ -109,15 +113,16 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         unimplemented!()
     }
 
-    fn finalize_soft_batch(
+    fn finalize_soft_confirmation(
         &self,
+        _current_spec: SpecId,
         _batch_receipt: sov_modules_stf_blueprint::BatchReceipt<
             (),
             sov_modules_stf_blueprint::TxEffect,
         >,
         _checkpoint: sov_modules_api::StateCheckpoint<C>,
         _pre_state: Self::PreState,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -154,6 +159,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 
     fn apply_slot<'a, I>(
         &self,
+        _current_spec: SpecId,
         pre_state_root: &Self::StateRoot,
         storage: Self::PreState,
         mut witness: Self::Witness,
@@ -203,15 +209,16 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         }
     }
 
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
+        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_batch: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> SlotResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -237,6 +244,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
+        _forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         todo!()
     }
@@ -319,6 +327,7 @@ pub fn get_result_from_blocks(
             MockDaSpec,
         >>::apply_slot::<&mut Vec<MockBlob>>(
             &stf,
+            SpecId::Genesis,
             &state_root,
             storage,
             ArrayWitness::default(),

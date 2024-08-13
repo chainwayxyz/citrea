@@ -309,7 +309,7 @@ fn parse_type_2_body(
     Ok(ParsedChunkedPart { body })
 }
 
-#[cfg(any(feature = "native", test))]
+#[cfg(feature = "native")]
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {

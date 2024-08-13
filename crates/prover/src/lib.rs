@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use tokio::sync::oneshot;
@@ -20,6 +21,7 @@ pub struct Prover<S: RollupBlueprint> {
         S::Vm,
         StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
         S::ProverService,
+        LedgerDB,
     >,
     /// Rpc methods for the rollup.
     pub rpc_methods: jsonrpsee::RpcModule<()>,

@@ -20,6 +20,7 @@ use crate::{
 
 mod archival_state;
 mod gas_price;
+mod subscription;
 mod tracing;
 
 #[tokio::test(flavor = "multi_thread")]

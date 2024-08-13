@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use citrea_fullnode::CitreaFullnode;
+use citrea_primitives::fork::ForkManager;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::spec::SpecId;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{
     FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
@@ -11,6 +15,7 @@ use sov_stf_runner::{
 mod hash_stf;
 
 use hash_stf::HashStf;
+use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -48,7 +53,9 @@ fn initialize_runner(
     MockDaService,
     MockZkvm<MockValidityCond>,
     sov_modules_api::default_context::DefaultContext,
+    LedgerDB,
 > {
+    let specs = vec![(SpecId::Genesis, 0)];
     let da_storage_path = storage_path.join("da").to_path_buf();
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
 
@@ -71,6 +78,8 @@ fn initialize_runner(
             max_request_body_size: 10 * 1024 * 1024,
             max_response_body_size: 10 * 1024 * 1024,
             batch_requests_limit: 50,
+            enable_subscriptions: true,
+            max_subscriptions_per_connection: 100,
         },
         runner: Some(RunnerConfig {
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
@@ -103,17 +112,21 @@ fn initialize_runner(
     // let vm = MockZkvm::new(MockValidityCond::default());
     // let verifier = MockDaVerifier::default();
 
+    let fork_manager = ForkManager::new(0, SpecId::Genesis, specs);
+
     CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
         rollup_config.rpc,
-        da_service,
+        Arc::new(da_service),
         ledger_db,
         stf,
         storage_manager,
         init_variant,
         MockCodeCommitment([1u8; 32]),
         10,
+        fork_manager,
+        broadcast::channel(1).0,
     )
     .unwrap()
 }

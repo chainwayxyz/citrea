@@ -139,7 +139,7 @@ fn choose_utxos(
 /// Return (tx, leftover_utxos)
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
-    prev_utxo: Option<UTXO>, // reuse outputs to add commit tx order
+    prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
     mut utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
@@ -165,7 +165,19 @@ fn build_commit_transaction(
         None,
     );
 
-    if let Some(req_utxo) = &prev_utxo {
+    // fields other then tx_id, vout, script_pubkey and amount are not really important.
+    let required_utxo = prev_tx.map(|tx| UTXO {
+        tx_id: tx.id,
+        vout: 0,
+        script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+        address: None,
+        amount: tx.tx.output[0].value.to_sat(),
+        confirmations: 0,
+        spendable: true,
+        solvable: true,
+    });
+
+    if let Some(req_utxo) = &required_utxo {
         // if we don't do this, then we might end up using the required utxo twice
         // which would yield an invalid transaction
         // however using a different txo from the same tx is fine.
@@ -187,7 +199,7 @@ fn build_commit_transaction(
         let input_total = output_value + fee;
 
         let (chosen_utxos, sum, leftover_utxos) =
-            choose_utxos(prev_utxo.clone(), &utxos, input_total)?;
+            choose_utxos(required_utxo.clone(), &utxos, input_total)?;
         let has_change = (sum - input_total) >= REVEAL_OUTPUT_AMOUNT;
         let direct_return = !has_change;
 
@@ -331,7 +343,7 @@ pub fn create_inscription_transactions(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    prev_utxo: Option<UTXO>,
+    prev_tx: Option<TxWithId>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -346,7 +358,7 @@ pub fn create_inscription_transactions(
             body,
             signature,
             signer_public_key,
-            prev_utxo,
+            prev_tx,
             utxos,
             recipient,
             reveal_value,
@@ -361,7 +373,7 @@ pub fn create_inscription_transactions(
             body,
             signature,
             signer_public_key,
-            prev_utxo,
+            prev_tx,
             utxos,
             recipient,
             reveal_value,
@@ -407,7 +419,7 @@ pub fn create_inscription_type_0(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    prev_utxo: Option<UTXO>,
+    prev_tx: Option<TxWithId>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -514,7 +526,7 @@ pub fn create_inscription_type_0(
         // build commit tx
         // we don't need leftover_utxos because they will be requested from bitcoind next call
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
+            prev_tx.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -602,7 +614,7 @@ pub fn create_inscription_type_1(
     body: Vec<u8>,
     signature: Vec<u8>,
     signer_public_key: Vec<u8>,
-    mut prev_utxo: Option<UTXO>,
+    mut prev_tx: Option<TxWithId>,
     mut utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -685,7 +697,7 @@ pub fn create_inscription_type_1(
 
         // build commit tx
         let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
+            prev_tx.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -700,8 +712,8 @@ pub fn create_inscription_type_1(
             Some(UTXO {
                 tx_id: unsigned_commit_tx.txid(),
                 vout: 1,
-                address: "ANY".into(),
-                script_pubkey: "ANY".into(),
+                address: None,
+                script_pubkey: unsigned_commit_tx.output[0].script_pubkey.to_hex_string(),
                 amount: unsigned_commit_tx.output[1].value.to_sat(),
                 confirmations: 0,
                 spendable: true,
@@ -761,15 +773,9 @@ pub fn create_inscription_type_1(
         );
 
         // set prev tx to last reveal tx to chain txs in order
-        prev_utxo = Some(UTXO {
-            tx_id: reveal_tx.txid(),
-            vout: 0,
-            script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
-            address: "ANY".into(),
-            amount: reveal_tx.output[0].value.to_sat(),
-            confirmations: 0,
-            spendable: true,
-            solvable: true,
+        prev_tx = Some(TxWithId {
+            id: reveal_tx.txid(),
+            tx: reveal_tx.clone(),
         });
 
         commit_chunks.push(unsigned_commit_tx);
@@ -873,7 +879,7 @@ pub fn create_inscription_type_1(
 
         // build commit tx
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
-            prev_utxo.clone(),
+            prev_tx.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -1019,8 +1025,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 1_000_000,
                 confirmations: 100,
@@ -1033,8 +1043,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 100_000,
                 confirmations: 100,
@@ -1047,8 +1061,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 10_000,
                 confirmations: 100,
@@ -1244,15 +1262,9 @@ mod tests {
         let prev_tx = tx;
         let prev_tx_id = prev_tx.txid();
         let tx = super::build_commit_transaction(
-            Some(UTXO {
-                tx_id: prev_tx_id,
-                vout: 0,
-                script_pubkey: prev_tx.output[0].script_pubkey.to_hex_string(),
-                address: "ANY".into(),
-                amount: prev_tx.output[0].value.to_sat(),
-                confirmations: 0,
-                spendable: true,
-                solvable: true,
+            Some(super::TxWithId {
+                id: prev_tx_id,
+                tx: prev_tx.clone(),
             }),
             utxos.clone(),
             recipient.clone(),
@@ -1272,7 +1284,7 @@ mod tests {
                 tx_id: prev_tx_id,
                 vout: i as u32,
                 script_pubkey: o.script_pubkey.to_hex_string(),
-                address: "ANY".into(),
+                address: None,
                 confirmations: 0,
                 amount: o.value.to_sat(),
                 spendable: true,
@@ -1283,15 +1295,9 @@ mod tests {
         assert_eq!(prev_utxo.len(), 5);
 
         let (tx, leftover_utxos) = super::build_commit_transaction(
-            Some(UTXO {
-                tx_id: prev_tx_id,
-                vout: 0,
-                script_pubkey: prev_tx.output[0].script_pubkey.to_hex_string(),
-                address: "ANY".into(),
-                amount: prev_tx.output[0].value.to_sat(),
-                confirmations: 0,
-                spendable: true,
-                solvable: true,
+            Some(super::TxWithId {
+                id: prev_tx_id,
+                tx: prev_tx.clone(),
             }),
             prev_utxo,
             recipient.clone(),
@@ -1325,8 +1331,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 152,
                 confirmations: 100,

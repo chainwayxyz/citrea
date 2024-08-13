@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use shared_backup_db::SharedBackupDbConfig;
 
 use crate::ProverGuestRunConfig;
 
@@ -13,7 +12,7 @@ use crate::ProverGuestRunConfig;
 pub struct RunnerConfig {
     /// Sequencer client configuration.
     pub sequencer_client_url: String,
-    /// Saves sequencer soft batches if set to true
+    /// Saves sequencer soft confirmations if set to true
     pub include_tx_body: bool,
     /// Only true for tests
     pub accept_public_input_as_proven: Option<bool>,
@@ -39,6 +38,12 @@ pub struct RpcConfig {
     /// Maximum number of batch requests
     #[serde(default = "default_batch_requests_limit")]
     pub batch_requests_limit: u32,
+    /// Disable subscription RPCs
+    #[serde(default = "default_enable_subscriptions")]
+    pub enable_subscriptions: bool,
+    /// Maximum number of subscription connections
+    #[serde(default = "default_max_subscriptions_per_connection")]
+    pub max_subscriptions_per_connection: u32,
 }
 
 #[inline]
@@ -64,6 +69,16 @@ const fn default_batch_requests_limit() -> u32 {
 #[inline]
 const fn default_sync_blocks_count() -> u64 {
     10
+}
+
+#[inline]
+const fn default_enable_subscriptions() -> bool {
+    true
+}
+
+#[inline]
+const fn default_max_subscriptions_per_connection() -> u32 {
+    100
 }
 
 /// Simple storage configuration
@@ -114,8 +129,6 @@ pub struct ProverConfig {
     pub proving_mode: ProverGuestRunConfig,
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
-    /// Offchain db config
-    pub db_config: Option<SharedBackupDbConfig>,
 }
 
 impl Default for ProverConfig {
@@ -123,7 +136,6 @@ impl Default for ProverConfig {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
-            db_config: None,
         }
     }
 }
@@ -170,6 +182,8 @@ mod tests {
             bind_host = "127.0.0.1"
             bind_port = 12345
             max_connections = 500
+            enable_subscriptions = true
+            max_subscriptions_per_connection = 200
 
             [da]
             sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
@@ -208,6 +222,8 @@ mod tests {
                 max_request_body_size: 10 * 1024 * 1024,
                 max_response_body_size: 10 * 1024 * 1024,
                 batch_requests_limit: 50,
+                enable_subscriptions: true,
+                max_subscriptions_per_connection: 200,
             },
             public_keys: RollupPublicKeys {
                 sequencer_public_key: vec![0; 32],
@@ -224,13 +240,6 @@ mod tests {
         let config = r#"
             proving_mode = "skip"
             proof_sampling_number = 500
-
-            [db_config]
-            db_host = "localhost"
-            db_port = 5432
-            db_user = "postgres"
-            db_password = "postgres"
-            db_name = "postgres"
         "#;
 
         let config_file = create_config_from(config);
@@ -239,7 +248,6 @@ mod tests {
         let expected = ProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
-            db_config: Some(SharedBackupDbConfig::default()),
         };
         assert_eq!(config, expected);
     }

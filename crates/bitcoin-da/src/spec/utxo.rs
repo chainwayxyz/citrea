@@ -1,21 +1,40 @@
-use bitcoin::Txid;
+use bitcoin::address::NetworkUnchecked;
+use bitcoin::{Address, Txid};
+#[cfg(feature = "native")]
+use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UTXO {
     pub tx_id: Txid,
     pub vout: u32,
-    pub address: String,
+    pub address: Option<Address<NetworkUnchecked>>,
     pub script_pubkey: String,
     pub amount: u64,
-    pub confirmations: u64,
+    pub confirmations: u32,
     pub spendable: bool,
     pub solvable: bool,
 }
 
+#[cfg(feature = "native")]
+impl From<ListUnspentResultEntry> for UTXO {
+    fn from(v: ListUnspentResultEntry) -> Self {
+        Self {
+            tx_id: v.txid,
+            vout: v.vout,
+            address: v.address,
+            script_pubkey: v.script_pub_key.to_hex_string(),
+            amount: v.amount.to_sat(),
+            confirmations: v.confirmations,
+            spendable: v.spendable,
+            solvable: v.solvable,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListUnspentEntry {
-    pub txid: String,
+    pub txid: Txid,
     pub vout: u64,
     pub address: String,
     pub label: Option<String>,
@@ -34,23 +53,4 @@ pub struct ListUnspentEntry {
     pub desc: String,
     pub parent_descs: Option<Vec<String>>,
     pub safe: bool,
-}
-
-impl From<ListUnspentEntry> for UTXO {
-    fn from(entry: ListUnspentEntry) -> UTXO {
-        UTXO {
-            tx_id: entry.txid.parse().unwrap(),
-            vout: entry.vout as u32,
-            address: entry.address,
-            script_pubkey: entry.script_pub_key,
-            amount: btc_to_satoshi(entry.amount),
-            confirmations: entry.confirmations,
-            spendable: entry.spendable,
-            solvable: entry.solvable,
-        }
-    }
-}
-
-pub fn btc_to_satoshi(btc: f64) -> u64 {
-    (btc * 100_000_000.0) as u64
 }

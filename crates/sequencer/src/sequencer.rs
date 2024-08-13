@@ -9,6 +9,7 @@ use std::vec;
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
@@ -23,11 +24,10 @@ use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
     ValidPoolTransaction,
 };
-use shared_backup_db::{CommitmentStatus, PostgresConnector};
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sov_db::ledger_db::{SequencerLedgerOps, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
@@ -38,12 +38,12 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Instant};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -64,7 +64,7 @@ type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<C, Da, Sm, Vm, Stf>
+pub struct CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
 where
     C: Context,
     Da: DaService,
@@ -72,15 +72,16 @@ where
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
         + StfBlueprintTrait<C, Da::Spec, Vm>,
+    DB: SequencerLedgerOps + Send + Clone + 'static,
 {
-    da_service: Da,
+    da_service: Arc<Da>,
     mempool: Arc<CitreaMempool<C>>,
     sov_tx_signer_priv_key: C::PrivateKey,
     l2_force_block_tx: UnboundedSender<()>,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider<C>,
     storage: C::Storage,
-    ledger_db: LedgerDB,
+    ledger_db: DB,
     config: SequencerConfig,
     stf: Stf,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
@@ -91,6 +92,8 @@ where
     rpc_config: RpcConfig,
     soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
+    fork_manager: ForkManager,
+    soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
 enum L2BlockMode {
@@ -98,10 +101,10 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<C, Da, Sm, Vm, Stf> CitreaSequencer<C, Da, Sm, Vm, Stf>
+impl<C, Da, Sm, Vm, Stf, DB> CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
 where
     C: Context,
-    Da: DaService + Clone,
+    Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
@@ -111,18 +114,21 @@ where
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
+    DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        da_service: Da,
+        da_service: Arc<Da>,
         storage: C::Storage,
         config: SequencerConfig,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         public_keys: RollupPublicKeys,
-        ledger_db: LedgerDB,
+        ledger_db: DB,
         rpc_config: RpcConfig,
+        fork_manager: ForkManager,
+        soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -180,6 +186,8 @@ where
             rpc_config,
             soft_confirmation_rule_enforcer,
             last_state_diff,
+            fork_manager,
+            soft_confirmation_tx,
         })
     }
 
@@ -199,6 +207,7 @@ where
         );
 
         let max_connections = self.rpc_config.max_connections;
+        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
         let max_request_body_size = self.rpc_config.max_request_body_size;
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
@@ -212,6 +221,7 @@ where
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
+                .max_subscriptions_per_connection(max_subscriptions_per_connection)
                 .max_request_body_size(max_request_body_size)
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
@@ -259,7 +269,8 @@ where
         mut signed_batch: SignedSoftConfirmationBatch,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        match self.stf.begin_soft_batch(
+        match self.stf.begin_soft_confirmation(
+            self.fork_manager.active_fork(),
             pub_key,
             &self.state_root,
             prestate.clone(),
@@ -296,9 +307,11 @@ where
 
                             let txs = vec![signed_blob.clone()];
 
-                            let (batch_workspace, _) = self
-                                .stf
-                                .apply_soft_batch_txs(txs.clone(), working_set_to_discard);
+                            let (batch_workspace, _) = self.stf.apply_soft_confirmation_txs(
+                                self.fork_manager.active_fork(),
+                                txs.clone(),
+                                working_set_to_discard,
+                            );
 
                             working_set_to_discard = batch_workspace;
 
@@ -347,14 +360,13 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
-        pg_pool: &Option<PostgresConnector>,
         last_used_l1_height: u64,
     ) -> anyhow::Result<(u64, bool)> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
-            .get_head_soft_batch()
-            .map_err(|e| anyhow!("Failed to get head soft batch: {}", e))?
+            .get_head_soft_confirmation()
+            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
             None => (0, da_height),
@@ -380,6 +392,7 @@ where
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
+            current_spec: self.fork_manager.active_fork(),
             pub_key,
             l1_fee_rate,
             timestamp,
@@ -392,7 +405,7 @@ where
             .create_storage_on_l2_height(l2_height)
             .map_err(Into::<anyhow::Error>::into)?;
         debug!(
-            "Applying soft batch on DA block: {}",
+            "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
         );
 
@@ -420,7 +433,8 @@ where
             .map_err(Into::<anyhow::Error>::into)?;
 
         // Execute the selected transactions
-        match self.stf.begin_soft_batch(
+        match self.stf.begin_soft_confirmation(
+            self.fork_manager.active_fork(),
             &pub_key,
             &self.state_root,
             prestate.clone(),
@@ -436,8 +450,11 @@ where
                 let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                 let txs = vec![signed_blob.clone()];
 
-                let (batch_workspace, tx_receipts) =
-                    self.stf.apply_soft_batch_txs(txs.clone(), batch_workspace);
+                let (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
+                    self.fork_manager.active_fork(),
+                    txs.clone(),
+                    batch_workspace,
+                );
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -450,22 +467,24 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_batch =
+                let mut signed_soft_confirmation =
                     self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
-                let (batch_receipt, checkpoint) = self.stf.end_soft_batch(
+                let (batch_receipt, checkpoint) = self.stf.end_soft_confirmation(
+                    self.fork_manager.active_fork(),
                     self.sequencer_pub_key.as_ref(),
-                    &mut signed_soft_batch,
+                    &mut signed_soft_confirmation,
                     tx_receipts,
                     batch_workspace,
                 );
 
                 // Finalize soft confirmation
-                let slot_result = self.stf.finalize_soft_batch(
+                let slot_result = self.stf.finalize_soft_confirmation(
+                    self.fork_manager.active_fork(),
                     batch_receipt,
                     checkpoint,
                     prestate,
-                    &mut signed_soft_batch,
+                    &mut signed_soft_confirmation,
                 );
 
                 if slot_result.state_root.as_ref() == self.state_root.as_ref() {
@@ -489,25 +508,25 @@ where
                     data_to_commit.add_batch(receipt);
                 }
 
-                // TODO: This will be a single receipt once we have apply_soft_batch.
+                // TODO: This will be a single receipt once we have apply_soft_confirmation.
                 let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
                 let next_state_root = slot_result.state_root;
 
-                let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+                let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
                     state_root: next_state_root.as_ref().to_vec(),
                     phantom_data: PhantomData::<u64>,
-                    hash: signed_soft_batch.hash(),
-                    prev_hash: signed_soft_batch.prev_hash(),
+                    hash: signed_soft_confirmation.hash(),
+                    prev_hash: signed_soft_confirmation.prev_hash(),
                     da_slot_hash: da_block.header().hash(),
                     da_slot_height: da_block.header().height(),
                     da_slot_txs_commitment: da_block.header().txs_commitment(),
                     tx_receipts: batch_receipt.tx_receipts,
-                    soft_confirmation_signature: signed_soft_batch.signature().to_vec(),
-                    pub_key: signed_soft_batch.pub_key().to_vec(),
+                    soft_confirmation_signature: signed_soft_confirmation.signature().to_vec(),
+                    pub_key: signed_soft_confirmation.pub_key().to_vec(),
                     deposit_data,
-                    l1_fee_rate: signed_soft_batch.l1_fee_rate(),
-                    timestamp: signed_soft_batch.timestamp(),
+                    l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
+                    timestamp: signed_soft_confirmation.timestamp(),
                 };
 
                 self.storage_manager
@@ -519,13 +538,21 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+                self.ledger_db
+                    .commit_soft_confirmation(soft_confirmation_receipt, true)?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
                     BatchNumber(l2_height),
                 )?;
+
+                // Register this new block with the fork manager to active
+                // the new fork on the next block
+                self.fork_manager.register_block(l2_height)?;
+
+                // Only errors when there are no receivers
+                let _ = self.soft_confirmation_tx.send(l2_height);
 
                 let l1_height = da_block.header().height();
                 info!(
@@ -534,7 +561,7 @@ where
                 );
 
                 self.state_root = next_state_root;
-                self.batch_hash = signed_soft_batch.hash();
+                self.batch_hash = signed_soft_confirmation.hash();
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -564,17 +591,12 @@ where
                         .set_state_diff(self.last_state_diff.clone())?;
                 }
 
-                if let Some(pg_pool) = pg_pool.clone() {
-                    // TODO: Is this okay? I'm not sure because we have a loop in this and I can't do async in spawn_blocking
-                    tokio::spawn(async move {
-                        let txs = txs_to_remove
-                            .iter()
-                            .map(|tx_hash| tx_hash.to_vec())
-                            .collect::<Vec<Vec<u8>>>();
-                        if let Err(e) = pg_pool.delete_txs_by_tx_hashes(txs).await {
-                            warn!("Failed to remove txs from mempool: {:?}", e);
-                        }
-                    });
+                let txs = txs_to_remove
+                    .iter()
+                    .map(|tx_hash| tx_hash.to_vec())
+                    .collect::<Vec<Vec<u8>>>();
+                if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
+                    warn!("Failed to remove txs from mempool: {:?}", e);
                 }
 
                 Ok((da_block.header().height(), state_diff_threshold_reached))
@@ -612,22 +634,44 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+        info!("Resubmitting pending commitments");
+
         let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
         debug!("Pending db commitments: {:?}", pending_db_commitments);
-        let pending_da_commitments = self.get_pending_da_commitments().await;
-        debug!("Pending da commitments: {:?}", pending_da_commitments);
+
+        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
+        debug!(
+            "Commitments that are already in DA mempool: {:?}",
+            pending_mempool_commitments
+        );
+
+        let last_commitment_l1_height = self
+            .ledger_db
+            .get_l1_height_of_last_commitment()?
+            .unwrap_or(SlotNumber(1));
+        let mined_commitments = self
+            .get_mined_commitments_from(last_commitment_l1_height)
+            .await?;
+        debug!(
+            "Commitments that are already mined by DA: {:?}",
+            mined_commitments
+        );
+
+        let mut pending_commitments_to_remove = vec![];
+        pending_commitments_to_remove.extend(pending_mempool_commitments);
+        pending_commitments_to_remove.extend(mined_commitments);
+
         // TODO: also take mined DA blocks into account
         for (l2_start, l2_end) in pending_db_commitments {
-            if pending_da_commitments.iter().any(|commitment| {
+            if pending_commitments_to_remove.iter().any(|commitment| {
                 commitment.l2_start_block_number == l2_start.0
                     && commitment.l2_end_block_number == l2_end.0
             }) {
                 // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_sequencer_commitment_l2_height()? {
+                match self.ledger_db.get_last_commitment_l2_height()? {
                     Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
                     _ => {
-                        self.ledger_db
-                            .set_last_sequencer_commitment_l2_height(l2_end)?;
+                        self.ledger_db.set_last_commitment_l2_height(l2_end)?;
                     }
                 };
 
@@ -663,7 +707,7 @@ where
 
         let soft_confirmation_hashes = self
             .ledger_db
-            .get_soft_batch_range(&(l2_start..range_end))?
+            .get_soft_confirmation_range(&(l2_start..range_end))?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
@@ -688,41 +732,18 @@ where
         );
 
         let ledger_db = self.ledger_db.clone();
-        let db_config = self.config.db_config.clone();
         let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
-                let tx_id = rx
+                let _tx_id = rx
                     .await
                     .map_err(|_| anyhow!("DA service is dead!"))?
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
 
                 ledger_db
-                    .set_last_sequencer_commitment_l2_height(l2_end)
+                    .set_last_commitment_l2_height(l2_end)
                     .map_err(|_| {
                         anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
                     })?;
-
-                if let Some(db_config) = db_config {
-                    match PostgresConnector::new(db_config).await {
-                        Ok(pg_connector) => {
-                            pg_connector
-                                .insert_sequencer_commitment(
-                                    Into::<[u8; 32]>::into(tx_id).to_vec(),
-                                    l2_start.0 as u32,
-                                    l2_end.0 as u32,
-                                    commitment.merkle_root.to_vec(),
-                                    CommitmentStatus::Mempool,
-                                )
-                                .await
-                                .map_err(|_| {
-                                    anyhow!("Sequencer: Failed to insert sequencer commitment")
-                                })?;
-                        }
-                        Err(e) => {
-                            warn!("Failed to connect to postgres: {:?}", e);
-                        }
-                    }
-                }
 
                 ledger_db.delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
 
@@ -753,7 +774,7 @@ where
         Ok(())
     }
 
-    async fn get_pending_da_commitments(&self) -> Vec<SequencerCommitment> {
+    async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
         self.da_service
             .get_relevant_blobs_of_pending_transactions()
             .await
@@ -771,10 +792,48 @@ where
             .collect()
     }
 
+    async fn get_mined_commitments_from(
+        &self,
+        da_height: SlotNumber,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let head_da_height = self
+            .da_service
+            .get_head_block_header()
+            .await
+            .map_err(|e| anyhow!(e))?
+            .height();
+        let mut mined_commitments = vec![];
+        for height in da_height.0..=head_da_height {
+            let block = self
+                .da_service
+                .get_block_at(height)
+                .await
+                .map_err(|e| anyhow!(e))?;
+            let blobs = self.da_service.extract_relevant_blobs(&block);
+            let iter = blobs.into_iter().filter_map(|mut blob| {
+                match DaData::try_from_slice(blob.full_data()) {
+                    Ok(da_data) => match da_data {
+                        DaData::SequencerCommitment(commitment) => Some(commitment),
+                        _ => None,
+                    },
+                    Err(err) => {
+                        warn!("Pending transaction blob failed to be parsed: {}", err);
+                        None
+                    }
+                }
+            });
+            mined_commitments.extend(iter);
+        }
+
+        Ok(mined_commitments)
+    }
+
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        // Resubmit if there were pending commitments on restart
-        self.resubmit_pending_commitments().await?;
+        if self.batch_hash != [0; 32] {
+            // Resubmit if there were pending commitments on restart, skip it on first init
+            self.resubmit_pending_commitments().await?;
+        }
 
         // TODO: hotfix for mock da
         self.da_service
@@ -782,30 +841,11 @@ where
             .await
             .map_err(|e| anyhow!(e))?;
 
-        // If connected to offchain db first check if the commitments are in sync
-        let mut pg_pool = None;
-        if let Some(db_config) = self.config.db_config.clone() {
-            pg_pool = match PostgresConnector::new(db_config).await {
-                Ok(pg_connector) => {
-                    match self.sync_commitments_from_db(pg_connector.clone()).await {
-                        Ok(()) => debug!("Sequencer: Commitments are in sync"),
-                        Err(e) => {
-                            warn!("Sequencer: Offchain db error: {:?}", e);
-                        }
-                    }
-                    match self.restore_mempool(pg_connector.clone()).await {
-                        Ok(()) => debug!("Sequencer: Mempool restored"),
-                        Err(e) => {
-                            warn!("Sequencer: Mempool restore error: {:?}", e);
-                        }
-                    }
-                    Some(pg_connector)
-                }
-                Err(e) => {
-                    warn!("Failed to connect to postgres: {:?}", e);
-                    None
-                }
-            };
+        match self.restore_mempool().await {
+            Ok(()) => debug!("Sequencer: Mempool restored"),
+            Err(e) => {
+                warn!("Sequencer: Mempool restore error: {:?}", e);
+            }
         }
 
         // Initialize our knowledge of the state of the DA-layer
@@ -824,7 +864,7 @@ where
         let mut l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
         let mut last_finalized_height = last_finalized_block.header().height();
 
-        let mut last_used_l1_height = match self.ledger_db.get_head_soft_batch() {
+        let mut last_used_l1_height = match self.ledger_db.get_head_soft_confirmation() {
             Ok(Some((_, sb))) => sb.da_slot_height,
             Ok(None) => last_finalized_height, // starting for the first time
             Err(e) => {
@@ -853,10 +893,11 @@ where
         let mut missed_da_blocks_count = 0;
 
         loop {
-            let mut interval = tokio::time::interval(target_block_time - parent_block_exec_time);
-            // The first ticket completes immediately.
-            // See: https://docs.rs/tokio/latest/tokio/time/struct.Interval.html#method.tick
-            interval.tick().await;
+            let block_production_tick = tokio::time::sleep(
+                target_block_time
+                    .checked_sub(parent_block_exec_time)
+                    .unwrap_or_default(),
+            );
 
             tokio::select! {
                 // Run the DA monitor worker
@@ -906,7 +947,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -922,7 +963,7 @@ where
                             }
                         };
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             last_used_l1_height = l1_block_number;
 
@@ -936,7 +977,7 @@ where
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
-                _ = interval.tick(), if !self.config.test_mode => {
+                _ = block_production_tick, if !self.config.test_mode => {
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
@@ -954,7 +995,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, &pg_pool, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -972,7 +1013,7 @@ where
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, &pg_pool, last_used_l1_height).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
@@ -1078,25 +1119,16 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    async fn create_rpc_context(&self) -> RpcContext<C> {
+    async fn create_rpc_context(&self) -> RpcContext<C, DB> {
         let l2_force_block_tx = self.l2_force_block_tx.clone();
-        let mut pg_pool = None;
-        if let Some(pg_config) = self.config.db_config.clone() {
-            pg_pool = match PostgresConnector::new(pg_config).await {
-                Ok(pg_connector) => Some(Arc::new(pg_connector)),
-                Err(e) => {
-                    warn!("Failed to connect to postgres: {:?}", e);
-                    None
-                }
-            };
-        }
+
         RpcContext {
             mempool: self.mempool.clone(),
             deposit_mempool: self.deposit_mempool.clone(),
             l2_force_block_tx,
             storage: self.storage.clone(),
+            ledger: self.ledger_db.clone(),
             test_mode: self.config.test_mode,
-            pg_pool,
         }
     }
 
@@ -1111,41 +1143,15 @@ where
         Ok(rpc_methods)
     }
 
-    pub async fn restore_mempool(
-        &self,
-        pg_connector: PostgresConnector,
-    ) -> Result<(), anyhow::Error> {
-        let mempool_txs = pg_connector.get_all_txs().await?;
-        for tx in mempool_txs {
+    pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
+        let mempool_txs = self.ledger_db.get_mempool_txs()?;
+        for (_, tx) in mempool_txs {
             let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.tx.as_slice().to_vec()))?;
+                recover_raw_transaction(reth_primitives::Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_recovered_pooled_transaction(recovered);
 
             let _ = self.mempool.add_external_transaction(pooled_tx).await?;
         }
-        Ok(())
-    }
-
-    pub async fn sync_commitments_from_db(
-        &self,
-        pg_connector: PostgresConnector,
-    ) -> Result<(), anyhow::Error> {
-        let db_commitment = match pg_connector.get_last_commitment().await? {
-            Some(comm) => comm,
-            // ignore if postgres is out of sync
-            None => return Ok(()),
-        };
-        let ledger_commitment_l2_height = self
-            .ledger_db
-            .get_last_sequencer_commitment_l2_height()?
-            .unwrap_or_default();
-        if ledger_commitment_l2_height.0 >= db_commitment.l2_end_height {
-            return Ok(());
-        }
-
-        self.ledger_db
-            .set_last_sequencer_commitment_l2_height(BatchNumber(db_commitment.l2_end_height))?;
-
         Ok(())
     }
 
@@ -1202,9 +1208,12 @@ where
         .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
 }
 
-async fn da_block_monitor<Da>(da_service: Da, sender: mpsc::Sender<L1Data<Da>>, loop_interval: u64)
-where
-    Da: DaService + Clone,
+async fn da_block_monitor<Da>(
+    da_service: Arc<Da>,
+    sender: mpsc::Sender<L1Data<Da>>,
+    loop_interval: u64,
+) where
+    Da: DaService,
 {
     loop {
         let l1_data = match get_da_block_data(da_service.clone()).await {
@@ -1221,7 +1230,7 @@ where
     }
 }
 
-async fn get_da_block_data<Da>(da_service: Da) -> anyhow::Result<L1Data<Da>>
+async fn get_da_block_data<Da>(da_service: Arc<Da>) -> anyhow::Result<L1Data<Da>>
 where
     Da: DaService,
 {

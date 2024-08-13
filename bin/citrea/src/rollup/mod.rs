@@ -1,18 +1,26 @@
+use anyhow::anyhow;
 use async_trait::async_trait;
-pub use bitcoin::*;
 use citrea_fullnode::{CitreaFullnode, FullNode};
+use citrea_primitives::fork::ForkManager;
+use citrea_primitives::forks::FORKS;
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
-pub use mock::*;
+use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::schema::types::BatchNumber;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
+use sov_rollup_interface::spec::SpecId;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
+use tokio::sync::broadcast;
 use tracing::instrument;
+
 mod bitcoin;
 mod mock;
+pub use bitcoin::*;
+pub use mock::*;
 
 /// Overrides RollupBlueprint methods
 #[async_trait]
@@ -31,7 +39,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = self.create_da_service(&rollup_config).await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -43,18 +51,31 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        // If subscriptions disabled, pass None
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(soft_confirmation_rx)
+        } else {
+            None
+        };
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods =
-            self.create_rpc_methods(&prover_storage, &ledger_db, &da_service, None)?;
+        let rpc_methods = self.create_rpc_methods(
+            &prover_storage,
+            &ledger_db,
+            &da_service,
+            None,
+            soft_confirmation_rx,
+        )?;
 
         let native_stf = StfBlueprint::new();
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_batch()? {
-            Some((number, soft_batch)) => {
-                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
-            }
+        let prev_data = match ledger_db.get_head_soft_confirmation()? {
+            Some((number, soft_confirmation)) => Some((
+                prover_storage.get_root_hash(number.0 + 1)?,
+                soft_confirmation.hash,
+            )),
             None => None,
         };
         let init_variant = match prev_data {
@@ -64,6 +85,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 _ => InitVariant::Genesis(genesis_config),
             },
         };
+
+        let current_l2_height = ledger_db
+            .get_head_soft_confirmation()
+            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let active_spec: SpecId = ledger_db.get_active_fork()?;
+
+        let mut fork_manager =
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
             da_service,
@@ -75,6 +108,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.public_keys,
             ledger_db,
             rollup_config.rpc,
+            fork_manager,
+            soft_confirmation_tx,
         )
         .unwrap();
 
@@ -97,7 +132,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = self.create_da_service(&rollup_config).await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -110,22 +145,31 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
+        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        // If subscriptions disabled, pass None
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(soft_confirmation_rx)
+        } else {
+            None
+        };
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
+            soft_confirmation_rx,
         )?;
 
         let native_stf = StfBlueprint::new();
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_batch()? {
-            Some((number, soft_batch)) => {
-                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
-            }
+        let prev_data = match ledger_db.get_head_soft_confirmation()? {
+            Some((number, soft_confirmation)) => Some((
+                prover_storage.get_root_hash(number.0 + 1)?,
+                soft_confirmation.hash,
+            )),
             None => None,
         };
         let init_variant = match prev_data {
@@ -138,6 +182,17 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let code_commitment = self.get_code_commitment();
 
+        let current_l2_height = ledger_db
+            .get_head_soft_confirmation()
+            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let active_spec: SpecId = ledger_db.get_active_fork()?;
+        let mut fork_manager =
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
+
         let runner = CitreaFullnode::new(
             runner_config,
             rollup_config.public_keys,
@@ -149,6 +204,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             init_variant,
             code_commitment,
             rollup_config.sync_blocks_count,
+            fork_manager,
+            soft_confirmation_tx,
         )?;
 
         Ok(FullNode {
@@ -171,7 +228,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await;
+        let da_service = self.create_da_service(&rollup_config).await?;
 
         let prover_service = self
             .create_prover_service(prover_config.clone(), &rollup_config, &da_service)
@@ -187,6 +244,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        // If subscriptions disabled, pass None
+        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
+            Some(soft_confirmation_rx)
+        } else {
+            None
+        };
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -194,16 +258,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
+            soft_confirmation_rx,
         )?;
 
         let native_stf = StfBlueprint::new();
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_batch()? {
-            Some((number, soft_batch)) => {
-                Some((prover_storage.get_root_hash(number.0 + 1)?, soft_batch.hash))
-            }
+        let prev_data = match ledger_db.get_head_soft_confirmation()? {
+            Some((number, soft_confirmation)) => Some((
+                prover_storage.get_root_hash(number.0 + 1)?,
+                soft_confirmation.hash,
+            )),
             None => None,
         };
         let init_variant = match prev_data {
@@ -215,6 +281,17 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         };
 
         let code_commitment = self.get_code_commitment();
+
+        let current_l2_height = ledger_db
+            .get_head_soft_confirmation()
+            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let active_spec: SpecId = ledger_db.get_active_fork()?;
+        let mut fork_manager =
+            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaProver::new(
             runner_config,
@@ -229,6 +306,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_config),
             code_commitment,
             rollup_config.sync_blocks_count,
+            fork_manager,
+            soft_confirmation_tx,
         )?;
 
         Ok(Prover {

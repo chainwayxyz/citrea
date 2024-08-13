@@ -30,14 +30,15 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{Event, EventKey, StateDiff};
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftBatch, StoredTransaction,
-    StoredVerifiedProof, TxNumber,
+    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation,
+    StoredTransaction, StoredVerifiedProof, TxNumber,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -51,10 +52,11 @@ pub const STATE_TABLES: &[&str] = &[
 /// A list of all tables used by the LedgerDB. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[&str] = &[
+    ActiveFork::table_name(),
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
-    SoftBatchByNumber::table_name(),
-    SoftBatchByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    SoftConfirmationByHash::table_name(),
     L2RangeByL1Height::table_name(),
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
@@ -62,7 +64,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
-    BatchByHash::table_name(),
     BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
     TxByHash::table_name(),
@@ -72,6 +73,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     CommitmentsByNumber::table_name(),
     ProofBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
+    MempoolTxs::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -221,6 +223,11 @@ macro_rules! define_table_with_seek_key_codec {
 }
 
 define_table_with_seek_key_codec!(
+    /// The currently active fork
+    (ActiveFork) () => SpecId
+);
+
+define_table_with_seek_key_codec!(
     /// The State diff storage
     (LastStateDiff) () => StateDiff
 );
@@ -241,13 +248,13 @@ define_table_with_default_codec!(
 );
 
 define_table_with_seek_key_codec!(
-    /// The primary source for soft batch data
-    (SoftBatchByNumber) BatchNumber => StoredSoftBatch
+    /// The primary source for soft confirmation data
+    (SoftConfirmationByNumber) BatchNumber => StoredSoftConfirmation
 );
 
 define_table_with_default_codec!(
-    /// A "secondary index" for soft batch data by hash
-    (SoftBatchByHash) DbHash => BatchNumber
+    /// A "secondary index" for soft confirmation data by hash
+    (SoftConfirmationByHash) DbHash => BatchNumber
 );
 
 define_table_with_default_codec!(
@@ -290,11 +297,6 @@ define_table_with_default_codec!(
     (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
-define_table_with_default_codec!(
-    /// A "secondary index" for batch data by hash
-    (BatchByHash) DbHash => BatchNumber
-);
-
 define_table_with_seek_key_codec!(
     /// The primary source for transaction data
     (TxByNumber) TxNumber => StoredTransaction
@@ -328,6 +330,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
+);
+
+define_table_with_default_codec!(
+    /// Transactions in mempool (TxHash, TxData)
+    (MempoolTxs) Vec<u8> => Vec<u8>
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

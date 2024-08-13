@@ -9,14 +9,15 @@ use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
+use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rand::Rng;
-use sequencer_client::{GetSoftBatchResponse, SequencerClient};
-use shared_backup_db::{DbPoolError, PostgresConnector, ProofType};
-use sov_db::ledger_db::{LedgerDB, SlotCommit};
+use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
+use sov_db::ledger_db::{ProverLedgerOps, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData};
@@ -24,13 +25,13 @@ use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::{SoftBatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
 };
 use tokio::select;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, warn};
 
@@ -42,7 +43,7 @@ type CommitmentStateTransitionData<Stf, Vm, Da> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps>
+pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
     Da: DaService,
@@ -52,13 +53,13 @@ where
         + StfBlueprintTrait<C, Da::Spec, Vm>,
 
     Ps: ProverService<Vm>,
+    DB: ProverLedgerOps + Clone,
 {
     start_l2_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
-    /// made pub so that sequencer can clone it
-    pub ledger_db: LedgerDB,
+    ledger_db: DB,
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
@@ -72,12 +73,14 @@ where
     code_commitment: Vm::CodeCommitment,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
+    fork_manager: ForkManager,
+    soft_confirmation_tx: broadcast::Sender<u64>,
 }
 
-impl<C, Da, Sm, Vm, Stf, Ps> CitreaProver<C, Da, Sm, Vm, Stf, Ps>
+impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
-    Da: DaService<Error = anyhow::Error> + Clone + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
     Stf: StateTransitionFunction<
@@ -88,6 +91,7 @@ where
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
     Ps: ProverService<Vm, StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
+    DB: ProverLedgerOps + Clone,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -99,8 +103,8 @@ where
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
         rpc_config: RpcConfig,
-        da_service: Da,
-        ledger_db: LedgerDB,
+        da_service: Arc<Da>,
+        ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
@@ -108,6 +112,8 @@ where
         prover_config: Option<ProverConfig>,
         code_commitment: Vm::CodeCommitment,
         sync_blocks_count: u64,
+        fork_manager: ForkManager,
+        soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -131,9 +137,10 @@ where
 
         // Start the main rollup loop
         let item_numbers = ledger_db.get_next_items_numbers();
-        let last_soft_batch_processed_before_shutdown = item_numbers.soft_batch_number;
+        let last_soft_confirmation_processed_before_shutdown =
+            item_numbers.soft_confirmation_number;
         // Last L1/L2 height before shutdown.
-        let start_l2_height = last_soft_batch_processed_before_shutdown;
+        let start_l2_height = last_soft_confirmation_processed_before_shutdown;
 
         Ok(Self {
             start_l2_height,
@@ -153,6 +160,8 @@ where
             code_commitment,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             sync_blocks_count,
+            fork_manager,
+            soft_confirmation_tx,
         })
     }
 
@@ -172,10 +181,18 @@ where
         let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
 
         let max_connections = self.rpc_config.max_connections;
+        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
+        let max_request_body_size = self.rpc_config.max_request_body_size;
+        let max_response_body_size = self.rpc_config.max_response_body_size;
+        let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
         let _handle = tokio::spawn(async move {
-            let server = jsonrpsee::server::ServerBuilder::default()
+            let server = ServerBuilder::default()
                 .max_connections(max_connections)
+                .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                .max_request_body_size(max_request_body_size)
+                .max_response_body_size(max_response_body_size)
+                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .build([listen_address].as_ref())
                 .await;
 
@@ -226,14 +243,6 @@ where
 
         let prover_config = self.prover_config.clone().unwrap();
 
-        let pg_client = match prover_config.clone().db_config {
-            Some(db_config) => {
-                info!("Connecting to postgres");
-                Some(PostgresConnector::new(db_config.clone()).await)
-            }
-            None => None,
-        };
-
         // Create l1 sync worker task
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
 
@@ -278,7 +287,7 @@ where
                     if let Err(e) = self.process_l1_block(
                         pending_l1,
                         skip_submission_until_l1,
-                        &pg_client, &prover_config,
+                        &prover_config,
                     ).await {
                         error!("Could not process L1 block and generate proof: {:?}", e);
                     }
@@ -298,17 +307,17 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_batch: GetSoftBatchResponse,
+        soft_confirmation: GetSoftConfirmationResponse,
         current_l1_block: Da::FilteredBlock,
     ) -> anyhow::Result<()> {
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
             l2_height,
-            hex::encode(soft_batch.hash),
+            hex::encode(soft_confirmation.hash),
             current_l1_block.header().height()
         );
 
-        if self.batch_hash != soft_batch.prev_hash {
+        if self.batch_hash != soft_confirmation.prev_hash {
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
@@ -318,7 +327,8 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let slot_result = self.stf.apply_soft_batch(
+        let slot_result = self.stf.apply_soft_confirmation(
+            self.fork_manager.active_fork(),
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -326,12 +336,12 @@ where
             Default::default(),
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
-            &mut soft_batch.clone().into(),
+            &mut soft_confirmation.clone().into(),
         );
 
         let next_state_root = slot_result.state_root;
-        // Check if post state root is the same as the one in the soft batch
-        if next_state_root.as_ref().to_vec() != soft_batch.state_root {
+        // Check if post state root is the same as the one in the soft confirmation
+        if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
@@ -350,31 +360,43 @@ where
 
         let batch_receipt = data_to_commit.batch_receipts()[0].clone();
 
-        let soft_batch_receipt = SoftBatchReceipt::<_, _, Da::Spec> {
+        let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
             state_root: next_state_root.as_ref().to_vec(),
             phantom_data: PhantomData::<u64>,
-            hash: soft_batch.hash,
-            prev_hash: soft_batch.prev_hash,
+            hash: soft_confirmation.hash,
+            prev_hash: soft_confirmation.prev_hash,
             da_slot_hash: current_l1_block.header().hash(),
             da_slot_height: current_l1_block.header().height(),
             da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
             tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_batch.soft_confirmation_signature,
-            pub_key: soft_batch.pub_key,
-            deposit_data: soft_batch.deposit_data.into_iter().map(|x| x.tx).collect(),
-            l1_fee_rate: soft_batch.l1_fee_rate,
-            timestamp: soft_batch.timestamp,
+            soft_confirmation_signature: soft_confirmation.soft_confirmation_signature,
+            pub_key: soft_confirmation.pub_key,
+            deposit_data: soft_confirmation
+                .deposit_data
+                .into_iter()
+                .map(|x| x.tx)
+                .collect(),
+            l1_fee_rate: soft_confirmation.l1_fee_rate,
+            timestamp: soft_confirmation.timestamp,
         };
 
-        self.ledger_db.commit_soft_batch(soft_batch_receipt, true)?;
+        self.ledger_db
+            .commit_soft_confirmation(soft_confirmation_receipt, true)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
             BatchNumber(l2_height),
         )?;
 
+        // Register this new block with the fork manager to active
+        // the new fork on the next block
+        self.fork_manager.register_block(l2_height)?;
+
+        // Only errors when there are no receivers
+        let _ = self.soft_confirmation_tx.send(l2_height);
+
         self.state_root = next_state_root;
-        self.batch_hash = soft_batch.hash;
+        self.batch_hash = soft_confirmation.hash;
 
         info!(
             "New State Root after soft confirmation #{} is: {:?}",
@@ -388,7 +410,6 @@ where
         &mut self,
         pending_l1_blocks: &mut VecDeque<<Da as DaService>::FilteredBlock>,
         skip_submission_until_l1: u64,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         prover_config: &ProverConfig,
     ) -> Result<(), anyhow::Error> {
         while !pending_l1_blocks.is_empty() {
@@ -439,7 +460,7 @@ where
             let last_l2_height_of_l1 =
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
 
-            // If the L2 range does not exist, we break off the local loop getting back to to
+            // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
             if !self.check_l2_range_exists(first_l2_height_of_l1, last_l2_height_of_l1) {
@@ -466,9 +487,9 @@ where
                 .expect("There should be a state root");
             let initial_batch_hash = self
                 .ledger_db
-                .get_soft_batch_by_number(&BatchNumber(first_l2_height_of_l1))?
+                .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))?
                 .ok_or(anyhow!(
-                    "Could not find soft batch at height {}",
+                    "Could not find soft confirmation at height {}",
                     first_l2_height_of_l1
                 ))?
                 .prev_hash;
@@ -518,7 +539,7 @@ where
 
             // Skip submission until l1 height
             if l1_height >= skip_submission_until_l1 && should_prove {
-                self.generate_and_submit_proof(transition_data, pg_client, l1_height, hash)
+                self.generate_and_submit_proof(transition_data, l1_height, hash)
                     .await?;
             } else {
                 info!("Skipping proving for l1 height {}", l1_height);
@@ -571,7 +592,7 @@ where
     async fn get_state_transition_data_from_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
-        da_service: &Da,
+        da_service: &Arc<Da>,
     ) -> Result<CommitmentStateTransitionData<Stf, Vm, Da>, anyhow::Error> {
         let mut state_transition_witnesses: VecDeque<
             Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>,
@@ -585,14 +606,14 @@ where
             let mut witnesses = vec![];
             let start_l2 = sequencer_commitment.l2_start_block_number;
             let end_l2 = sequencer_commitment.l2_end_block_number;
-            let soft_batches_in_commitment = match self
+            let soft_confirmations_in_commitment = match self
                 .ledger_db
-                .get_soft_batch_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
+                .get_soft_confirmation_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
             {
-                Ok(soft_batches) => soft_batches,
+                Ok(soft_confirmations) => soft_confirmations,
                 Err(e) => {
                     return Err(anyhow!(
-                        "Failed to get soft batches from the ledger db: {}",
+                        "Failed to get soft confirmations from the ledger db: {}",
                         e
                     ));
                 }
@@ -601,14 +622,14 @@ where
             let mut da_block_headers_to_push: Vec<
                 <<Da as DaService>::Spec as DaSpec>::BlockHeader,
             > = vec![];
-            for soft_batch in soft_batches_in_commitment {
+            for soft_confirmation in soft_confirmations_in_commitment {
                 if da_block_headers_to_push.is_empty()
                     || da_block_headers_to_push.last().unwrap().height()
-                        != soft_batch.da_slot_height
+                        != soft_confirmation.da_slot_height
                 {
                     let filtered_block = match get_da_block_at_height(
                         da_service,
-                        soft_batch.da_slot_height,
+                        soft_confirmation.da_slot_height,
                         self.l1_block_cache.clone(),
                     )
                     .await
@@ -617,14 +638,14 @@ where
                         Err(_) => {
                             return Err(anyhow!(
                                 "Error while fetching DA block at height: {}",
-                                soft_batch.da_slot_height
+                                soft_confirmation.da_slot_height
                             ));
                         }
                     };
                     da_block_headers_to_push.push(filtered_block.header().clone());
                 }
                 let signed_soft_confirmation: SignedSoftConfirmationBatch =
-                    soft_batch.clone().into();
+                    soft_confirmation.clone().into();
                 commitment_soft_confirmations.push(signed_soft_confirmation.clone());
             }
             soft_confirmations.push_back(commitment_soft_confirmations);
@@ -653,7 +674,7 @@ where
 
     fn check_l2_range_exists(&self, first_l2_height_of_l1: u64, last_l2_height_of_l1: u64) -> bool {
         let ledger_db = &self.ledger_db.clone();
-        if let Ok(range) = ledger_db.clone().get_soft_batch_range(
+        if let Ok(range) = ledger_db.clone().get_soft_confirmation_range(
             &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
         ) {
             if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
@@ -666,7 +687,6 @@ where
     async fn generate_and_submit_proof(
         &self,
         transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
-        pg_client: &Option<Result<PostgresConnector, DbPoolError>>,
         l1_height: u64,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
@@ -731,27 +751,6 @@ where
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
         };
 
-        match pg_client.as_ref() {
-            Some(Ok(pool)) => {
-                info!("Inserting proof data into postgres");
-                let (proof_data, proof_type) = match proof.clone() {
-                    Proof::Full(full_proof) => (full_proof, ProofType::Full),
-                    Proof::PublicInput(public_input) => (public_input, ProofType::PublicInput),
-                };
-                pool.insert_proof_data(
-                    tx_id_u8.to_vec(),
-                    proof_data,
-                    stored_state_transition.clone().into(),
-                    proof_type,
-                )
-                .await
-                .unwrap();
-            }
-            _ => {
-                warn!("No postgres client found");
-            }
-        }
-
         if let Err(e) =
             self.ledger_db
                 .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
@@ -791,7 +790,7 @@ where
 
 async fn l1_sync<Da>(
     start_l1_height: u64,
-    da_service: Da,
+    da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) where
@@ -843,7 +842,7 @@ async fn l1_sync<Da>(
 async fn sync_l2<Da>(
     start_l2_height: u64,
     sequencer_client: SequencerClient,
-    sender: mpsc::Sender<Vec<(u64, GetSoftBatchResponse)>>,
+    sender: mpsc::Sender<Vec<(u64, GetSoftConfirmationResponse)>>,
     sync_blocks_count: u64,
 ) where
     Da: DaService,
@@ -858,18 +857,24 @@ async fn sync_l2<Da>(
             .build();
 
         let inner_client = &sequencer_client;
-        let soft_batches: Vec<GetSoftBatchResponse> =
+        let soft_confirmations: Vec<GetSoftConfirmationResponse> =
             match retry_backoff(exponential_backoff.clone(), || async move {
-                let soft_batches = inner_client
-                    .get_soft_batch_range::<Da::Spec>(l2_height..l2_height + sync_blocks_count)
+                let soft_confirmations = inner_client
+                    .get_soft_confirmation_range::<Da::Spec>(
+                        l2_height..l2_height + sync_blocks_count,
+                    )
                     .await;
 
-                match soft_batches {
-                    Ok(soft_batches) => Ok(soft_batches.into_iter().flatten().collect::<Vec<_>>()),
+                match soft_confirmations {
+                    Ok(soft_confirmations) => {
+                        Ok(soft_confirmations.into_iter().flatten().collect::<Vec<_>>())
+                    }
                     Err(e) => match e.downcast_ref::<JsonrpseeError>() {
                         Some(JsonrpseeError::Transport(e)) => {
-                            let error_msg =
-                                format!("Soft Batch: connection error during RPC call: {:?}", e);
+                            let error_msg = format!(
+                                "Soft Confirmation: connection error during RPC call: {:?}",
+                                e
+                            );
                             debug!(error_msg);
                             Err(backoff::Error::Transient {
                                 err: error_msg,
@@ -877,7 +882,7 @@ async fn sync_l2<Da>(
                             })
                         }
                         _ => Err(backoff::Error::Transient {
-                            err: format!("Soft Batch: unknown error from RPC call: {:?}", e),
+                            err: format!("Soft Confirmation: unknown error from RPC call: {:?}", e),
                             retry_after: None,
                         }),
                     },
@@ -885,15 +890,15 @@ async fn sync_l2<Da>(
             })
             .await
             {
-                Ok(soft_batches) => soft_batches,
+                Ok(soft_confirmations) => soft_confirmations,
                 Err(_) => {
                     continue;
                 }
             };
 
-        if soft_batches.is_empty() {
+        if soft_confirmations.is_empty() {
             debug!(
-                "Soft Batch: no batch at starting height {}, retrying...",
+                "Soft Confirmation: no batch at starting height {}, retrying...",
                 l2_height
             );
 
@@ -901,14 +906,14 @@ async fn sync_l2<Da>(
             continue;
         }
 
-        let soft_batches: Vec<(u64, GetSoftBatchResponse)> = (l2_height
-            ..l2_height + soft_batches.len() as u64)
-            .zip(soft_batches)
+        let soft_confirmations: Vec<(u64, GetSoftConfirmationResponse)> = (l2_height
+            ..l2_height + soft_confirmations.len() as u64)
+            .zip(soft_confirmations)
             .collect();
 
-        l2_height += soft_batches.len() as u64;
+        l2_height += soft_confirmations.len() as u64;
 
-        if let Err(e) = sender.send(soft_batches).await {
+        if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
         }
     }
@@ -916,7 +921,7 @@ async fn sync_l2<Da>(
 
 async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
     loop {
-        match client.get_soft_batch::<Da>(1).await {
+        match client.get_soft_confirmation::<Da>(1).await {
             Ok(Some(batch)) => return batch.da_slot_height,
             _ => {
                 // sleep 1
