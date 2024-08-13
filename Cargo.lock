@@ -8776,30 +8776,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-sequencer"
-version = "0.4.0-rc.3"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "hex",
- "jsonrpsee",
- "rand 0.8.5",
- "serde",
- "sov-db",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-schema-db",
- "sov-state",
- "sov-value-setter",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "sov-sequencer-registry"
 version = "0.4.0-rc.3"
 dependencies = [
