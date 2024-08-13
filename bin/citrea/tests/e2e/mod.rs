@@ -85,7 +85,7 @@ async fn test_all_flow() {
 
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await;
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir, true);
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -575,7 +575,7 @@ async fn execute_blocks(
         wait_for_l2_block(sequencer_client, 204, None).await;
     }
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), da_db_dir, true);
     da_service.publish_test_block().await.unwrap();
 
     {

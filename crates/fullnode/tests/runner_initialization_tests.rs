@@ -98,7 +98,7 @@ fn initialize_runner(
         sync_blocks_count: 10,
     };
 
-    let da_service = MockDaService::new(address, &da_storage_path);
+    let da_service = MockDaService::new(address, &da_storage_path, true);
 
     let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
 

@@ -74,12 +74,17 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
+    single_tx_per_block: bool,
 }
 
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
-    pub fn new(sequencer_da_address: MockAddress, db_path: &Path) -> Self {
-        Self::with_finality(sequencer_da_address, 0, db_path)
+    pub fn new(
+        sequencer_da_address: MockAddress,
+        db_path: &Path,
+        single_tx_per_block: bool,
+    ) -> Self {
+        Self::with_finality(sequencer_da_address, 0, db_path, single_tx_per_block)
     }
 
     /// Create a new [`MockDaService`] with given finality.
@@ -88,6 +93,7 @@ impl MockDaService {
         sequencer_da_address: MockAddress,
         blocks_to_finality: u32,
         db_path: &Path,
+        single_tx_per_block: bool,
     ) -> Self {
         let (tx, rx1) = broadcast::channel(16);
         // Spawn a task, so channel is never closed
@@ -104,6 +110,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
+            single_tx_per_block,
         }
     }
 
@@ -149,7 +156,7 @@ impl MockDaService {
         blocks.prune_above(height);
 
         for blob in blobs {
-            let _ = self.add_blob(&blocks, &blob, Default::default())?;
+            let _ = self.add_blob(&blocks, &blob, Default::default(), self.single_tx_per_block)?;
         }
 
         Ok(())
@@ -190,7 +197,7 @@ impl MockDaService {
     pub async fn publish_test_block(&self) -> anyhow::Result<()> {
         let blocks = self.blocks.lock().await;
         let blob = vec![];
-        let _ = self.add_blob(&blocks, &blob, Default::default())?;
+        let _ = self.add_blob(&blocks, &blob, Default::default(), true)?;
         Ok(())
     }
 
@@ -199,6 +206,7 @@ impl MockDaService {
         blocks: &AsyncMutexGuard<'_, DbConnector>,
         blob: &[u8],
         zkp_proof: Vec<u8>,
+        force_create_block: bool,
     ) -> anyhow::Result<u64> {
         let (previous_block_hash, height) = match blocks.last().map(|b| b.header().clone()) {
             None => (GENESIS_HEADER.hash(), GENESIS_HEADER.height() + 1),
@@ -229,19 +237,21 @@ impl MockDaService {
             blobs: vec![blob],
         };
 
-        blocks.push_back(block.clone());
+        if force_create_block {
+            blocks.push_back(block.clone());
 
-        // Enough blocks to finalize block
-        if blocks.len() > self.blocks_to_finality as usize {
-            let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;
-            let next_finalized_header = blocks
-                .get(next_index_to_finalize as u64)
-                .unwrap()
-                .header()
-                .clone();
-            self.finalized_header_sender
-                .send(next_finalized_header)
-                .unwrap();
+            // Enough blocks to finalize block
+            if blocks.len() > self.blocks_to_finality as usize {
+                let next_index_to_finalize = blocks.len() - self.blocks_to_finality as usize - 1;
+                let next_finalized_header = blocks
+                    .get(next_index_to_finalize as u64)
+                    .unwrap()
+                    .header()
+                    .clone();
+                self.finalized_header_sender
+                    .send(next_finalized_header)
+                    .unwrap();
+            }
         }
 
         Ok(height)
@@ -324,7 +334,7 @@ impl DaService for MockDaService {
 
         let len = blocks.len() as u64;
         if len == 0 && height == 1 {
-            let _ = self.add_blob(&blocks, &[] as &[u8], Default::default())?;
+            let _ = self.add_blob(&blocks, &[] as &[u8], Default::default(), true)?;
         }
 
         // if wait for height doesn't lock its own blocks, can't make it async
@@ -395,7 +405,7 @@ impl DaService for MockDaService {
 
     async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
         let blocks = self.blocks.lock().await;
-        let _ = self.add_blob(&blocks, blob, Default::default())?;
+        let _ = self.add_blob(&blocks, blob, Default::default(), self.single_tx_per_block)?;
         Ok(MockHash([0; 32]))
     }
 
@@ -414,7 +424,12 @@ impl DaService for MockDaService {
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
         let blocks = self.blocks.lock().await;
 
-        self.add_blob(&blocks, Default::default(), proof.to_vec())
+        self.add_blob(
+            &blocks,
+            Default::default(),
+            proof.to_vec(),
+            self.single_tx_per_block,
+        )
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
@@ -480,7 +495,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty() {
         let db_path = tempfile::tempdir().unwrap();
-        let mut da = MockDaService::new(MockAddress::new([1; 32]), db_path.path());
+        let mut da = MockDaService::new(MockAddress::new([1; 32]), db_path.path(), true);
         da.wait_attempts = 10;
 
         let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
@@ -543,6 +558,7 @@ mod tests {
             MockAddress::new([1; 32]),
             finalization as u32,
             db_path.path(),
+            true,
         );
         da.blocks.lock().await.delete_all_rows();
         da.wait_attempts = 2;
@@ -584,6 +600,7 @@ mod tests {
             MockAddress::new([1; 32]),
             finalization as u32,
             db_path.path(),
+            true,
         );
         da.blocks.lock().await.delete_all_rows();
 
@@ -671,7 +688,8 @@ mod tests {
         #[tokio::test]
         async fn read_multiple_times() {
             let db_path = tempfile::tempdir().unwrap();
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path());
+            let mut da =
+                MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path(), true);
             da.wait_attempts = 2;
 
             // 1 -> 2 -> 3
@@ -705,7 +723,7 @@ mod tests {
     #[tokio::test]
     async fn test_zk_submission() -> Result<(), anyhow::Error> {
         let db_path = tempfile::tempdir().unwrap();
-        let da = MockDaService::new(MockAddress::new([1; 32]), db_path.path());
+        let da = MockDaService::new(MockAddress::new([1; 32]), db_path.path(), true);
         let aggregated_proof_data = vec![1, 2, 3];
         let height = da.send_aggregated_zk_proof(&aggregated_proof_data).await?;
         let proofs = da.get_aggregated_proofs_at(height).await?;
@@ -721,7 +739,8 @@ mod tests {
         #[tokio::test]
         async fn test_reorg_control_success() {
             let db_path = tempfile::tempdir().unwrap();
-            let da = MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path());
+            let da =
+                MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path(), true);
 
             // 1 -> 2 -> 3.1 -> 4.1
             //      \ -> 3.2 -> 4.2
@@ -757,7 +776,8 @@ mod tests {
         #[tokio::test]
         async fn test_attempt_reorg_after_finalized() {
             let db_path = tempfile::tempdir().unwrap();
-            let da = MockDaService::with_finality(MockAddress::new([1; 32]), 2, db_path.path());
+            let da =
+                MockDaService::with_finality(MockAddress::new([1; 32]), 2, db_path.path(), true);
 
             // 1 -> 2 -> 3 -> 4
 
@@ -810,7 +830,8 @@ mod tests {
         #[tokio::test]
         async fn test_planned_reorg() {
             let db_path = tempfile::tempdir().unwrap();
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path());
+            let mut da =
+                MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path(), true);
             da.wait_attempts = 2;
 
             // Planned for will replace blocks at height 3 and 4
@@ -847,7 +868,8 @@ mod tests {
         #[tokio::test]
         async fn test_planned_reorg_shorter() {
             let db_path = tempfile::tempdir().unwrap();
-            let mut da = MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path());
+            let mut da =
+                MockDaService::with_finality(MockAddress::new([1; 32]), 4, db_path.path(), true);
             da.wait_attempts = 2;
             // Planned for will replace blocks at height 3 and 4
             let planned_fork =

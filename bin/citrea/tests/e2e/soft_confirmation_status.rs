@@ -18,7 +18,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir);
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir, true);
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
@@ -81,7 +81,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone(), true);
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {

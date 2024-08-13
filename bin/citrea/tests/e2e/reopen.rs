@@ -125,7 +125,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         seq_test_client.send_publish_batch_request().await;
     }
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir, true);
     da_service.publish_test_block().await.unwrap();
 
     // start full node again
@@ -237,7 +237,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         &storage_dir.path().join("sequencer_copy"),
     );
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir, true);
     da_service.publish_test_block().await.unwrap();
 
     wait_for_l1_block(&da_service, 1, None).await;
@@ -299,14 +299,14 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone(), true);
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 

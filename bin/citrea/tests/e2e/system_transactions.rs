@@ -26,7 +26,7 @@ async fn test_system_transactions() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone(), true);
 
     // start rollup on da block 3
     for _ in 0..3 {
