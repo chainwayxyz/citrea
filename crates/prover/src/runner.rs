@@ -472,6 +472,18 @@ where
                 break;
             }
 
+            // Make the decision to prove all sequencer commitment groups
+            let should_prove: bool = {
+                let mut rng = rand::thread_rng();
+                // if proof_sampling_number is 0, then we always prove and submit
+                // otherwise we submit and prove with a probability of 1/proof_sampling_number
+                if prover_config.proof_sampling_number == 0 {
+                    true
+                } else {
+                    rng.gen_range(0..prover_config.proof_sampling_number) == 0
+                }
+            };
+
             let sequencer_commitments_groups =
                 self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
 
@@ -538,17 +550,6 @@ where
                         sequencer_public_key: self.sequencer_pub_key.clone(),
                         sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
                     };
-
-                let should_prove: bool = {
-                    let mut rng = rand::thread_rng();
-                    // if proof_sampling_number is 0, then we always prove and submit
-                    // otherwise we submit and prove with a probability of 1/proof_sampling_number
-                    if prover_config.proof_sampling_number == 0 {
-                        true
-                    } else {
-                        rng.gen_range(0..prover_config.proof_sampling_number) == 0
-                    }
-                };
 
                 // Skip submission until l1 height
                 if l1_height >= skip_submission_until_l1 && should_prove {
