@@ -810,7 +810,7 @@ where
             initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
             final_state_root: transition_data.final_state_root.as_ref().to_vec(),
             state_diff: transition_data.state_diff,
-            da_slot_hash: slot_hash.clone(),
+            da_slot_hash: slot_hash,
             sequencer_commitments_range: transition_data.sequencer_commitments_range,
             sequencer_public_key: transition_data.sequencer_public_key,
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
