@@ -49,7 +49,7 @@ pub struct BitcoinService {
     rollup_name: String,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    reveal_tx_id_prefix: Vec<u8>,
+    reveal_wtxid_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
 }
 
@@ -98,7 +98,7 @@ impl BitcoinService {
             chain_params.rollup_name,
             config.network,
             private_key,
-            chain_params.reveal_tx_id_prefix,
+            chain_params.reveal_wtxid_prefix,
             tx,
         )
         .await)
@@ -195,7 +195,7 @@ impl BitcoinService {
             rollup_name: chain_params.rollup_name,
             network: config.network,
             da_private_key: private_key,
-            reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
+            reveal_wtxid_prefix: chain_params.reveal_wtxid_prefix,
             inscribes_queue: tx,
         })
     }
@@ -205,7 +205,7 @@ impl BitcoinService {
         rollup_name: String,
         network: bitcoin::Network,
         da_private_key: Option<SecretKey>,
-        reveal_tx_id_prefix: Vec<u8>,
+        reveal_wtxid_prefix: Vec<u8>,
         inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Self {
         let wallets = client
@@ -222,7 +222,7 @@ impl BitcoinService {
             rollup_name,
             network,
             da_private_key,
-            reveal_tx_id_prefix,
+            reveal_wtxid_prefix,
             inscribes_queue,
         }
     }
@@ -328,7 +328,7 @@ impl BitcoinService {
             fee_sat_per_vbyte,
             fee_sat_per_vbyte,
             network,
-            self.reveal_tx_id_prefix.as_slice(),
+            self.reveal_wtxid_prefix.as_slice(),
         )?;
 
         // write txs to file, it can be used to continue revealing blob if something goes wrong
@@ -535,7 +535,7 @@ impl DaService for BitcoinService {
         );
 
         let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs(txs, &self.rollup_name, self.reveal_tx_id_prefix.as_slice())
+        get_relevant_blobs_from_txs(txs, &self.rollup_name, self.reveal_wtxid_prefix.as_slice())
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -554,30 +554,28 @@ impl DaService for BitcoinService {
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
-        let mut txids = Vec::with_capacity(block.txdata.len());
         let mut wtxids = Vec::with_capacity(block.txdata.len());
         wtxids.push([0u8; 32]);
-        let coinbase_tx_hash = block.txdata[0].compute_txid().to_raw_hash().to_byte_array();
-        txids.push(coinbase_tx_hash);
-        if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+
+        // coinbase starts with 0, so we skip it unless the prefix is all 0's
+        if self.reveal_wtxid_prefix.iter().all(|&x| x == 0) {
             completeness_proof.push(block.txdata[0].clone());
         }
 
         block.txdata[1..].iter().for_each(|tx| {
-            let txid = tx.compute_txid().to_raw_hash().to_byte_array();
             let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
 
             // if tx_hash has two leading zeros, it is in the completeness proof
-            if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+            if wtxid.starts_with(self.reveal_wtxid_prefix.as_slice()) {
                 completeness_proof.push(tx.clone());
             }
 
             wtxids.push(wtxid);
-            txids.push(txid);
         });
 
         (
-            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
+            // todo fill merkle proof
+            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), Vec::new()),
             completeness_proof,
         )
     }
@@ -686,7 +684,7 @@ impl DaService for BitcoinService {
         get_relevant_blobs_from_txs(
             pending_txs,
             &self.rollup_name,
-            self.reveal_tx_id_prefix.as_slice(),
+            self.reveal_wtxid_prefix.as_slice(),
         )
     }
 }
@@ -694,16 +692,16 @@ impl DaService for BitcoinService {
 fn get_relevant_blobs_from_txs(
     txs: Vec<Transaction>,
     rollup_name: &str,
-    reveal_tx_id_prefix: &[u8],
+    reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {
     let mut relevant_txs = Vec::new();
 
     for tx in txs {
         if !tx
-            .compute_txid()
+            .compute_wtxid()
             .to_byte_array()
             .as_slice()
-            .starts_with(reveal_tx_id_prefix)
+            .starts_with(reveal_wtxid_prefix)
         {
             continue;
         }
@@ -766,7 +764,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0, 0],
+                reveal_wtxid_prefix: vec![0, 0],
             },
         )
         .await
@@ -858,7 +856,7 @@ mod tests {
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let da_service = get_service().await;
@@ -904,7 +902,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0, 0],
+                reveal_wtxid_prefix: vec![0, 0],
             },
         )
         .await

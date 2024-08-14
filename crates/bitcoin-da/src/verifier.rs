@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::{merkle_tree, Txid};
+use bitcoin::{merkle_tree, Txid, Wtxid};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -17,7 +17,7 @@ pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xe
 
 pub struct BitcoinVerifier {
     rollup_name: String,
-    reveal_tx_id_prefix: Vec<u8>,
+    reveal_wtxid_prefix: Vec<u8>,
 }
 
 // TODO: custom errors based on our implementation
@@ -79,7 +79,7 @@ impl DaVerifier for BitcoinVerifier {
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
             rollup_name: params.rollup_name,
-            reveal_tx_id_prefix: params.reveal_tx_id_prefix,
+            reveal_wtxid_prefix: params.reveal_wtxid_prefix,
         }
     }
 
@@ -94,30 +94,24 @@ impl DaVerifier for BitcoinVerifier {
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
-        let mut inclusion_iter = inclusion_proof
-            .txids
-            .iter()
-            .zip(inclusion_proof.wtxids.iter());
+        let mut inclusion_iter = inclusion_proof.wtxids.iter();
 
-        let prefix = self.reveal_tx_id_prefix.as_slice();
+        let prefix = self.reveal_wtxid_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = BTreeSet::new();
 
         for (index_completeness, tx) in completeness_proof.iter().enumerate() {
-            let txid = tx.compute_txid().to_byte_array();
+            let wtxid = tx.compute_wtxid();
             // make sure it starts with the correct prefix
-            if !txid.starts_with(prefix) {
+            if !wtxid.as_byte_array().starts_with(prefix) {
                 return Err(ValidationError::NonRelevantTxInProof);
             }
-
-            let wtxid = tx.compute_wtxid();
-            let wtxid = wtxid.as_byte_array();
 
             // make sure completeness txs are ordered same in inclusion proof
             // this logic always start seaching from the last found index
             // ordering should be preserved naturally
             let is_found_in_block =
-                inclusion_iter.any(|(txid_inc, wtxid_inc)| *txid_inc == txid && wtxid_inc == wtxid);
+                inclusion_iter.any(|wtxid_inc| wtxid_inc == wtxid.as_byte_array());
             if !is_found_in_block {
                 return Err(ValidationError::RelevantTxNotFoundInBlock);
             }
@@ -155,7 +149,7 @@ impl DaVerifier for BitcoinVerifier {
                 }
             }
 
-            completeness_tx_hashes.insert(txid);
+            completeness_tx_hashes.insert(wtxid.to_byte_array());
         }
 
         // assert no extra txs than the ones in the completeness proof are left
@@ -164,10 +158,10 @@ impl DaVerifier for BitcoinVerifier {
         }
 
         // no prefix bytes left behind completeness proof
-        inclusion_proof.txids.iter().try_for_each(|tx_hash| {
-            if tx_hash.starts_with(prefix) {
+        inclusion_proof.wtxids.iter().try_for_each(|wtxid| {
+            if wtxid.starts_with(prefix) {
                 // assert all prefixed transactions are included in completeness proof
-                if !completeness_tx_hashes.remove(tx_hash) {
+                if !completeness_tx_hashes.remove(wtxid) {
                     return Err(ValidationError::RelevantTxNotInProof);
                 }
             }
@@ -199,22 +193,12 @@ impl DaVerifier for BitcoinVerifier {
                     if !blobs.is_empty() {
                         return Err(ValidationError::InvalidBlock);
                     }
-                    // Check if all the wtxids are equal to txids
-                    for (wtxid, txid) in inclusion_proof
-                        .wtxids
-                        .iter()
-                        .zip(inclusion_proof.txids.iter())
-                    {
-                        if wtxid != txid {
-                            return Err(ValidationError::InvalidSegWitCommitment);
-                        }
-                    }
                 }
                 Some(mut commitment_idx) => {
                     let wtxids = inclusion_proof
                         .wtxids
                         .iter()
-                        .map(|wtxid| Txid::from_byte_array(*wtxid));
+                        .map(|wtxid| Wtxid::from_byte_array(*wtxid));
 
                     let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
 
@@ -241,18 +225,20 @@ impl DaVerifier for BitcoinVerifier {
 
         let tx_root = block_header.merkle_root();
 
+        // TODO: verify txid merkle proof of coinbase tx
+
         // Inclusion proof is all the txs in the block.
-        let tx_hashes = inclusion_proof.txids.into_iter().map(Txid::from_byte_array);
+        // let tx_hashes = inclusion_proof.txids.into_iter().map(Txid::from_byte_array);
 
-        let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) else {
-            return Err(ValidationError::FailedToCalculateMerkleRoot);
-        };
+        // let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) else {
+        //     return Err(ValidationError::FailedToCalculateMerkleRoot);
+        // };
 
-        let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
-        // Check that the tx root in the block header matches the tx root in the inclusion proof.
-        if root_from_inclusion != tx_root {
-            return Err(ValidationError::IncorrectInclusionProof);
-        }
+        // let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
+        // // Check that the tx root in the block header matches the tx root in the inclusion proof.
+        // if root_from_inclusion != tx_root {
+        //     return Err(ValidationError::IncorrectInclusionProof);
+        // }
 
         Ok(ChainValidityCondition {
             prev_hash: block_header.prev_hash().to_byte_array(),
@@ -291,7 +277,7 @@ mod tests {
     fn correct() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -309,7 +295,7 @@ mod tests {
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
         let header = HeaderWrapper::new(
             Header {
@@ -384,7 +370,7 @@ mod tests {
     fn false_coinbase_input_witness_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let header = HeaderWrapper::new(
@@ -464,7 +450,7 @@ mod tests {
     fn false_coinbase_script_pubkey_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let header = HeaderWrapper::new(
@@ -560,7 +546,7 @@ mod tests {
     fn false_witness_script_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let header = HeaderWrapper::new(
@@ -677,7 +663,7 @@ mod tests {
     fn different_wtxid_fails_verification() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -721,7 +707,7 @@ mod tests {
     fn extra_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -743,7 +729,7 @@ mod tests {
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -765,7 +751,7 @@ mod tests {
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -787,7 +773,7 @@ mod tests {
     fn break_order_of_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -809,7 +795,7 @@ mod tests {
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -831,7 +817,7 @@ mod tests {
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -853,7 +839,7 @@ mod tests {
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -875,7 +861,7 @@ mod tests {
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -898,7 +884,7 @@ mod tests {
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -920,7 +906,7 @@ mod tests {
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -943,7 +929,7 @@ mod tests {
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -966,7 +952,7 @@ mod tests {
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -992,7 +978,7 @@ mod tests {
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
