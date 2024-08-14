@@ -42,7 +42,7 @@ pub trait DaSpec:
     type BlockHeader: BlockHeaderTrait<Hash = Self::SlotHash> + Send + Sync;
 
     /// The transaction type used by the DA layer.
-    type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync;
+    type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync + Clone;
 
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress + Send + Sync;

@@ -155,11 +155,11 @@ pub trait ProverLedgerOps: SharedLedgerOps {
     ) -> anyhow::Result<Option<StateRoot>>;
 
     /// Get the last scanned slot by the prover
-    fn get_prover_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
+    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
-    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
 
     /// Get the witness by L2 height
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
@@ -175,6 +175,12 @@ pub trait ProverLedgerOps: SharedLedgerOps {
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
+
+    /// Save a specific L2 range state diff
+    fn set_l2_state_diff(&self, l2_height: BatchNumber, state_diff: StateDiff) -> Result<()>;
+
+    /// Returns an L2 state diff
+    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> Result<Option<StateDiff>>;
 }
 
 /// Sequencer ledger operations

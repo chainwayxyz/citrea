@@ -299,7 +299,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_prover() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();

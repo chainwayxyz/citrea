@@ -135,7 +135,7 @@ impl LedgerRpcProvider for LedgerDB {
     }
 
     fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error> {
-        match ProverLedgerOps::get_prover_last_scanned_l1_height(self)? {
+        match ProverLedgerOps::get_last_scanned_l1_height(self)? {
             Some(height) => Ok(height.0),
             None => Ok(0),
         }

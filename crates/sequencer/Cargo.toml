@@ -16,7 +16,6 @@ resolver = "2"
 alloy-rlp = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
-bincode = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
 digest = { workspace = true }

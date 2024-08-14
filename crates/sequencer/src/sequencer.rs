@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -11,6 +11,8 @@ use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::merge_state_diffs;
+use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -55,8 +57,6 @@ use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
-
-const MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
@@ -572,12 +572,11 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
-                let merged_state_diff = self.merge_state_diffs(
-                    self.last_state_diff.clone(),
-                    slot_result.state_diff.clone(),
-                );
+                let merged_state_diff =
+                    merge_state_diffs(self.last_state_diff.clone(), slot_result.state_diff.clone());
+
                 // Serialize the state diff to check size later.
-                let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
+                let serialized_state_diff = borsh::to_vec(&merged_state_diff)?;
                 let state_diff_threshold_reached =
                     serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
                 if state_diff_threshold_reached {
@@ -1182,13 +1181,6 @@ where
         }
 
         Ok(updates)
-    }
-
-    fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
-        let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
-
-        new_diff_map.extend(new_diff);
-        new_diff_map.into_iter().collect()
     }
 }
 
