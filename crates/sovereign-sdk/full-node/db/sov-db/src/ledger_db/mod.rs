@@ -17,7 +17,7 @@ use crate::schema::tables::{
     ActiveFork, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
     PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofBySlotNumber,
-    ProverLastScannedSlot, SlotByHash, SlotByNumber, SoftConfirmationByHash,
+    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
     SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
     VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
@@ -493,14 +493,14 @@ impl ProverLedgerOps for LedgerDB {
 
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+    fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
@@ -556,6 +556,23 @@ impl ProverLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    fn set_l2_state_diff(
+        &self,
+        l2_height: BatchNumber,
+        state_diff: StateDiff,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<ProverStateDiffs>(&l2_height, &state_diff)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> anyhow::Result<Option<StateDiff>> {
+        self.db.get::<ProverStateDiffs>(&l2_height)
     }
 }
 

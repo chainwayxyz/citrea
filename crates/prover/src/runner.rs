@@ -11,7 +11,8 @@ use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::{get_da_block_at_height, L1BlockCache};
+use citrea_primitives::utils::merge_state_diffs;
+use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
@@ -20,7 +21,7 @@ use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::{ProverLedgerOps, SlotCommit};
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
-use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData};
+use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -251,7 +252,7 @@ where
         // Check da block get and sync up to the latest block in the latest commitment
         let last_scanned_l1_height = self
             .ledger_db
-            .get_prover_last_scanned_l1_height()
+            .get_last_scanned_l1_height()
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
 
         let start_l1_height = match last_scanned_l1_height {
@@ -363,6 +364,9 @@ where
             bail!("Post state root mismatch at height: {}", l2_height)
         }
 
+        // Save state diff to ledger DB
+        self.ledger_db
+            .set_l2_state_diff(BatchNumber(l2_height), slot_result.state_diff)?;
         // Save witness data to ledger db
         self.ledger_db
             .set_l2_witness(l2_height, &slot_result.witness)?;
@@ -452,13 +456,15 @@ where
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
-            let sequencer_commitments: Vec<SequencerCommitment> =
+            let mut sequencer_commitments: Vec<SequencerCommitment> =
                 self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
+            // Make sure all sequencer commitments are stored in ascending order.
+            sequencer_commitments.sort_by_key(|commitment| commitment.l2_start_block_number);
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
                 self.ledger_db
-                    .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
+                    .set_last_scanned_l1_height(SlotNumber(l1_height))
                     .unwrap_or_else(|_| {
                         panic!(
                             "Failed to put prover last scanned l1 height in the ledger db {}",
@@ -476,14 +482,13 @@ where
                 l1_block.header().height(),
             );
 
-            let first_l2_height_of_l1 = sequencer_commitments[0].l2_start_block_number;
-            let last_l2_height_of_l1 =
-                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
-
             // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
-            if !self.check_l2_range_exists(first_l2_height_of_l1, last_l2_height_of_l1) {
+            if !self.check_l2_range_exists(
+                sequencer_commitments[0].l2_start_block_number,
+                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
+            ) {
                 break;
             }
 
@@ -493,32 +498,40 @@ where
             let hash = da_block_header_of_commitments.hash();
 
             if !proving_session_exists {
-                // There is no ongoing bonsai session to recover
-                let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                    self.create_state_transition_data(
-                        &sequencer_commitments,
-                        da_block_header_of_commitments,
-                        da_data,
-                        l1_block,
+                let sequencer_commitments_groups =
+                    self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
+                for sequencer_commitments in sequencer_commitments_groups {
+                    // There is no ongoing bonsai session to recover
+                    let transition_data: StateTransitionData<
+                        Stf::StateRoot,
+                        Stf::Witness,
+                        Da::Spec,
+                    > = self
+                        .create_state_transition_data(
+                            &sequencer_commitments,
+                            da_block_header_of_commitments.clone(),
+                            da_data.clone(),
+                            l1_block,
+                        )
+                        .await?;
+
+                    self.prove_state_transition(
+                        transition_data,
+                        prover_config,
+                        skip_submission_until_l1,
+                        l1_height,
+                        hash.clone(),
                     )
                     .await?;
+                    proving_session_exists = false;
 
-                self.prove_state_transition(
-                    transition_data,
-                    prover_config,
-                    skip_submission_until_l1,
-                    l1_height,
-                    hash,
-                )
-                .await?;
-                proving_session_exists = false;
+                    self.save_commitments(sequencer_commitments, l1_height);
+                }
             }
-
-            self.save_commitments(sequencer_commitments, l1_height);
 
             if let Err(e) = self
                 .ledger_db
-                .set_prover_last_scanned_l1_height(SlotNumber(l1_height))
+                .set_last_scanned_l1_height(SlotNumber(l1_height))
             {
                 panic!(
                     "Failed to put prover last scanned l1 height in the ledger db: {}",
@@ -855,6 +868,61 @@ where
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
+    }
+
+    fn break_sequencer_commitments_into_groups(
+        &self,
+        sequencer_commitments: Vec<SequencerCommitment>,
+    ) -> anyhow::Result<Vec<Vec<SequencerCommitment>>> {
+        let mut result = vec![];
+
+        let mut group = vec![];
+        let mut cumulative_state_diff = StateDiff::new();
+        for sequencer_commitment in sequencer_commitments {
+            let mut sequencer_commitment_state_diff = StateDiff::new();
+            for l2_height in sequencer_commitment.l2_start_block_number
+                ..=sequencer_commitment.l2_end_block_number
+            {
+                let state_diff = self
+                    .ledger_db
+                    .get_l2_state_diff(BatchNumber(l2_height))?
+                    .ok_or(anyhow!(
+                        "Could not find state diff for L2 range {}-{}",
+                        sequencer_commitment.l2_start_block_number,
+                        sequencer_commitment.l2_end_block_number
+                    ))?;
+                sequencer_commitment_state_diff =
+                    merge_state_diffs(sequencer_commitment_state_diff, state_diff);
+            }
+            cumulative_state_diff = merge_state_diffs(
+                cumulative_state_diff,
+                sequencer_commitment_state_diff.clone(),
+            );
+
+            let serialized_state_diff = borsh::to_vec(&cumulative_state_diff)?;
+
+            let state_diff_threshold_reached =
+                serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
+
+            if state_diff_threshold_reached && !group.is_empty() {
+                // We've exceeded the limit with the current commitments
+                // so we have to stop at the previous one.
+                result.push(group);
+                // Reset the cumulative state diff to be equal to the current commitment state diff
+                cumulative_state_diff = sequencer_commitment_state_diff;
+                group = vec![sequencer_commitment.clone()];
+            } else {
+                group.push(sequencer_commitment.clone());
+            }
+        }
+
+        // If the last group hasn't been reset because it has not reached the threshold,
+        // Add it anyway
+        if !group.is_empty() {
+            result.push(group);
+        }
+
+        Ok(result)
     }
 }
 
