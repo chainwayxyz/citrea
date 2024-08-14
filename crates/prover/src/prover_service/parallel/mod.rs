@@ -195,11 +195,7 @@ where
                     let da_data = DaData::ZKProof(proof.clone());
 
                     let tx_id = da_service
-                        .send_transaction(
-                            borsh::to_vec(&da_data)
-                                .expect("Should serialize")
-                                .as_slice(),
-                        )
+                        .send_transaction(da_data)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
                     self.ledger_db.clear_pending_proving_sessions()?;

@@ -9,14 +9,14 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaSpec, DaVerifier};
+use crate::da::{DaData, DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
 #[cfg(feature = "native")]
-pub struct BlobWithNotifier<TxID> {
-    /// Blob to send.
-    pub blob: Vec<u8>,
+pub struct SenderWithNotifier<TxID> {
+    /// Data to send.
+    pub da_data: DaData,
     /// Channel to receive result of the operation.
     pub notify: OneshotSender<Result<TxID, anyhow::Error>>,
 }
@@ -128,10 +128,12 @@ pub trait DaService: Send + Sync + 'static {
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
-    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
+    async fn send_transaction(&self, da_data: DaData) -> Result<Self::TransactionId, Self::Error>;
 
     /// A tx part of the queue to send transactions in order
-    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+    fn get_send_transaction_queue(
+        &self,
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
         unimplemented!()
     }
 
