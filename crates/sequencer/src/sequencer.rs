@@ -445,20 +445,23 @@ where
             (Ok(()), mut batch_workspace) => {
                 let mut txs = vec![];
                 let mut tx_receipts = vec![];
-                
+
                 let evm_txs_count = txs_to_run.len();
                 if evm_txs_count > 0 {
                     let call_txs = CallMessage { txs: txs_to_run };
                     let raw_message =
-                        <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
+                        <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
+                            call_txs,
+                        );
                     let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                     txs.push(signed_blob);
 
-                    let (apply_batch_workspace, apply_tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                        self.fork_manager.active_fork(),
-                        txs.clone(),
-                        batch_workspace,
-                    );
+                    let (apply_batch_workspace, apply_tx_receipts) =
+                        self.stf.apply_soft_confirmation_txs(
+                            self.fork_manager.active_fork(),
+                            txs.clone(),
+                            batch_workspace,
+                        );
                     batch_workspace = apply_batch_workspace;
                     tx_receipts = apply_tx_receipts;
                 }
