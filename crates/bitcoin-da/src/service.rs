@@ -12,15 +12,14 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
-use bitcoin::hash_types::WitnessMerkleNode;
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{merkle_tree, Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
@@ -30,7 +29,9 @@ use crate::helpers::builders::{
     InscriptionTxs, TxWithId,
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
+use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::parse_transaction;
+use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -427,16 +428,21 @@ impl From<TxidWrapper> for [u8; 32] {
     }
 }
 
-fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
-    let hashes = txdata.iter().enumerate().map(|(i, t)| {
-        if i == 0 {
-            // Replace the first hash with zeroes.
-            Wtxid::all_zeros().to_raw_hash()
-        } else {
-            t.compute_wtxid().to_raw_hash()
-        }
-    });
-    merkle_tree::calculate_root(hashes).map(|h| h.into())
+fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
+    let hashes = txdata
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            if i == 0 {
+                // Replace the first hash with zeroes.
+                Wtxid::all_zeros().to_raw_hash().to_byte_array()
+            } else {
+                t.compute_wtxid().to_raw_hash().to_byte_array()
+            }
+        })
+        .collect();
+    BitcoinMerkleTree::new(hashes).root()
+    // merkle_tree::calculate_root(hashes).map(|h| h.into())
 }
 
 #[async_trait]
@@ -573,9 +579,25 @@ impl DaService for BitcoinService {
             wtxids.push(wtxid);
         });
 
+        let txid_merkle_tree = merkle_tree::BitcoinMerkleTree::new(
+            block
+                .txdata
+                .iter()
+                .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        assert_eq!(
+            txid_merkle_tree.root(),
+            block.header.merkle_root(),
+            "Merkle root mismatch"
+        );
+
+        let coinbase_proof = txid_merkle_tree.get_idx_path(0);
+
         (
             // todo fill merkle proof
-            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), Vec::new()),
+            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
             completeness_proof,
         )
     }
@@ -668,7 +690,7 @@ impl DaService for BitcoinService {
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let witness_root = calculate_witness_root(&txs).unwrap_or(WitnessMerkleNode::all_zeros());
+        let witness_root = calculate_witness_root(&txs);
 
         Ok(BitcoinBlock {
             header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
@@ -716,7 +738,7 @@ fn get_relevant_blobs_from_txs(
                 let relevant_tx = BlobWithSender::new(
                     decompressed_blob,
                     inscription.public_key,
-                    sha256d::Hash::hash(&inscription.body).to_byte_array(),
+                    calculate_double_sha256(&inscription.body),
                 );
 
                 relevant_txs.push(relevant_tx);
@@ -733,6 +755,7 @@ mod tests {
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
+    use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::DaVerifier;
@@ -934,7 +957,9 @@ mod tests {
             WitnessMerkleNode::from_str(
                 "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
             )
-            .unwrap(),
+            .unwrap()
+            .as_raw_hash()
+            .to_byte_array(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/false_signature_txs.txt").unwrap();
@@ -995,7 +1020,9 @@ mod tests {
             WitnessMerkleNode::from_str(
                 "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
             )
-            .unwrap(),
+            .unwrap()
+            .as_raw_hash()
+            .to_byte_array(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();

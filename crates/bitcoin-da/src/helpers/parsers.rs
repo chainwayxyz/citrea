@@ -2,7 +2,7 @@ use core::num::NonZeroU16;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::script::Instruction;
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::Hash;
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_DROP};
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
@@ -10,7 +10,7 @@ use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
 use bitcoin::{secp256k1, Opcode, Script, Transaction, Txid};
 use thiserror::Error;
 
-use super::{TransactionHeader, TransactionKind};
+use super::{calculate_double_sha256, TransactionHeader, TransactionKind};
 
 #[derive(Debug, Clone)]
 pub struct ParsedInscription {
@@ -36,7 +36,7 @@ impl ParsedInscription {
     pub fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         let public_key = secp256k1::PublicKey::from_slice(&self.public_key);
         let signature = ecdsa::Signature::from_compact(&self.signature);
-        let hash = sha256d::Hash::hash(&self.body).to_byte_array();
+        let hash = calculate_double_sha256(&self.body);
         let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
 
         let secp = Secp256k1::new();

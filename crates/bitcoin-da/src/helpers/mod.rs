@@ -1,8 +1,11 @@
 use core::num::NonZeroU16;
 
+use sha2::{Digest, Sha256};
+
 #[cfg(feature = "native")]
 pub mod builders;
 pub mod compression;
+pub mod merkle_tree;
 pub mod parsers;
 #[cfg(test)]
 pub mod test_utils;
@@ -56,4 +59,12 @@ enum TransactionKind {
     /// This type of transaction includes chunk parts of body (>= 400kb)
     ChunkedPart = 2,
     Unknown(NonZeroU16),
+}
+
+pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::default();
+    hasher.update(input);
+    let result = hasher.finalize_reset();
+    hasher.update(result);
+    hasher.finalize().try_into().unwrap()
 }

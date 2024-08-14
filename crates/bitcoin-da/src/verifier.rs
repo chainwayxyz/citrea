@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 
-use bitcoin::hashes::{sha256d, Hash};
-use bitcoin::{merkle_tree, Txid, Wtxid};
+use bitcoin::hashes::Hash;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
@@ -11,6 +10,7 @@ use thiserror::Error;
 
 use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::parse_transaction;
+use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::BitcoinSpec;
 
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
@@ -195,50 +195,52 @@ impl DaVerifier for BitcoinVerifier {
                     }
                 }
                 Some(mut commitment_idx) => {
-                    let wtxids = inclusion_proof
-                        .wtxids
-                        .iter()
-                        .map(|wtxid| Wtxid::from_byte_array(*wtxid));
+                    // let wtxids = inclusion_proof
+                    //     .wtxids
+                    //     .iter()
+                    //     .map(|wtxid| Wtxid::from_byte_array(*wtxid));
 
-                    let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
+                    // let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
+                    let merkle_root =
+                        merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
                     let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
 
-                    let mut vec_merkle = merkle_root.as_byte_array().to_vec();
+                    let mut vec_merkle = merkle_root.to_vec();
 
                     vec_merkle.extend_from_slice(input_witness_value);
 
                     // check with sha256(sha256(<merkle root><witness value>))
-                    let commitment = sha256d::Hash::hash(&vec_merkle);
+                    let commitment = calculate_double_sha256(&vec_merkle);
 
                     // check if the commitment is correct
                     // on signet there is an additional commitment after the segwit commitment
                     // so we check only the first 32 bytes after commitment header (bytes [2, 5])
                     commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
                     let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
-                    if script_pubkey[6..38] != *commitment.as_byte_array() {
+                    if script_pubkey[6..38] != commitment {
                         return Err(ValidationError::NonMatchingScript);
                     }
                 }
             }
         }
 
-        let tx_root = block_header.merkle_root();
-
-        // TODO: verify txid merkle proof of coinbase tx
+        let claimed_root = merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
+            inclusion_proof
+                .coinbase_tx
+                .compute_txid()
+                .as_raw_hash()
+                .to_byte_array(),
+            0,
+            inclusion_proof.coinbase_merkle_proof,
+        );
 
         // Inclusion proof is all the txs in the block.
         // let tx_hashes = inclusion_proof.txids.into_iter().map(Txid::from_byte_array);
 
-        // let Some(root_from_inclusion) = merkle_tree::calculate_root(tx_hashes) else {
-        //     return Err(ValidationError::FailedToCalculateMerkleRoot);
-        // };
-
-        // let root_from_inclusion = root_from_inclusion.to_raw_hash().to_byte_array();
-        // // Check that the tx root in the block header matches the tx root in the inclusion proof.
-        // if root_from_inclusion != tx_root {
-        //     return Err(ValidationError::IncorrectInclusionProof);
-        // }
+        if block_header.merkle_root() != claimed_root {
+            return Err(ValidationError::IncorrectInclusionProof);
+        }
 
         Ok(ChainValidityCondition {
             prev_hash: block_header.prev_hash().to_byte_array(),

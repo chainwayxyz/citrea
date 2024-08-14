@@ -2,10 +2,11 @@ use core::str::FromStr;
 
 use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, Transaction};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
+use super::calculate_double_sha256;
 use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
 use crate::spec::blob::BlobWithSender;
@@ -35,7 +36,7 @@ pub(crate) fn get_blob_with_sender(tx: &Transaction) -> BlobWithSender {
     BlobWithSender::new(
         decompressed_blob,
         parsed_inscription.public_key,
-        sha256d::Hash::hash(&blob).to_byte_array(),
+        calculate_double_sha256(&blob),
     )
 }
 
@@ -66,7 +67,9 @@ pub(crate) fn get_mock_data() -> (
         WitnessMerkleNode::from_str(
             "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
         )
-        .unwrap(),
+        .unwrap()
+        .to_raw_hash()
+        .to_byte_array(),
     );
 
     let block_txs = get_mock_txs();
