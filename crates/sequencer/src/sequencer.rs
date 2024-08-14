@@ -576,7 +576,7 @@ where
                     merge_state_diffs(self.last_state_diff.clone(), slot_result.state_diff.clone());
 
                 // Serialize the state diff to check size later.
-                let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
+                let serialized_state_diff = borsh::to_vec(&merged_state_diff)?;
                 let state_diff_threshold_reached =
                     serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
                 if state_diff_threshold_reached {
