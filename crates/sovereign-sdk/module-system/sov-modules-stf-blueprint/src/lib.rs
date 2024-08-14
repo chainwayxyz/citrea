@@ -523,8 +523,7 @@ where
         }
 
         // Sort commitments just in case
-        sequencer_commitments
-            .sort_unstable_by(|c1, c2| c1.l2_end_block_number.cmp(&c2.l2_end_block_number));
+        sequencer_commitments.sort_unstable();
 
         // Then verify these soft confirmations.
 

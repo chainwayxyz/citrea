@@ -21,6 +21,18 @@ pub struct SequencerCommitment {
     pub l2_end_block_number: u64,
 }
 
+impl std::cmp::PartialOrd for SequencerCommitment {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for SequencerCommitment {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.l2_start_block_number.cmp(&other.l2_start_block_number)
+    }
+}
+
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
