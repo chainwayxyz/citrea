@@ -17,7 +17,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
-use sov_rollup_interface::services::da::BlobWithNotifier;
+use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
@@ -110,7 +110,7 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
+        let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
 
         let service = Arc::new(
             BitcoinService::new(
