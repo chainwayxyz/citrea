@@ -21,13 +21,13 @@ pub struct SequencerCommitment {
     pub l2_end_block_number: u64,
 }
 
-impl std::cmp::PartialOrd for SequencerCommitment {
+impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl std::cmp::Ord for SequencerCommitment {
+impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.l2_start_block_number.cmp(&other.l2_start_block_number)
     }
