@@ -39,7 +39,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
-use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -716,10 +716,9 @@ where
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
-        let blob = borsh::to_vec(&DaData::SequencerCommitment(commitment.clone()))
-            .map_err(|e| anyhow!(e))?;
+        let da_data = DaData::SequencerCommitment(commitment.clone());
         let (notify, rx) = oneshot_channel();
-        let request = BlobWithNotifier { blob, notify };
+        let request = SenderWithNotifier { da_data, notify };
         self.da_service
             .get_send_transaction_queue()
             .send(request)

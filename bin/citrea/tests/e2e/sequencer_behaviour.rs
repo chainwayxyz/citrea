@@ -72,7 +72,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 1, None).await;
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir, true);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     let to_be_filled_da_block_count = 5;
     let latest_da_block = 1 + to_be_filled_da_block_count;
@@ -139,7 +139,7 @@ async fn test_sequencer_commitment_threshold() {
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir, true);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     // Put a large number for commitment threshold
     let min_soft_confirmations_per_commitment = 1_000_000;
@@ -472,7 +472,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone(), true);
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     // start rollup on da block 3
     for _ in 0..3 {

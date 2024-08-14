@@ -92,7 +92,6 @@ impl RollupBlueprint for MockDemoRollup {
         Ok(Arc::new(MockDaService::new(
             rollup_config.da.sender_address,
             &rollup_config.da.db_path,
-            true,
         )))
     }
 

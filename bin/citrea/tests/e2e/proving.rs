@@ -53,7 +53,7 @@ async fn full_node_verify_proof_and_store() {
     let seq_port = seq_port_rx.await.unwrap();
     let test_client = make_test_client(seq_port).await;
 
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir, true);
+    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 

@@ -39,7 +39,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     let sequencer_config = create_default_sequencer_config(4, Some(true), 10);
 
-    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir, true);
+    let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
@@ -205,7 +205,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     };
 
     let da_service =
-        MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir.clone(), true);
+        MockDaService::with_finality(MockAddress::from([0; 32]), 2, &da_db_dir.clone());
     da_service.publish_test_block().await.unwrap();
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();

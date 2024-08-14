@@ -1956,6 +1956,7 @@ name = "citrea-risc0-bonsai-adapter"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "backoff",
  "bincode",
  "bonsai-sdk",
  "borsh",

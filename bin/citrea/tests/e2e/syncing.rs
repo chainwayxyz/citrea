@@ -158,7 +158,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone(), true);
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
 
     let (seq_test_client, full_node_test_client, seq_task, full_node_task, _) =
         initialize_test(TestConfig {
@@ -268,7 +268,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
 
-    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir, true);
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir);
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
