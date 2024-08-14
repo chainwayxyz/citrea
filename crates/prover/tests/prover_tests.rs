@@ -16,7 +16,7 @@ use sov_stf_runner::{
     WitnessSubmissionStatus,
 };
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     let temp = tempfile::tempdir().unwrap();
 
@@ -50,7 +50,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     let temp = tempfile::tempdir().unwrap();
     let da_service = Arc::new(MockDaService::new(MockAddress::from([0; 32]), temp.path()));
