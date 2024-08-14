@@ -141,7 +141,7 @@ impl RollupBlueprint for BitcoinRollup {
             citrea_risc0::BITCOIN_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
-            ledger_db,
+            ledger_db.clone(),
         );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
@@ -157,6 +157,7 @@ impl RollupBlueprint for BitcoinRollup {
             da_verifier,
             prover_config,
             zk_storage,
+            ledger_db,
         )
         .expect("Should be able to instantiate prover service")
     }

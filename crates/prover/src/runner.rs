@@ -241,7 +241,6 @@ where
                 self.extract_and_store_proof(tx_id, proof, l1_height)
                     .await?;
             }
-            self.ledger_db.clear_pending_proving_sessions()?;
             Ok(true)
         }
     }

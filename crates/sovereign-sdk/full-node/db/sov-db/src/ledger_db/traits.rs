@@ -175,9 +175,6 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
-
-    /// Clears all pending proving sessions
-    fn clear_pending_proving_sessions(&self) -> Result<()>;
 }
 
 /// Ledger operations for the prover service
@@ -190,6 +187,9 @@ pub trait ProvingServiceLedgerOps: ProverLedgerOps + SharedLedgerOps + Send + Sy
 
     /// Removes a pending proving session
     fn remove_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+
+    /// Clears all pending proving sessions
+    fn clear_pending_proving_sessions(&self) -> Result<()>;
 }
 
 /// Sequencer ledger operations

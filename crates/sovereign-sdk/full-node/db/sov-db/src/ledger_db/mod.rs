@@ -557,22 +557,6 @@ impl ProverLedgerOps for LedgerDB {
 
         Ok(())
     }
-
-    #[instrument(level = "trace", skip(self), err)]
-    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
-        let mut schema_batch = SchemaBatch::new();
-        let mut iter = self.db.iter::<PendingProvingSessions>()?;
-        iter.seek_to_first();
-
-        for item in iter {
-            let item = item?;
-            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
-        }
-
-        self.db.write_schemas(schema_batch)?;
-
-        Ok(())
-    }
 }
 
 impl ProvingServiceLedgerOps for LedgerDB {
@@ -596,6 +580,22 @@ impl ProvingServiceLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn remove_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
         self.db.delete::<PendingProvingSessions>(&session)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+        iter.seek_to_first();
+
+        for item in iter {
+            let item = item?;
+            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
+        }
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
     }
 }
 

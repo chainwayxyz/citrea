@@ -106,7 +106,7 @@ impl RollupBlueprint for MockDemoRollup {
             citrea_risc0::MOCK_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
-            ledger_db,
+            ledger_db.clone(),
         );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
@@ -118,6 +118,7 @@ impl RollupBlueprint for MockDemoRollup {
             da_verifier,
             prover_config,
             zk_storage,
+            ledger_db,
         )
         .expect("Should be able to instantiate prover service")
     }

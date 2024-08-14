@@ -7,6 +7,7 @@ use citrea_stf::verifier::StateTransitionVerifier;
 use prover::Prover;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -34,6 +35,7 @@ where
 
     zk_storage: V::PreState,
     prover_state: Prover<StateRoot, Witness, Da>,
+    ledger_db: LedgerDB,
 }
 
 impl<StateRoot, Witness, Da, Vm, V> ParallelProverService<StateRoot, Witness, Da, Vm, V>
@@ -62,6 +64,7 @@ where
         config: ProverGuestRunConfig,
         zk_storage: V::PreState,
         num_threads: usize,
+        ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
         let stf_verifier =
             StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier);
@@ -96,6 +99,7 @@ where
             prover_config,
             prover_state: Prover::new(num_threads)?,
             zk_storage,
+            ledger_db,
         })
     }
 
@@ -106,6 +110,7 @@ where
         da_verifier: Da::Verifier,
         prover_config: ProverConfig,
         zk_storage: V::PreState,
+        ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
         let num_cpus = num_cpus::get();
         assert!(num_cpus > 1, "Unable to create parallel prover service");
@@ -117,6 +122,7 @@ where
             prover_config.proving_mode,
             zk_storage,
             num_cpus - 1,
+            ledger_db,
         )
     }
 }
@@ -196,6 +202,7 @@ where
                         )
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?;
+                    self.ledger_db.clear_pending_proving_sessions()?;
                     break Ok((tx_id, proof));
                 }
                 ProverStatus::ProvingInProgress => {
@@ -231,6 +238,7 @@ where
                 .map_err(|e| anyhow::anyhow!(e))?;
             results.push((tx_id, proof));
         }
+        self.ledger_db.clear_pending_proving_sessions()?;
         Ok(results)
     }
 }
