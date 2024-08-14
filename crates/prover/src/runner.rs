@@ -810,7 +810,7 @@ where
         let mut group = vec![];
         let mut cumulative_state_diff = StateDiff::new();
         for sequencer_commitment in sequencer_commitments {
-            group.push(sequencer_commitment.clone());
+            let mut sequencer_commitment_state_diff = StateDiff::new();
             for l2_height in sequencer_commitment.l2_start_block_number
                 ..=sequencer_commitment.l2_end_block_number
             {
@@ -822,22 +822,28 @@ where
                         sequencer_commitment.l2_start_block_number,
                         sequencer_commitment.l2_end_block_number
                     ))?;
-                cumulative_state_diff = merge_state_diffs(cumulative_state_diff, state_diff);
+                sequencer_commitment_state_diff =
+                    merge_state_diffs(sequencer_commitment_state_diff, state_diff);
             }
+            cumulative_state_diff = merge_state_diffs(
+                cumulative_state_diff,
+                sequencer_commitment_state_diff.clone(),
+            );
 
             let serialized_state_diff = bincode::serialize(&cumulative_state_diff)?;
 
-            // The threshold is reached when we hit 95% of the limit to prevent exceeding it.
-            let state_diff_threshold_reached = serialized_state_diff.len() as u64
-                > (MAX_STATEDIFF_SIZE_PROOF_THRESHOLD
-                    .saturating_mul(95)
-                    .saturating_div(100));
+            let state_diff_threshold_reached =
+                serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
 
-            if state_diff_threshold_reached {
-                // Reset the cumulative state diff
-                cumulative_state_diff = StateDiff::new();
+            if state_diff_threshold_reached && !group.is_empty() {
+                // We've exceeded the limit with the current commitments
+                // so we have to stop at the previous one.
                 result.push(group);
-                group = vec![];
+                // Reset the cumulative state diff to be equal to the current commitment state diff
+                cumulative_state_diff = sequencer_commitment_state_diff;
+                group = vec![sequencer_commitment.clone()];
+            } else {
+                group.push(sequencer_commitment.clone());
             }
         }
 
