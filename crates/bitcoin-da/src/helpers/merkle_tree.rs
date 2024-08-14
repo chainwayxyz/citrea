@@ -1,3 +1,6 @@
+/// Code is taken from Clementine
+/// https://github.com/chainwayxyz/clementine/blob/b600ea18df72bdc60015ded01b78131b4c9121d7/operator/src/bitcoin_merkle.rs
+///
 use super::calculate_double_sha256;
 
 #[derive(Debug, Clone)]
@@ -8,12 +11,6 @@ pub struct BitcoinMerkleTree {
 
 impl BitcoinMerkleTree {
     pub fn new(transactions: Vec<[u8; 32]>) -> Self {
-        // assert!(depth > 0, "Depth must be greater than 0");
-        // assert!(depth <= 254, "Depth must be less than or equal to 254");
-        // assert!(
-        //     u32::pow(2, (depth) as u32) >= transactions.len() as u32,
-        //     "Too many transactions for this depth"
-        // );
         if transactions.len() == 1 {
             // root is the coinbase txid
             return BitcoinMerkleTree {
