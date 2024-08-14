@@ -456,14 +456,11 @@ where
                     let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
                     txs.push(signed_blob);
 
-                    let (apply_batch_workspace, apply_tx_receipts) =
-                        self.stf.apply_soft_confirmation_txs(
-                            self.fork_manager.active_fork(),
-                            txs.clone(),
-                            batch_workspace,
-                        );
-                    batch_workspace = apply_batch_workspace;
-                    tx_receipts = apply_tx_receipts;
+                    (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
+                        self.fork_manager.active_fork(),
+                        txs.clone(),
+                        batch_workspace,
+                    );
                 }
 
                 // create the unsigned batch with the txs then sign th sc
