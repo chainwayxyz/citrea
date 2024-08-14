@@ -16,16 +16,16 @@ use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{debug, error, info, instrument, trace, warn};
 
-type StarkSession = String;
-type SnarkSession = String;
+type StarkSessionId = String;
+type SnarkSessionId = String;
 
 /// Bonsai sessions to be recovered in case of a crash.
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum BonsaiSession {
     /// Stark session id if the prover crashed during stark proof generation.
-    Session(StarkSession),
+    StarkSession(StarkSessionId),
     /// Both Stark and Snark session id if the prover crashed during stark to snarkconversion.
-    Snark(StarkSession, SnarkSession),
+    SnarkSession(StarkSessionId, SnarkSessionId),
 }
 
 /// Recovered bonsai session.
@@ -421,7 +421,10 @@ impl<'a> Risc0BonsaiHost<'a> {
 
         let recovered_serialized_snark_session = borsh::to_vec(&RecoveredBonsaiSession {
             id: 0,
-            session: BonsaiSession::Snark(stark_session.to_string(), snark_session.uuid.clone()),
+            session: BonsaiSession::SnarkSession(
+                stark_session.to_string(),
+                snark_session.uuid.clone(),
+            ),
         })?;
         self.ledger_db
             .add_pending_proving_session(recovered_serialized_snark_session.clone())?;
@@ -536,7 +539,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let session = client.create_session(hex::encode(self.image_id), input_id, vec![]);
             let stark_session = RecoveredBonsaiSession {
                 id: 0,
-                session: BonsaiSession::Session(session.uuid.clone()),
+                session: BonsaiSession::StarkSession(session.uuid.clone()),
             };
             let serialized_stark_session = borsh::to_vec(&stark_session)
                 .expect("Bonsai host should be able to serialize bonsai sessions");
@@ -589,13 +592,13 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let bonsai_session: RecoveredBonsaiSession = BorshDeserialize::try_from_slice(&session)
                 .expect("Bonsai host should be able to recover bonsai sessions");
             match bonsai_session.session {
-                BonsaiSession::Session(stark_session) => {
+                BonsaiSession::StarkSession(stark_session) => {
                     let receipt = self.wait_for_receipt(&stark_session)?;
                     let proof =
                         self.wait_for_stark_to_snark_conversion(None, &stark_session, receipt)?;
                     proofs.push(proof);
                 }
-                BonsaiSession::Snark(stark_session, snark_session) => {
+                BonsaiSession::SnarkSession(stark_session, snark_session) => {
                     let receipt = self.wait_for_receipt(&stark_session)?;
                     let proof = self.wait_for_stark_to_snark_conversion(
                         Some(&snark_session),
