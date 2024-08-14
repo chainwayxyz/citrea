@@ -29,8 +29,8 @@ tracing = { workspace = true, optional = true }
 
 bitcoin = { workspace = true }
 brotli = { workspace = true }
-sha2 ={ workspace = true }
 futures.workspace = true
+sha2 = { workspace = true }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 

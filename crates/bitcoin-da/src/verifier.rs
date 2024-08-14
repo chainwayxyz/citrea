@@ -200,7 +200,6 @@ impl DaVerifier for BitcoinVerifier {
                     //     .iter()
                     //     .map(|wtxid| Wtxid::from_byte_array(*wtxid));
 
-                    // let merkle_root = merkle_tree::calculate_root(wtxids).unwrap();
                     let merkle_root =
                         merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
@@ -234,9 +233,6 @@ impl DaVerifier for BitcoinVerifier {
             0,
             inclusion_proof.coinbase_merkle_proof,
         );
-
-        // Inclusion proof is all the txs in the block.
-        // let tx_hashes = inclusion_proof.txids.into_iter().map(Txid::from_byte_array);
 
         if block_header.merkle_root() != claimed_root {
             return Err(ValidationError::IncorrectInclusionProof);

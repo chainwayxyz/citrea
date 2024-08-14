@@ -56,7 +56,7 @@ impl HeaderWrapper {
             header: header.into(),
             tx_count,
             height,
-            txs_commitment: txs_commitment,
+            txs_commitment,
         }
     }
 
