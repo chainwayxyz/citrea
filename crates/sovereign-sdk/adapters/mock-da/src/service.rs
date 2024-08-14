@@ -150,8 +150,9 @@ impl MockDaService {
 
         for blob in blobs {
             use sov_rollup_interface::zk::Proof;
-            self.send_transaction(DaData::ZKProof(Proof::Full(blob)))
-                .await?;
+            let da_data = DaData::ZKProof(Proof::Full(blob));
+            let blob = borsh::to_vec(&da_data).unwrap();
+            self.add_blob(&blocks, blob, Default::default()).unwrap();
         }
 
         Ok(())
