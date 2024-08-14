@@ -7,8 +7,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use pin_project::pin_project;
 use sha2::Digest;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, Time};
-use sov_rollup_interface::services::da::{BlobWithNotifier, DaService, SlotData};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, Time};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use tokio::time;
@@ -149,7 +149,10 @@ impl MockDaService {
         blocks.prune_above(height);
 
         for blob in blobs {
-            let _ = self.add_blob(&blocks, &blob, Default::default())?;
+            use sov_rollup_interface::zk::Proof;
+            let da_data = DaData::ZKProof(Proof::Full(blob));
+            let blob = borsh::to_vec(&da_data).unwrap();
+            self.add_blob(&blocks, blob, Default::default()).unwrap();
         }
 
         Ok(())
@@ -190,14 +193,14 @@ impl MockDaService {
     pub async fn publish_test_block(&self) -> anyhow::Result<()> {
         let blocks = self.blocks.lock().await;
         let blob = vec![];
-        let _ = self.add_blob(&blocks, &blob, Default::default())?;
+        let _ = self.add_blob(&blocks, blob, Default::default())?;
         Ok(())
     }
 
     fn add_blob(
         &self,
         blocks: &AsyncMutexGuard<'_, DbConnector>,
-        blob: &[u8],
+        blob: Vec<u8>,
         zkp_proof: Vec<u8>,
     ) -> anyhow::Result<u64> {
         let (previous_block_hash, height) = match blocks.last().map(|b| b.header().clone()) {
@@ -205,7 +208,7 @@ impl MockDaService {
             Some(block_header) => (block_header.hash(), block_header.height + 1),
         };
 
-        let data_hash = hash_to_array(blob);
+        let data_hash = hash_to_array(&blob);
         let proof_hash = hash_to_array(&zkp_proof);
         // Hash only from single blob
         let block_hash = block_hash(height, data_hash, proof_hash, previous_block_hash.into());
@@ -324,7 +327,7 @@ impl DaService for MockDaService {
 
         let len = blocks.len() as u64;
         if len == 0 && height == 1 {
-            let _ = self.add_blob(&blocks, &[] as &[u8], Default::default())?;
+            let _ = self.add_blob(&blocks, Default::default(), Default::default())?;
         }
 
         // if wait for height doesn't lock its own blocks, can't make it async
@@ -393,18 +396,21 @@ impl DaService for MockDaService {
         ([0u8; 32], ())
     }
 
-    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
+    async fn send_transaction(&self, da_data: DaData) -> Result<Self::TransactionId, Self::Error> {
+        let blob = borsh::to_vec(&da_data).unwrap();
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
         Ok(MockHash([0; 32]))
     }
 
-    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
-        let (tx, mut rx) = unbounded_channel::<BlobWithNotifier<Self::TransactionId>>();
+    fn get_send_transaction_queue(
+        &self,
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
+        let (tx, mut rx) = unbounded_channel::<SenderWithNotifier<Self::TransactionId>>();
         let this = self.clone();
         tokio::spawn(async move {
             while let Some(req) = rx.recv().await {
-                let res = this.send_transaction(&req.blob).await;
+                let res = this.send_transaction(req.da_data).await;
                 let _ = req.notify.send(res);
             }
         });
@@ -472,6 +478,7 @@ fn block_hash(
 #[cfg(test)]
 mod tests {
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
+    use sov_rollup_interface::zk::Proof;
     use tokio::task::JoinHandle;
     use tokio_stream::StreamExt;
 
@@ -551,10 +558,10 @@ mod tests {
             get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
 
         for i in 0..num_blocks {
-            let published_blob: Vec<u8> = vec![i as u8; i + 1];
+            let published_blob = DaData::ZKProof(Proof::Full(vec![i as u8; i + 1]));
             let height = (i + 1) as u64;
 
-            da.send_transaction(&published_blob).await.unwrap();
+            da.send_transaction(published_blob.clone()).await.unwrap();
 
             let mut block = da.get_block_at(height).await.unwrap();
 
@@ -562,6 +569,7 @@ mod tests {
             assert_eq!(1, block.blobs.len());
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
+            let retrieved_data = borsh::from_slice(&retrieved_data).unwrap();
             assert_eq!(published_blob, retrieved_data);
 
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
@@ -598,7 +606,9 @@ mod tests {
         for (i, blob) in blobs.iter().enumerate() {
             let height = (i + 1) as u64;
             // Send transaction should pass
-            da.send_transaction(blob).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(blob.to_owned())))
+                .await
+                .unwrap();
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
             validate_get_finalized_header_response(
                 height,
@@ -624,7 +634,10 @@ mod tests {
             let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
             assert_eq!(expected_finalized_height, last_finalized_header.height());
 
-            assert_eq!(&blob, fetched_block.blobs[0].full_data());
+            let da_data = DaData::ZKProof(Proof::Full(blob));
+            let retrieved_data = fetched_block.blobs[0].full_data();
+            let retrieved_data = borsh::from_slice(retrieved_data).unwrap();
+            assert_eq!(da_data, retrieved_data);
 
             let head_block_header = da.get_head_block_header().await.unwrap();
             assert_eq!(expected_head_height, head_block_header.height());
@@ -676,9 +689,15 @@ mod tests {
 
             // 1 -> 2 -> 3
 
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+                .await
+                .unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();
@@ -727,13 +746,21 @@ mod tests {
             //      \ -> 3.2 -> 4.2
 
             // 1
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+                .await
+                .unwrap();
             // 2
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+                .await
+                .unwrap();
             // 3.1
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+                .await
+                .unwrap();
             // 4.1
-            da.send_transaction(&[2, 3, 4, 5]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![2, 3, 4, 5])))
+                .await
+                .unwrap();
 
             let _block_1 = da.get_block_at(1).await.unwrap();
             let block_2 = da.get_block_at(2).await.unwrap();
@@ -761,10 +788,18 @@ mod tests {
 
             // 1 -> 2 -> 3 -> 4
 
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
-            da.send_transaction(&[2, 3, 4, 5]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![2, 3, 4, 5])))
+                .await
+                .unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();
@@ -822,9 +857,15 @@ mod tests {
                 assert!(has_planned_fork.is_some());
             }
 
-            da.send_transaction(&[1, 2, 3, 4]).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7]).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+                .await
+                .unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();
@@ -854,11 +895,21 @@ mod tests {
                 PlannedFork::new(4, 2, vec![vec![13, 13, 13, 13], vec![14, 14, 14, 14]]);
             da.set_planned_fork(planned_fork).await.unwrap();
 
-            da.send_transaction(&[1, 1, 1, 1]).await.unwrap();
-            da.send_transaction(&[2, 2, 2, 2]).await.unwrap();
-            da.send_transaction(&[3, 3, 3, 3]).await.unwrap();
-            da.send_transaction(&[4, 4, 4, 4]).await.unwrap();
-            da.send_transaction(&[5, 5, 5, 5]).await.unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 1, 1, 1])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![2, 2, 2, 2])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![3, 3, 3, 3])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 4, 4, 4])))
+                .await
+                .unwrap();
+            da.send_transaction(DaData::ZKProof(Proof::Full(vec![5, 5, 5, 5])))
+                .await
+                .unwrap();
 
             let block_1_before = da.get_block_at(1).await.unwrap();
             let block_2_before = da.get_block_at(2).await.unwrap();

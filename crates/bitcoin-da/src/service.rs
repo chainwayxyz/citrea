@@ -19,8 +19,8 @@ use bitcoin::{merkle_tree, Amount, BlockHash, CompactTarget, Transaction, Txid, 
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
+use sov_rollup_interface::da::{DaData, DaSpec};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
@@ -50,7 +50,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     reveal_tx_id_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
+    inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
 }
 
 /// Runtime configuration for the DA service
@@ -79,7 +79,7 @@ impl BitcoinService {
     pub async fn new(
         config: DaServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
         let client = Client::new(
             &config.node_url,
@@ -106,7 +106,7 @@ impl BitcoinService {
 
     pub fn spawn_da_queue(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<BlobWithNotifier<TxidWrapper>>,
+        mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
     ) {
         // This is a queue of inscribe requests
         tokio::task::spawn_blocking(|| {
@@ -135,7 +135,7 @@ impl BitcoinService {
                     let prev = prev_tx.take();
                     loop {
                         // Build and send tx with retries:
-                        let blob = request.blob.clone();
+                        let blob = borsh::to_vec(&request.da_data).expect("Should serialize");
                         let fee_sat_per_vbyte = match self.get_fee_rate().await {
                             Ok(rate) => rate,
                             Err(e) => {
@@ -206,7 +206,7 @@ impl BitcoinService {
         network: bitcoin::Network,
         da_private_key: Option<SecretKey>,
         reveal_tx_id_prefix: Vec<u8>,
-        inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
+        inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Self {
         let wallets = client
             .list_wallets()
@@ -606,18 +606,20 @@ impl DaService for BitcoinService {
     #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
-        blob: &[u8],
+        da_data: DaData,
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
-        queue.send(BlobWithNotifier {
-            blob: blob.to_vec(),
+        queue.send(SenderWithNotifier {
+            da_data,
             notify: tx,
         })?;
         rx.await?
     }
 
-    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+    fn get_send_transaction_queue(
+        &self,
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
         self.inscribes_queue.clone()
     }
 
@@ -773,14 +775,17 @@ mod tests {
 
     #[tokio::test]
     async fn send_transaction() {
+        use sov_rollup_interface::da::DaData;
+        use sov_rollup_interface::zk::Proof;
         let da_service = get_service().await;
 
         let size = 2000;
 
         // create random bytes with size of size variable
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
-
-        let txid = da_service.send_transaction(&blob).await;
+        let txid = da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await;
 
         if txid.is_ok() {
             println!("Transaction sent successfully");
