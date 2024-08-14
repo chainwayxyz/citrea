@@ -223,10 +223,7 @@ where
         });
     }
 
-    async fn check_and_recover_ongoing_proving_sessions(
-        &self,
-        l1_height: u64,
-    ) -> Result<bool, anyhow::Error> {
+    async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<bool, anyhow::Error> {
         let prover_service = self
             .prover_service
             .as_ref()
@@ -238,8 +235,7 @@ where
             Ok(false)
         } else {
             for (tx_id, proof) in results {
-                self.extract_and_store_proof(tx_id, proof, l1_height)
-                    .await?;
+                self.extract_and_store_proof(tx_id, proof).await?;
             }
             Ok(true)
         }
@@ -434,6 +430,7 @@ where
         skip_submission_until_l1: u64,
         prover_config: &ProverConfig,
     ) -> Result<(), anyhow::Error> {
+        let mut proving_session_exists = self.check_and_recover_ongoing_proving_sessions().await?;
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
                 .front()
@@ -494,9 +491,7 @@ where
                 l1_block.header().clone();
 
             let hash = da_block_header_of_commitments.hash();
-            let proving_session_exists = self
-                .check_and_recover_ongoing_proving_sessions(l1_height)
-                .await?;
+
             if !proving_session_exists {
                 // There is no ongoing bonsai session to recover
                 let transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec> =
@@ -516,6 +511,7 @@ where
                     hash,
                 )
                 .await?;
+                proving_session_exists = false;
             }
 
             self.save_commitments(sequencer_commitments, l1_height);
@@ -550,7 +546,7 @@ where
 
         // Skip submission until l1 height
         if l1_height >= skip_submission_until_l1 && should_prove {
-            self.generate_and_submit_proof(transition_data, l1_height, hash)
+            self.generate_and_submit_proof(transition_data, hash)
                 .await?;
         } else {
             info!("Skipping proving for l1 height {}", l1_height);
@@ -748,7 +744,6 @@ where
     async fn generate_and_submit_proof(
         &self,
         transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
-        l1_height: u64,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
         let prover_service = self
@@ -770,14 +765,13 @@ where
             }
         };
 
-        self.extract_and_store_proof(tx_id, proof, l1_height).await
+        self.extract_and_store_proof(tx_id, proof).await
     }
 
     async fn extract_and_store_proof(
         &self,
         tx_id: <Da as DaService>::TransactionId,
         proof: Proof,
-        l1_height: u64,
     ) -> Result<(), anyhow::Error> {
         let tx_id_u8 = tx_id.into();
 
@@ -810,16 +804,22 @@ where
 
         info!("transition data: {:?}", transition_data);
 
+        let slot_hash = transition_data.da_slot_hash.into();
+
         let stored_state_transition = StoredStateTransition {
             initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
             final_state_root: transition_data.final_state_root.as_ref().to_vec(),
             state_diff: transition_data.state_diff,
-            da_slot_hash: transition_data.da_slot_hash.into(),
+            da_slot_hash: slot_hash.clone(),
             sequencer_commitments_range: transition_data.sequencer_commitments_range,
             sequencer_public_key: transition_data.sequencer_public_key,
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
         };
+        let l1_height = self
+            .ledger_db
+            .get_l1_height_of_l1_hash(slot_hash)?
+            .expect("l1 height should exist");
 
         if let Err(e) =
             self.ledger_db
