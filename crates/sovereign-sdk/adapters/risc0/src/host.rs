@@ -105,6 +105,10 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         };
         Ok(BorshDeserialize::deserialize(&mut journal.bytes.as_ref())?)
     }
+
+    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
+        unimplemented!()
+    }
 }
 
 impl<'host> Zkvm for Risc0Host<'host> {

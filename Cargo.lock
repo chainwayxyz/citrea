@@ -1968,6 +1968,7 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
+ "sov-db",
  "sov-risc0-adapter",
  "sov-rollup-interface",
  "tracing",

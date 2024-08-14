@@ -54,6 +54,9 @@ pub trait ZkvmHost: Zkvm + Clone {
     fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<StateTransition<Da, Root>, Self::Error>;
+
+    /// Host recovers pending proving sessions and returns proving results
+    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
 }
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code
