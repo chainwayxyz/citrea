@@ -522,6 +522,10 @@ where
             }
         }
 
+        // Sort commitments just in case
+        sequencer_commitments
+            .sort_unstable_by(|c1, c2| c1.l2_end_block_number.cmp(&c2.l2_end_block_number));
+
         // Then verify these soft confirmations.
 
         let mut current_state_root = initial_state_root.clone();
