@@ -230,15 +230,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     {
         let da_service = self.create_da_service(&rollup_config).await?;
 
+        let ledger_db = self.create_ledger_db(&rollup_config);
+
         let prover_service = self
-            .create_prover_service(prover_config.clone(), &rollup_config, &da_service)
+            .create_prover_service(
+                prover_config.clone(),
+                &rollup_config,
+                &da_service,
+                ledger_db.clone(),
+            )
             .await;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;

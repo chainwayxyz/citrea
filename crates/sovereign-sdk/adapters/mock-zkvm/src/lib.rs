@@ -9,7 +9,7 @@ use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::zk::{Matches, StateTransitionData, ValidityCondition};
+use sov_rollup_interface::zk::{Matches, Proof, StateTransitionData, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -195,6 +195,10 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                 panic!("Mock DA doesn't generate real proofs")
             }
         }
+    }
+
+    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
+        unimplemented!()
     }
 }
 

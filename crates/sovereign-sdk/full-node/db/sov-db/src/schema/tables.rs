@@ -74,6 +74,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProofBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
     MempoolTxs::table_name(),
+    PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
 ];
 
@@ -331,6 +332,12 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
+);
+
+define_table_with_seek_key_codec!(
+    /// Proving service uses this table to store pending proving sessions
+    /// If a session id is completed, remove it
+    (PendingProvingSessions) Vec<u8> => ()
 );
 
 define_table_with_default_codec!(

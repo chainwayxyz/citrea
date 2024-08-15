@@ -522,6 +522,9 @@ where
             }
         }
 
+        // Sort commitments just in case
+        sequencer_commitments.sort_unstable();
+
         // Then verify these soft confirmations.
 
         let mut current_state_root = initial_state_root.clone();
