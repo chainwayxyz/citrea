@@ -928,6 +928,8 @@ where
         Ok(result)
     }
 
+    /// Remove proven commitments using the end block number of the L2 range.
+    /// This is basically filtering out finalized soft confirmations.
     fn filter_out_proven_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
