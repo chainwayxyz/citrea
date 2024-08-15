@@ -25,7 +25,10 @@ use bitcoin::{
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
-use super::{calculate_double_sha256, TransactionHeader, TransactionKind};
+use super::{
+    calculate_double_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
+    TransactionKindBatchProof, TransactionKindLightClient,
+};
 use crate::spec::utxo::UTXO;
 use crate::{MAX_TXBODY_SIZE, REVEAL_OUTPUT_AMOUNT};
 
@@ -335,10 +338,10 @@ impl fmt::Debug for TxWithId {
 
 // TODO: parametrize hardness
 // so tests are easier
-// Creates the inscription transactions (commit and reveal)
+// Creates the light client transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_inscription_transactions(
+pub fn create_zkproof_transactions(
     rollup_name: &str,
     body: Vec<u8>,
     signature: Vec<u8>,
@@ -351,7 +354,7 @@ pub fn create_inscription_transactions(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<InscriptionTxs, anyhow::Error> {
+) -> Result<LightClientTxs, anyhow::Error> {
     if body.len() < MAX_TXBODY_SIZE {
         create_inscription_type_0(
             rollup_name.as_bytes(),
@@ -385,9 +388,44 @@ pub fn create_inscription_transactions(
     }
 }
 
-/// This is a list of tx we need to send to DA
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the batch proof transactions (commit and reveal)
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_seqcommitment_transactions(
+    rollup_name: &str,
+    body: Vec<u8>,
+    signature: Vec<u8>,
+    signer_public_key: Vec<u8>,
+    prev_tx: Option<TxWithId>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<BatchProvingTxs, anyhow::Error> {
+    create_batchproof_type_0(
+        rollup_name.as_bytes(),
+        body,
+        signature,
+        signer_public_key,
+        prev_tx,
+        utxos,
+        recipient,
+        reveal_value,
+        commit_fee_rate,
+        reveal_fee_rate,
+        network,
+        reveal_tx_prefix,
+    )
+}
+
+/// This is a list of light client tx we need to send to DA
 #[derive(Serialize)]
-pub(crate) enum InscriptionTxs {
+pub(crate) enum LightClientTxs {
     Complete {
         commit: Transaction, // unsigned
         reveal: TxWithId,
@@ -400,7 +438,19 @@ pub(crate) enum InscriptionTxs {
     },
 }
 
-impl InscriptionTxs {
+/// This is a list of batch proof tx we need to send to DA (only SequencerCommitment for now)
+#[derive(Serialize)]
+pub(crate) struct BatchProvingTxs {
+    pub(crate) commit: Transaction, // unsigned
+    pub(crate) reveal: TxWithId,
+}
+
+// To dump raw da txs into file to recover from a sequencer crash
+pub(crate) trait TxListWithReveal: Serialize {
+    fn reveal_id(&self) -> Txid;
+}
+
+impl TxListWithReveal for LightClientTxs {
     fn reveal_id(&self) -> Txid {
         match self {
             Self::Complete { reveal, .. } => reveal.id,
@@ -409,9 +459,15 @@ impl InscriptionTxs {
     }
 }
 
+impl TxListWithReveal for BatchProvingTxs {
+    fn reveal_id(&self) -> Txid {
+        self.reveal.id
+    }
+}
+
 // TODO: parametrize hardness
 // so tests are easier
-// Creates the inscription transactions Type 0 - InscriptionTxs::Complete
+// Creates the inscription transactions Type 0 - LightClientTxs::Complete
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_0(
@@ -427,15 +483,15 @@ pub fn create_inscription_type_0(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<InscriptionTxs, anyhow::Error> {
+) -> Result<LightClientTxs, anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let header = TransactionHeader {
+    let header = TransactionHeaderLightClient {
         rollup_name,
-        kind: TransactionKind::Complete,
+        kind: TransactionKindLightClient::Complete,
     };
     let header_bytes = header.to_bytes();
 
@@ -591,7 +647,7 @@ pub fn create_inscription_type_0(
                 commit_tx_address
             );
 
-            return Ok(InscriptionTxs::Complete {
+            return Ok(LightClientTxs::Complete {
                 commit: unsigned_commit_tx,
                 reveal: TxWithId {
                     id: reveal_tx_id,
@@ -606,7 +662,7 @@ pub fn create_inscription_type_0(
 
 // TODO: parametrize hardness
 // so tests are easier
-// Creates the inscription transactions Type 1 - InscriptionTxs::Chunked
+// Creates the inscription transactions Type 1 - LightClientTxs::Chunked
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_1(
@@ -622,7 +678,7 @@ pub fn create_inscription_type_1(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<InscriptionTxs, anyhow::Error> {
+) -> Result<LightClientTxs, anyhow::Error> {
     // Create commit key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
@@ -632,9 +688,9 @@ pub fn create_inscription_type_1(
     let mut reveal_chunks: Vec<Transaction> = vec![];
 
     for body in body.chunks(MAX_TXBODY_SIZE) {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name,
-            kind: TransactionKind::ChunkedPart,
+            kind: TransactionKindLightClient::ChunkedPart,
         };
         let header_bytes = header.to_bytes();
 
@@ -788,9 +844,9 @@ pub fn create_inscription_type_1(
         }
     }
 
-    let header = TransactionHeader {
+    let header = TransactionHeaderLightClient {
         rollup_name,
-        kind: TransactionKind::Chunked,
+        kind: TransactionKindLightClient::Chunked,
     };
     let header_bytes = header.to_bytes();
 
@@ -944,7 +1000,7 @@ pub fn create_inscription_type_1(
                 commit_tx_address
             );
 
-            return Ok(InscriptionTxs::Chunked {
+            return Ok(LightClientTxs::Chunked {
                 commit_chunks,
                 reveal_chunks,
                 commit: unsigned_commit_tx,
@@ -959,7 +1015,199 @@ pub fn create_inscription_type_1(
     }
 }
 
-pub(crate) fn write_inscription_txs(txs: &InscriptionTxs) {
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the batch proof transactions Type 0 - BatchProvingTxs - SequencerCommitment
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_batchproof_type_0(
+    rollup_name: &[u8],
+    body: Vec<u8>,
+    signature: Vec<u8>,
+    signer_public_key: Vec<u8>,
+    prev_tx: Option<TxWithId>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<BatchProvingTxs, anyhow::Error> {
+    debug_assert!(
+        body.len() < 520,
+        "The body of a serialized sequencer commitment exceeds 520 bytes"
+    );
+    // Create commit key
+    let secp256k1 = Secp256k1::new();
+    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+
+    let header = TransactionHeaderBatchProof {
+        rollup_name,
+        kind: TransactionKindBatchProof::SequencerCommitment,
+    };
+    let header_bytes = header.to_bytes();
+
+    // start creating inscription content
+    let reveal_script_builder = script::Builder::new()
+        .push_x_only_key(&public_key)
+        .push_opcode(OP_CHECKSIGVERIFY)
+        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
+        .push_opcode(OP_FALSE)
+        .push_opcode(OP_IF)
+        .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
+        .push_slice(
+            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
+        )
+        .push_slice(PushBytesBuf::try_from(body).expect("Cannot push sequencer commitment"))
+        .push_opcode(OP_ENDIF);
+
+    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
+    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    loop {
+        if nonce % 10000 == 0 {
+            trace!(nonce, "Trying to find commit & reveal nonce");
+            if nonce > 65536 {
+                warn!("Too many iterations finding nonce");
+            }
+        }
+        let utxos = utxos.clone();
+        let recipient = recipient.clone();
+        // ownerships are moved to the loop
+        let mut reveal_script_builder = reveal_script_builder.clone();
+
+        // push first random number and body tag
+        reveal_script_builder = reveal_script_builder
+            .push_slice(nonce.to_le_bytes())
+            .push_opcode(OP_DROP);
+
+        // finalize reveal script
+        let reveal_script = reveal_script_builder.into_script();
+
+        // create spend info for tapscript
+        let taproot_spend_info = TaprootBuilder::new()
+            .add_leaf(0, reveal_script.clone())
+            .expect("Cannot add reveal script to taptree")
+            .finalize(&secp256k1, public_key)
+            .expect("Cannot finalize taptree");
+
+        // create control block for tapscript
+        let control_block = taproot_spend_info
+            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+            .expect("Cannot create control block");
+
+        // create commit tx address
+        let commit_tx_address = Address::p2tr(
+            &secp256k1,
+            public_key,
+            taproot_spend_info.merkle_root(),
+            network,
+        );
+
+        let commit_value = (get_size(
+            &[TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_byte_array([0; 32]),
+                    vout: 0,
+                },
+                script_sig: script::Builder::new().into_script(),
+                witness: Witness::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            }],
+            &[TxOut {
+                script_pubkey: recipient.clone().script_pubkey(),
+                value: Amount::from_sat(reveal_value),
+            }],
+            Some(&reveal_script),
+            Some(&control_block),
+        ) as f64
+            * reveal_fee_rate
+            + reveal_value as f64)
+            .ceil() as u64;
+
+        // build commit tx
+        // we don't need leftover_utxos because they will be requested from bitcoind next call
+        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+            prev_tx.clone(),
+            utxos,
+            commit_tx_address.clone(),
+            recipient.clone(),
+            commit_value,
+            commit_fee_rate,
+        )?;
+
+        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+
+        let mut reveal_tx = build_reveal_transaction(
+            output_to_reveal.clone(),
+            unsigned_commit_tx.compute_txid(),
+            0,
+            recipient,
+            reveal_value,
+            reveal_fee_rate,
+            &reveal_script,
+            &control_block,
+        )?;
+
+        let reveal_tx_id = reveal_tx.compute_txid();
+        let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
+
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // start signing reveal tx
+            let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+            // create data to sign
+            let signature_hash = sighash_cache
+                .taproot_script_spend_signature_hash(
+                    0,
+                    &Prevouts::All(&[output_to_reveal]),
+                    TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                    bitcoin::sighash::TapSighashType::Default,
+                )
+                .expect("Cannot create hash for signature");
+
+            // sign reveal tx data
+            let signature = secp256k1.sign_schnorr_with_rng(
+                &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                    .expect("should be cryptographically secure hash"),
+                &key_pair,
+                &mut rand::thread_rng(),
+            );
+
+            // add signature to witness and finalize reveal tx
+            let witness = sighash_cache.witness_mut(0).unwrap();
+            witness.push(signature.as_ref());
+            witness.push(reveal_script);
+            witness.push(&control_block.serialize());
+
+            // check if inscription locked to the correct address
+            let recovery_key_pair =
+                key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
+
+            return Ok(BatchProvingTxs {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx_id,
+                    tx: reveal_tx,
+                },
+            });
+        }
+
+        nonce += 1;
+    }
+}
+
+pub(crate) fn write_inscription_txs<Txs: TxListWithReveal + Serialize>(txs: &Txs) {
     let reveal_tx_file = File::create(format!("reveal_{}.tx", txs.reveal_id())).unwrap();
     let j = serde_json::to_string(&txs).unwrap();
     let mut reveal_tx_writer = BufWriter::new(reveal_tx_file);
@@ -976,9 +1224,9 @@ mod tests {
     use bitcoin::taproot::ControlBlock;
     use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
-    use super::InscriptionTxs;
+    use super::LightClientTxs;
     use crate::helpers::compression::{compress_blob, decompress_blob};
-    use crate::helpers::parsers::parse_transaction;
+    use crate::helpers::parsers::{parse_transaction, ParsedLightClientTransaction};
     use crate::spec::utxo::UTXO;
     use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -1435,7 +1683,7 @@ mod tests {
         let (rollup_name, body, signature, signer_public_key, address, utxos) = get_mock_data();
 
         let tx_prefix = &[0u8];
-        let InscriptionTxs::Complete { commit, reveal } = super::create_inscription_transactions(
+        let LightClientTxs::Complete { commit, reveal } = super::create_zkproof_transactions(
             rollup_name,
             body.clone(),
             signature.clone(),
@@ -1489,6 +1737,9 @@ mod tests {
 
         // check inscription
         let inscription = parse_transaction(&reveal, rollup_name).unwrap();
+        let ParsedLightClientTransaction::Complete(inscription) = inscription else {
+            panic!("Unexpected tx kind");
+        };
 
         assert_eq!(inscription.body, body, "body should be correct");
         assert_eq!(

@@ -1,6 +1,5 @@
 use core::num::NonZeroU16;
 
-use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::hashes::Hash;
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_DROP};
@@ -10,29 +9,80 @@ use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
 use bitcoin::{secp256k1, Opcode, Script, Transaction, Txid};
 use thiserror::Error;
 
-use super::{calculate_double_sha256, TransactionHeader, TransactionKind};
+use super::{
+    calculate_double_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
+    TransactionKindBatchProof, TransactionKindLightClient,
+};
 
 #[derive(Debug, Clone)]
-pub struct ParsedInscription {
+pub enum ParsedLightClientTransaction {
+    /// Kind 0
+    Complete(ParsedComplete),
+    /// Kind 1
+    Aggregate(ParsedAggregate),
+    /// Kind 2
+    Chunk(ParsedChunk),
+}
+
+#[derive(Debug, Clone)]
+pub enum ParsedBatchProofTransaction {
+    /// Kind 0
+    SequencerCommitment(ParsedSequencerCommitment),
+    // /// Kind 1
+    // ForcedTransaction(ForcedTransaction),
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedComplete {
     pub body: Vec<u8>,
     pub signature: Vec<u8>,
     pub public_key: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]
-pub struct ParsedChunked {
+pub struct ParsedAggregate {
     pub txids: Vec<Txid>,
     pub signature: Vec<u8>,
     pub public_key: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]
-pub struct ParsedChunkedPart {
+pub struct ParsedChunk {
     pub body: Vec<u8>,
 }
 
-impl ParsedInscription {
+#[derive(Debug, Clone)]
+pub struct ParsedSequencerCommitment {
+    pub body: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub public_key: Vec<u8>,
+}
+
+impl ParsedComplete {
     /// Verifies the signature of the inscription and returns the hash of the body
+    pub fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
+        let public_key = secp256k1::PublicKey::from_slice(&self.public_key);
+        let signature = ecdsa::Signature::from_compact(&self.signature);
+        let hash = calculate_double_sha256(&self.body);
+        let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
+
+        let secp = Secp256k1::new();
+
+        if public_key.is_ok()
+            && signature.is_ok()
+            && secp
+                .verify_ecdsa(&message, &signature.unwrap(), &public_key.unwrap())
+                .is_ok()
+        {
+            Some(hash)
+        } else {
+            None
+        }
+    }
+}
+
+impl ParsedSequencerCommitment {
+    /// Verifies the signature of the sequencer commitment and returns the hash of the body
     pub fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         let public_key = secp256k1::PublicKey::from_slice(&self.public_key);
         let signature = ecdsa::Signature::from_compact(&self.signature);
@@ -81,13 +131,25 @@ impl From<ScriptError> for ParserError {
 pub fn parse_transaction(
     tx: &Transaction,
     rollup_name: &str,
-) -> Result<ParsedInscription, ParserError> {
+) -> Result<ParsedLightClientTransaction, ParserError> {
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
     // Map all Instructions errors into ParserError::ScriptError
     let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
 
-    parse_relevant_inscriptions(&mut instructions, rollup_name)
+    parse_relevant_lightclient(&mut instructions, rollup_name)
+}
+
+pub fn parse_batch_proof_transaction(
+    tx: &Transaction,
+    rollup_name: &str,
+) -> Result<ParsedBatchProofTransaction, ParserError> {
+    let script = get_script(tx)?;
+    let instructions = script.instructions().peekable();
+    // Map all Instructions errors into ParserError::ScriptError
+    let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
+
+    parse_relevant_batchproof(&mut instructions, rollup_name)
 }
 
 // Returns the script from the first input of the transaction
@@ -98,10 +160,10 @@ fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
         .ok_or(ParserError::NonTapscriptWitness)
 }
 
-fn parse_relevant_inscriptions(
+fn parse_relevant_lightclient(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
     rollup_name: &str,
-) -> Result<ParsedInscription, ParserError> {
+) -> Result<ParsedLightClientTransaction, ParserError> {
     // PushBytes(XOnlyPublicKey)
     let _public_key = read_push_bytes(instructions)?;
     if OP_CHECKSIGVERIFY != read_opcode(instructions)? {
@@ -110,7 +172,7 @@ fn parse_relevant_inscriptions(
 
     // Parse header
     let header_slice = read_push_bytes(instructions)?;
-    let Some(header) = TransactionHeader::from_bytes(header_slice.as_bytes()) else {
+    let Some(header) = TransactionHeaderLightClient::from_bytes(header_slice.as_bytes()) else {
         return Err(ParserError::InvalidHeaderLength);
     };
 
@@ -121,16 +183,45 @@ fn parse_relevant_inscriptions(
 
     // Parse transaction body according to type
     match header.kind {
-        TransactionKind::Complete => parse_type_0_body(instructions),
-        TransactionKind::Chunked => {
-            let _body = parse_type_1_body(instructions)?;
-            Err(ParserError::InvalidHeaderType(NonZeroU16::new(1).unwrap())) // FIXME
+        TransactionKindLightClient::Complete => light_client::parse_type_0_body(instructions)
+            .map(ParsedLightClientTransaction::Complete),
+        TransactionKindLightClient::Chunked => light_client::parse_type_1_body(instructions)
+            .map(ParsedLightClientTransaction::Aggregate),
+        TransactionKindLightClient::ChunkedPart => {
+            light_client::parse_type_2_body(instructions).map(ParsedLightClientTransaction::Chunk)
         }
-        TransactionKind::ChunkedPart => {
-            let _body = parse_type_2_body(instructions)?;
-            Err(ParserError::InvalidHeaderType(NonZeroU16::new(2).unwrap())) // FIXME
+        TransactionKindLightClient::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
+    }
+}
+
+fn parse_relevant_batchproof(
+    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    rollup_name: &str,
+) -> Result<ParsedBatchProofTransaction, ParserError> {
+    // PushBytes(XOnlyPublicKey)
+    let _public_key = read_push_bytes(instructions)?;
+    if OP_CHECKSIGVERIFY != read_opcode(instructions)? {
+        return Err(ParserError::UnexpectedOpcode);
+    }
+
+    // Parse header
+    let header_slice = read_push_bytes(instructions)?;
+    let Some(header) = TransactionHeaderBatchProof::from_bytes(header_slice.as_bytes()) else {
+        return Err(ParserError::InvalidHeaderLength);
+    };
+
+    // Check rollup name
+    if header.rollup_name != rollup_name.as_bytes() {
+        return Err(ParserError::InvalidRollupName);
+    }
+
+    // Parse transaction body according to type
+    match header.kind {
+        TransactionKindBatchProof::SequencerCommitment => {
+            batch_proof::parse_type_0_body(instructions)
+                .map(ParsedBatchProofTransaction::SequencerCommitment)
         }
-        TransactionKind::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
+        TransactionKindBatchProof::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
     }
 }
 
@@ -163,150 +254,212 @@ fn read_opcode(
     Ok(op)
 }
 
-// Parse transaction body of Type0
-fn parse_type_0_body(
-    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-) -> Result<ParsedInscription, ParserError> {
-    let op_false = read_push_bytes(instructions)?;
-    if !op_false.is_empty() {
-        return Err(ParserError::UnexpectedOpcode);
-    }
+mod light_client {
+    use bitcoin::hashes::Hash;
+    use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::script::Instruction;
+    use bitcoin::script::Instruction::{Op, PushBytes};
+    use bitcoin::Txid;
 
-    if OP_IF != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
+    use super::{
+        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,
+        ParserError,
+    };
 
-    let signature = read_push_bytes(instructions)?;
-    let public_key = read_push_bytes(instructions)?;
-
-    let mut chunks = vec![];
-
-    loop {
-        let instr = read_instr(instructions)?;
-        match instr {
-            PushBytes(chunk) => {
-                if chunk.is_empty() {
-                    return Err(ParserError::UnexpectedOpcode);
-                }
-                chunks.push(chunk)
-            }
-            Op(OP_ENDIF) => break,
-            Op(_) => return Err(ParserError::UnexpectedOpcode),
+    // Parse transaction body of Type0
+    pub(super) fn parse_type_0_body(
+        instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    ) -> Result<ParsedComplete, ParserError> {
+        let op_false = read_push_bytes(instructions)?;
+        if !op_false.is_empty() {
+            return Err(ParserError::UnexpectedOpcode);
         }
+
+        if OP_IF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = read_push_bytes(instructions)?;
+        let public_key = read_push_bytes(instructions)?;
+
+        let mut chunks = vec![];
+
+        loop {
+            let instr = read_instr(instructions)?;
+            match instr {
+                PushBytes(chunk) => {
+                    if chunk.is_empty() {
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+                    chunks.push(chunk)
+                }
+                Op(OP_ENDIF) => break,
+                Op(_) => return Err(ParserError::UnexpectedOpcode),
+            }
+        }
+
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_DROP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
+        let mut body = Vec::with_capacity(body_size);
+        for chunk in chunks {
+            body.extend_from_slice(chunk.as_bytes());
+        }
+
+        let signature = signature.as_bytes().to_vec();
+        let public_key = public_key.as_bytes().to_vec();
+
+        Ok(ParsedComplete {
+            body,
+            signature,
+            public_key,
+        })
     }
 
-    // Nonce
-    let _nonce = read_push_bytes(instructions)?;
-    if OP_DROP != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-    // END of transaction
-    if instructions.next().is_some() {
-        return Err(ParserError::UnexpectedOpcode);
+    // Parse transaction body of Type1
+    pub(super) fn parse_type_1_body(
+        instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    ) -> Result<ParsedAggregate, ParserError> {
+        let op_false = read_push_bytes(instructions)?;
+        if !op_false.is_empty() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        if OP_IF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = read_push_bytes(instructions)?;
+        let public_key = read_push_bytes(instructions)?;
+
+        let mut txids = vec![];
+
+        loop {
+            let instr = read_instr(instructions)?;
+            match instr {
+                PushBytes(chunk) => match Txid::from_slice(chunk.as_bytes()) {
+                    Ok(id) => txids.push(id),
+                    Err(_) => return Err(ParserError::UnexpectedOpcode),
+                },
+                Op(OP_ENDIF) => break,
+                Op(_) => return Err(ParserError::UnexpectedOpcode),
+            }
+        }
+
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_DROP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = signature.as_bytes().to_vec();
+        let public_key = public_key.as_bytes().to_vec();
+
+        Ok(ParsedAggregate {
+            txids,
+            signature,
+            public_key,
+        })
     }
 
-    let body_size: usize = chunks.iter().map(|c| c.len()).sum();
-    let mut body = Vec::with_capacity(body_size);
-    for chunk in chunks {
-        body.extend_from_slice(chunk.as_bytes());
+    // Parse transaction body of Type2
+    pub(super) fn parse_type_2_body(
+        instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    ) -> Result<ParsedChunk, ParserError> {
+        let op_false = read_push_bytes(instructions)?;
+        if !op_false.is_empty() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        if OP_IF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let mut chunks = vec![];
+
+        loop {
+            let instr = read_instr(instructions)?;
+            match instr {
+                PushBytes(chunk) => {
+                    if chunk.is_empty() {
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+                    chunks.push(chunk)
+                }
+                Op(OP_ENDIF) => break,
+                Op(_) => return Err(ParserError::UnexpectedOpcode),
+            }
+        }
+
+        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
+        let mut body = Vec::with_capacity(body_size);
+        for chunk in chunks {
+            body.extend_from_slice(chunk.as_bytes());
+        }
+
+        Ok(ParsedChunk { body })
     }
-
-    let signature = signature.as_bytes().to_vec();
-    let public_key = public_key.as_bytes().to_vec();
-
-    Ok(ParsedInscription {
-        body,
-        signature,
-        public_key,
-    })
 }
 
-// Parse transaction body of Type1
-fn parse_type_1_body(
-    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-) -> Result<ParsedChunked, ParserError> {
-    let op_false = read_push_bytes(instructions)?;
-    if !op_false.is_empty() {
-        return Err(ParserError::UnexpectedOpcode);
-    }
+mod batch_proof {
+    use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::script::Instruction;
 
-    if OP_IF != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
+    use super::{read_opcode, read_push_bytes, ParsedSequencerCommitment, ParserError};
 
-    let signature = read_push_bytes(instructions)?;
-    let public_key = read_push_bytes(instructions)?;
-
-    let mut txids = vec![];
-
-    loop {
-        let instr = read_instr(instructions)?;
-        match instr {
-            PushBytes(chunk) => match Txid::from_slice(chunk.as_bytes()) {
-                Ok(id) => txids.push(id),
-                Err(_) => return Err(ParserError::UnexpectedOpcode),
-            },
-            Op(OP_ENDIF) => break,
-            Op(_) => return Err(ParserError::UnexpectedOpcode),
+    // Parse transaction body of Type0
+    pub(super) fn parse_type_0_body(
+        instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    ) -> Result<ParsedSequencerCommitment, ParserError> {
+        let op_false = read_push_bytes(instructions)?;
+        if !op_false.is_empty() {
+            return Err(ParserError::UnexpectedOpcode);
         }
-    }
 
-    // Nonce
-    let _nonce = read_push_bytes(instructions)?;
-    if OP_DROP != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-    // END of transaction
-    if instructions.next().is_some() {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
-    let signature = signature.as_bytes().to_vec();
-    let public_key = public_key.as_bytes().to_vec();
-
-    Ok(ParsedChunked {
-        txids,
-        signature,
-        public_key,
-    })
-}
-
-// Parse transaction body of Type2
-fn parse_type_2_body(
-    instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-) -> Result<ParsedChunkedPart, ParserError> {
-    let op_false = read_push_bytes(instructions)?;
-    if !op_false.is_empty() {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
-    if OP_IF != read_opcode(instructions)? {
-        return Err(ParserError::UnexpectedOpcode);
-    }
-
-    let mut chunks = vec![];
-
-    loop {
-        let instr = read_instr(instructions)?;
-        match instr {
-            PushBytes(chunk) => {
-                if chunk.is_empty() {
-                    return Err(ParserError::UnexpectedOpcode);
-                }
-                chunks.push(chunk)
-            }
-            Op(OP_ENDIF) => break,
-            Op(_) => return Err(ParserError::UnexpectedOpcode),
+        if OP_IF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
         }
-    }
 
-    let body_size: usize = chunks.iter().map(|c| c.len()).sum();
-    let mut body = Vec::with_capacity(body_size);
-    for chunk in chunks {
-        body.extend_from_slice(chunk.as_bytes());
-    }
+        let signature = read_push_bytes(instructions)?;
+        let public_key = read_push_bytes(instructions)?;
+        let body = read_push_bytes(instructions)?;
 
-    Ok(ParsedChunkedPart { body })
+        if OP_ENDIF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_DROP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = signature.as_bytes().to_vec();
+        let public_key = public_key.as_bytes().to_vec();
+        let body = body.as_bytes().to_vec();
+
+        Ok(ParsedSequencerCommitment {
+            body,
+            signature,
+            public_key,
+        })
+    }
 }
 
 #[cfg(feature = "native")]
@@ -330,13 +483,16 @@ mod tests {
     use bitcoin::opcodes::{OP_FALSE, OP_TRUE};
     use bitcoin::script::{self, PushBytesBuf};
 
-    use super::{parse_relevant_inscriptions, ParserError, TransactionHeader, TransactionKind};
+    use super::{
+        parse_relevant_lightclient, ParsedLightClientTransaction, ParserError,
+        TransactionHeaderLightClient, TransactionKindLightClient,
+    };
 
     #[test]
     fn correct() {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name: b"sov-btc",
-            kind: TransactionKind::Complete,
+            kind: TransactionKindLightClient::Complete,
         };
 
         let reveal_script_builder = script::Builder::new()
@@ -358,14 +514,16 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
 
         let result = result.inspect_err(|e| {
             dbg!(e);
         });
         assert!(result.is_ok());
 
-        let result = result.unwrap();
+        let ParsedLightClientTransaction::Complete(result) = result.unwrap() else {
+            panic!("Unexpected tx kind");
+        };
 
         assert_eq!(result.body, vec![4u8; 128]);
         assert_eq!(result.signature, vec![2u8; 64]);
@@ -374,9 +532,9 @@ mod tests {
 
     #[test]
     fn wrong_rollup_tag() {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name: b"not-sov-btc",
-            kind: TransactionKind::Complete,
+            kind: TransactionKindLightClient::Complete,
         };
 
         let reveal_script_builder = script::Builder::new()
@@ -389,7 +547,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::InvalidRollupName);
@@ -397,9 +555,9 @@ mod tests {
 
     #[test]
     fn only_checksig() {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name: b"sov-btc",
-            kind: TransactionKind::Complete,
+            kind: TransactionKindLightClient::Complete,
         };
 
         let reveal_script_builder = script::Builder::new()
@@ -413,7 +571,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedEndOfScript);
@@ -421,9 +579,9 @@ mod tests {
 
     #[test]
     fn complex_envelope() {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name: b"sov-btc",
-            kind: TransactionKind::Complete,
+            kind: TransactionKindLightClient::Complete,
         };
 
         let reveal_script = script::Builder::new()
@@ -449,7 +607,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -457,9 +615,9 @@ mod tests {
 
     #[test]
     fn two_envelopes() {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name: b"sov-btc",
-            kind: TransactionKind::Complete,
+            kind: TransactionKindLightClient::Complete,
         };
 
         let reveal_script = script::Builder::new()
@@ -488,7 +646,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -496,9 +654,9 @@ mod tests {
 
     #[test]
     fn big_push() {
-        let header = TransactionHeader {
+        let header = TransactionHeaderLightClient {
             rollup_name: b"sov-btc",
-            kind: TransactionKind::Complete,
+            kind: TransactionKindLightClient::Complete,
         };
 
         let reveal_script = script::Builder::new()
@@ -524,11 +682,13 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_inscriptions(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
 
         assert!(result.is_ok());
 
-        let result = result.unwrap();
+        let ParsedLightClientTransaction::Complete(result) = result.unwrap() else {
+            panic!("Unexpected tx kind");
+        };
 
         assert_eq!(result.body, vec![1u8; 512 * 6]);
         assert_eq!(result.signature, vec![2u8; 64]);

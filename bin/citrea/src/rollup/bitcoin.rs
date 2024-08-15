@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, DaServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_primitives::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
+use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX, ROLLUP_NAME};
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
@@ -117,7 +117,8 @@ impl RollupBlueprint for BitcoinRollup {
                 rollup_config.da.clone(),
                 RollupParams {
                     rollup_name: ROLLUP_NAME.to_string(),
-                    reveal_wtxid_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+                    reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+                    reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -146,7 +147,8 @@ impl RollupBlueprint for BitcoinRollup {
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: ROLLUP_NAME.to_string(),
-            reveal_wtxid_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
         });
 
         ParallelProverService::new_with_default_workers(

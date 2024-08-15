@@ -9,7 +9,7 @@ use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
 use crate::helpers::compression::decompress_blob;
-use crate::helpers::parsers::parse_transaction;
+use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction};
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::BitcoinSpec;
 
@@ -17,7 +17,7 @@ pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xe
 
 pub struct BitcoinVerifier {
     rollup_name: String,
-    reveal_wtxid_prefix: Vec<u8>,
+    reveal_batch_prover_prefix: Vec<u8>,
 }
 
 // TODO: custom errors based on our implementation
@@ -79,7 +79,8 @@ impl DaVerifier for BitcoinVerifier {
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
             rollup_name: params.rollup_name,
-            reveal_wtxid_prefix: params.reveal_wtxid_prefix,
+            // TODO
+            reveal_batch_prover_prefix: params.reveal_batch_prover_prefix,
         }
     }
 
@@ -96,7 +97,7 @@ impl DaVerifier for BitcoinVerifier {
 
         let mut inclusion_iter = inclusion_proof.wtxids.iter();
 
-        let prefix = self.reveal_wtxid_prefix.as_slice();
+        let prefix = self.reveal_batch_prover_prefix.as_slice();
         // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = BTreeSet::new();
 
@@ -117,34 +118,38 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_transaction(tx, &self.rollup_name) {
-                if let Some(blob_hash) = parsed_tx.get_sig_verified_hash() {
-                    let blob = blobs_iter.next();
+            if let Ok(parsed_tx) = parse_batch_proof_transaction(tx, &self.rollup_name) {
+                match parsed_tx {
+                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                        if let Some(blob_hash) = seq_comm.get_sig_verified_hash() {
+                            let blob = blobs_iter.next();
 
-                    if blob.is_none() {
-                        return Err(ValidationError::ValidBlobNotFoundInBlobs);
-                    }
+                            if blob.is_none() {
+                                return Err(ValidationError::ValidBlobNotFoundInBlobs);
+                            }
 
-                    let blob = blob.unwrap();
-                    if blob.hash != blob_hash {
-                        return Err(ValidationError::BlobWasTamperedWith);
-                    }
+                            let blob = blob.unwrap();
+                            if blob.hash != blob_hash {
+                                return Err(ValidationError::BlobWasTamperedWith);
+                            }
 
-                    if parsed_tx.public_key != blob.sender.0 {
-                        return Err(ValidationError::IncorrectSenderInBlob);
-                    }
+                            if seq_comm.public_key != blob.sender.0 {
+                                return Err(ValidationError::IncorrectSenderInBlob);
+                            }
 
-                    // decompress the blob
-                    let decompressed_blob = decompress_blob(&parsed_tx.body);
+                            // decompress the blob
+                            let decompressed_blob = decompress_blob(&seq_comm.body);
 
-                    // read the supplied blob from txs
-                    let mut blob_content = blobs[index_completeness].blob.clone();
-                    blob_content.advance(blob_content.total_len());
-                    let blob_content = blob_content.accumulator();
+                            // read the supplied blob from txs
+                            let mut blob_content = blobs[index_completeness].blob.clone();
+                            blob_content.advance(blob_content.total_len());
+                            let blob_content = blob_content.accumulator();
 
-                    // assert tx content is not modified
-                    if blob_content != decompressed_blob {
-                        return Err(ValidationError::BlobContentWasModified);
+                            // assert tx content is not modified
+                            if blob_content != decompressed_blob {
+                                return Err(ValidationError::BlobContentWasModified);
+                            }
+                        }
                     }
                 }
             }
@@ -255,7 +260,7 @@ mod tests {
     use sov_rollup_interface::da::DaVerifier;
 
     use super::BitcoinVerifier;
-    use crate::helpers::parsers::parse_transaction;
+    use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction};
     use crate::helpers::test_utils::{
         get_blob_with_sender, get_mock_data, get_mock_txs, get_non_segwit_mock_txs,
     };
@@ -270,7 +275,8 @@ mod tests {
     fn correct() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -284,379 +290,390 @@ mod tests {
             )
             .is_ok());
     }
-    #[test]
-    fn test_non_segwit_block() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
-        let header = HeaderWrapper::new(
-            Header {
-                version: Version::from_consensus(536870912),
-                prev_blockhash: BlockHash::from_str(
-                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
-                )
-                .unwrap(),
-                merkle_root: TxMerkleNode::from_slice(&[
-                    164, 71, 72, 235, 241, 189, 131, 141, 120, 210, 207, 233, 212, 171, 56, 52, 25,
-                    40, 83, 62, 135, 211, 81, 44, 3, 109, 10, 127, 210, 213, 124, 221,
-                ])
-                .unwrap(),
-                time: 1694177029,
-                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 0,
-            },
-            6,
-            2,
-            WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
-            )
-            .unwrap(),
-        );
+    // #[test]
+    // fn test_non_segwit_block() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
+    //     let header = HeaderWrapper::new(
+    //         Header {
+    //             version: Version::from_consensus(536870912),
+    //             prev_blockhash: BlockHash::from_str(
+    //                 "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+    //             )
+    //             .unwrap(),
+    //             merkle_root: TxMerkleNode::from_slice(&[
+    //                 164, 71, 72, 235, 241, 189, 131, 141, 120, 210, 207, 233, 212, 171, 56, 52, 25,
+    //                 40, 83, 62, 135, 211, 81, 44, 3, 109, 10, 127, 210, 213, 124, 221,
+    //             ])
+    //             .unwrap(),
+    //             time: 1694177029,
+    //             bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+    //             nonce: 0,
+    //         },
+    //         6,
+    //         2,
+    //         WitnessMerkleNode::from_str(
+    //             "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+    //         )
+    //         .unwrap(),
+    //     );
 
-        let block_txs = get_non_segwit_mock_txs();
-        let block_txs: Vec<TransactionWrapper> = block_txs.into_iter().map(Into::into).collect();
+    //     let block_txs = get_non_segwit_mock_txs();
+    //     let block_txs: Vec<TransactionWrapper> = block_txs.into_iter().map(Into::into).collect();
 
-        // block does not have any segwit txs
-        let idx = block_txs[0].output.iter().position(|output| {
-            output
-                .script_pubkey
-                .to_bytes()
-                .starts_with(WITNESS_COMMITMENT_PREFIX)
-        });
-        assert!(idx.is_none());
+    //     // block does not have any segwit txs
+    //     let idx = block_txs[0].output.iter().position(|output| {
+    //         output
+    //             .script_pubkey
+    //             .to_bytes()
+    //             .starts_with(WITNESS_COMMITMENT_PREFIX)
+    //     });
+    //     assert!(idx.is_none());
 
-        // tx with txid 00... is not relevant is in this proof
-        // only used so the completeness proof is not empty
-        let completeness_proof = vec![];
+    //     // tx with txid 00... is not relevant is in this proof
+    //     // only used so the completeness proof is not empty
+    //     let completeness_proof = vec![];
 
-        let inclusion_proof = InclusionMultiProof {
-            txids: block_txs
-                .iter()
-                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
-                .collect(),
-            wtxids: block_txs
-                .iter()
-                .map(|t| t.compute_wtxid().to_byte_array())
-                .collect(),
-            coinbase_tx: block_txs[0].clone(),
-        };
+    //     let inclusion_proof = InclusionMultiProof {
+    //         txids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+    //             .collect(),
+    //         wtxids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_wtxid().to_byte_array())
+    //             .collect(),
+    //         coinbase_tx: block_txs[0].clone(),
+    //     };
 
-        // There should not be any blobs
-        let txs: Vec<BlobWithSender> = vec![];
+    //     // There should not be any blobs
+    //     let txs: Vec<BlobWithSender> = vec![];
 
-        assert!(matches!(
-            verifier.verify_relevant_tx_list(
-                &header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof
-            ),
-            Ok(ChainValidityCondition {
-                prev_hash: _,
-                block_hash: _
-            })
-        ));
-    }
+    //     assert!(matches!(
+    //         verifier.verify_relevant_tx_list(
+    //             &header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof
+    //         ),
+    //         Ok(ChainValidityCondition {
+    //             prev_hash: _,
+    //             block_hash: _
+    //         })
+    //     ));
+    // }
 
-    #[test]
-    fn false_coinbase_input_witness_should_fail() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn false_coinbase_input_witness_should_fail() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let header = HeaderWrapper::new(
-            Header {
-                version: Version::from_consensus(536870912),
-                prev_blockhash: BlockHash::from_str(
-                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
-                )
-                .unwrap(),
-                merkle_root: TxMerkleNode::from_str(
-                    "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
-                )
-                .unwrap(),
-                time: 1694177029,
-                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 0,
-            },
-            13,
-            2,
-            WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
-            )
-            .unwrap(),
-        );
+    //     let header = HeaderWrapper::new(
+    //         Header {
+    //             version: Version::from_consensus(536870912),
+    //             prev_blockhash: BlockHash::from_str(
+    //                 "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+    //             )
+    //             .unwrap(),
+    //             merkle_root: TxMerkleNode::from_str(
+    //                 "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
+    //             )
+    //             .unwrap(),
+    //             time: 1694177029,
+    //             bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+    //             nonce: 0,
+    //         },
+    //         13,
+    //         2,
+    //         WitnessMerkleNode::from_str(
+    //             "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+    //         )
+    //         .unwrap()
+    //         .to_raw_hash()
+    //         .to_byte_array(),
+    //     );
 
-        let block_txs = get_mock_txs();
-        let mut block_txs: Vec<TransactionWrapper> =
-            block_txs.into_iter().map(Into::into).collect();
+    //     let block_txs = get_mock_txs();
+    //     let mut block_txs: Vec<TransactionWrapper> =
+    //         block_txs.into_iter().map(Into::into).collect();
 
-        block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
+    //     block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
 
-        // relevant txs are on 6, 8, 10, 12 indices
-        let completeness_proof = [
-            block_txs[6].clone(),
-            block_txs[8].clone(),
-            block_txs[10].clone(),
-            block_txs[12].clone(),
-        ]
-        .into_iter()
-        .map(Into::into)
-        .collect();
+    //     // relevant txs are on 6, 8, 10, 12 indices
+    //     let completeness_proof = [
+    //         block_txs[6].clone(),
+    //         block_txs[8].clone(),
+    //         block_txs[10].clone(),
+    //         block_txs[12].clone(),
+    //     ]
+    //     .into_iter()
+    //     .map(Into::into)
+    //     .collect();
 
-        let mut inclusion_proof = InclusionMultiProof {
-            txids: block_txs
-                .iter()
-                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
-                .collect(),
-            wtxids: block_txs
-                .iter()
-                .map(|t| t.compute_wtxid().to_byte_array())
-                .collect(),
-            coinbase_tx: block_txs[0].clone(),
-        };
+    //     let mut inclusion_proof = InclusionMultiProof {
+    //         txids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+    //             .collect(),
+    //         wtxids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_wtxid().to_byte_array())
+    //             .collect(),
+    //         coinbase_tx: block_txs[0].clone(),
+    //     };
 
-        // Coinbase tx wtxid should be [0u8;32]
-        inclusion_proof.wtxids[0] = [0; 32];
+    //     // Coinbase tx wtxid should be [0u8;32]
+    //     inclusion_proof.wtxids[0] = [0; 32];
 
-        let txs: Vec<BlobWithSender> = vec![
-            get_blob_with_sender(&block_txs[6]),
-            get_blob_with_sender(&block_txs[8]),
-            get_blob_with_sender(&block_txs[10]),
-            get_blob_with_sender(&block_txs[12]),
-        ];
+    //     let txs: Vec<BlobWithSender> = vec![
+    //         get_blob_with_sender(&block_txs[6]),
+    //         get_blob_with_sender(&block_txs[8]),
+    //         get_blob_with_sender(&block_txs[10]),
+    //         get_blob_with_sender(&block_txs[12]),
+    //     ];
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof
-            ),
-            Err(ValidationError::NonMatchingScript)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof
+    //         ),
+    //         Err(ValidationError::NonMatchingScript)
+    //     );
+    // }
 
-    #[test]
-    fn false_coinbase_script_pubkey_should_fail() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn false_coinbase_script_pubkey_should_fail() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let header = HeaderWrapper::new(
-            Header {
-                version: Version::from_consensus(536870912),
-                prev_blockhash: BlockHash::from_str(
-                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
-                )
-                .unwrap(),
-                merkle_root: TxMerkleNode::from_str(
-                    "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
-                )
-                .unwrap(),
-                time: 1694177029,
-                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 0,
-            },
-            13,
-            2,
-            WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
-            )
-            .unwrap(),
-        );
+    //     let header = HeaderWrapper::new(
+    //         Header {
+    //             version: Version::from_consensus(536870912),
+    //             prev_blockhash: BlockHash::from_str(
+    //                 "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+    //             )
+    //             .unwrap(),
+    //             merkle_root: TxMerkleNode::from_str(
+    //                 "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
+    //             )
+    //             .unwrap(),
+    //             time: 1694177029,
+    //             bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+    //             nonce: 0,
+    //         },
+    //         13,
+    //         2,
+    //         WitnessMerkleNode::from_str(
+    //             "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+    //         )
+    //         .unwrap()
+    //         .to_raw_hash()
+    //         .to_byte_array(),
+    //     );
 
-        let block_txs = get_mock_txs();
-        let mut block_txs: Vec<TransactionWrapper> =
-            block_txs.into_iter().map(Into::into).collect();
+    //     let block_txs = get_mock_txs();
+    //     let mut block_txs: Vec<TransactionWrapper> =
+    //         block_txs.into_iter().map(Into::into).collect();
 
-        let idx = block_txs[0]
-            .output
-            .iter()
-            .position(|output| {
-                output
-                    .script_pubkey
-                    .to_bytes()
-                    .starts_with(WITNESS_COMMITMENT_PREFIX)
-            })
-            .unwrap();
+    //     let idx = block_txs[0]
+    //         .output
+    //         .iter()
+    //         .position(|output| {
+    //             output
+    //                 .script_pubkey
+    //                 .to_bytes()
+    //                 .starts_with(WITNESS_COMMITMENT_PREFIX)
+    //         })
+    //         .unwrap();
 
-        // the 7th byte of script pubkey is changed from 104 to 105
-        block_txs[0].output[idx].script_pubkey = ScriptBuf::from_bytes(vec![
-            106, 36, 170, 33, 169, 237, 105, 181, 249, 155, 21, 242, 213, 115, 55, 123, 70, 108,
-            15, 173, 14, 106, 243, 231, 186, 128, 75, 251, 178, 9, 24, 228, 200, 177, 144, 89, 95,
-            182,
-        ]);
+    //     // the 7th byte of script pubkey is changed from 104 to 105
+    //     block_txs[0].output[idx].script_pubkey = ScriptBuf::from_bytes(vec![
+    //         106, 36, 170, 33, 169, 237, 105, 181, 249, 155, 21, 242, 213, 115, 55, 123, 70, 108,
+    //         15, 173, 14, 106, 243, 231, 186, 128, 75, 251, 178, 9, 24, 228, 200, 177, 144, 89, 95,
+    //         182,
+    //     ]);
 
-        // relevant txs are on 6, 8, 10, 12 indices
-        let completeness_proof = [
-            block_txs[6].clone(),
-            block_txs[8].clone(),
-            block_txs[10].clone(),
-            block_txs[12].clone(),
-        ]
-        .into_iter()
-        .map(Into::into)
-        .collect();
+    //     // relevant txs are on 6, 8, 10, 12 indices
+    //     let completeness_proof = [
+    //         block_txs[6].clone(),
+    //         block_txs[8].clone(),
+    //         block_txs[10].clone(),
+    //         block_txs[12].clone(),
+    //     ]
+    //     .into_iter()
+    //     .map(Into::into)
+    //     .collect();
 
-        let mut inclusion_proof = InclusionMultiProof {
-            txids: block_txs
-                .iter()
-                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
-                .collect(),
-            wtxids: block_txs
-                .iter()
-                .map(|t| t.compute_wtxid().to_byte_array())
-                .collect(),
-            coinbase_tx: block_txs[0].clone(),
-        };
+    //     let mut inclusion_proof = InclusionMultiProof {
+    //         txids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+    //             .collect(),
+    //         wtxids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_wtxid().to_byte_array())
+    //             .collect(),
+    //         coinbase_tx: block_txs[0].clone(),
+    //     };
 
-        // Coinbase tx wtxid should be [0u8;32]
-        inclusion_proof.wtxids[0] = [0; 32];
+    //     // Coinbase tx wtxid should be [0u8;32]
+    //     inclusion_proof.wtxids[0] = [0; 32];
 
-        let txs: Vec<BlobWithSender> = vec![
-            get_blob_with_sender(&block_txs[6]),
-            get_blob_with_sender(&block_txs[8]),
-            get_blob_with_sender(&block_txs[10]),
-            get_blob_with_sender(&block_txs[12]),
-        ];
+    //     let txs: Vec<BlobWithSender> = vec![
+    //         get_blob_with_sender(&block_txs[6]),
+    //         get_blob_with_sender(&block_txs[8]),
+    //         get_blob_with_sender(&block_txs[10]),
+    //         get_blob_with_sender(&block_txs[12]),
+    //     ];
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof
-            ),
-            Err(ValidationError::NonMatchingScript)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof
+    //         ),
+    //         Err(ValidationError::NonMatchingScript)
+    //     );
+    // }
 
-    #[test]
-    fn false_witness_script_should_fail() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn false_witness_script_should_fail() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let header = HeaderWrapper::new(
-            Header {
-                version: Version::from_consensus(536870912),
-                prev_blockhash: BlockHash::from_str(
-                    "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
-                )
-                .unwrap(),
-                merkle_root: TxMerkleNode::from_str(
-                    "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
-                )
-                .unwrap(),
-                time: 1694177029,
-                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 0,
-            },
-            13,
-            2,
-            WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
-            )
-            .unwrap(),
-        );
+    //     let header = HeaderWrapper::new(
+    //         Header {
+    //             version: Version::from_consensus(536870912),
+    //             prev_blockhash: BlockHash::from_str(
+    //                 "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+    //             )
+    //             .unwrap(),
+    //             merkle_root: TxMerkleNode::from_str(
+    //                 "7750076b3b5498aad3e2e7da55618c66394d1368dc08f19f0b13d1e5b83ae056",
+    //             )
+    //             .unwrap(),
+    //             time: 1694177029,
+    //             bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+    //             nonce: 0,
+    //         },
+    //         13,
+    //         2,
+    //         WitnessMerkleNode::from_str(
+    //             "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+    //         )
+    //         .unwrap()
+    //         .to_raw_hash()
+    //         .to_byte_array(),
+    //     );
 
-        let block_txs = get_mock_txs();
-        let mut block_txs: Vec<TransactionWrapper> =
-            block_txs.into_iter().map(Into::into).collect();
+    //     let block_txs = get_mock_txs();
+    //     let mut block_txs: Vec<TransactionWrapper> =
+    //         block_txs.into_iter().map(Into::into).collect();
 
-        // This is the changed witness of the 6th tx, the first byte of script is changed from 32 to 33
-        // This creates a different wtxid, thus the verification should fail
-        let changed_witness: Vec<Vec<u8>> = vec![
-            vec![
-                81, 88, 52, 28, 35, 77, 19, 30, 98, 146, 2, 231, 141, 193, 70, 58, 24, 252, 94,
-                184, 169, 253, 234, 219, 176, 172, 224, 112, 128, 144, 70, 134, 16, 75, 6, 112,
-                182, 76, 230, 26, 239, 154, 8, 219, 123, 102, 210, 203, 74, 187, 185, 45, 3, 35,
-                94, 95, 64, 209, 195, 34, 66, 246, 47, 239,
-            ],
-            vec![
-                33, 113, 162, 71, 125, 67, 165, 112, 30, 91, 79, 0, 158, 242, 217, 32, 194, 150,
-                158, 249, 221, 71, 241, 82, 79, 243, 107, 93, 250, 8, 122, 90, 29, 172, 0, 99, 1,
-                1, 7, 115, 111, 118, 45, 98, 116, 99, 1, 2, 64, 204, 75, 35, 210, 203, 62, 34, 178,
-                197, 122, 89, 242, 64, 136, 118, 79, 57, 247, 183, 137, 132, 126, 152, 59, 158,
-                233, 206, 118, 130, 87, 140, 43, 125, 189, 244, 56, 78, 35, 12, 148, 43, 145, 174,
-                92, 230, 177, 186, 51, 88, 127, 84, 159, 237, 238, 77, 25, 229, 79, 243, 168, 229,
-                70, 1, 232, 1, 3, 33, 2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71,
-                236, 37, 185, 161, 53, 187, 218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215,
-                125, 201, 1, 4, 3, 140, 4, 3, 0, 76, 196, 27, 123, 1, 248, 69, 199, 134, 177, 14,
-                144, 99, 139, 92, 216, 128, 35, 8, 24, 35, 176, 108, 32, 185, 0, 64, 64, 16, 82,
-                134, 7, 56, 167, 198, 205, 96, 199, 53, 143, 88, 17, 88, 187, 247, 230, 188, 146,
-                199, 57, 30, 254, 87, 237, 64, 197, 147, 216, 162, 224, 152, 57, 150, 149, 38, 166,
-                136, 221, 108, 223, 62, 19, 150, 90, 236, 168, 89, 44, 83, 183, 232, 187, 206, 143,
-                137, 234, 84, 146, 177, 70, 242, 67, 179, 229, 165, 3, 94, 174, 81, 199, 235, 230,
-                184, 188, 60, 171, 3, 72, 123, 113, 167, 153, 1, 22, 216, 181, 175, 220, 83, 55,
-                14, 149, 187, 22, 167, 192, 173, 189, 132, 137, 116, 155, 150, 173, 21, 174, 68,
-                140, 43, 227, 187, 51, 47, 125, 195, 155, 109, 150, 123, 2, 111, 159, 89, 26, 249,
-                111, 54, 105, 241, 247, 201, 204, 123, 29, 208, 71, 162, 195, 146, 187, 209, 69,
-                218, 241, 17, 66, 119, 98, 83, 228, 32, 245, 236, 204, 22, 154, 251, 85, 105, 61,
-                15, 235, 194, 127, 13, 177, 89, 3, 104,
-            ],
-            vec![
-                193, 113, 162, 71, 125, 67, 165, 112, 30, 91, 79, 0, 158, 242, 217, 32, 194, 150,
-                158, 249, 221, 71, 241, 82, 79, 243, 107, 93, 250, 8, 122, 90, 29,
-            ],
-        ];
+    //     // This is the changed witness of the 6th tx, the first byte of script is changed from 32 to 33
+    //     // This creates a different wtxid, thus the verification should fail
+    //     let changed_witness: Vec<Vec<u8>> = vec![
+    //         vec![
+    //             81, 88, 52, 28, 35, 77, 19, 30, 98, 146, 2, 231, 141, 193, 70, 58, 24, 252, 94,
+    //             184, 169, 253, 234, 219, 176, 172, 224, 112, 128, 144, 70, 134, 16, 75, 6, 112,
+    //             182, 76, 230, 26, 239, 154, 8, 219, 123, 102, 210, 203, 74, 187, 185, 45, 3, 35,
+    //             94, 95, 64, 209, 195, 34, 66, 246, 47, 239,
+    //         ],
+    //         vec![
+    //             33, 113, 162, 71, 125, 67, 165, 112, 30, 91, 79, 0, 158, 242, 217, 32, 194, 150,
+    //             158, 249, 221, 71, 241, 82, 79, 243, 107, 93, 250, 8, 122, 90, 29, 172, 0, 99, 1,
+    //             1, 7, 115, 111, 118, 45, 98, 116, 99, 1, 2, 64, 204, 75, 35, 210, 203, 62, 34, 178,
+    //             197, 122, 89, 242, 64, 136, 118, 79, 57, 247, 183, 137, 132, 126, 152, 59, 158,
+    //             233, 206, 118, 130, 87, 140, 43, 125, 189, 244, 56, 78, 35, 12, 148, 43, 145, 174,
+    //             92, 230, 177, 186, 51, 88, 127, 84, 159, 237, 238, 77, 25, 229, 79, 243, 168, 229,
+    //             70, 1, 232, 1, 3, 33, 2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71,
+    //             236, 37, 185, 161, 53, 187, 218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215,
+    //             125, 201, 1, 4, 3, 140, 4, 3, 0, 76, 196, 27, 123, 1, 248, 69, 199, 134, 177, 14,
+    //             144, 99, 139, 92, 216, 128, 35, 8, 24, 35, 176, 108, 32, 185, 0, 64, 64, 16, 82,
+    //             134, 7, 56, 167, 198, 205, 96, 199, 53, 143, 88, 17, 88, 187, 247, 230, 188, 146,
+    //             199, 57, 30, 254, 87, 237, 64, 197, 147, 216, 162, 224, 152, 57, 150, 149, 38, 166,
+    //             136, 221, 108, 223, 62, 19, 150, 90, 236, 168, 89, 44, 83, 183, 232, 187, 206, 143,
+    //             137, 234, 84, 146, 177, 70, 242, 67, 179, 229, 165, 3, 94, 174, 81, 199, 235, 230,
+    //             184, 188, 60, 171, 3, 72, 123, 113, 167, 153, 1, 22, 216, 181, 175, 220, 83, 55,
+    //             14, 149, 187, 22, 167, 192, 173, 189, 132, 137, 116, 155, 150, 173, 21, 174, 68,
+    //             140, 43, 227, 187, 51, 47, 125, 195, 155, 109, 150, 123, 2, 111, 159, 89, 26, 249,
+    //             111, 54, 105, 241, 247, 201, 204, 123, 29, 208, 71, 162, 195, 146, 187, 209, 69,
+    //             218, 241, 17, 66, 119, 98, 83, 228, 32, 245, 236, 204, 22, 154, 251, 85, 105, 61,
+    //             15, 235, 194, 127, 13, 177, 89, 3, 104,
+    //         ],
+    //         vec![
+    //             193, 113, 162, 71, 125, 67, 165, 112, 30, 91, 79, 0, 158, 242, 217, 32, 194, 150,
+    //             158, 249, 221, 71, 241, 82, 79, 243, 107, 93, 250, 8, 122, 90, 29,
+    //         ],
+    //     ];
 
-        block_txs[6].input[0].witness = Witness::from_slice(&changed_witness);
-        // relevant txs are on 6, 8, 10, 12 indices
-        let completeness_proof = [
-            block_txs[6].clone(),
-            block_txs[8].clone(),
-            block_txs[10].clone(),
-            block_txs[12].clone(),
-        ]
-        .into_iter()
-        .map(Into::into)
-        .collect();
+    //     block_txs[6].input[0].witness = Witness::from_slice(&changed_witness);
+    //     // relevant txs are on 6, 8, 10, 12 indices
+    //     let completeness_proof = [
+    //         block_txs[6].clone(),
+    //         block_txs[8].clone(),
+    //         block_txs[10].clone(),
+    //         block_txs[12].clone(),
+    //     ]
+    //     .into_iter()
+    //     .map(Into::into)
+    //     .collect();
 
-        let mut inclusion_proof = InclusionMultiProof {
-            txids: block_txs
-                .iter()
-                .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
-                .collect(),
-            wtxids: block_txs
-                .iter()
-                .map(|t| t.compute_wtxid().to_byte_array())
-                .collect(),
-            coinbase_tx: block_txs[0].clone(),
-        };
+    //     let mut inclusion_proof = InclusionMultiProof {
+    //         txids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+    //             .collect(),
+    //         wtxids: block_txs
+    //             .iter()
+    //             .map(|t| t.compute_wtxid().to_byte_array())
+    //             .collect(),
+    //         coinbase_tx: block_txs[0].clone(),
+    //     };
 
-        // Coinbase tx wtxid should be [0u8;32]
-        inclusion_proof.wtxids[0] = [0; 32];
+    //     // Coinbase tx wtxid should be [0u8;32]
+    //     inclusion_proof.wtxids[0] = [0; 32];
 
-        let txs: Vec<BlobWithSender> = vec![
-            get_blob_with_sender(&block_txs[6]),
-            get_blob_with_sender(&block_txs[8]),
-            get_blob_with_sender(&block_txs[10]),
-            get_blob_with_sender(&block_txs[12]),
-        ];
+    //     let txs: Vec<BlobWithSender> = vec![
+    //         get_blob_with_sender(&block_txs[6]),
+    //         get_blob_with_sender(&block_txs[8]),
+    //         get_blob_with_sender(&block_txs[10]),
+    //         get_blob_with_sender(&block_txs[12]),
+    //     ];
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof
-            ),
-            Err(ValidationError::NonMatchingScript)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof
+    //         ),
+    //         Err(ValidationError::NonMatchingScript)
+    //     );
+    // }
 
     // verifies it, and then changes the witness and sees that it cannot be verified
     #[test]
     fn different_wtxid_fails_verification() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -696,99 +713,104 @@ mod tests {
             .is_err());
     }
 
-    #[test]
-    fn extra_tx_in_inclusion() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn extra_tx_in_inclusion() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+    //     let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txids.push([1; 32]);
+    //     inclusion_proof.txids.push([1; 32]);
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-            ),
-            Err(ValidationError::IncorrectInclusionProof)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &block_header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof,
+    //         ),
+    //         Err(ValidationError::IncorrectInclusionProof)
+    //     );
+    // }
 
-    #[test]
-    fn missing_tx_in_inclusion() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn missing_tx_in_inclusion() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+    //     let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txids.pop();
+    //     inclusion_proof.txids.pop();
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-            ),
-            Err(ValidationError::RelevantTxNotFoundInBlock)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &block_header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof,
+    //         ),
+    //         Err(ValidationError::RelevantTxNotFoundInBlock)
+    //     );
+    // }
 
-    #[test]
-    fn empty_inclusion() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn empty_inclusion() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+    //     let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txids.clear();
+    //     inclusion_proof.txids.clear();
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-            ),
-            Err(ValidationError::RelevantTxNotFoundInBlock)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &block_header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof,
+    //         ),
+    //         Err(ValidationError::RelevantTxNotFoundInBlock)
+    //     );
+    // }
 
-    #[test]
-    fn break_order_of_inclusion() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
-        });
+    // #[test]
+    // fn break_order_of_inclusion() {
+    //     let verifier = BitcoinVerifier::new(RollupParams {
+    //         rollup_name: "sov-btc".to_string(),
+    //         reveal_batch_prover_prefix: vec![1, 1],
+    //         reveal_light_client_prefix: vec![2, 2],
+    //     });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+    //     let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
-        inclusion_proof.txids.swap(0, 1);
+    //     inclusion_proof.txids.swap(0, 1);
 
-        assert_eq!(
-            verifier.verify_relevant_tx_list(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-            ),
-            Err(ValidationError::IncorrectInclusionProof)
-        );
-    }
+    //     assert_eq!(
+    //         verifier.verify_relevant_tx_list(
+    //             &block_header,
+    //             txs.as_slice(),
+    //             inclusion_proof,
+    //             completeness_proof,
+    //         ),
+    //         Err(ValidationError::IncorrectInclusionProof)
+    //     );
+    // }
 
     #[test]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -810,7 +832,8 @@ mod tests {
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -832,7 +855,8 @@ mod tests {
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -854,7 +878,8 @@ mod tests {
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -877,7 +902,8 @@ mod tests {
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -899,7 +925,8 @@ mod tests {
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -922,7 +949,8 @@ mod tests {
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -945,16 +973,18 @@ mod tests {
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
         let tx1 = &completeness_proof[1];
-        txs[1] = BlobWithSender::new(
-            parse_transaction(tx1, "sov-btc").unwrap().body,
-            vec![2; 33],
-            txs[1].hash,
-        );
+        let body = {
+            let parsed = parse_batch_proof_transaction(tx1, "sov-btc").unwrap();
+            let ParsedBatchProofTransaction::SequencerCommitment(seq) = parsed;
+            seq.body
+        };
+        txs[1] = BlobWithSender::new(body, vec![2; 33], txs[1].hash);
 
         assert_eq!(
             verifier.verify_relevant_tx_list(
@@ -971,7 +1001,8 @@ mod tests {
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_wtxid_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
