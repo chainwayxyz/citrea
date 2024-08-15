@@ -15,31 +15,22 @@ impl BitcoinMerkleTree {
             // root is the coinbase txid
             return BitcoinMerkleTree {
                 depth: 1,
-                nodes: vec![vec![transactions[0]]],
+                nodes: vec![transactions],
             };
         }
 
         let depth = (transactions.len() - 1).ilog(2) + 1;
         let mut tree = BitcoinMerkleTree {
-            depth: depth,
-            nodes: vec![],
+            depth,
+            nodes: vec![transactions],
         };
-
-        // Populate leaf nodes
-        tree.nodes.push(vec![]);
-        for tx in transactions.iter() {
-            tree.nodes[0].push(*tx);
-        }
 
         // Construct the tree
         let mut curr_level_offset: usize = 1;
-        let mut prev_level_size = transactions.len();
+        let mut prev_level_size = tree.nodes[0].len();
         let mut prev_level_index_offset = 0;
         let mut preimage: [u8; 64] = [0; 64];
         while prev_level_size > 1 {
-            // println!("curr_level_offset: {}", curr_level_offset);
-            // println!("prev_level_size: {}", prev_level_size);
-            // println!("prev_level_index_offset: {}", prev_level_index_offset);
             tree.nodes.push(vec![]);
             for i in 0..(prev_level_size / 2) {
                 preimage[..32].copy_from_slice(
@@ -103,28 +94,6 @@ impl BitcoinMerkleTree {
         }
         return path;
     }
-
-    // pub fn verify_tx_merkle_proof(&self, idx: u32, merkle_proof: Vec<[u8; 32]>) {
-    //     let tx_id = self.nodes[0][idx as usize];
-    //     let mut preimage: [u8; 64] = [0; 64];
-    //     let mut combined_hash: [u8; 32] = tx_id.clone();
-    //     let mut index = idx;
-    //     let mut level: u32 = 0;
-    //     while level < self.depth {
-    //         if index % 2 == 0 {
-    //             preimage[..32].copy_from_slice(&combined_hash);
-    //             preimage[32..].copy_from_slice(&merkle_proof[level as usize]);
-    //             combined_hash = calculate_double_sha256(&preimage);
-    //         } else {
-    //             preimage[..32].copy_from_slice(&merkle_proof[level as usize]);
-    //             preimage[32..].copy_from_slice(&combined_hash);
-    //             combined_hash = calculate_double_sha256(&preimage);
-    //         }
-    //         level += 1;
-    //         index = index / 2;
-    //     }
-    //     assert_eq!(combined_hash, self.root());
-    // }
 
     pub fn calculate_root_with_merkle_proof(
         txid: [u8; 32],

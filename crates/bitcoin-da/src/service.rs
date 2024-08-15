@@ -442,7 +442,6 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
         })
         .collect();
     BitcoinMerkleTree::new(hashes).root()
-    // merkle_tree::calculate_root(hashes).map(|h| h.into())
 }
 
 #[async_trait]
@@ -596,7 +595,6 @@ impl DaService for BitcoinService {
         let coinbase_proof = txid_merkle_tree.get_idx_path(0);
 
         (
-            // todo fill merkle proof
             InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
             completeness_proof,
         )

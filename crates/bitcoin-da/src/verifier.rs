@@ -195,11 +195,6 @@ impl DaVerifier for BitcoinVerifier {
                     }
                 }
                 Some(mut commitment_idx) => {
-                    // let wtxids = inclusion_proof
-                    //     .wtxids
-                    //     .iter()
-                    //     .map(|wtxid| Wtxid::from_byte_array(*wtxid));
-
                     let merkle_root =
                         merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
 
