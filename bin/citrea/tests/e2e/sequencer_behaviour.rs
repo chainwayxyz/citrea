@@ -306,7 +306,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     assert_eq!(block.transactions.len(), 0);
     assert!(tx_from_mempool.is_none());
-    assert_eq!(soft_confirmation.txs.unwrap().len(), 1); // TODO: if we can also remove the tx from soft confirmation, that'd be very efficient
+    assert_eq!(soft_confirmation.txs.unwrap().len(), 0);
 
     wait_for_l2_block(&full_node_test_client, block.header.number.unwrap(), None).await;
 

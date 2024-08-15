@@ -443,18 +443,25 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
-                let evm_txs_count = txs_to_run.len();
-                let call_txs = CallMessage { txs: txs_to_run };
-                let raw_message =
-                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
-                let txs = vec![signed_blob.clone()];
+                let mut txs = vec![];
+                let mut tx_receipts = vec![];
 
-                let (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                    self.fork_manager.active_fork(),
-                    txs.clone(),
-                    batch_workspace,
-                );
+                let evm_txs_count = txs_to_run.len();
+                if evm_txs_count > 0 {
+                    let call_txs = CallMessage { txs: txs_to_run };
+                    let raw_message =
+                        <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
+                            call_txs,
+                        );
+                    let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
+                    txs.push(signed_blob);
+
+                    (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
+                        self.fork_manager.active_fork(),
+                        txs.clone(),
+                        batch_workspace,
+                    );
+                }
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
