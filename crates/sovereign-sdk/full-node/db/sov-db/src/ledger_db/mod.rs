@@ -357,6 +357,17 @@ impl SharedLedgerOps for LedgerDB {
         Ok(())
     }
 
+    /// Saves a soft confirmation status for a given L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_soft_confirmation_status(
+        &self,
+        height: BatchNumber,
+    ) -> Result<Option<sov_rollup_interface::rpc::SoftConfirmationStatus>, anyhow::Error> {
+        let status = self.db.get::<SoftConfirmationStatus>(&height)?;
+
+        Ok(status)
+    }
+
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
     #[instrument(level = "trace", skip(self, commitment), err, ret)]

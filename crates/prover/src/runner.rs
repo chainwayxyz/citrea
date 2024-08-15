@@ -438,8 +438,6 @@ where
             });
             let mut sequencer_commitments: Vec<SequencerCommitment> =
                 self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
-            // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort_by_key(|commitment| commitment.l2_start_block_number);
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
@@ -483,6 +481,12 @@ where
                     rng.gen_range(0..prover_config.proof_sampling_number) == 0
                 }
             };
+
+            let sequencer_commitments =
+                self.filter_out_proven_commitments(&sequencer_commitments)?;
+
+            // Make sure all sequencer commitments are stored in ascending order.
+            sequencer_commitments.sort_unstable();
 
             let sequencer_commitments_groups =
                 self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
@@ -855,6 +859,28 @@ where
         }
 
         Ok(result)
+    }
+
+    fn filter_out_proven_commitments(
+        &self,
+        sequencer_commitments: &[SequencerCommitment],
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let mut filtered = vec![];
+        for sequencer_commitment in sequencer_commitments {
+            let Some(status) = self.ledger_db.get_soft_confirmation_status(BatchNumber(
+                sequencer_commitment.l2_end_block_number,
+            ))?
+            else {
+                filtered.push(sequencer_commitment.clone());
+                continue;
+            };
+
+            if status != SoftConfirmationStatus::Finalized {
+                filtered.push(sequencer_commitment.clone());
+            }
+        }
+
+        Ok(filtered)
     }
 }
 
