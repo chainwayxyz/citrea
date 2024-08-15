@@ -935,7 +935,19 @@ where
         sequencer_commitments: &[SequencerCommitment],
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut filtered = vec![];
+        let mut visited_l2_ranges = vec![];
         for sequencer_commitment in sequencer_commitments {
+            // Handle commitments which have the same L2 range
+            let current_range = (
+                sequencer_commitment.l2_start_block_number,
+                sequencer_commitment.l2_end_block_number,
+            );
+            if visited_l2_ranges.contains(&current_range) {
+                continue;
+            }
+            visited_l2_ranges.push(current_range);
+
+            // Check if the commitment was previously finalized.
             let Some(status) = self.ledger_db.get_soft_confirmation_status(BatchNumber(
                 sequencer_commitment.l2_end_block_number,
             ))?
