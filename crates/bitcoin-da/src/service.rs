@@ -12,15 +12,14 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
-use bitcoin::hash_types::WitnessMerkleNode;
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{merkle_tree, Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
@@ -30,7 +29,9 @@ use crate::helpers::builders::{
     InscriptionTxs, TxWithId,
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
+use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::parse_transaction;
+use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -49,7 +50,7 @@ pub struct BitcoinService {
     rollup_name: String,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    reveal_tx_id_prefix: Vec<u8>,
+    reveal_wtxid_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
 }
 
@@ -98,7 +99,7 @@ impl BitcoinService {
             chain_params.rollup_name,
             config.network,
             private_key,
-            chain_params.reveal_tx_id_prefix,
+            chain_params.reveal_wtxid_prefix,
             tx,
         )
         .await)
@@ -195,7 +196,7 @@ impl BitcoinService {
             rollup_name: chain_params.rollup_name,
             network: config.network,
             da_private_key: private_key,
-            reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
+            reveal_wtxid_prefix: chain_params.reveal_wtxid_prefix,
             inscribes_queue: tx,
         })
     }
@@ -205,7 +206,7 @@ impl BitcoinService {
         rollup_name: String,
         network: bitcoin::Network,
         da_private_key: Option<SecretKey>,
-        reveal_tx_id_prefix: Vec<u8>,
+        reveal_wtxid_prefix: Vec<u8>,
         inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Self {
         let wallets = client
@@ -222,7 +223,7 @@ impl BitcoinService {
             rollup_name,
             network,
             da_private_key,
-            reveal_tx_id_prefix,
+            reveal_wtxid_prefix,
             inscribes_queue,
         }
     }
@@ -328,7 +329,7 @@ impl BitcoinService {
             fee_sat_per_vbyte,
             fee_sat_per_vbyte,
             network,
-            self.reveal_tx_id_prefix.as_slice(),
+            self.reveal_wtxid_prefix.as_slice(),
         )?;
 
         // write txs to file, it can be used to continue revealing blob if something goes wrong
@@ -427,16 +428,20 @@ impl From<TxidWrapper> for [u8; 32] {
     }
 }
 
-fn calculate_witness_root(txdata: &[TransactionWrapper]) -> Option<WitnessMerkleNode> {
-    let hashes = txdata.iter().enumerate().map(|(i, t)| {
-        if i == 0 {
-            // Replace the first hash with zeroes.
-            Wtxid::all_zeros().to_raw_hash()
-        } else {
-            t.compute_wtxid().to_raw_hash()
-        }
-    });
-    merkle_tree::calculate_root(hashes).map(|h| h.into())
+fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
+    let hashes = txdata
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            if i == 0 {
+                // Replace the first hash with zeroes.
+                Wtxid::all_zeros().to_raw_hash().to_byte_array()
+            } else {
+                t.compute_wtxid().to_raw_hash().to_byte_array()
+            }
+        })
+        .collect();
+    BitcoinMerkleTree::new(hashes).root()
 }
 
 #[async_trait]
@@ -535,7 +540,7 @@ impl DaService for BitcoinService {
         );
 
         let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs(txs, &self.rollup_name, self.reveal_tx_id_prefix.as_slice())
+        get_relevant_blobs_from_txs(txs, &self.rollup_name, self.reveal_wtxid_prefix.as_slice())
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -554,30 +559,43 @@ impl DaService for BitcoinService {
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
-        let mut txids = Vec::with_capacity(block.txdata.len());
         let mut wtxids = Vec::with_capacity(block.txdata.len());
         wtxids.push([0u8; 32]);
-        let coinbase_tx_hash = block.txdata[0].compute_txid().to_raw_hash().to_byte_array();
-        txids.push(coinbase_tx_hash);
-        if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+
+        // coinbase starts with 0, so we skip it unless the prefix is all 0's
+        if self.reveal_wtxid_prefix.iter().all(|&x| x == 0) {
             completeness_proof.push(block.txdata[0].clone());
         }
 
         block.txdata[1..].iter().for_each(|tx| {
-            let txid = tx.compute_txid().to_raw_hash().to_byte_array();
             let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
 
             // if tx_hash has two leading zeros, it is in the completeness proof
-            if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+            if wtxid.starts_with(self.reveal_wtxid_prefix.as_slice()) {
                 completeness_proof.push(tx.clone());
             }
 
             wtxids.push(wtxid);
-            txids.push(txid);
         });
 
+        let txid_merkle_tree = merkle_tree::BitcoinMerkleTree::new(
+            block
+                .txdata
+                .iter()
+                .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        assert_eq!(
+            txid_merkle_tree.root(),
+            block.header.merkle_root(),
+            "Merkle root mismatch"
+        );
+
+        let coinbase_proof = txid_merkle_tree.get_idx_path(0);
+
         (
-            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
+            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
             completeness_proof,
         )
     }
@@ -670,7 +688,7 @@ impl DaService for BitcoinService {
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let witness_root = calculate_witness_root(&txs).unwrap_or(WitnessMerkleNode::all_zeros());
+        let witness_root = calculate_witness_root(&txs);
 
         Ok(BitcoinBlock {
             header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
@@ -686,7 +704,7 @@ impl DaService for BitcoinService {
         get_relevant_blobs_from_txs(
             pending_txs,
             &self.rollup_name,
-            self.reveal_tx_id_prefix.as_slice(),
+            self.reveal_wtxid_prefix.as_slice(),
         )
     }
 }
@@ -694,16 +712,16 @@ impl DaService for BitcoinService {
 fn get_relevant_blobs_from_txs(
     txs: Vec<Transaction>,
     rollup_name: &str,
-    reveal_tx_id_prefix: &[u8],
+    reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {
     let mut relevant_txs = Vec::new();
 
     for tx in txs {
         if !tx
-            .compute_txid()
+            .compute_wtxid()
             .to_byte_array()
             .as_slice()
-            .starts_with(reveal_tx_id_prefix)
+            .starts_with(reveal_wtxid_prefix)
         {
             continue;
         }
@@ -718,7 +736,7 @@ fn get_relevant_blobs_from_txs(
                 let relevant_tx = BlobWithSender::new(
                     decompressed_blob,
                     inscription.public_key,
-                    sha256d::Hash::hash(&inscription.body).to_byte_array(),
+                    calculate_double_sha256(&inscription.body),
                 );
 
                 relevant_txs.push(relevant_tx);
@@ -735,6 +753,7 @@ mod tests {
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
+    use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::DaVerifier;
@@ -766,7 +785,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0, 0],
+                reveal_wtxid_prefix: vec![0, 0],
             },
         )
         .await
@@ -858,7 +877,7 @@ mod tests {
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_wtxid_prefix: vec![0, 0],
         });
 
         let da_service = get_service().await;
@@ -904,7 +923,7 @@ mod tests {
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0, 0],
+                reveal_wtxid_prefix: vec![0, 0],
             },
         )
         .await
@@ -936,7 +955,9 @@ mod tests {
             WitnessMerkleNode::from_str(
                 "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
             )
-            .unwrap(),
+            .unwrap()
+            .as_raw_hash()
+            .to_byte_array(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/false_signature_txs.txt").unwrap();
@@ -997,7 +1018,9 @@ mod tests {
             WitnessMerkleNode::from_str(
                 "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
             )
-            .unwrap(),
+            .unwrap()
+            .as_raw_hash()
+            .to_byte_array(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();

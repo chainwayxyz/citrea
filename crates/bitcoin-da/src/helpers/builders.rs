@@ -9,7 +9,7 @@ use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::PushBytesBuf;
@@ -25,7 +25,7 @@ use bitcoin::{
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
-use super::{TransactionHeader, TransactionKind};
+use super::{calculate_double_sha256, TransactionHeader, TransactionKind};
 use crate::spec::utxo::UTXO;
 use crate::{MAX_TXBODY_SIZE, REVEAL_OUTPUT_AMOUNT};
 
@@ -34,7 +34,7 @@ pub fn sign_blob_with_private_key(
     blob: &[u8],
     private_key: &SecretKey,
 ) -> Result<(Vec<u8>, Vec<u8>), ()> {
-    let message = sha256d::Hash::hash(blob).to_byte_array();
+    let message = calculate_double_sha256(blob);
     let secp = Secp256k1::new();
     let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
     let msg = secp256k1::Message::from_digest_slice(&message).unwrap();

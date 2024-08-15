@@ -43,7 +43,7 @@ pub fn main() {
         stf,
         BitcoinVerifier::new(RollupParams {
             rollup_name: ROLLUP_NAME.to_string(),
-            reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+            reveal_wtxid_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
         }),
     );
 
