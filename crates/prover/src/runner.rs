@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -935,7 +935,7 @@ where
         sequencer_commitments: &[SequencerCommitment],
     ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut filtered = vec![];
-        let mut visited_l2_ranges = vec![];
+        let mut visited_l2_ranges = HashSet::new();
         for sequencer_commitment in sequencer_commitments {
             // Handle commitments which have the same L2 range
             let current_range = (
@@ -945,7 +945,7 @@ where
             if visited_l2_ranges.contains(&current_range) {
                 continue;
             }
-            visited_l2_ranges.push(current_range);
+            visited_l2_ranges.insert(current_range);
 
             // Check if the commitment was previously finalized.
             let Some(status) = self.ledger_db.get_soft_confirmation_status(BatchNumber(
