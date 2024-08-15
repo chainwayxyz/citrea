@@ -11,6 +11,12 @@ pub struct BitcoinMerkleTree {
 
 impl BitcoinMerkleTree {
     pub fn new(transactions: Vec<[u8; 32]>) -> Self {
+        if transactions.len() == 0 {
+            return BitcoinMerkleTree {
+                depth: 0,
+                nodes: vec![],
+            };
+        }
         if transactions.len() == 1 {
             // root is the coinbase txid
             return BitcoinMerkleTree {
@@ -63,8 +69,11 @@ impl BitcoinMerkleTree {
     }
 
     // Returns the Merkle root
-    pub fn root(&self) -> [u8; 32] {
-        return self.nodes[self.nodes.len() - 1][0];
+    pub fn root(&self) -> Option<[u8; 32]> {
+        if self.nodes.len() == 0 {
+            return None;
+        }
+        return Some(self.nodes[self.nodes.len() - 1][0]);
     }
 
     pub fn get_element(&self, level: u32, index: u32) -> [u8; 32] {
@@ -123,20 +132,55 @@ impl BitcoinMerkleTree {
 
 #[cfg(test)]
 mod tests {
+    use bitcoin::hashes::Hash;
+
+    use crate::helpers::test_utils::get_mock_txs;
+
     use super::*;
 
     #[test]
-    fn test_merkle_tree() {
+    fn test_merkle_root_with_proof() {
         let mut transactions: Vec<[u8; 32]> = vec![];
         for i in 0u8..100u8 {
             let tx = [i; 32];
             transactions.push(tx);
         }
         let tree = BitcoinMerkleTree::new(transactions.clone());
-        let root = tree.root();
+        let root = tree.root().unwrap();
         let idx_path = tree.get_idx_path(0);
         let calculated_root =
             BitcoinMerkleTree::calculate_root_with_merkle_proof(transactions[0], 0, idx_path);
         assert_eq!(root, calculated_root);
+    }
+
+    #[test]
+    fn test_empty_merkle_tree() {
+        assert_eq!(BitcoinMerkleTree::new(vec![]).root(), None);
+    }
+
+    #[test]
+    fn test_merkle_tree_single_tx() {
+        let tx = [5; 32];
+        assert_eq!(BitcoinMerkleTree::new(vec![tx]).root().unwrap(), tx);
+    }
+
+    #[test]
+    fn test_merkle_tree_against_bitcoin_impl() {
+        compare_merkle_tree_against_bitcoin_impl(vec![[0; 32]; 100]);
+        compare_merkle_tree_against_bitcoin_impl(vec![[5; 32]; 10]);
+        compare_merkle_tree_against_bitcoin_impl(vec![[255; 32]; 33]);
+        compare_merkle_tree_against_bitcoin_impl(vec![[200; 32]; 2]);
+        compare_merkle_tree_against_bitcoin_impl(vec![[99; 32]; 1]);
+
+        let txs = get_mock_txs().iter().map(|tx| tx.compute_wtxid().to_byte_array()).collect();
+        compare_merkle_tree_against_bitcoin_impl(txs);
+    }
+
+    fn compare_merkle_tree_against_bitcoin_impl(transactions: Vec<[u8; 32]>) {
+        let hashes = transactions.iter().map(|tx| bitcoin::hash_types::Wtxid::from_slice(tx).unwrap());
+        let bitcoin_root = bitcoin::merkle_tree::calculate_root(hashes).unwrap();
+
+        let custom_root = BitcoinMerkleTree::new(transactions).root().unwrap();
+        assert_eq!(bitcoin_root.to_byte_array(), custom_root);
     }
 }
