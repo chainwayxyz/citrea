@@ -7,23 +7,27 @@ fn main() {
     println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD");
     println!("cargo:rerun-if-env-changed=OUT_DIR");
 
-    if std::env::var("SKIP_GUEST_BUILD").is_ok() {
-        println!("cargo:warning=Skipping guest build");
-        let out_dir = std::env::var_os("OUT_DIR").unwrap();
-        let out_dir = std::path::Path::new(&out_dir);
-        let methods_path = out_dir.join("methods.rs");
+    match std::env::var("SKIP_GUEST_BUILD").as_deref() {
+        Ok("1") | Ok("true") => {
+            println!("cargo:warning=Skipping guest build");
+            let out_dir = std::env::var_os("OUT_DIR").unwrap();
+            let out_dir = std::path::Path::new(&out_dir);
+            let methods_path = out_dir.join("methods.rs");
 
-        let elf = r#"
+            let elf = r#"
             pub const BITCOIN_DA_ELF: &[u8] = &[];
             pub const MOCK_DA_ELF: &[u8] = &[];
             pub const BITCOIN_DA_ID: [u32; 8] = [0u32; 8];
             pub const MOCK_DA_ID: [u32; 8] = [0u32; 8];
         "#;
 
-        std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
-    } else {
-        let guest_pkg_to_options = get_guest_options();
-        embed_methods_with_options(guest_pkg_to_options);
+            std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
+        }
+        Ok("0") | Ok("false") | Err(std::env::VarError::NotPresent) | _ => {
+            println!("cargo:warning=Performing guest build");
+            let guest_pkg_to_options = get_guest_options();
+            embed_methods_with_options(guest_pkg_to_options);
+        }
     }
 }
 
