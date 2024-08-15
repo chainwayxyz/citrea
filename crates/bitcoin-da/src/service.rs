@@ -833,6 +833,7 @@ fn get_relevant_blobs_from_txs(
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
+    use std::sync::Arc;
 
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
@@ -853,9 +854,9 @@ mod tests {
     use crate::spec::RollupParams;
     use crate::verifier::BitcoinVerifier;
 
-    async fn get_service() -> BitcoinService {
+    async fn get_service() -> Arc<BitcoinService> {
         let runtime_config = DaServiceConfig {
-            node_url: "http://localhost:38332".to_string(),
+            node_url: "http://localhost:38332/wallet/test".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
             network: bitcoin::Network::Regtest,
@@ -865,16 +866,25 @@ mod tests {
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        BitcoinService::new_without_client(
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let da_service = BitcoinService::new(
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
                 reveal_batch_prover_prefix: vec![1, 1],
                 reveal_light_client_prefix: vec![2, 2],
             },
+            tx,
         )
         .await
-        .expect("Error initialazing BitcoinService")
+        .expect("Error initialazing BitcoinService");
+
+        let da_service = Arc::new(da_service);
+
+        da_service.clone().spawn_da_queue(rx);
+
+        da_service
     }
 
     #[tokio::test]
