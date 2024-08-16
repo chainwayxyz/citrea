@@ -169,6 +169,7 @@ impl BitcoinService {
                             }
                             Err(e) => {
                                 error!(?e, "Failed to send transaction to DA layer");
+                                println!("Failed to send transaction to DA layer: {:?}", e);
                                 tokio::time::sleep(Duration::from_secs(1)).await;
                                 continue;
                             }
@@ -841,7 +842,7 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
-    use sov_rollup_interface::da::DaVerifier;
+    use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
     use super::BitcoinService;
@@ -887,25 +888,195 @@ mod tests {
         da_service
     }
 
+    async fn get_service_wrong_rollup_name() -> Arc<BitcoinService> {
+        let runtime_config = DaServiceConfig {
+            node_url: "http://localhost:38332/wallet/other".to_string(),
+            node_username: "chainway".to_string(),
+            node_password: "topsecret".to_string(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
+            ),
+            fee_rates_to_avg: Some(2), // small to speed up tests
+        };
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let da_service = BitcoinService::new(
+            runtime_config,
+            RollupParams {
+                rollup_name: "btc-sov".to_string(),
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
+            },
+            tx,
+        )
+        .await
+        .expect("Error initialazing BitcoinService");
+
+        let da_service = Arc::new(da_service);
+
+        da_service.clone().spawn_da_queue(rx);
+
+        da_service
+    }
+
+    async fn get_service_correct_sig_different_public_key() -> Arc<BitcoinService> {
+        let runtime_config = DaServiceConfig {
+            node_url: "http://localhost:38332/wallet/other2".to_string(),
+            node_username: "chainway".to_string(),
+            node_password: "topsecret".to_string(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
+            ),
+            fee_rates_to_avg: Some(2), // small to speed up tests
+        };
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let da_service = BitcoinService::new(
+            runtime_config,
+            RollupParams {
+                rollup_name: "btc-sov".to_string(),
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
+            },
+            tx,
+        )
+        .await
+        .expect("Error initialazing BitcoinService");
+
+        let da_service = Arc::new(da_service);
+
+        da_service.clone().spawn_da_queue(rx);
+
+        da_service
+    }
+
     #[tokio::test]
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
         use sov_rollup_interface::zk::Proof;
         let da_service = get_service().await;
 
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [13; 32],
+                l2_start_block_number: 1002,
+                l2_end_block_number: 1100,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 1");
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [14; 32],
+                l2_start_block_number: 1101,
+                l2_end_block_number: 1245,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 2");
+
+        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
+
+        println!("sent 3");
+
         let size = 2000;
-
-        // create random bytes with size of size variable
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
-        let txid = da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-            .await;
 
-        if txid.is_ok() {
-            println!("Transaction sent successfully");
-        } else {
-            panic!("Failed to send transaction: {:?}", txid.err());
-        }
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 4");
+
+        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
+
+        println!("sent 5");
+
+        let size = 600 * 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 6");
+
+        // seq com different rollup name
+        get_service_wrong_rollup_name()
+            .await
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        let size = 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 7");
+
+        // seq com incorrect pubkey and sig
+        get_service_correct_sig_different_public_key()
+            .await
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 8");
+
+        let size = 1200 * 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 9");
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [30; 32],
+                l2_start_block_number: 1268,
+                l2_end_block_number: 1314,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 10");
     }
 
     // #[tokio::test]
