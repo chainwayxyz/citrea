@@ -332,8 +332,7 @@ impl fmt::Debug for TxWithId {
 pub fn create_zkproof_transactions(
     rollup_name: &str,
     body: Vec<u8>,
-    signature: Vec<u8>,
-    signer_public_key: Vec<u8>,
+    da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -347,8 +346,7 @@ pub fn create_zkproof_transactions(
         create_inscription_type_0(
             rollup_name.as_bytes(),
             body,
-            signature,
-            signer_public_key,
+            da_private_key,
             prev_utxo,
             utxos,
             recipient,
@@ -362,8 +360,7 @@ pub fn create_zkproof_transactions(
         create_inscription_type_1(
             rollup_name.as_bytes(),
             body,
-            signature,
-            signer_public_key,
+            da_private_key,
             prev_utxo,
             utxos,
             recipient,
@@ -384,8 +381,7 @@ pub fn create_zkproof_transactions(
 pub fn create_seqcommitment_transactions(
     rollup_name: &str,
     body: Vec<u8>,
-    signature: Vec<u8>,
-    signer_public_key: Vec<u8>,
+    da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -398,8 +394,7 @@ pub fn create_seqcommitment_transactions(
     create_batchproof_type_0(
         rollup_name.as_bytes(),
         body,
-        signature,
-        signer_public_key,
+        da_private_key,
         prev_utxo,
         utxos,
         recipient,
@@ -461,8 +456,7 @@ impl TxListWithReveal for BatchProvingTxs {
 pub fn create_inscription_type_0(
     rollup_name: &[u8],
     body: Vec<u8>,
-    signature: Vec<u8>,
-    signer_public_key: Vec<u8>,
+    da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -482,6 +476,10 @@ pub fn create_inscription_type_0(
         kind: TransactionKindLightClient::Complete,
     };
     let header_bytes = header.to_bytes();
+
+    // sign the body for authentication of the sequencer
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
@@ -655,8 +653,7 @@ pub fn create_inscription_type_0(
 pub fn create_inscription_type_1(
     rollup_name: &[u8],
     body: Vec<u8>,
-    signature: Vec<u8>,
-    signer_public_key: Vec<u8>,
+    da_private_key: &SecretKey,
     mut prev_utxo: Option<UTXO>,
     mut utxos: Vec<UTXO>,
     recipient: Address,
@@ -837,6 +834,17 @@ pub fn create_inscription_type_1(
         }
     }
 
+    let reveal_tx_ids: Vec<_> = reveal_chunks
+        .iter()
+        .map(|tx| tx.compute_txid().to_byte_array())
+        .collect();
+
+    // To sign the list of tx ids we assume they form a contigious list of bytes
+    let reveal_body: Vec<u8> = reveal_tx_ids.iter().copied().flatten().collect();
+    // sign the body for authentication of the sequencer
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&reveal_body, &da_private_key).expect("Sequencer sign the body");
+
     let header = TransactionHeaderLightClient {
         rollup_name,
         kind: TransactionKindLightClient::Chunked,
@@ -855,8 +863,8 @@ pub fn create_inscription_type_1(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
     // push txids
-    for tx in &reveal_chunks {
-        reveal_script_builder = reveal_script_builder.push_slice(tx.compute_txid().as_byte_array());
+    for id in reveal_tx_ids {
+        reveal_script_builder = reveal_script_builder.push_slice(id);
     }
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
@@ -1016,8 +1024,7 @@ pub fn create_inscription_type_1(
 pub fn create_batchproof_type_0(
     rollup_name: &[u8],
     body: Vec<u8>,
-    signature: Vec<u8>,
-    signer_public_key: Vec<u8>,
+    da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
@@ -1041,6 +1048,10 @@ pub fn create_batchproof_type_0(
         kind: TransactionKindBatchProof::SequencerCommitment,
     };
     let header_bytes = header.to_bytes();
+
+    // sign the body for authentication of the sequencer
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
 
     // start creating inscription content
     let reveal_script_builder = script::Builder::new()
@@ -1214,10 +1225,12 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
     use bitcoin::secp256k1::schnorr::Signature;
+    use bitcoin::secp256k1::SecretKey;
     use bitcoin::taproot::ControlBlock;
     use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
     use super::LightClientTxs;
+    use crate::helpers::builders::sign_blob_with_private_key;
     use crate::helpers::compression::{compress_blob, decompress_blob};
     use crate::helpers::parsers::{parse_transaction, ParsedLightClientTransaction};
     use crate::spec::utxo::UTXO;
@@ -1249,11 +1262,9 @@ mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn get_mock_data() -> (&'static str, Vec<u8>, Vec<u8>, Vec<u8>, Address, Vec<UTXO>) {
+    fn get_mock_data() -> (&'static str, Vec<u8>, Address, Vec<UTXO>) {
         let rollup_name = "test_rollup";
         let body = vec![100; 1000];
-        let signature = vec![100; 64];
-        let signer_public_key = vec![100; 33];
         let address =
             Address::from_str("bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9")
                 .unwrap()
@@ -1319,8 +1330,6 @@ mod tests {
         (
             rollup_name,
             body,
-            signature,
-            signer_public_key,
             address,
             utxos,
         )
@@ -1328,7 +1337,7 @@ mod tests {
 
     #[test]
     fn choose_utxos() {
-        let (_, _, _, _, _, utxos) = get_mock_data();
+        let (_, _, _, utxos) = get_mock_data();
 
         let (chosen_utxos, sum, leftover_utxos) =
             super::choose_utxos(None, &utxos, 105_000).unwrap();
@@ -1371,7 +1380,7 @@ mod tests {
 
     #[test]
     fn build_commit_transaction() {
-        let (_, _, _, _, address, utxos) = get_mock_data();
+        let (_, _, address, utxos) = get_mock_data();
 
         let recipient =
             Address::from_str("bc1p2e37kuhnsdc5zvc8zlj2hn6awv3ruavak6ayc8jvpyvus59j3mwqwdt0zc")
@@ -1608,7 +1617,7 @@ mod tests {
 
     #[test]
     fn build_reveal_transaction() {
-        let (_, _, _, _, address, utxos) = get_mock_data();
+        let (_, _, address, utxos) = get_mock_data();
 
         let utxo = utxos.first().unwrap();
         let script = ScriptBuf::from_hex("62a58f2674fd840b6144bea2e63ebd35c16d7fd40252a2f28b2a01a648df356343e47976d7906a0e688bf5e134b6fd21bd365c016b57b1ace85cf30bf1206e27").unwrap();
@@ -1685,14 +1694,19 @@ mod tests {
     }
     #[test]
     fn create_inscription_transactions() {
-        let (rollup_name, body, signature, signer_public_key, address, utxos) = get_mock_data();
+        let (rollup_name, body, address, utxos) = get_mock_data();
+
+        let da_private_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+
+        // sign the body for authentication of the sequencer
+        let (signature, signer_public_key) =
+            sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
 
         let tx_prefix = &[0u8];
         let LightClientTxs::Complete { commit, reveal } = super::create_zkproof_transactions(
             rollup_name,
             body.clone(),
-            signature.clone(),
-            signer_public_key.clone(),
+            &da_private_key,
             None,
             utxos.clone(),
             address.clone(),
