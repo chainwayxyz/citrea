@@ -73,6 +73,7 @@ pub(crate) trait VerifyParsed {
 
         let secp = Secp256k1::new();
 
+        println!("baban: {} deden: {}", public_key.is_ok(), signature.is_ok(),);
         if public_key.is_ok()
             && signature.is_ok()
             && secp
@@ -81,6 +82,7 @@ pub(crate) trait VerifyParsed {
         {
             Some(hash)
         } else {
+            println!("anan");
             None
         }
     }
@@ -124,7 +126,11 @@ impl VerifyParsed for ParsedSequencerCommitment {
 
 impl ParsedAggregate {
     pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
-        self.body.chunks_exact(32).into_iter().map(Txid::from_slice).collect()
+        self.body
+            .chunks_exact(32)
+            .into_iter()
+            .map(Txid::from_slice)
+            .collect()
     }
 }
 

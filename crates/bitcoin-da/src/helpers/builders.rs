@@ -1327,12 +1327,7 @@ mod tests {
             },
         ];
 
-        (
-            rollup_name,
-            body,
-            address,
-            utxos,
-        )
+        (rollup_name, body, address, utxos)
     }
 
     #[test]
@@ -1696,7 +1691,8 @@ mod tests {
     fn create_inscription_transactions() {
         let (rollup_name, body, address, utxos) = get_mock_data();
 
-        let da_private_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let da_private_key =
+            SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
         // sign the body for authentication of the sequencer
         let (signature, signer_public_key) =

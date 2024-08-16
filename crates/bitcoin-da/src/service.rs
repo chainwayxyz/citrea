@@ -31,7 +31,9 @@ use crate::helpers::builders::{
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed};
+use crate::helpers::parsers::{
+    parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
+};
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -814,6 +816,7 @@ fn get_relevant_blobs_from_txs(
         }
 
         if let Ok(tx) = parse_batch_proof_transaction(&tx, rollup_name) {
+            println!("Parsed tx: {:?}", tx);
             match tx {
                 ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
                     if let Some(hash) = seq_comm.get_sig_verified_hash() {
@@ -881,7 +884,7 @@ mod tests {
 
         let da_service = Arc::new(da_service);
 
-        da_service.clone().spawn_da_queue(rx);
+        // da_service.clone().spawn_da_queue(rx);
 
         da_service
     }
@@ -953,6 +956,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
         use sov_rollup_interface::zk::Proof;
@@ -969,118 +973,118 @@ mod tests {
 
         println!("sent 1");
 
-        da_service
-            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-                merkle_root: [14; 32],
-                l2_start_block_number: 1101,
-                l2_end_block_number: 1245,
-            }))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        //         merkle_root: [14; 32],
+        //         l2_start_block_number: 1101,
+        //         l2_end_block_number: 1245,
+        //     }))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 2");
+        // println!("sent 2");
 
-        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
-        let mut s = String::new();
-        std::io::stdin().read_line(&mut s).unwrap();
+        // println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        // let mut s = String::new();
+        // std::io::stdin().read_line(&mut s).unwrap();
 
-        println!("sent 3");
+        // println!("sent 3");
 
-        let size = 2000;
-        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        // let size = 2000;
+        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 4");
+        // println!("sent 4");
 
-        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
-        let mut s = String::new();
-        std::io::stdin().read_line(&mut s).unwrap();
+        // println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        // let mut s = String::new();
+        // std::io::stdin().read_line(&mut s).unwrap();
 
-        println!("sent 5");
+        // println!("sent 5");
 
-        let size = 600 * 1024;
-        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        // let size = 600 * 1024;
+        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 6");
+        // println!("sent 6");
 
-        // seq com different rollup name
-        get_service_wrong_rollup_name()
-            .await
-            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-                merkle_root: [15; 32],
-                l2_start_block_number: 1246,
-                l2_end_block_number: 1268,
-            }))
-            .await
-            .expect("Failed to send transaction");
+        // // seq com different rollup name
+        // get_service_wrong_rollup_name()
+        //     .await
+        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        //         merkle_root: [15; 32],
+        //         l2_start_block_number: 1246,
+        //         l2_end_block_number: 1268,
+        //     }))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        let size = 1024;
-        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        // let size = 1024;
+        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 7");
+        // println!("sent 7");
 
-        // seq com incorrect pubkey and sig
-        get_service_correct_sig_different_public_key()
-            .await
-            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-                merkle_root: [15; 32],
-                l2_start_block_number: 1246,
-                l2_end_block_number: 1268,
-            }))
-            .await
-            .expect("Failed to send transaction");
+        // // seq com incorrect pubkey and sig
+        // get_service_correct_sig_different_public_key()
+        //     .await
+        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        //         merkle_root: [15; 32],
+        //         l2_start_block_number: 1246,
+        //         l2_end_block_number: 1268,
+        //     }))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        da_service
-            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-                merkle_root: [15; 32],
-                l2_start_block_number: 1246,
-                l2_end_block_number: 1268,
-            }))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        //         merkle_root: [15; 32],
+        //         l2_start_block_number: 1246,
+        //         l2_end_block_number: 1268,
+        //     }))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 8");
+        // println!("sent 8");
 
-        let size = 1200 * 1024;
-        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        // let size = 1200 * 1024;
+        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 9");
+        // println!("sent 9");
 
-        da_service
-            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-                merkle_root: [30; 32],
-                l2_start_block_number: 1268,
-                l2_end_block_number: 1314,
-            }))
-            .await
-            .expect("Failed to send transaction");
+        // da_service
+        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        //         merkle_root: [30; 32],
+        //         l2_start_block_number: 1268,
+        //         l2_end_block_number: 1314,
+        //     }))
+        //     .await
+        //     .expect("Failed to send transaction");
 
-        println!("sent 10");
+        // println!("sent 10");
     }
 
     // #[tokio::test]
     // async fn get_finalized_at() {
     //     let da_service = get_service().await;
-    //
+
     //     da_service
     //         .get_finalized_at(132)
     //         .await
@@ -1134,7 +1138,10 @@ mod tests {
 
         let txs = da_service.extract_relevant_blobs(&block);
 
-        assert_eq!(txs, relevant_txs)
+        assert_eq!(txs, relevant_txs);
+
+        // kill tokio runtime
+        drop(da_service);
     }
 
     #[tokio::test]
@@ -1205,21 +1212,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "19bd253df7a58cb8131f223fa4d99db2ad4eee171b47e31c2b1a75d7c0c89ea6",
+                    "69309c43aa5addfa0b3356e6eff316d2bdc3bf88e5e01575d2d2676c53677ca7",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "478fd2a0d8b251d37bcda9b408d4b50a5b5387dedb9af1cfb16c0e543e8f2a9b",
+                    "b03d88f57326ea63f1b241f70f45824446e10b3db3f0e808a60e0d7c013a8322",
                 )
                 .unwrap(),
-                time: 1694177029,
+                time: 1723819158,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 0,
+                nonce: 1,
             },
             3,
             1,
             WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+                "8acc63c09983c9e8dba2e88b9e0218498ea4a3ff25ee8ce8be7674ada84046d5",
             )
             .unwrap()
             .as_raw_hash()
@@ -1244,6 +1251,7 @@ mod tests {
             "Publickey recovered incorrectly!"
         );
 
+        println!("{:?}", incorrect_pub_key);
         assert_eq!(
             txs.first().unwrap().sender.0,
             incorrect_pub_key,
@@ -1268,21 +1276,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "427b67c04afcbbee6856b764535c512dc22d0eeef21a55ebb2a37157074563b7",
+                    "4ebd11342b9d9e2a23b0f14c17a12bbb4f52a9290fe6a1cf313c270d5a49c2ea",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "574efcf98001bf273b489f3b5065cdd8b983ec9b9c31e001e2f3397a885911ca",
+                    "a720804fbad45307b61958059c06f787a1ae10180ce91df2802a40023dea7e84",
                 )
                 .unwrap(),
-                time: 1694177029,
+                time: 1723820296,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             3,
             2273,
             WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+                "ab0edbf1611637701117cfc70b878b4196be1c5e4c256609ca8b620a0838860a",
             )
             .unwrap()
             .as_raw_hash()

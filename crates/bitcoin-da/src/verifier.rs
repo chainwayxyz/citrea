@@ -9,7 +9,9 @@ use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
 use crate::helpers::compression::decompress_blob;
-use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed};
+use crate::helpers::parsers::{
+    parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
+};
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::BitcoinSpec;
 
@@ -138,15 +140,15 @@ impl DaVerifier for BitcoinVerifier {
                             }
 
                             // decompress the blob
-                            let decompressed_blob = decompress_blob(&seq_comm.body);
+                            // let decompressed_blob = decompress_blob(&seq_comm.body);
 
                             // read the supplied blob from txs
-                            let mut blob_content = blobs[index_completeness].blob.clone();
+                            let mut blob_content = blob.blob.clone();
                             blob_content.advance(blob_content.total_len());
                             let blob_content = blob_content.accumulator();
 
                             // assert tx content is not modified
-                            if blob_content != decompressed_blob {
+                            if blob_content != seq_comm.body {
                                 return Err(ValidationError::BlobContentWasModified);
                             }
                         }
@@ -839,6 +841,8 @@ mod tests {
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
 
         completeness_proof.clear();
+
+        println!("{:?}", completeness_proof);
 
         assert_eq!(
             verifier.verify_relevant_tx_list(
