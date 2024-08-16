@@ -1,0 +1,77 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  EXPECTED_DATA: ${{ vars.EXPECTED_DATA }}
+
+jobs:
+
+  build-and-push:
+    runs-on: ubicloud-standard-30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: citrea-builder-image
+          platforms: linux/amd64
+
+      - name: Run and check image
+        id: check-image
+        run: |
+          echo "Starting container..."
+          docker run -d --name citrea-builder-container --entrypoint /bin/sh citrea-builder-image -c "while true; do sleep 30; done"
+          
+          echo "Checking BITCOIN_DA_ID..."
+          RESULT=$(docker exec citrea-builder-container grep -R "${{ env.EXPECTED_DATA }}" /citrea || echo "Grep failed")        
+          echo "Grep result: $RESULT"
+          
+          echo "Extracting release binary..."
+          mkdir -p release
+          docker cp citrea-builder-container:/citrea/target/release/citrea release/
+          
+          sudo apt-get update && sudo apt-get install -y zip
+          cd release
+          tar -zcvf citrea-${{ github.ref_name }}-x86_64.tar.gz citrea 
+          zip ../citrea-${{ github.ref_name }}-x86_64.zip citrea      
+          cd ..
+          
+          if echo "$RESULT" | grep -q "${{ env.EXPECTED_DATA }}"; then
+            echo "check_passed=true" >> $GITHUB_OUTPUT
+            echo "Check passed successfully."
+          else
+            echo "check_passed=false" >> $GITHUB_OUTPUT
+            echo "Check failed. Expected: ${{ env.EXPECTED_DATA }} | Actual: $RESULT"
+            exit 1
+          fi
+
+      - name: Release
+        if: steps.check-image.outputs.check_passed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            citrea-${{ github.ref_name }}-x86_64.tar.gz
+            citrea-${{ github.ref_name }}-x86_64.zip
+          name: x86_64 release ${{ github.ref_name }}
+          body: |
+            This is the x86_64 release for version ${{ github.ref_name }}.
+            
+            It includes:
+            - citrea-${{ github.ref_name }}-x86_64.tar.gz
+            - citrea-${{ github.ref_name }}-x86_64.zip
