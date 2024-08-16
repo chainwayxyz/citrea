@@ -6,7 +6,7 @@ on:
       - "v*.*.*"
 
 env:
-  EXPECTED_DATA: ${{ vars.EXPECTED_DATA }}
+  EXPECTED_BITCOIN_DA_ID: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
 
 jobs:
 
@@ -39,7 +39,7 @@ jobs:
           docker run -d --name citrea-builder-container --entrypoint /bin/sh citrea-builder-image -c "while true; do sleep 30; done"
           
           echo "Checking BITCOIN_DA_ID..."
-          RESULT=$(docker exec citrea-builder-container grep -R "${{ env.EXPECTED_DATA }}" /citrea || echo "Grep failed")        
+          RESULT=$(docker exec citrea-builder-container grep -R "${{ env.EXPECTED_BITCOIN_DA_ID }}" /citrea || echo "Grep failed")        
           echo "Grep result: $RESULT"
           
           echo "Extracting release binary..."
@@ -52,12 +52,12 @@ jobs:
           zip ../citrea-${{ github.ref_name }}-x86_64.zip citrea      
           cd ..
           
-          if echo "$RESULT" | grep -q "${{ env.EXPECTED_DATA }}"; then
+          if echo "$RESULT" | grep -q "${{ env.EXPECTED_BITCOIN_DA_ID }}"; then
             echo "check_passed=true" >> $GITHUB_OUTPUT
             echo "Check passed successfully."
           else
             echo "check_passed=false" >> $GITHUB_OUTPUT
-            echo "Check failed. Expected: ${{ env.EXPECTED_DATA }} | Actual: $RESULT"
+            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} | Actual: $RESULT"
             exit 1
           fi
 
