@@ -247,7 +247,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
         _preproven_commitment_indicies: Vec<usize>,
         _forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff) {
+    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
         todo!()
     }
 }

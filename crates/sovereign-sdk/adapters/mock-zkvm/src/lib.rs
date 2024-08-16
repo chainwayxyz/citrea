@@ -9,6 +9,7 @@ use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Matches, Proof, StateTransitionData, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
@@ -189,6 +190,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                     sequencer_public_key: vec![],
                     sequencer_da_public_key: vec![],
                     sequencer_commitments_range: (0, 0),
+                    final_spec_id: SpecId::Genesis,
                 })
             }
             sov_rollup_interface::zk::Proof::Full(_) => {

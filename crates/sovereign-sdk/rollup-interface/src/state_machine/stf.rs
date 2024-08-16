@@ -270,7 +270,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff);
+    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);
 }
 
 /// A key-value pair representing a change to the rollup state

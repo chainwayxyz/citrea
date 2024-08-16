@@ -507,7 +507,7 @@ where
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
         mut preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff) {
+    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
         let mut state_diff = CumulativeStateDiff::default();
 
         // First extract all sequencer commitments
@@ -546,6 +546,8 @@ where
         let mut current_state_root = initial_state_root.clone();
         let mut previous_batch_hash = initial_batch_hash;
         let mut last_commitment_end_height: Option<u64> = None;
+
+        let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
@@ -691,8 +693,6 @@ where
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
             let mut l2_height = sequencer_commitment.l2_start_block_number;
-            let mut fork_manager = ForkManager::new(forks.clone(), l2_height);
-            let mut current_spec = fork_manager.active_fork().spec_id;
 
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
@@ -703,7 +703,7 @@ where
                 }
 
                 let result = self.apply_soft_confirmation(
-                    current_spec,
+                    fork_manager.active_fork().spec_id,
                     sequencer_public_key,
                     &current_state_root,
                     pre_state.clone(),
@@ -722,14 +722,11 @@ where
                     panic!("Fork transition failed {}", e);
                 }
                 l2_height += 1;
-
-                // Update current spec for the next iteration
-                current_spec = fork_manager.active_fork().spec_id;
             }
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
-        (current_state_root, state_diff)
+        (current_state_root, state_diff, fork_manager.active_fork().spec_id)
     }
 }
 

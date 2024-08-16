@@ -148,7 +148,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _soft_confirmation: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
         _preproven_commitment_indicies: Vec<usize>,
         _forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff) {
+    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
         todo!()
     }
 }
