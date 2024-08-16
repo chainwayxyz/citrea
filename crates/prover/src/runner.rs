@@ -496,7 +496,7 @@ where
             let should_prove = prover_config.proof_sampling_number == 0
                 || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
-            let mut sequencer_commitments =
+            let (mut sequencer_commitments, preproven_commitments) =
                 self.filter_out_proven_commitments(&sequencer_commitments)?;
             // Make sure all sequencer commitments are stored in ascending order.
             sequencer_commitments.sort_unstable();
@@ -519,6 +519,7 @@ where
                     > = self
                         .create_state_transition_data(
                             &sequencer_commitments,
+                            &preproven_commitments,
                             da_block_header_of_commitments.clone(),
                             da_data.clone(),
                             l1_block,
@@ -573,6 +574,7 @@ where
     async fn create_state_transition_data(
         &self,
         sequencer_commitments: &[SequencerCommitment],
+        preproven_commitments: &[(u64, u64)],
         da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
         l1_block: &Da::FilteredBlock,
@@ -622,6 +624,10 @@ where
                 soft_confirmations,
                 state_transition_witnesses,
                 da_block_headers_of_soft_confirmations,
+                preproven_commitments: preproven_commitments
+                    .into_iter()
+                    .map(|(a, b)| (*a as u32, *b as u32))
+                    .collect(),
                 sequencer_commitments_range: (
                     0,
                     (sequencer_commitments.len() - 1)
@@ -933,7 +939,8 @@ where
     fn filter_out_proven_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<(u64, u64)>)> {
+        let mut preproven_commitments = vec![];
         let mut filtered = vec![];
         let mut visited_l2_ranges = HashSet::new();
         for sequencer_commitment in sequencer_commitments {
@@ -958,10 +965,12 @@ where
 
             if status != SoftConfirmationStatus::Finalized {
                 filtered.push(sequencer_commitment.clone());
+            } else {
+                preproven_commitments.push(current_range);
             }
         }
 
-        Ok(filtered)
+        Ok((filtered, preproven_commitments))
     }
 }
 

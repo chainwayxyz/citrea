@@ -267,6 +267,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        preproven_commitment_ranges: Vec<(u32, u32)>,
         forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff);
 }
