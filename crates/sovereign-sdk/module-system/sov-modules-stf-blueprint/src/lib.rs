@@ -528,7 +528,7 @@ where
 
         let mut filtered: Vec<SequencerCommitment> = vec![];
         let mut visited_l2_ranges: HashSet<(u32, u32), RandomState> =
-            HashSet::from_iter(preproven_commitment_ranges.into_iter());
+            HashSet::from_iter(preproven_commitment_ranges);
         for sequencer_commitment in sequencer_commitments {
             // Handle commitments which have the same L2 range
             let current_range = (
