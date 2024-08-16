@@ -9,7 +9,7 @@ use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
 use crate::helpers::compression::decompress_blob;
-use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction};
+use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed};
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::BitcoinSpec;
 
