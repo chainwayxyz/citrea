@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::fork::{Fork, ForkManager};
+use citrea_primitives::fork::ForkManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -437,7 +437,7 @@ where
             .create_storage_on_l2_height(l2_height)?;
 
         let slot_result = self.stf.apply_soft_confirmation(
-            self.fork_manager.active_fork(),
+            self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,

@@ -5,8 +5,8 @@ use citrea_primitives::fork::ForkMigration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
+use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
@@ -14,7 +14,7 @@ use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
-    ActiveFork, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
+    BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
     PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofBySlotNumber,
     ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
@@ -451,14 +451,6 @@ impl SharedLedgerOps for LedgerDB {
         self.db.get::<SoftConfirmationByNumber>(number)
     }
 
-    /// Gets the currently active fork
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error> {
-        self.db
-            .get::<ActiveFork>(&())
-            .map(|fork| fork.unwrap_or_default())
-    }
-
     /// Get the most recent committed batch
     /// Returns L2 height.
     #[instrument(level = "trace", skip(self), err, ret)]
@@ -809,7 +801,7 @@ impl NodeLedgerOps for LedgerDB {
 }
 
 impl ForkMigration for LedgerDB {
-    fn spec_activated(&self, _spec_id: SpecId) -> anyhow::Result<()> {
+    fn fork_activated(&self, _fork: &Fork) -> anyhow::Result<()> {
         // TODO: Implement later
         Ok(())
     }

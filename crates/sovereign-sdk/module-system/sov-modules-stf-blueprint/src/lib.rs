@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 use borsh::BorshDeserialize;
-use citrea_primitives::fork::{fork_from_block_number, Fork, ForkManager};
+use citrea_primitives::fork::ForkManager;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -17,6 +17,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
@@ -505,7 +506,7 @@ where
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
         mut preproven_commitment_indicies: Vec<usize>,
-        forks: Vec<(SpecId, u64)>,
+        forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -690,8 +691,8 @@ where
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
             let mut l2_height = sequencer_commitment.l2_start_block_number;
-            let mut current_spec = fork_from_block_number(&forks, l2_height);
-            let mut fork_manager = ForkManager::new(l2_height, current_spec, forks.clone());
+            let mut fork_manager = ForkManager::new(forks.clone(), l2_height);
+            let mut current_spec = fork_manager.active_fork().spec_id;
 
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
@@ -723,7 +724,7 @@ where
                 l2_height += 1;
 
                 // Update current spec for the next iteration
-                current_spec = fork_manager.active_fork();
+                current_spec = fork_manager.active_fork().spec_id;
             }
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }

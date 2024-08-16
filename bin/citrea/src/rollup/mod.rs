@@ -11,7 +11,6 @@ use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
-use sov_rollup_interface::spec::SpecId;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tokio::sync::broadcast;
@@ -92,10 +91,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?;
-
-        let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
@@ -188,9 +184,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?;
-        let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaFullnode::new(
@@ -294,9 +288,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?;
-        let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaProver::new(

@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
@@ -101,7 +102,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             Vec<sov_modules_api::SignedSoftConfirmationBatch>,
         >,
         _preproven_commitment_indicies: Vec<usize>,
-        _forks: Vec<(SpecId, u64)>,
+        _forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         todo!()
     }
