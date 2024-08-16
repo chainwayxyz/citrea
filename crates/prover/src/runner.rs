@@ -10,7 +10,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::fork::{Fork, ForkManager};
-use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::types::{L2Range, SoftConfirmationHash};
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -625,7 +625,7 @@ where
                 state_transition_witnesses,
                 da_block_headers_of_soft_confirmations,
                 preproven_commitments: preproven_commitments
-                    .into_iter()
+                    .iter()
                     .map(|(a, b)| (*a as u32, *b as u32))
                     .collect(),
                 sequencer_commitments_range: (
@@ -939,7 +939,7 @@ where
     fn filter_out_proven_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<(u64, u64)>)> {
+    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<L2Range>)> {
         let mut preproven_commitments = vec![];
         let mut filtered = vec![];
         let mut visited_l2_ranges = HashSet::new();
