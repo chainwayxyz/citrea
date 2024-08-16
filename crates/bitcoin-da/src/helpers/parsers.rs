@@ -41,7 +41,7 @@ pub struct ParsedComplete {
 
 #[derive(Debug, Clone)]
 pub struct ParsedAggregate {
-    pub txids: Vec<Txid>,
+    pub body: Vec<u8>,
     pub signature: Vec<u8>,
     pub public_key: Vec<u8>,
 }
@@ -58,12 +58,17 @@ pub struct ParsedSequencerCommitment {
     pub public_key: Vec<u8>,
 }
 
-impl ParsedComplete {
+/// To verify the signature of the inscription and get the hash of the body
+pub(crate) trait VerifyParsed {
+    fn public_key(&self) -> &[u8];
+    fn signature(&self) -> &[u8];
+    fn body(&self) -> &[u8];
+
     /// Verifies the signature of the inscription and returns the hash of the body
-    pub fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
-        let public_key = secp256k1::PublicKey::from_slice(&self.public_key);
-        let signature = ecdsa::Signature::from_compact(&self.signature);
-        let hash = calculate_double_sha256(&self.body);
+    fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
+        let public_key = secp256k1::PublicKey::from_slice(self.public_key());
+        let signature = ecdsa::Signature::from_compact(self.signature());
+        let hash = calculate_double_sha256(self.body());
         let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
 
         let secp = Secp256k1::new();
@@ -81,26 +86,45 @@ impl ParsedComplete {
     }
 }
 
-impl ParsedSequencerCommitment {
-    /// Verifies the signature of the sequencer commitment and returns the hash of the body
-    pub fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
-        let public_key = secp256k1::PublicKey::from_slice(&self.public_key);
-        let signature = ecdsa::Signature::from_compact(&self.signature);
-        let hash = calculate_double_sha256(&self.body);
-        let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
+impl VerifyParsed for ParsedComplete {
+    fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+    fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
 
-        let secp = Secp256k1::new();
+impl VerifyParsed for ParsedAggregate {
+    fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+    fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
 
-        if public_key.is_ok()
-            && signature.is_ok()
-            && secp
-                .verify_ecdsa(&message, &signature.unwrap(), &public_key.unwrap())
-                .is_ok()
-        {
-            Some(hash)
-        } else {
-            None
-        }
+impl VerifyParsed for ParsedSequencerCommitment {
+    fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+    fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
+
+impl ParsedAggregate {
+    pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
+        self.body.chunks_exact(32).into_iter().map(Txid::from_slice).collect()
     }
 }
 
@@ -340,15 +364,17 @@ mod light_client {
         let signature = read_push_bytes(instructions)?;
         let public_key = read_push_bytes(instructions)?;
 
-        let mut txids = vec![];
+        let mut chunks = vec![];
 
         loop {
             let instr = read_instr(instructions)?;
             match instr {
-                PushBytes(chunk) => match Txid::from_slice(chunk.as_bytes()) {
-                    Ok(id) => txids.push(id),
-                    Err(_) => return Err(ParserError::UnexpectedOpcode),
-                },
+                PushBytes(chunk) => {
+                    if chunk.len() != 32 {
+                        return Err(ParserError::UnexpectedOpcode);
+                    }
+                    chunks.push(chunk)
+                }
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
             }
@@ -364,11 +390,17 @@ mod light_client {
             return Err(ParserError::UnexpectedOpcode);
         }
 
+        let body_size: usize = 32 * chunks.len();
+        let mut body = Vec::with_capacity(body_size);
+        for chunk in chunks {
+            body.extend_from_slice(chunk.as_bytes());
+        }
+
         let signature = signature.as_bytes().to_vec();
         let public_key = public_key.as_bytes().to_vec();
 
         Ok(ParsedAggregate {
-            txids,
+            body,
             signature,
             public_key,
         })

@@ -31,7 +31,7 @@ use crate::helpers::builders::{
 };
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction};
+use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed};
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -353,9 +353,9 @@ impl BitcoinService {
             .require_network(network)
             .context("Invalid network for address")?;
 
-        // sign the blob for authentication of the sequencer
-        let (signature, public_key) =
-            sign_blob_with_private_key(&blob, &da_private_key).expect("Sequencer sign the blob");
+        // // sign the blob for authentication of the sequencer
+        // let (signature, public_key) =
+        //     sign_blob_with_private_key(&blob, &da_private_key).expect("Sequencer sign the blob");
 
         match da_data {
             DaData::ZKProof(_) => {
@@ -363,8 +363,7 @@ impl BitcoinService {
                 let inscription_txs = create_zkproof_transactions(
                     &rollup_name,
                     blob,
-                    signature,
-                    public_key,
+                    &da_private_key,
                     prev_utxo,
                     utxos,
                     address,
@@ -452,8 +451,7 @@ impl BitcoinService {
                 let inscription_txs = create_seqcommitment_transactions(
                     &rollup_name,
                     blob,
-                    signature,
-                    public_key,
+                    &da_private_key,
                     prev_utxo,
                     utxos,
                     address,
