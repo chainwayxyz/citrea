@@ -19,7 +19,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
-    let _ = tokio::spawn(async move {
+    tokio::spawn(async move {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,

@@ -1084,13 +1084,13 @@ fn test_l1_fee_halt() {
         .get(&dev_signer.address(), &mut working_set)
         .unwrap();
 
-    let expenses = 1106947 as u64 * 10000000 + // evm gas
+    let expenses = 1106947_u64 * 10000000 + // evm gas
         445  + // l1 contract deploy fee
         52; // l1 contract call fee
     assert_eq!(
         db_account.info.balance,
         U256::from(
-            20000000000000 as u64 - // initial balance
+            20000000000000_u64 - // initial balance
             expenses
         )
     );
@@ -1100,7 +1100,7 @@ fn test_l1_fee_halt() {
 
     assert_eq!(
         base_fee_valut.info.balance,
-        U256::from(1106947 as u64 * 10000000)
+        U256::from(1106947_u64 * 10000000)
     );
     assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
 }
