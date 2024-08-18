@@ -15,6 +15,4 @@ pub const FORKS: [Fork; 1] = [
 
 // TODO: think about how to handle updating method ids
 #[cfg(feature = "native")]
-pub const SPEC_TO_RISC0_METHOD_ID: [(SpecId, [u32; 8]); 1] = [
-    (SpecId::Genesis, [0; 8]),
-];
+pub const SPEC_TO_RISC0_METHOD_ID: [(SpecId, [u32; 8]); 1] = [(SpecId::Genesis, [0; 8])];

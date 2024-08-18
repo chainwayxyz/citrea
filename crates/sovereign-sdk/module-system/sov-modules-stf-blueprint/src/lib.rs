@@ -726,7 +726,11 @@ where
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
-        (current_state_root, state_diff, fork_manager.active_fork().spec_id)
+        (
+            current_state_root,
+            state_diff,
+            fork_manager.active_fork().spec_id,
+        )
     }
 }
 
