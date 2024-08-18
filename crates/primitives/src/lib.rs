@@ -1,3 +1,4 @@
+pub mod basefee;
 #[cfg(feature = "native")]
 mod cache;
 mod constants;

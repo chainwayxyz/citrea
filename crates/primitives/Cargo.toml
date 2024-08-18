@@ -17,6 +17,8 @@ lru = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+reth-primitives = { workspace = true }
+alloy-eips = { workspace = true }
 
 [dev-dependencies]
 # Sov SDK deps

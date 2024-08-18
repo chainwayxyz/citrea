@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod archival_state;
+mod fee;
 mod gas_price;
 mod subscription;
 mod tracing;
