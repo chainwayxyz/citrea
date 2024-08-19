@@ -68,6 +68,7 @@ struct RpcImplBlock {
     pub(crate) generics: syn::Generics,
 }
 
+#[derive(Debug)]
 struct RpcEnabledMethod {
     pub(crate) method_name: Ident,
     pub(crate) method_signature: Signature,
@@ -128,7 +129,7 @@ impl RpcImplBlock {
                 quote! {
                     #( #docs )*
                     #signature {
-                        <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* )
+                        <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* ).await
                     }
                 }
             } else {
@@ -138,7 +139,7 @@ impl RpcImplBlock {
                     .filter(|arg| arg.to_string() != quote! { self }.to_string());
                 quote! {
                     #signature {
-                        <#type_name  #ty_generics as ::std::default::Default>::default().#method_name(#(#arg_values),*)
+                        <#type_name  #ty_generics as ::std::default::Default>::default().#method_name(#(#arg_values),*).await
                     }
                 }
             };
@@ -152,14 +153,14 @@ impl RpcImplBlock {
                 quote! {
                     #( #docs )*
                     #signature {
-                        <Self as #impl_trait_name #ty_generics >::#method_name(#(#pre_working_set_args,)* #(#post_working_set_args),* )
+                        <Self as #impl_trait_name #ty_generics >::#method_name(#(#pre_working_set_args,)* #(#post_working_set_args),* ).await
                     }
                 }
             } else {
                 quote! {
                     #( #docs )*
                     #signature {
-                        <Self as #impl_trait_name #ty_generics >::#method_name(#(#arg_values),*)
+                        <Self as #impl_trait_name #ty_generics >::#method_name(#(#arg_values),*).await
                     }
                 }
             };
@@ -171,6 +172,7 @@ impl RpcImplBlock {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
                 /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                #[async_trait::async_trait]
                 pub trait #impl_trait_name #generics #where_clause {
                     /// Get a clean working set on top of the latest state
                     fn get_working_set(&self) -> #working_set_type;
@@ -181,6 +183,7 @@ impl RpcImplBlock {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
                 /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                #[async_trait::async_trait]
                 pub trait #impl_trait_name #generics #where_clause {
                     #(#impl_trait_methods)*
                 }
@@ -197,6 +200,7 @@ impl RpcImplBlock {
         .expect("Failed to parse generics without braces as token stream");
         let rpc_server_trait_name = format_ident!("{}RpcServer", self.type_name);
         let blanket_impl = quote! {
+            #[async_trait::async_trait]
             impl <MacroGeneratedTypeWithLongNameToAvoidCollisions: #impl_trait_name #ty_generics
             + Send
             + Sync
@@ -332,6 +336,7 @@ fn build_rpc_trait(
 
         #rpc_attribute
         #[doc = #doc_string]
+        #[async_trait::async_trait]
         pub trait #intermediate_trait_name  #generics #where_clause {
 
             #(#intermediate_trait_items)*

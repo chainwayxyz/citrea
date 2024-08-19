@@ -91,7 +91,7 @@ pub struct EstimatedDiffSize {
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
-    pub fn net_version(&self, working_set: &mut WorkingSet<C>) -> RpcResult<String> {
+    pub async fn net_version(&self, working_set: &mut WorkingSet<C>) -> RpcResult<String> {
         debug!("evm module: net_version");
 
         // Network ID is the same as chain ID for most networks
@@ -106,7 +106,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_chainId`
     #[rpc_method(name = "eth_chainId")]
-    pub fn chain_id(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Option<U64>> {
+    pub async fn chain_id(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Option<U64>> {
         tracing::debug!("evm module: eth_chainId");
 
         let chain_id = reth_primitives::U64::from(
@@ -122,7 +122,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for `eth_getBlockByHash`
     #[rpc_method(name = "eth_getBlockByHash")]
-    pub fn get_block_by_hash(
+    pub async fn get_block_by_hash(
         &self,
         block_hash: reth_primitives::B256,
         details: Option<bool>,
@@ -144,11 +144,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             details,
             working_set,
         )
+        .await
     }
 
     /// Handler for: `eth_getBlockByNumber`
     #[rpc_method(name = "eth_getBlockByNumber")]
-    pub fn get_block_by_number(
+    pub async fn get_block_by_number(
         &self,
         block_number: Option<BlockNumberOrTag>,
         details: Option<bool>,
@@ -237,7 +238,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getBlockReceipts`
     #[rpc_method(name = "eth_getBlockReceipts")]
-    pub fn get_block_receipts(
+    pub async fn get_block_receipts(
         &self,
         block_number_or_hash: BlockId,
         working_set: &mut WorkingSet<C>,
@@ -290,7 +291,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getBalance`
     #[rpc_method(name = "eth_getBalance")]
-    pub fn get_balance(
+    pub async fn get_balance(
         &self,
         address: reth_primitives::Address,
         block_number: Option<BlockNumberOrTag>,
@@ -337,7 +338,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getStorageAt`
     #[rpc_method(name = "eth_getStorageAt")]
-    pub fn get_storage_at(
+    pub async fn get_storage_at(
         &self,
         address: reth_primitives::Address,
         index: reth_primitives::U256,
@@ -385,7 +386,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getTransactionCount`
     #[rpc_method(name = "eth_getTransactionCount")]
-    pub fn get_transaction_count(
+    pub async fn get_transaction_count(
         &self,
         address: reth_primitives::Address,
         block_number: Option<BlockNumberOrTag>,
@@ -432,7 +433,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getCode`
     #[rpc_method(name = "eth_getCode")]
-    pub fn get_code(
+    pub async fn get_code(
         &self,
         address: reth_primitives::Address,
         block_number: Option<BlockNumberOrTag>,
@@ -480,7 +481,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getTransactionByBlockHashAndIndex`
     #[rpc_method(name = "eth_getTransactionByBlockHashAndIndex")]
-    pub fn get_transaction_by_block_hash_and_index(
+    pub async fn get_transaction_by_block_hash_and_index(
         &self,
         block_hash: reth_primitives::B256,
         index: reth_primitives::U64,
@@ -530,7 +531,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getTransactionByBlockNumberAndIndex`
     #[rpc_method(name = "eth_getTransactionByBlockNumberAndIndex")]
-    pub fn get_transaction_by_block_number_and_index(
+    pub async fn get_transaction_by_block_number_and_index(
         &self,
         block_number: BlockNumberOrTag,
         index: reth_primitives::U64,
@@ -538,7 +539,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         debug!("evm module: eth_getTransactionByBlockNumberAndIndex");
 
-        let block_number = match self.block_number_for_id(&block_number, working_set) {
+        let block_number = match self.block_number_for_id(&block_number, working_set).await {
             Ok(block_number) => block_number,
             Err(EthApiError::UnknownBlockNumber) => return Ok(None),
             Err(err) => return Err(err.into()),
@@ -579,7 +580,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getTransactionReceipt`
     #[rpc_method(name = "eth_getTransactionReceipt")]
-    pub fn get_transaction_receipt(
+    pub async fn get_transaction_receipt(
         &self,
         hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
@@ -614,7 +615,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     //https://github.com/paradigmxyz/reth/blob/f577e147807a783438a3f16aad968b4396274483/crates/rpc/rpc/src/eth/api/transactions.rs#L502
     //https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/call.rs#L7
     #[rpc_method(name = "eth_call")]
-    pub fn get_call(
+    pub async fn get_call(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
@@ -697,7 +698,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
-    pub fn block_number(
+    pub async fn block_number(
         &self,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
@@ -713,7 +714,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for `eth_createAccessList`
     #[rpc_method(name = "eth_createAccessList")]
-    pub fn create_access_list(
+    pub async fn create_access_list(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
@@ -903,7 +904,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for: `eth_estimateGas`
     // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
     #[rpc_method(name = "eth_estimateGas")]
-    pub fn eth_estimate_gas(
+    pub async fn eth_estimate_gas(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
@@ -917,7 +918,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_estimateDiffSize`
     #[rpc_method(name = "eth_estimateDiffSize")]
-    pub fn eth_estimate_diff_size(
+    pub async fn eth_estimate_diff_size(
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
@@ -938,14 +939,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for: `eth_getBlockTransactionCountByHash`
     // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
     #[rpc_method(name = "eth_getBlockTransactionCountByHash")]
-    pub fn eth_get_block_transaction_count_by_hash(
+    pub async fn eth_get_block_transaction_count_by_hash(
         &self,
         block_hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_primitives::U256>> {
         debug!("evm module: eth_getBlockTransactionCountByHash");
         // Get the number of transactions in a block given blockhash
-        let block = self.get_block_by_hash(block_hash, None, working_set)?;
+        let block = self
+            .get_block_by_hash(block_hash, None, working_set)
+            .await?;
         match block {
             Some(block) => Ok(Some(U256::from(block.transactions.len()))),
             None => Ok(None),
@@ -954,14 +957,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getBlockTransactionCountByNumber`
     #[rpc_method(name = "eth_getBlockTransactionCountByNumber")]
-    pub fn eth_get_block_transaction_count_by_number(
+    pub async fn eth_get_block_transaction_count_by_number(
         &self,
         block_number: BlockNumberOrTag,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_primitives::U256>> {
         debug!("evm module: eth_getBlockTransactionCountByNumber");
         // Get the number of transactions in a block given block number
-        let block = self.get_block_by_number(Some(block_number), None, working_set)?;
+        let block = self
+            .get_block_by_number(Some(block_number), None, working_set)
+            .await?;
         match block {
             Some(block) => Ok(Some(U256::from(block.transactions.len()))),
             None => Ok(None),
@@ -1221,18 +1226,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ///
     /// Handler for `eth_getLogs`
     #[rpc_method(name = "eth_getLogs")]
-    pub fn eth_get_logs(
+    pub async fn eth_get_logs(
         &self,
         filter: Filter,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Vec<LogResponse>> {
         // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L302
-        Ok(self.logs_for_filter(filter, working_set)?)
+        Ok(self.logs_for_filter(filter, working_set).await?)
     }
 
     /// Handler for: `eth_getTransactionByHash`
     /// RPC method is moved to sequencer and ethereum-rpc modules
-    pub fn get_transaction_by_hash(
+    pub async fn get_transaction_by_hash(
         &self,
         hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
@@ -1271,7 +1276,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Traces the entire block txs and returns the traces
-    pub fn trace_block_transactions_by_number(
+    pub async fn trace_block_transactions_by_number(
         &self,
         block_number: u64,
         opts: Option<GethDebugTracingOptions>,
@@ -1341,7 +1346,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L349
-    fn logs_for_filter(
+    async fn logs_for_filter(
         &self,
         filter: Filter,
         working_set: &mut WorkingSet<C>,
@@ -1400,6 +1405,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     from_block_number,
                     to_block_number,
                 )
+                .await
             }
         }
     }
@@ -1410,7 +1416,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns an error if:
     ///  - underlying database error
     ///  - amount of matches exceeds configured limit
-    pub fn get_logs_in_block_range(
+    pub async fn get_logs_in_block_range(
         &self,
         working_set: &mut WorkingSet<C>,
         filter: &Filter,
@@ -1519,14 +1525,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Helper function to get chain config
-    pub fn get_chain_config(&self, working_set: &mut WorkingSet<C>) -> EvmChainConfig {
+    pub async fn get_chain_config(&self, working_set: &mut WorkingSet<C>) -> EvmChainConfig {
         self.cfg
             .get(working_set)
             .expect("EVM chain config should be set")
     }
 
     /// Helper function to get block hash from block number
-    pub fn block_hash_from_number(
+    pub async fn block_hash_from_number(
         &self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
@@ -1538,7 +1544,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Helper function to get headers in range
-    pub fn sealed_headers_range(
+    pub async fn sealed_headers_range(
         &self,
         range: RangeInclusive<u64>,
         working_set: &mut WorkingSet<C>,
@@ -1556,7 +1562,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Helper function to check if the block number is valid
     /// If returns None, block doesn't exist
-    pub fn block_number_for_id(
+    pub async fn block_number_for_id(
         &self,
         block_id: &BlockNumberOrTag,
         working_set: &mut WorkingSet<C>,
@@ -1616,7 +1622,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Returns the block number given block hash
     /// If block not found returns None
-    pub fn get_block_number_by_block_hash(
+    pub async fn get_block_number_by_block_hash(
         &self,
         block_hash: reth_primitives::B256,
         working_set: &mut WorkingSet<C>,
@@ -1629,7 +1635,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Returns the cumulative gas used in pending transactions
     /// Used to calculate how much gas system transactions use at the beginning of the block
-    pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u128 {
+    pub async fn get_pending_txs_cumulative_gas_used(
+        &self,
+        working_set: &mut WorkingSet<C>,
+    ) -> u128 {
         self.pending_transactions
             .iter(working_set)
             .map(|tx| tx.receipt.gas_used)

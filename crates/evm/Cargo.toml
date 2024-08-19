@@ -19,6 +19,7 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 citrea-primitives = { path = "../primitives" }
 
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 clap = { workspace = true, optional = true }
 hex = { workspace = true }
@@ -27,6 +28,7 @@ schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true, optional = true }
 
 alloy-consensus = { workspace = true }
