@@ -230,15 +230,16 @@ impl<S: Storage> AccessoryDelta<S> {
 
     fn freeze(&mut self) -> OrderedReadsAndWrites {
         let writes = mem::take(&mut self.writes);
-
-        let mut reads_and_writes = OrderedReadsAndWrites::default();
-        reads_and_writes.ordered_writes = writes
+        let ordered_writes = writes
             .cache
             .into_iter()
             .map(|write| (write.0, write.1))
             .collect();
 
-        reads_and_writes
+        OrderedReadsAndWrites {
+            ordered_writes,
+            ..Default::default()
+        }
     }
 }
 
