@@ -12,7 +12,3 @@ pub const FORKS: [Fork; 1] = [
     // Fork { spec_id: SpecId::Fork1, activation_height: 100 },
     // Fork { spec_id: SpecId::Fork2, activation_height: 1000 },
 ];
-
-// TODO: think about how to handle updating method ids
-#[cfg(feature = "native")]
-pub const SPEC_TO_RISC0_METHOD_ID: [(SpecId, [u32; 8]); 1] = [(SpecId::Genesis, [0; 8])];
