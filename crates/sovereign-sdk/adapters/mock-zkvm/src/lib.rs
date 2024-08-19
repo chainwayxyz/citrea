@@ -190,7 +190,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
                     sequencer_public_key: vec![],
                     sequencer_da_public_key: vec![],
                     sequencer_commitments_range: (0, 0),
-                    final_spec_id: SpecId::Genesis,
+                    last_active_spec_id: SpecId::Genesis,
                 })
             }
             sov_rollup_interface::zk::Proof::Full(_) => {

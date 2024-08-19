@@ -148,7 +148,7 @@ pub struct StateTransition<Da: DaSpec, Root> {
     /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
     pub validity_condition: Da::ValidityCondition,
     /// The final spec id after state transition is completed.
-    pub final_spec_id: SpecId,
+    pub last_active_spec_id: SpecId,
 }
 
 /// This trait expresses that a type can check a validity condition.

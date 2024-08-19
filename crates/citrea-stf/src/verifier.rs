@@ -48,7 +48,7 @@ where
         )?;
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
-        let (final_state_root, state_diff, final_spec_id) = self
+        let (final_state_root, state_diff, last_active_spec_id) = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
                 data.sequencer_public_key.as_ref(),
@@ -83,7 +83,7 @@ where
             sequencer_public_key: data.sequencer_public_key,
             sequencer_da_public_key: data.sequencer_da_public_key,
             sequencer_commitments_range: data.sequencer_commitments_range,
-            final_spec_id,
+            last_active_spec_id,
         };
 
         zkvm.commit(&out);

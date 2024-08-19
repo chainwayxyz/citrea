@@ -247,7 +247,7 @@ where
             Proof::Full(data) => {
                 let code_commitment = self
                     .code_commitments_by_spec
-                    .get(&state_transition.final_spec_id)
+                    .get(&state_transition.last_active_spec_id)
                     .expect("Proof public input must contain valid spec id");
                 Vm::verify(data, code_commitment)
                     .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;

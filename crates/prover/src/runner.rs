@@ -809,7 +809,7 @@ where
                 info!("Verifying proof!");
                 let code_commitment = self
                     .code_commitments_by_spec
-                    .get(&transition_data.final_spec_id)
+                    .get(&transition_data.last_active_spec_id)
                     .expect("Proof public input must contain valid spec id");
                 Vm::verify(data, code_commitment)
                     .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
