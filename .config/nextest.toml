@@ -1,0 +1,3 @@
+[profile.default]
+slow-timeout = "3m" # Mark slow tests after exceeding 3 minutes
+retries = 2 # A flaky test is retried a total of 3 times.
