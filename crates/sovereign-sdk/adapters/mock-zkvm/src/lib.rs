@@ -7,7 +7,6 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
-use risc0_zkvm::sha::Digest;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::spec::SpecId;
@@ -20,12 +19,6 @@ pub struct MockCodeCommitment(pub [u8; 32]);
 impl Matches<MockCodeCommitment> for MockCodeCommitment {
     fn matches(&self, other: &MockCodeCommitment) -> bool {
         self.0 == other.0
-    }
-}
-
-impl From<MockCodeCommitment> for Digest {
-    fn from(val: MockCodeCommitment) -> Self {
-        Digest::from_bytes(val.0)
     }
 }
 

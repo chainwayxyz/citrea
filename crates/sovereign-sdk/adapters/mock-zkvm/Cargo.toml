@@ -16,7 +16,6 @@ publish = true
 anyhow = { workspace = true }
 borsh = { workspace = true }
 bincode = { workspace = true }
-risc0-zkvm = { workspace = true }
 serde = { workspace = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 

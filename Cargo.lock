@@ -7579,7 +7579,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "risc0-zkvm",
  "serde",
  "sov-rollup-interface",
 ]
