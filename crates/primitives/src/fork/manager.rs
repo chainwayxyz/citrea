@@ -48,9 +48,13 @@ impl ForkManager {
         if height < next_fork.activation_height {
             return Ok(());
         }
-        
+
         #[cfg(feature = "native")]
-        tracing::info!("Activating fork {:?} at height: {}", next_fork.spec_id, height);
+        tracing::info!(
+            "Activating fork {:?} at height: {}",
+            next_fork.spec_id,
+            height
+        );
 
         for handler in self.migration_handlers.iter() {
             handler.fork_activated(next_fork)?;
