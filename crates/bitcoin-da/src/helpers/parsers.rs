@@ -124,7 +124,11 @@ impl VerifyParsed for ParsedSequencerCommitment {
 
 impl ParsedAggregate {
     pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
-        self.body.chunks_exact(32).into_iter().map(Txid::from_slice).collect()
+        self.body
+            .chunks_exact(32)
+            .into_iter()
+            .map(Txid::from_slice)
+            .collect()
     }
 }
 

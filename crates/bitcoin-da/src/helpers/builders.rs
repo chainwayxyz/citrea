@@ -589,38 +589,37 @@ pub fn create_inscription_type_0(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.compute_txid();
-        let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
 
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
-            // start signing reveal tx
-            let mut sighash_cache = SighashCache::new(&mut reveal_tx);
-
-            // create data to sign
-            let signature_hash = sighash_cache
-                .taproot_script_spend_signature_hash(
-                    0,
-                    &Prevouts::All(&[output_to_reveal]),
-                    TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
-                    bitcoin::sighash::TapSighashType::Default,
-                )
-                .expect("Cannot create hash for signature");
-
-            // sign reveal tx data
-            let signature = secp256k1.sign_schnorr_with_rng(
-                &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
-                    .expect("should be cryptographically secure hash"),
-                &key_pair,
-                &mut rand::thread_rng(),
-            );
-
-            // add signature to witness and finalize reveal tx
-            let witness = sighash_cache.witness_mut(0).unwrap();
-            witness.push(signature.as_ref());
-            witness.push(reveal_script);
-            witness.push(&control_block.serialize());
-
             // check if inscription locked to the correct address
             let recovery_key_pair =
                 key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
@@ -636,7 +635,7 @@ pub fn create_inscription_type_0(
             return Ok(LightClientTxs::Complete {
                 commit: unsigned_commit_tx,
                 reveal: TxWithId {
-                    id: reveal_tx_id,
+                    id: reveal_tx.compute_txid(),
                     tx: reveal_tx,
                 },
             });
@@ -958,38 +957,38 @@ pub fn create_inscription_type_1(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.compute_txid();
-        let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
-            // start signing reveal tx
-            let mut sighash_cache = SighashCache::new(&mut reveal_tx);
-
-            // create data to sign
-            let signature_hash = sighash_cache
-                .taproot_script_spend_signature_hash(
-                    0,
-                    &Prevouts::All(&[output_to_reveal]),
-                    TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
-                    bitcoin::sighash::TapSighashType::Default,
-                )
-                .expect("Cannot create hash for signature");
-
-            // sign reveal tx data
-            let signature = secp256k1.sign_schnorr_with_rng(
-                &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
-                    .expect("should be cryptographically secure hash"),
-                &key_pair,
-                &mut rand::thread_rng(),
-            );
-
-            // add signature to witness and finalize reveal tx
-            let witness = sighash_cache.witness_mut(0).unwrap();
-            witness.push(signature.as_ref());
-            witness.push(reveal_script);
-            witness.push(&control_block.serialize());
-
             // check if inscription locked to the correct address
             let recovery_key_pair =
                 key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
@@ -1007,7 +1006,7 @@ pub fn create_inscription_type_1(
                 reveal_chunks,
                 commit: unsigned_commit_tx,
                 reveal: TxWithId {
-                    id: reveal_tx_id,
+                    id: reveal_tx.compute_txid(),
                     tx: reveal_tx,
                 },
             });
@@ -1155,38 +1154,38 @@ pub fn create_batchproof_type_0(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.compute_txid();
-        let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
-            // start signing reveal tx
-            let mut sighash_cache = SighashCache::new(&mut reveal_tx);
-
-            // create data to sign
-            let signature_hash = sighash_cache
-                .taproot_script_spend_signature_hash(
-                    0,
-                    &Prevouts::All(&[output_to_reveal]),
-                    TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
-                    bitcoin::sighash::TapSighashType::Default,
-                )
-                .expect("Cannot create hash for signature");
-
-            // sign reveal tx data
-            let signature = secp256k1.sign_schnorr_with_rng(
-                &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
-                    .expect("should be cryptographically secure hash"),
-                &key_pair,
-                &mut rand::thread_rng(),
-            );
-
-            // add signature to witness and finalize reveal tx
-            let witness = sighash_cache.witness_mut(0).unwrap();
-            witness.push(signature.as_ref());
-            witness.push(reveal_script);
-            witness.push(&control_block.serialize());
-
             // check if inscription locked to the correct address
             let recovery_key_pair =
                 key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
@@ -1202,7 +1201,7 @@ pub fn create_batchproof_type_0(
             return Ok(BatchProvingTxs {
                 commit: unsigned_commit_tx,
                 reveal: TxWithId {
-                    id: reveal_tx_id,
+                    id: reveal_tx.compute_txid(),
                     tx: reveal_tx,
                 },
             });
@@ -1328,12 +1327,7 @@ mod tests {
             },
         ];
 
-        (
-            rollup_name,
-            body,
-            address,
-            utxos,
-        )
+        (rollup_name, body, address, utxos)
     }
 
     #[test]
@@ -1697,7 +1691,8 @@ mod tests {
     fn create_inscription_transactions() {
         let (rollup_name, body, address, utxos) = get_mock_data();
 
-        let da_private_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let da_private_key =
+            SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
         // sign the body for authentication of the sequencer
         let (signature, signer_public_key) =
@@ -1722,7 +1717,11 @@ mod tests {
         };
 
         // check pow
-        assert!(reveal.id.as_byte_array().starts_with(tx_prefix));
+        assert!(reveal
+            .tx
+            .compute_wtxid()
+            .as_byte_array()
+            .starts_with(tx_prefix));
 
         // check outputs
         assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
