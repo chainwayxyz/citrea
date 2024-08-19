@@ -74,6 +74,8 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProofBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
     MempoolTxs::table_name(),
+    PendingProvingSessions::table_name(),
+    ProverStateDiffs::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -332,9 +334,20 @@ define_table_with_default_codec!(
     (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
 );
 
+define_table_with_seek_key_codec!(
+    /// Proving service uses this table to store pending proving sessions
+    /// If a session id is completed, remove it
+    (PendingProvingSessions) Vec<u8> => ()
+);
+
 define_table_with_default_codec!(
     /// Transactions in mempool (TxHash, TxData)
     (MempoolTxs) Vec<u8> => Vec<u8>
+);
+
+define_table_with_default_codec!(
+    /// L2 height to state diff for prover
+    (ProverStateDiffs) BatchNumber => StateDiff
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

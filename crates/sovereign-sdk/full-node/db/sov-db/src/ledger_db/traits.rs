@@ -69,12 +69,21 @@ pub trait SharedLedgerOps {
     /// Sets l1 height of l1 hash
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> Result<()>;
 
+    /// Gets l1 height of l1 hash
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
+
     /// Saves a soft confirmation status for a given L1 height
     fn put_soft_confirmation_status(
         &self,
         height: BatchNumber,
         status: sov_rollup_interface::rpc::SoftConfirmationStatus,
     ) -> Result<()>;
+
+    /// Returns a soft confirmation status for a given L1 height
+    fn get_soft_confirmation_status(
+        &self,
+        height: BatchNumber,
+    ) -> Result<Option<sov_rollup_interface::rpc::SoftConfirmationStatus>>;
 
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
@@ -141,13 +150,10 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
-
-    /// Gets l1 height of l1 hash
-    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 }
 
 /// Prover ledger operations
-pub trait ProverLedgerOps: SharedLedgerOps {
+pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get the state root by L2 height
     fn get_l2_state_root<StateRoot: DeserializeOwned>(
         &self,
@@ -155,11 +161,11 @@ pub trait ProverLedgerOps: SharedLedgerOps {
     ) -> anyhow::Result<Option<StateRoot>>;
 
     /// Get the last scanned slot by the prover
-    fn get_prover_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
+    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
-    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
 
     /// Get the witness by L2 height
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
@@ -175,6 +181,27 @@ pub trait ProverLedgerOps: SharedLedgerOps {
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
+
+    /// Save a specific L2 range state diff
+    fn set_l2_state_diff(&self, l2_height: BatchNumber, state_diff: StateDiff) -> Result<()>;
+
+    /// Returns an L2 state diff
+    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> Result<Option<StateDiff>>;
+}
+
+/// Ledger operations for the prover service
+pub trait ProvingServiceLedgerOps: ProverLedgerOps + SharedLedgerOps + Send + Sync {
+    /// Gets all pending sessions and step numbers
+    fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
+
+    /// Adds a pending proving session
+    fn add_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+
+    /// Removes a pending proving session
+    fn remove_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+
+    /// Clears all pending proving sessions
+    fn clear_pending_proving_sessions(&self) -> Result<()>;
 }
 
 /// Sequencer ledger operations

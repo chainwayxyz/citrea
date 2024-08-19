@@ -54,6 +54,9 @@ pub trait ZkvmHost: Zkvm + Clone {
     fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<StateTransition<Da, Root>, Self::Error>;
+
+    /// Host recovers pending proving sessions and returns proving results
+    fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
 }
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code
@@ -180,19 +183,18 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
     pub inclusion_proof: Da::InclusionMultiProof,
     /// The completeness proof for all DA data.
     pub completeness_proof: Da::CompletenessProof,
-
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
     /// The soft confirmations that are inside the sequencer commitments.
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<Witness>>,
     /// DA block headers the soft confirmations was constructed on.
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
-
     /// Sequencer soft confirmation public key.
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public_key: Vec<u8>,
     pub sequencer_da_public_key: Vec<u8>,
-
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),

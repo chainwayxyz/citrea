@@ -24,8 +24,10 @@ pub use wallet::*;
 pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability service.
     type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Send + Sync;
+
     /// A specification for the types used by a DA layer.
     type DaSpec: DaSpec + Send + Sync;
+
     /// Data Availability config.
     type DaConfig: Send + Sync;
 
@@ -34,6 +36,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
+
     /// Context for Native environment.
     type NativeContext: Context;
 
@@ -109,6 +112,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].

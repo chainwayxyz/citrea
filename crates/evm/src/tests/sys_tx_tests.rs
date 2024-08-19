@@ -30,7 +30,7 @@ type C = DefaultContext;
 #[test]
 fn test_sys_bitcoin_light_client() {
     let (mut config, dev_signer, _) =
-        get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
+        get_evm_config_starting_base_fee(U256::from_str("10000000000000").unwrap(), None, 1);
 
     config_push_contracts(&mut config);
 
@@ -158,8 +158,12 @@ fn test_sys_bitcoin_light_client() {
         let sequencer_address = generate_address::<C>("sequencer");
         let context = C::new(sender_address, sequencer_address, 1);
 
-        let deploy_message =
-            create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
+        let deploy_message = create_contract_message_with_fee(
+            &dev_signer,
+            0,
+            BlockHashContract::default(),
+            10000000,
+        );
 
         evm.call(
             CallMessage {
@@ -222,7 +226,10 @@ fn test_sys_bitcoin_light_client() {
     let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
     let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(base_fee_vault.info.balance, U256::from(114235));
+    assert_eq!(
+        base_fee_vault.info.balance,
+        U256::from(114235u64 * 10000000)
+    );
     assert_eq!(l1_fee_vault.info.balance, U256::from(477));
 
     let hash = evm

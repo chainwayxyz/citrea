@@ -16,9 +16,10 @@ use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     ActiveFork, BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingSequencerCommitmentL2Range, ProofBySlotNumber, ProverLastScannedSlot, SlotByHash,
-    SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber, SoftConfirmationStatus,
-    TxByHash, TxByNumber, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofBySlotNumber,
+    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
+    VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof,
@@ -342,6 +343,12 @@ impl SharedLedgerOps for LedgerDB {
         self.db.put::<SlotByHash>(&hash, &SlotNumber(height))
     }
 
+    /// Gets l1 height of l1 hash
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
+        self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
+    }
+
     /// Saves a soft confirmation status for a given L1 height
     #[instrument(level = "trace", skip(self), err, ret)]
     fn put_soft_confirmation_status(
@@ -355,6 +362,17 @@ impl SharedLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    /// Saves a soft confirmation status for a given L1 height
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_soft_confirmation_status(
+        &self,
+        height: BatchNumber,
+    ) -> Result<Option<sov_rollup_interface::rpc::SoftConfirmationStatus>, anyhow::Error> {
+        let status = self.db.get::<SoftConfirmationStatus>(&height)?;
+
+        Ok(status)
     }
 
     /// Gets the commitments in the da slot with given height if any
@@ -486,14 +504,14 @@ impl ProverLedgerOps for LedgerDB {
 
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_prover_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
+    fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
         self.db.get::<ProverLastScannedSlot>(&())
     }
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
@@ -545,6 +563,63 @@ impl ProverLedgerOps for LedgerDB {
         let buf = bincode::serialize(witness)?;
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn set_l2_state_diff(
+        &self,
+        l2_height: BatchNumber,
+        state_diff: StateDiff,
+    ) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<ProverStateDiffs>(&l2_height, &state_diff)?;
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> anyhow::Result<Option<StateDiff>> {
+        self.db.get::<ProverStateDiffs>(&l2_height)
+    }
+}
+
+impl ProvingServiceLedgerOps for LedgerDB {
+    /// Gets all pending sessions and step numbers
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_pending_proving_sessions(&self) -> anyhow::Result<Vec<Vec<u8>>> {
+        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+        iter.seek_to_first();
+
+        let sessions = iter
+            .map(|item| item.map(|item| (item.key)))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(sessions)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn add_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
+        self.db.put::<PendingProvingSessions>(&session, &())
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn remove_pending_proving_session(&self, session: Vec<u8>) -> anyhow::Result<()> {
+        self.db.delete::<PendingProvingSessions>(&session)
+    }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+        iter.seek_to_first();
+
+        for item in iter {
+            let item = item?;
+            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
+        }
 
         self.db.write_schemas(schema_batch)?;
 
@@ -730,12 +805,6 @@ impl NodeLedgerOps for LedgerDB {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
         self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
-    }
-
-    /// Gets l1 height of l1 hash
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
-        self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
     }
 }
 

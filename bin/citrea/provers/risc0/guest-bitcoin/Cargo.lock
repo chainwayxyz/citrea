@@ -902,6 +902,7 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "borsh",
+ "citrea-primitives",
  "hex",
  "reth-primitives",
  "revm",
@@ -915,7 +916,9 @@ dependencies = [
 name = "citrea-primitives"
 version = "0.4.0-rc.3"
 dependencies = [
+ "alloy-eips",
  "anyhow",
+ "reth-primitives",
  "sov-rollup-interface",
 ]
 

@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use citrea_prover::prover_service::ParallelProverService;
+use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{
     MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash,
     MockValidityCond,
@@ -15,7 +16,7 @@ use sov_stf_runner::{
     WitnessSubmissionStatus,
 };
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     let temp = tempfile::tempdir().unwrap();
 
@@ -49,7 +50,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     let temp = tempfile::tempdir().unwrap();
     let da_service = Arc::new(MockDaService::new(MockAddress::from([0; 32]), temp.path()));
@@ -190,6 +191,8 @@ fn make_new_prover() -> TestProver {
     let prover_config = ProverGuestRunConfig::Execute;
     let zk_stf = MockStf::<MockValidityCond>::default();
     let da_verifier = MockDaVerifier::default();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
     TestProver {
         prover_service: ParallelProverService::new(
             vm.clone(),
@@ -198,6 +201,7 @@ fn make_new_prover() -> TestProver {
             prover_config,
             (),
             num_threads,
+            ledger_db,
         )
         .expect("Should be able to instantiate Prover service"),
         vm,
@@ -228,5 +232,6 @@ fn make_transition_data(
         da_block_headers_of_soft_confirmations: VecDeque::new(),
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
+        preproven_commitments: vec![],
     }
 }

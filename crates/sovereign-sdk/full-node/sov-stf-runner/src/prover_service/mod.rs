@@ -113,4 +113,10 @@ pub trait ProverService<Vm: Zkvm> {
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
         da_service: &Arc<Self::DaService>,
     ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
+
+    /// Recovers pending proving sessions and sends proofs to the DA.
+    async fn recover_proving_sessions_and_send_to_da(
+        &self,
+        da_service: &Arc<Self::DaService>,
+    ) -> Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>, anyhow::Error>;
 }

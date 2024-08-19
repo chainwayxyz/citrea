@@ -1,4 +1,5 @@
 use alloy_primitives::B256;
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
@@ -76,15 +77,20 @@ where
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
+        let basefee = calculate_next_block_base_fee(
+            parent_block.header.gas_used as u128,
+            parent_block.header.gas_limit as u128,
+            parent_block.header.base_fee_per_gas,
+            cfg.base_fee_params,
+        )
+        .unwrap() as u64;
+
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
             timestamp: soft_confirmation_info.timestamp,
             prevrandao: soft_confirmation_info.da_slot_hash.into(),
-            basefee: parent_block
-                .header
-                .next_block_base_fee(cfg.base_fee_params)
-                .unwrap(),
+            basefee,
             gas_limit: cfg.block_gas_limit,
         };
 
@@ -168,6 +174,13 @@ where
             .map(|tx| tx.receipt.receipt.clone().with_bloom())
             .collect();
 
+        let base_fee_per_gas = calculate_next_block_base_fee(
+            parent_block.header.gas_used as u128,
+            parent_block.header.gas_limit as u128,
+            parent_block.header.base_fee_per_gas,
+            cfg.base_fee_params,
+        );
+
         let header = reth_primitives::Header {
             parent_hash: parent_block.header.hash(),
             timestamp: block_env.timestamp,
@@ -189,7 +202,7 @@ where
             gas_used,
             mix_hash: block_env.prevrandao,
             nonce: 0,
-            base_fee_per_gas: parent_block.header.next_block_base_fee(cfg.base_fee_params),
+            base_fee_per_gas,
             extra_data: Bytes::default(),
             // EIP-4844 related fields
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912

@@ -134,6 +134,7 @@ async fn test_nonce_too_high() {
         .unwrap();
 
     test_client.send_publish_batch_request().await;
+    wait_for_l2_block(&test_client, 1, None).await;
 
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))

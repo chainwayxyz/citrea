@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
@@ -9,8 +9,11 @@ use std::vec;
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::merge_state_diffs;
+use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -55,8 +58,6 @@ use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
-
-const MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 /// Represents information about the current DA state.
@@ -443,18 +444,25 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut batch_workspace) => {
-                let evm_txs_count = txs_to_run.len();
-                let call_txs = CallMessage { txs: txs_to_run };
-                let raw_message =
-                    <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(call_txs);
-                let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
-                let txs = vec![signed_blob.clone()];
+                let mut txs = vec![];
+                let mut tx_receipts = vec![];
 
-                let (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                    self.fork_manager.active_fork(),
-                    txs.clone(),
-                    batch_workspace,
-                );
+                let evm_txs_count = txs_to_run.len();
+                if evm_txs_count > 0 {
+                    let call_txs = CallMessage { txs: txs_to_run };
+                    let raw_message =
+                        <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
+                            call_txs,
+                        );
+                    let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
+                    txs.push(signed_blob);
+
+                    (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
+                        self.fork_manager.active_fork(),
+                        txs.clone(),
+                        batch_workspace,
+                    );
+                }
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmationBatch::new(
@@ -572,12 +580,11 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
-                let merged_state_diff = self.merge_state_diffs(
-                    self.last_state_diff.clone(),
-                    slot_result.state_diff.clone(),
-                );
+                let merged_state_diff =
+                    merge_state_diffs(self.last_state_diff.clone(), slot_result.state_diff.clone());
+
                 // Serialize the state diff to check size later.
-                let serialized_state_diff = bincode::serialize(&merged_state_diff)?;
+                let serialized_state_diff = borsh::to_vec(&merged_state_diff)?;
                 let state_diff_threshold_reached =
                     serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
                 if state_diff_threshold_reached {
@@ -1048,9 +1055,13 @@ where
             .ok_or(anyhow!("Latest header must always exist"))?
             .unseal();
 
-        let base_fee = latest_header
-            .next_block_base_fee(cfg.base_fee_params)
-            .ok_or(anyhow!("Failed to get next block base fee"))?;
+        let base_fee = calculate_next_block_base_fee(
+            latest_header.gas_used as u128,
+            latest_header.gas_limit as u128,
+            latest_header.base_fee_per_gas,
+            cfg.base_fee_params,
+        )
+        .ok_or(anyhow!("Failed to get next block base fee"))?;
 
         let best_txs_with_base_fee = self
             .mempool
@@ -1182,13 +1193,6 @@ where
         }
 
         Ok(updates)
-    }
-
-    fn merge_state_diffs(&self, old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
-        let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
-
-        new_diff_map.extend(new_diff);
-        new_diff_map.into_iter().collect()
     }
 }
 
