@@ -16,7 +16,6 @@ use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::Digest;
-use risc0_zkvm::Receipt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +56,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     #[allow(clippy::type_complexity)]
     fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<(StateTransition<Da, Root>, Option<Receipt>), Self::Error>;
+    ) -> Result<StateTransition<Da, Root>, Self::Error>;
 
     /// Host recovers pending proving sessions and returns proving results
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
@@ -67,21 +66,17 @@ pub trait ZkvmHost: Zkvm + Clone {
 /// Must support recursive proofs.
 pub trait Zkvm: Send + Sync {
     /// A commitment to the zkVM program which is being proven
-    type CodeCommitment: Clone
-        + Debug
-        + Serialize
-        + DeserializeOwned
-        + Into<risc0_zkvm::sha::Digest>;
+    type CodeCommitment: Clone + Debug + Serialize + DeserializeOwned;
 
     /// The error type which is returned when a proof fails to verify
     type Error: Debug;
 
     /// Interpret a sequence of a bytes as a proof and attempt to verify it against the code commitment.
     /// If the proof is valid, return a reference to the public outputs of the proof.
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error>;
+    ) -> Result<Vec<u8>, Self::Error>;
 
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.

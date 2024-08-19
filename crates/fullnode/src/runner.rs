@@ -232,7 +232,7 @@ where
         );
         tracing::debug!("ZK proof: {:?}", proof);
 
-        let (state_transition, receipt) =
+        let state_transition =
             Vm::extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(&proof)
                 .expect("Proof should be deserializable");
         if state_transition.sequencer_da_public_key != self.sequencer_da_pub_key
@@ -243,16 +243,14 @@ where
             ).into());
         }
 
-        match proof {
-            Proof::Full(_) => {
-                let receipt = receipt.expect("Receipt must exist with full proof");
+        match &proof {
+            Proof::Full(data) => {
                 let code_commitment = self
                     .code_commitments_by_spec
                     .get(&state_transition.final_spec_id)
                     .expect("Proof public input must contain valid spec id");
-                receipt
-                    .verify(code_commitment.clone())
-                    .map_err(|err| anyhow!("Proof verification: SNARK verification failed: {}. Skipping to next proof...", err))?;
+                Vm::verify(data, code_commitment)
+                    .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
             }
             Proof::PublicInput(_) => {
                 if !self.accept_public_input_as_proven {

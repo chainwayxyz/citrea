@@ -798,22 +798,21 @@ where
 
         // l1_height => (tx_id, proof, transition_data)
         // save proof along with tx id to db, should be queriable by slot number or slot hash
-        let (transition_data, receipt) =
-            Vm::extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(&proof)
-                .expect("Proof should be deserializable");
+        let transition_data = Vm::extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(&proof)
+            .expect("Proof should be deserializable");
 
-        match proof {
+        match &proof {
             Proof::PublicInput(_) => {
                 warn!("Proof is public input, skipping");
             }
-            Proof::Full(_) => {
+            Proof::Full(data) => {
                 info!("Verifying proof!");
-                let receipt = receipt.expect("Receipt must exist in full proof");
                 let code_commitment = self
                     .code_commitments_by_spec
                     .get(&transition_data.final_spec_id)
                     .expect("Proof public input must contain valid spec id");
-                receipt.verify(code_commitment.clone())?;
+                Vm::verify(data, code_commitment)
+                    .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
             }
         }
 
