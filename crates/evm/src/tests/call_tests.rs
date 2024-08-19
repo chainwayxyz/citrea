@@ -829,7 +829,7 @@ fn test_l1_fee_success() {
         expected_l1_fee_vault_balance: U256,
     ) {
         let (config, dev_signer, _) =
-            get_evm_config_starting_base_fee(U256::from_str("10000000").unwrap(), None, 1);
+            get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
         let (evm, mut working_set) = get_evm(&config);
 
@@ -856,7 +856,7 @@ fn test_l1_fee_success() {
                 &dev_signer,
                 0,
                 BlockHashContract::default(),
-                2,
+                20000000, // 2 gwei
                 1,
             );
 
@@ -913,18 +913,18 @@ fn test_l1_fee_success() {
 
     run_tx(
         0,
-        U256::from(9771530),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
-        U256::from(gas_fee_paid),
+        U256::from(gas_fee_paid * 10000000),
         U256::from(0),
     );
     run_tx(
         1,
-        U256::from(9771053),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 477),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
-        U256::from(gas_fee_paid),
+        U256::from(gas_fee_paid * 10000000),
         U256::from(477),
     );
 }
@@ -993,7 +993,7 @@ fn test_l1_fee_not_enough_funds() {
 #[test]
 fn test_l1_fee_halt() {
     let (config, dev_signer, _) =
-        get_evm_config_starting_base_fee(U256::from_str("2000000").unwrap(), None, 1);
+        get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 1;
@@ -1017,8 +1017,12 @@ fn test_l1_fee_halt() {
         let sequencer_address = generate_address::<C>("sequencer");
         let context = C::new(sender_address, sequencer_address, 1);
 
-        let deploy_message =
-            create_contract_message_with_fee(&dev_signer, 0, InfiniteLoopContract::default(), 1);
+        let deploy_message = create_contract_message_with_fee(
+            &dev_signer,
+            0,
+            InfiniteLoopContract::default(),
+            10000000,
+        );
 
         let call_message = dev_signer
             .sign_default_transaction_with_fee(
@@ -1029,7 +1033,7 @@ fn test_l1_fee_halt() {
                     .collect(),
                 1,
                 0,
-                1,
+                10000000,
             )
             .unwrap();
 
@@ -1080,13 +1084,13 @@ fn test_l1_fee_halt() {
         .get(&dev_signer.address(), &mut working_set)
         .unwrap();
 
-    let expenses = 1106947 + // evm gas
-        445 + // l1 contract deploy fee
+    let expenses = 1106947_u64 * 10000000 + // evm gas
+        445  + // l1 contract deploy fee
         52; // l1 contract call fee
     assert_eq!(
         db_account.info.balance,
         U256::from(
-            2000000 - // initial balance
+            20000000000000_u64 - // initial balance
             expenses
         )
     );
@@ -1094,6 +1098,9 @@ fn test_l1_fee_halt() {
     let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
     let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
-    assert_eq!(base_fee_valut.info.balance, U256::from(1106947));
+    assert_eq!(
+        base_fee_valut.info.balance,
+        U256::from(1106947_u64 * 10000000)
+    );
     assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
 }

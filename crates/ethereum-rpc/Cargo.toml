@@ -14,6 +14,7 @@ resolver = "2"
 [dependencies]
 anyhow = { workspace = true }
 citrea-evm = { path = "../evm", features = ["native"] }
+citrea-primitives = { path = "../primitives" }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 rustc_version_runtime = { workspace = true }
 sequencer-client = { path = "../sequencer-client" }

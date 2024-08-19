@@ -1839,6 +1839,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "bytes",
+ "citrea-primitives",
  "clap",
  "hex",
  "itertools 0.13.0",
@@ -1908,9 +1909,11 @@ dependencies = [
 name = "citrea-primitives"
 version = "0.4.0-rc.3"
 dependencies = [
+ "alloy-eips",
  "anyhow",
  "backoff",
  "lru",
+ "reth-primitives",
  "serde",
  "sov-rollup-interface",
  "tokio",
@@ -2806,6 +2809,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "citrea-evm",
+ "citrea-primitives",
  "jsonrpsee",
  "proptest",
  "reth-primitives",

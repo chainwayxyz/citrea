@@ -4,7 +4,7 @@
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
 use citrea_evm::{Evm, SYSTEM_SIGNER};
-use reth_primitives::basefee::calc_next_block_base_fee;
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{BlockNumberOrTag, B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
@@ -218,12 +218,15 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
-        base_fee_per_gas.push(calc_next_block_base_fee(
-            last_entry.gas_used as u128,
-            last_entry.gas_limit as u128,
-            last_entry.base_fee_per_gas as u128,
-            self.provider.get_chain_config(working_set).base_fee_params,
-        ));
+        base_fee_per_gas.push(
+            calculate_next_block_base_fee(
+                last_entry.gas_used as u128,
+                last_entry.gas_limit as u128,
+                Some(last_entry.base_fee_per_gas),
+                self.provider.get_chain_config(working_set).base_fee_params,
+            )
+            .unwrap() as u128,
+        );
 
         Ok(FeeHistory {
             base_fee_per_gas,

@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -452,14 +452,13 @@ where
 
             let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
                 self.da_service.extract_relevant_blobs(l1_block);
+
             // if we don't do this, the zk circuit can't read the sequencer commitments
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
             let mut sequencer_commitments: Vec<SequencerCommitment> =
                 self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
-            // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort_by_key(|commitment| commitment.l2_start_block_number);
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
@@ -492,14 +491,26 @@ where
                 break;
             }
 
+            // if proof_sampling_number is 0, then we always prove and submit
+            // otherwise we submit and prove with a probability of 1/proof_sampling_number
+            let should_prove = prover_config.proof_sampling_number == 0
+                || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
+
+            // Make sure all sequencer commitments are stored in ascending order.
+            sequencer_commitments.sort_unstable();
+
+            let (sequencer_commitments, preproven_commitments) =
+                self.filter_out_proven_commitments(&sequencer_commitments)?;
+
             let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
                 l1_block.header().clone();
 
             let hash = da_block_header_of_commitments.hash();
 
-            if !proving_session_exists {
+            if !proving_session_exists && should_prove {
                 let sequencer_commitments_groups =
                     self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
+
                 for sequencer_commitments in sequencer_commitments_groups {
                     // There is no ongoing bonsai session to recover
                     let transition_data: StateTransitionData<
@@ -509,6 +520,7 @@ where
                     > = self
                         .create_state_transition_data(
                             &sequencer_commitments,
+                            &preproven_commitments,
                             da_block_header_of_commitments.clone(),
                             da_data.clone(),
                             l1_block,
@@ -517,7 +529,6 @@ where
 
                     self.prove_state_transition(
                         transition_data,
-                        prover_config,
                         skip_submission_until_l1,
                         l1_height,
                         hash.clone(),
@@ -547,18 +558,12 @@ where
     async fn prove_state_transition(
         &self,
         transition_data: StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
-        prover_config: &ProverConfig,
         skip_submission_until_l1: u64,
         l1_height: u64,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
-        // if proof_sampling_number is 0, then we always prove and submit
-        // otherwise we submit and prove with a probability of 1/proof_sampling_number
-        let should_prove = prover_config.proof_sampling_number == 0
-            || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
-
         // Skip submission until l1 height
-        if l1_height >= skip_submission_until_l1 && should_prove {
+        if l1_height >= skip_submission_until_l1 {
             self.generate_and_submit_proof(transition_data, hash)
                 .await?;
         } else {
@@ -570,6 +575,7 @@ where
     async fn create_state_transition_data(
         &self,
         sequencer_commitments: &[SequencerCommitment],
+        preproven_commitments: &[usize],
         da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
         l1_block: &Da::FilteredBlock,
@@ -619,6 +625,7 @@ where
                 soft_confirmations,
                 state_transition_witnesses,
                 da_block_headers_of_soft_confirmations,
+                preproven_commitments: preproven_commitments.to_vec(),
                 sequencer_commitments_range: (
                     0,
                     (sequencer_commitments.len() - 1)
@@ -923,6 +930,45 @@ where
         }
 
         Ok(result)
+    }
+
+    /// Remove proven commitments using the end block number of the L2 range.
+    /// This is basically filtering out finalized soft confirmations.
+    fn filter_out_proven_commitments(
+        &self,
+        sequencer_commitments: &[SequencerCommitment],
+    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
+        let mut preproven_commitments = vec![];
+        let mut filtered = vec![];
+        let mut visited_l2_ranges = HashSet::new();
+        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
+            // Handle commitments which have the same L2 range
+            let current_range = (
+                sequencer_commitment.l2_start_block_number,
+                sequencer_commitment.l2_end_block_number,
+            );
+            if visited_l2_ranges.contains(&current_range) {
+                continue;
+            }
+            visited_l2_ranges.insert(current_range);
+
+            // Check if the commitment was previously finalized.
+            let Some(status) = self.ledger_db.get_soft_confirmation_status(BatchNumber(
+                sequencer_commitment.l2_end_block_number,
+            ))?
+            else {
+                filtered.push(sequencer_commitment.clone());
+                continue;
+            };
+
+            if status != SoftConfirmationStatus::Finalized {
+                filtered.push(sequencer_commitment.clone());
+            } else {
+                preproven_commitments.push(index);
+            }
+        }
+
+        Ok((filtered, preproven_commitments))
     }
 }
 
