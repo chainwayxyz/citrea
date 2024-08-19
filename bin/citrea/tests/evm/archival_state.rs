@@ -123,13 +123,13 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         0
     );
 
-    for _ in 0..8 {
+    for i in 1..=8 {
         let _t = seq_test_client
             .send_eth(addr, None, None, None, 1u128)
             .await;
         seq_test_client.send_publish_batch_request().await;
+        wait_for_l2_block(seq_test_client, i, None).await;
     }
-    wait_for_l2_block(seq_test_client, 8, None).await;
 
     // Wait for changeset storage
     sleep(Duration::from_secs(2)).await;
@@ -158,7 +158,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         8
     );
 
-    for i in 1..8 {
+    for i in 1..=8 {
         assert_eq!(
             seq_test_client
                 .eth_get_balance(addr, Some(BlockNumberOrTag::Number(i)))

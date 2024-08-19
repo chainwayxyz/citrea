@@ -108,7 +108,7 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
-    wait_for_l2_block(client, block_index, None).await;
+    wait_for_l2_block(client, block_index, Some(Duration::from_secs(60))).await;
     block_index += 1;
 
     // send 15 transactions from each wallet
@@ -122,7 +122,7 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
-    wait_for_l2_block(client, block_index, None).await;
+    wait_for_l2_block(client, block_index, Some(Duration::from_secs(60))).await;
     block_index += 1;
 
     let block = client.eth_get_block_by_number(None).await;
