@@ -53,6 +53,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error>;
 
     /// Extracts public input and receipt from the proof.
+    #[allow(clippy::type_complexity)]
     fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<(StateTransition<Da, Root>, Option<Receipt>), Self::Error>;
