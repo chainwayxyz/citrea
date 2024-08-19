@@ -10,7 +10,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::fork::{Fork, ForkManager};
-use citrea_primitives::types::{L2Range, SoftConfirmationHash};
+use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -457,7 +457,7 @@ where
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
-            let sequencer_commitments: Vec<SequencerCommitment> =
+            let mut sequencer_commitments: Vec<SequencerCommitment> =
                 self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
 
             if sequencer_commitments.is_empty() {
@@ -496,10 +496,11 @@ where
             let should_prove = prover_config.proof_sampling_number == 0
                 || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
-            let (mut sequencer_commitments, preproven_commitments) =
-                self.filter_out_proven_commitments(&sequencer_commitments)?;
             // Make sure all sequencer commitments are stored in ascending order.
             sequencer_commitments.sort_unstable();
+
+            let (sequencer_commitments, preproven_commitments) =
+                self.filter_out_proven_commitments(&sequencer_commitments)?;
 
             let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
                 l1_block.header().clone();
@@ -574,7 +575,7 @@ where
     async fn create_state_transition_data(
         &self,
         sequencer_commitments: &[SequencerCommitment],
-        preproven_commitments: &[(u64, u64)],
+        preproven_commitments: &[usize],
         da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
         l1_block: &Da::FilteredBlock,
@@ -624,10 +625,7 @@ where
                 soft_confirmations,
                 state_transition_witnesses,
                 da_block_headers_of_soft_confirmations,
-                preproven_commitments: preproven_commitments
-                    .iter()
-                    .map(|(a, b)| (*a as u32, *b as u32))
-                    .collect(),
+                preproven_commitments: preproven_commitments.to_vec(),
                 sequencer_commitments_range: (
                     0,
                     (sequencer_commitments.len() - 1)
@@ -939,11 +937,11 @@ where
     fn filter_out_proven_commitments(
         &self,
         sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<L2Range>)> {
+    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
         let mut preproven_commitments = vec![];
         let mut filtered = vec![];
         let mut visited_l2_ranges = HashSet::new();
-        for sequencer_commitment in sequencer_commitments {
+        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
             // Handle commitments which have the same L2 range
             let current_range = (
                 sequencer_commitment.l2_start_block_number,
@@ -966,7 +964,7 @@ where
             if status != SoftConfirmationStatus::Finalized {
                 filtered.push(sequencer_commitment.clone());
             } else {
-                preproven_commitments.push(current_range);
+                preproven_commitments.push(index);
             }
         }
 

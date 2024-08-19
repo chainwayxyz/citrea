@@ -1,9 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use std::collections::HashSet;
-use std::hash::RandomState;
-
 use borsh::BorshDeserialize;
 use citrea_primitives::fork::{fork_from_block_number, Fork, ForkManager};
 use itertools::Itertools;
@@ -507,7 +504,7 @@ where
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-        preproven_commitment_ranges: Vec<(u32, u32)>,
+        mut preproven_commitment_indicies: Vec<usize>,
         forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         let mut state_diff = CumulativeStateDiff::default();
@@ -526,26 +523,23 @@ where
             }
         }
 
-        let mut filtered: Vec<SequencerCommitment> = vec![];
-        let mut visited_l2_ranges: HashSet<(u32, u32), RandomState> =
-            HashSet::from_iter(preproven_commitment_ranges);
-        for sequencer_commitment in sequencer_commitments {
-            // Handle commitments which have the same L2 range
-            let current_range = (
-                sequencer_commitment.l2_start_block_number as u32,
-                sequencer_commitment.l2_end_block_number as u32,
-            );
-            if visited_l2_ranges.contains(&current_range) {
-                continue;
-            }
-            visited_l2_ranges.insert(current_range);
-
-            filtered.push(sequencer_commitment.clone());
-        }
-
-        let mut sequencer_commitments = filtered;
         // Sort commitments just in case
         sequencer_commitments.sort_unstable();
+
+        // The preproven indicies are sorted by the prover when originally passed.
+        // Therefore, we pass the commitments sequentially to make sure that the current
+        // commitment index is not at the beginning of the list of preproven indicies.
+        let mut filtered = vec![];
+        for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
+            if let Some(exclude_index) = preproven_commitment_indicies.first() {
+                if index == *exclude_index {
+                    preproven_commitment_indicies.remove(0);
+                    continue;
+                }
+            }
+            filtered.push(sequencer_commitment);
+        }
+        sequencer_commitments = filtered;
 
         // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();

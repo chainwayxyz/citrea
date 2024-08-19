@@ -184,7 +184,7 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
     /// The completeness proof for all DA data.
     pub completeness_proof: Da::CompletenessProof,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
-    pub preproven_commitments: Vec<(u32, u32)>,
+    pub preproven_commitments: Vec<usize>,
     /// The soft confirmations that are inside the sequencer commitments.
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
     /// Corresponding witness for the soft confirmations.
