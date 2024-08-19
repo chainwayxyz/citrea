@@ -9,6 +9,7 @@ use std::vec;
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::fork::{Fork, ForkManager};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
@@ -1054,9 +1055,13 @@ where
             .ok_or(anyhow!("Latest header must always exist"))?
             .unseal();
 
-        let base_fee = latest_header
-            .next_block_base_fee(cfg.base_fee_params)
-            .ok_or(anyhow!("Failed to get next block base fee"))?;
+        let base_fee = calculate_next_block_base_fee(
+            latest_header.gas_used as u128,
+            latest_header.gas_limit as u128,
+            latest_header.base_fee_per_gas,
+            cfg.base_fee_params,
+        )
+        .ok_or(anyhow!("Failed to get next block base fee"))?;
 
         let best_txs_with_base_fee = self
             .mempool

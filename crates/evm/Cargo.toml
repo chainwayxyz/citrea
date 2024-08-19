@@ -16,6 +16,8 @@ sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", def
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
+citrea-primitives = { path = "../primitives" }
+
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 clap = { workspace = true, optional = true }
