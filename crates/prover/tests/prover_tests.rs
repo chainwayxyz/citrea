@@ -232,5 +232,6 @@ fn make_transition_data(
         da_block_headers_of_soft_confirmations: VecDeque::new(),
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
+        preproven_commitments: vec![],
     }
 }
