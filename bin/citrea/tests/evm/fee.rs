@@ -46,7 +46,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     assert!(block.header.base_fee_per_gas.unwrap() >= 10000000);
-    for _ in 0..100 {
+    for _ in 0..10000 {
         test_client.spam_publish_batch_request().await.unwrap();
     }
 
@@ -54,7 +54,8 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     // Base fee should at most be 0.01 gwei
-    assert!(block.header.base_fee_per_gas.unwrap() >= 10000000);
+    assert_eq!(block.header.base_fee_per_gas.unwrap(), 10000000u128);
 
     Ok(())
 }
+// 1000000000
