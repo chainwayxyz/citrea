@@ -7579,6 +7579,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
+ "risc0-zkvm",
  "serde",
  "sov-rollup-interface",
 ]
@@ -7813,6 +7814,7 @@ dependencies = [
  "hex",
  "proptest",
  "proptest-derive",
+ "risc0-zkvm",
  "serde",
  "serde_json",
  "sha2",

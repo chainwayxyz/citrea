@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,6 +19,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
@@ -90,8 +92,10 @@ impl RollupBlueprint for BitcoinRollup {
     }
 
     #[instrument(level = "trace", skip(self), ret)]
-    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(citrea_risc0::BITCOIN_DA_ID)
+    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
+        let mut map = HashMap::new();
+        map.insert(SpecId::Genesis, Digest::new(citrea_risc0::BITCOIN_DA_ID));
+        map
     }
 
     #[instrument(level = "trace", skip_all, err)]

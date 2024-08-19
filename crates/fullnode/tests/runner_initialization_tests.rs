@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use citrea_fullnode::CitreaFullnode;
@@ -115,6 +116,9 @@ fn initialize_runner(
 
     let fork_manager = ForkManager::new(forks, 0);
 
+    let mut code_commitments_by_spec = HashMap::new();
+    code_commitments_by_spec.insert(SpecId::Genesis, MockCodeCommitment([1u8; 32]));
+
     CitreaFullnode::new(
         rollup_config.runner.unwrap(),
         rollup_config.public_keys,
@@ -124,7 +128,7 @@ fn initialize_runner(
         stf,
         storage_manager,
         init_variant,
-        MockCodeCommitment([1u8; 32]),
+        code_commitments_by_spec,
         10,
         fork_manager,
         broadcast::channel(1).0,

@@ -4,6 +4,7 @@
 mod runtime_rpc;
 mod wallet;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,6 +13,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::Storage;
@@ -63,8 +65,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
 
-    /// Get code commitment.
-    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
+    /// Get code commitments by fork.
+    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(

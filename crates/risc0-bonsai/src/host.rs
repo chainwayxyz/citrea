@@ -358,18 +358,24 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let journal = match proof {
+    ) -> Result<
+        (
+            sov_rollup_interface::zk::StateTransition<Da, Root>,
+            Option<Receipt>,
+        ),
+        Self::Error,
+    > {
+        let (journal, receipt) = match proof {
             Proof::PublicInput(journal) => {
                 let journal: Journal = bincode::deserialize(journal)?;
-                journal
+                (journal, None)
             }
             Proof::Full(data) => {
                 let receipt: Receipt = bincode::deserialize(data)?;
-                receipt.journal
+                (receipt.journal.clone(), Some(receipt))
             }
         };
-        Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
+        Ok((BorshDeserialize::try_from_slice(&journal.bytes)?, receipt))
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {

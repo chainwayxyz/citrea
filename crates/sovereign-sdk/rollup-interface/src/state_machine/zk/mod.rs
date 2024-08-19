@@ -15,6 +15,7 @@ use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::Digest;
+use risc0_zkvm::Receipt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -51,10 +52,10 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error>;
 
-    /// Extracts public input form the proof.
+    /// Extracts public input and receipt from the proof.
     fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<StateTransition<Da, Root>, Self::Error>;
+    ) -> Result<(StateTransition<Da, Root>, Option<Receipt>), Self::Error>;
 
     /// Host recovers pending proving sessions and returns proving results
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
@@ -64,7 +65,11 @@ pub trait ZkvmHost: Zkvm + Clone {
 /// Must support recursive proofs.
 pub trait Zkvm: Send + Sync {
     /// A commitment to the zkVM program which is being proven
-    type CodeCommitment: Clone + Debug + Serialize + DeserializeOwned;
+    type CodeCommitment: Clone
+        + Debug
+        + Serialize
+        + DeserializeOwned
+        + Into<risc0_zkvm::sha::Digest>;
 
     /// The error type which is returned when a proof fails to verify
     type Error: Debug;

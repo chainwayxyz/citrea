@@ -18,6 +18,7 @@ mod spec {
         BorshSerialize,
         Serialize,
         Deserialize,
+        Hash,
     )]
     #[borsh(use_discriminant = true)]
     pub enum SpecId {
@@ -42,6 +43,7 @@ mod spec {
         BorshSerialize,
         Serialize,
         Deserialize,
+        Hash,
     )]
     #[borsh(use_discriminant = true)]
     pub enum SpecId {

@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -26,6 +26,7 @@ use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::{
@@ -71,7 +72,7 @@ where
     sequencer_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     prover_config: Option<ProverConfig>,
-    code_commitment: Vm::CodeCommitment,
+    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager,
@@ -111,7 +112,7 @@ where
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Option<Ps>,
         prover_config: Option<ProverConfig>,
-        code_commitment: Vm::CodeCommitment,
+        code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         sync_blocks_count: u64,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
@@ -158,7 +159,7 @@ where
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             phantom: std::marker::PhantomData,
             prover_config,
-            code_commitment,
+            code_commitments_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             sync_blocks_count,
             fork_manager,
@@ -797,28 +798,22 @@ where
 
         // l1_height => (tx_id, proof, transition_data)
         // save proof along with tx id to db, should be queriable by slot number or slot hash
-        let transition_data: sov_modules_api::StateTransition<
-            <Da as DaService>::Spec,
-            Stf::StateRoot,
-        > = Vm::extract_output(&proof).expect("Proof should be deserializable");
+        let (transition_data, receipt) =
+            Vm::extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(&proof)
+                .expect("Proof should be deserializable");
 
         match proof {
             Proof::PublicInput(_) => {
                 warn!("Proof is public input, skipping");
             }
-            Proof::Full(ref proof) => {
+            Proof::Full(_) => {
                 info!("Verifying proof!");
-                let transition_data_from_proof =
-                    Vm::verify_and_extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(
-                        &proof.clone(),
-                        &self.code_commitment,
-                    )
-                    .expect("Proof should be verifiable");
-
-                info!(
-                    "transition data from proof: {:?}",
-                    transition_data_from_proof
-                );
+                let receipt = receipt.expect("Receipt must exist in full proof");
+                let code_commitment = self
+                    .code_commitments_by_spec
+                    .get(&transition_data.final_spec_id)
+                    .expect("Proof public input must contain valid spec id");
+                receipt.verify(code_commitment.clone())?;
             }
         }
 

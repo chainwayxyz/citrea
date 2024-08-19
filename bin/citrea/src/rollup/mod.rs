@@ -176,7 +176,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             },
         };
 
-        let code_commitment = self.get_code_commitment();
+        let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -196,7 +196,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             native_stf,
             storage_manager,
             init_variant,
-            code_commitment,
+            code_commitments_by_spec,
             rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
@@ -280,7 +280,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             },
         };
 
-        let code_commitment = self.get_code_commitment();
+        let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -302,7 +302,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             init_variant,
             Some(prover_service),
             Some(prover_config),
-            code_commitment,
+            code_commitments_by_spec,
             rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,

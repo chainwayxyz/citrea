@@ -2682,6 +2682,7 @@ dependencies = [
  "digest 0.10.7",
  "hex",
  "proptest",
+ "risc0-zkvm",
  "serde",
  "sha2",
  "thiserror",

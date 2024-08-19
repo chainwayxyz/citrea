@@ -48,3 +48,9 @@ impl Matches<[u32; 8]> for Risc0MethodId {
         &self.0 == other
     }
 }
+
+impl From<Risc0MethodId> for Digest {
+    fn from(val: Risc0MethodId) -> Self {
+        Digest::new(val.0)
+    }
+}
