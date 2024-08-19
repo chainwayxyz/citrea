@@ -504,7 +504,7 @@ where
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-        preproven_commitment_indicies: Vec<usize>,
+        mut preproven_commitment_indicies: Vec<usize>,
         forks: Vec<(SpecId, u64)>,
     ) -> (Self::StateRoot, CumulativeStateDiff) {
         let mut state_diff = CumulativeStateDiff::default();
@@ -526,12 +526,20 @@ where
         // Sort commitments just in case
         sequencer_commitments.sort_unstable();
 
-        let sequencer_commitments: Vec<_> = sequencer_commitments
-            .into_iter()
-            .enumerate()
-            .filter(|(index, _)| !preproven_commitment_indicies.contains(index))
-            .map(|(_, commitment)| commitment)
-            .collect();
+        // The preproven indicies are sorted by the prover when originally passed.
+        // Therefore, we pass the commitments sequentially to make sure that the current
+        // commitment index is not at the beginning of the list of preproven indicies.
+        let mut filtered = vec![];
+        for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
+            if let Some(exclude_index) = preproven_commitment_indicies.get(0) {
+                if index == *exclude_index {
+                    preproven_commitment_indicies.remove(0);
+                    continue;
+                }
+            }
+            filtered.push(sequencer_commitment);
+        }
+        sequencer_commitments = filtered;
 
         // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();
