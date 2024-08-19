@@ -1,6 +1,7 @@
 #![allow(clippy::module_inception)]
-use borsh::{BorshDeserialize, BorshSerialize};
 use core::hash::Hash;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 pub use spec::*;
 
