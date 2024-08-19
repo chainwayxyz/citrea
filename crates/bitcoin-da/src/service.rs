@@ -15,33 +15,32 @@ use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::json::ListUnspentResultEntry;
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaSpec};
-use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::{
-    create_seqcommitment_transactions, create_zkproof_transactions, sign_blob_with_private_key,
-    write_inscription_txs, BatchProvingTxs, LightClientTxs, TxWithId,
+    create_seqcommitment_transactions, create_zkproof_transactions, write_inscription_txs,
+    BatchProvingTxs, LightClientTxs, TxWithId,
 };
-use crate::helpers::compression::{compress_blob, decompress_blob};
+use crate::helpers::compression::compress_blob;
+use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
 };
-use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::transaction::TransactionWrapper;
-use crate::spec::utxo::{ListUnspentEntry, UTXO};
+use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
@@ -354,10 +353,6 @@ impl BitcoinService {
             .context("Missing address")?
             .require_network(network)
             .context("Invalid network for address")?;
-
-        // // sign the blob for authentication of the sequencer
-        // let (signature, public_key) =
-        //     sign_blob_with_private_key(&blob, &da_private_key).expect("Sequencer sign the blob");
 
         match da_data {
             DaData::ZKProof(_) => {
@@ -866,7 +861,7 @@ mod tests {
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
 
         let da_service = BitcoinService::new(
             runtime_config,
@@ -880,11 +875,11 @@ mod tests {
         .await
         .expect("Error initialazing BitcoinService");
 
-        let da_service = Arc::new(da_service);
-
+        // let da_service = Arc::new(da_service);
         // da_service.clone().spawn_da_queue(rx);
+        // da_service
 
-        da_service
+        Arc::new(da_service)
     }
 
     async fn get_service_wrong_rollup_name() -> Arc<BitcoinService> {

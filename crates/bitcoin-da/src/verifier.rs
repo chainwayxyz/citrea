@@ -8,7 +8,6 @@ use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
-use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
 };
@@ -139,9 +138,6 @@ impl DaVerifier for BitcoinVerifier {
                                 return Err(ValidationError::IncorrectSenderInBlob);
                             }
 
-                            // decompress the blob
-                            // let decompressed_blob = decompress_blob(&seq_comm.body);
-
                             // read the supplied blob from txs
                             let mut blob_content = blob.blob.clone();
                             blob_content.advance(blob_content.total_len());
@@ -256,7 +252,6 @@ mod tests {
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
-    use bitcoin::script::Bytes;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
     use sov_rollup_interface::da::DaVerifier;
 
@@ -433,7 +428,7 @@ mod tests {
                 .iter()
                 .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
             coinbase_merkle_proof: tree.get_idx_path(0),
         };
 
@@ -531,7 +526,7 @@ mod tests {
                 .iter()
                 .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
             coinbase_merkle_proof: tree.get_idx_path(0),
         };
 
@@ -621,7 +616,7 @@ mod tests {
                 .iter()
                 .map(|t| t.compute_wtxid().to_byte_array())
                 .collect(),
-            coinbase_tx: block_txs[0].clone().into(),
+            coinbase_tx: block_txs[0].clone(),
             coinbase_merkle_proof: tree.get_idx_path(0),
         };
 

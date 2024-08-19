@@ -2,7 +2,7 @@ use core::num::NonZeroU16;
 
 use bitcoin::blockdata::script::Instruction;
 use bitcoin::hashes::Hash;
-use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_DROP};
+use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
@@ -124,11 +124,7 @@ impl VerifyParsed for ParsedSequencerCommitment {
 
 impl ParsedAggregate {
     pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
-        self.body
-            .chunks_exact(32)
-            .into_iter()
-            .map(Txid::from_slice)
-            .collect()
+        self.body.chunks_exact(32).map(Txid::from_slice).collect()
     }
 }
 
@@ -283,11 +279,9 @@ fn read_opcode(
 }
 
 mod light_client {
-    use bitcoin::hashes::Hash;
     use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
-    use bitcoin::Txid;
 
     use super::{
         read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,

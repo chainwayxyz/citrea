@@ -479,7 +479,7 @@ pub fn create_inscription_type_0(
 
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) =
-        sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
+        sign_blob_with_private_key(&body, da_private_key).expect("Sequencer sign the body");
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
@@ -843,7 +843,7 @@ pub fn create_inscription_type_1(
     let reveal_body: Vec<u8> = reveal_tx_ids.iter().copied().flatten().collect();
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) =
-        sign_blob_with_private_key(&reveal_body, &da_private_key).expect("Sequencer sign the body");
+        sign_blob_with_private_key(&reveal_body, da_private_key).expect("Sequencer sign the body");
 
     let header = TransactionHeaderLightClient {
         rollup_name,
@@ -1051,7 +1051,7 @@ pub fn create_batchproof_type_0(
 
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) =
-        sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
+        sign_blob_with_private_key(&body, da_private_key).expect("Sequencer sign the body");
 
     // start creating inscription content
     let reveal_script_builder = script::Builder::new()

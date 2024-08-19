@@ -1,7 +1,6 @@
 use core::ops::Deref;
 
 use bitcoin::block::{Header as BitcoinHeader, Version};
-use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, TxMerkleNode};
 use borsh::{BorshDeserialize, BorshSerialize};
