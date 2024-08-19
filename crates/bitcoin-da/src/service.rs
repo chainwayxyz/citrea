@@ -957,6 +957,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    /// A test we use to generate some data for the other tests
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
         use sov_rollup_interface::zk::Proof;
@@ -973,112 +974,112 @@ mod tests {
 
         println!("sent 1");
 
-        // da_service
-        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        //         merkle_root: [14; 32],
-        //         l2_start_block_number: 1101,
-        //         l2_end_block_number: 1245,
-        //     }))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [14; 32],
+                l2_start_block_number: 1101,
+                l2_end_block_number: 1245,
+            }))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 2");
+        println!("sent 2");
 
-        // println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
-        // let mut s = String::new();
-        // std::io::stdin().read_line(&mut s).unwrap();
+        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
 
-        // println!("sent 3");
+        println!("sent 3");
 
-        // let size = 2000;
-        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        let size = 2000;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        // da_service
-        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 4");
+        println!("sent 4");
 
-        // println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
-        // let mut s = String::new();
-        // std::io::stdin().read_line(&mut s).unwrap();
+        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
 
-        // println!("sent 5");
+        println!("sent 5");
 
-        // let size = 600 * 1024;
-        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        let size = 600 * 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        // da_service
-        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 6");
+        println!("sent 6");
 
-        // // seq com different rollup name
-        // get_service_wrong_rollup_name()
-        //     .await
-        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        //         merkle_root: [15; 32],
-        //         l2_start_block_number: 1246,
-        //         l2_end_block_number: 1268,
-        //     }))
-        //     .await
-        //     .expect("Failed to send transaction");
+        // seq com different rollup name
+        get_service_wrong_rollup_name()
+            .await
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
 
-        // let size = 1024;
-        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        let size = 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        // da_service
-        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 7");
+        println!("sent 7");
 
-        // // seq com incorrect pubkey and sig
-        // get_service_correct_sig_different_public_key()
-        //     .await
-        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        //         merkle_root: [15; 32],
-        //         l2_start_block_number: 1246,
-        //         l2_end_block_number: 1268,
-        //     }))
-        //     .await
-        //     .expect("Failed to send transaction");
+        // seq com incorrect pubkey and sig
+        get_service_correct_sig_different_public_key()
+            .await
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
 
-        // da_service
-        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        //         merkle_root: [15; 32],
-        //         l2_start_block_number: 1246,
-        //         l2_end_block_number: 1268,
-        //     }))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 8");
+        println!("sent 8");
 
-        // let size = 1200 * 1024;
-        // let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        let size = 1200 * 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
-        // da_service
-        //     .send_transaction(DaData::ZKProof(Proof::Full(blob)))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 9");
+        println!("sent 9");
 
-        // da_service
-        //     .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        //         merkle_root: [30; 32],
-        //         l2_start_block_number: 1268,
-        //         l2_end_block_number: 1314,
-        //     }))
-        //     .await
-        //     .expect("Failed to send transaction");
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [30; 32],
+                l2_start_block_number: 1268,
+                l2_end_block_number: 1314,
+            }))
+            .await
+            .expect("Failed to send transaction");
 
-        // println!("sent 10");
+        println!("sent 10");
     }
 
     // #[tokio::test]
