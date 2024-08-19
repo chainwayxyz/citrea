@@ -113,5 +113,5 @@ pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
     hasher.update(input);
     let result = hasher.finalize_reset();
     hasher.update(result);
-    hasher.finalize().try_into().unwrap()
+    hasher.finalize().into()
 }
