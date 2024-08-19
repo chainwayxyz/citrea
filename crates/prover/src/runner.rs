@@ -10,7 +10,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::fork::{Fork, ForkManager};
-use citrea_primitives::types::{L2Range, SoftConfirmationHash};
+use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -457,7 +457,7 @@ where
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
-            let sequencer_commitments: Vec<SequencerCommitment> =
+            let mut sequencer_commitments: Vec<SequencerCommitment> =
                 self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
 
             if sequencer_commitments.is_empty() {
@@ -499,7 +499,7 @@ where
             // Make sure all sequencer commitments are stored in ascending order.
             sequencer_commitments.sort_unstable();
 
-            let (mut sequencer_commitments, preproven_commitments) =
+            let (sequencer_commitments, preproven_commitments) =
                 self.filter_out_proven_commitments(&sequencer_commitments)?;
 
             let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
@@ -625,10 +625,7 @@ where
                 soft_confirmations,
                 state_transition_witnesses,
                 da_block_headers_of_soft_confirmations,
-                preproven_commitments: preproven_commitments
-                    .iter()
-                    .map(|(a, b)| (*a as u32, *b as u32))
-                    .collect(),
+                preproven_commitments: preproven_commitments.to_vec(),
                 sequencer_commitments_range: (
                     0,
                     (sequencer_commitments.len() - 1)
