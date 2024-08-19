@@ -90,7 +90,6 @@ pub(crate) fn get_mock_data() -> (
 
     let relevant_txs_indices = [4, 6, 18, 28, 30, 34];
 
-    // relevant txs are on 6, 8, 10, 12 indices
     let completeness_proof = relevant_txs_indices
         .into_iter()
         .map(|i| block_txs[i].clone())
