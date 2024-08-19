@@ -182,7 +182,6 @@ impl DaVerifier for BitcoinVerifier {
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
         // and the rest of the script pub key is the commitment of witness data.
-        // if !completeness_proof.is_empty() {
         let coinbase_tx = &inclusion_proof.coinbase_tx;
         // If there are more than one scriptPubKey matching the pattern,
         // the one with highest output index is assumed to be the commitment.
@@ -224,7 +223,6 @@ impl DaVerifier for BitcoinVerifier {
                 }
             }
         }
-        // }
 
         let claimed_root = merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
             inclusion_proof
@@ -818,8 +816,6 @@ mod tests {
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
 
         completeness_proof.clear();
-
-        println!("{:?}", completeness_proof);
 
         assert_eq!(
             verifier.verify_relevant_tx_list(

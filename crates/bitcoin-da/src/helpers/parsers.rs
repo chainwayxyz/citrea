@@ -73,7 +73,6 @@ pub(crate) trait VerifyParsed {
 
         let secp = Secp256k1::new();
 
-        println!("baban: {} deden: {}", public_key.is_ok(), signature.is_ok(),);
         if public_key.is_ok()
             && signature.is_ok()
             && secp
@@ -82,7 +81,6 @@ pub(crate) trait VerifyParsed {
         {
             Some(hash)
         } else {
-            println!("anan");
             None
         }
     }

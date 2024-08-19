@@ -171,7 +171,6 @@ impl BitcoinService {
                             }
                             Err(e) => {
                                 error!(?e, "Failed to send transaction to DA layer");
-                                println!("Failed to send transaction to DA layer: {:?}", e);
                                 tokio::time::sleep(Duration::from_secs(1)).await;
                                 continue;
                             }
@@ -816,7 +815,6 @@ fn get_relevant_blobs_from_txs(
         }
 
         if let Ok(tx) = parse_batch_proof_transaction(&tx, rollup_name) {
-            println!("Parsed tx: {:?}", tx);
             match tx {
                 ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
                     if let Some(hash) = seq_comm.get_sig_verified_hash() {
@@ -1252,7 +1250,6 @@ mod tests {
             "Publickey recovered incorrectly!"
         );
 
-        println!("{:?}", incorrect_pub_key);
         assert_eq!(
             txs.first().unwrap().sender.0,
             incorrect_pub_key,

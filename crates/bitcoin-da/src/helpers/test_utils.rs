@@ -6,10 +6,9 @@ use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, Transaction};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
-use super::parsers::{parse_batch_proof_transaction, ParsedLightClientTransaction, ParserError};
+use super::parsers::{parse_batch_proof_transaction, ParserError};
 use super::{calculate_double_sha256, merkle_tree};
-use crate::helpers::compression::decompress_blob;
-use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
+use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
@@ -75,18 +74,6 @@ pub(crate) fn get_mock_data() -> (
     );
 
     let block_txs = get_mock_txs();
-
-    // parse_transaction(&block_txs[3], "sov-btc").unwrap();
-
-    // for (id, tx) in block_txs.iter().enumerate() {
-    //     let r = parse_transaction(tx, "sov-btc");
-    //     let err = if let Err(e) = r {
-    //         e
-    //     } else {
-    //         ParserError::ScriptError("OK".to_string())
-    //     };
-    //     dbg!(id, err);
-    // }
 
     let relevant_txs_indices = [4, 6, 18, 28, 30, 34];
 
