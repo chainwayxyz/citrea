@@ -11,6 +11,7 @@ extern crate alloc;
 
 use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
+use core::convert::Into;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
