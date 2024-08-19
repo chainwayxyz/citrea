@@ -1,9 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use std::collections::HashSet;
-use std::hash::RandomState;
-
 use borsh::BorshDeserialize;
 use citrea_primitives::fork::{fork_from_block_number, Fork, ForkManager};
 use itertools::Itertools;
