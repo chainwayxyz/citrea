@@ -531,7 +531,7 @@ where
         // commitment index is not at the beginning of the list of preproven indicies.
         let mut filtered = vec![];
         for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
-            if let Some(exclude_index) = preproven_commitment_indicies.get(0) {
+            if let Some(exclude_index) = preproven_commitment_indicies.first() {
                 if index == *exclude_index {
                     preproven_commitment_indicies.remove(0);
                     continue;
