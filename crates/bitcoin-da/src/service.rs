@@ -80,7 +80,7 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
-    pub async fn new(
+    pub async fn new_with_wallet_check(
         config: DaServiceConfig,
         chain_params: RollupParams,
         tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
@@ -97,16 +97,24 @@ impl BitcoinService {
             .transpose()
             .context("Invalid private key")?;
 
-        Ok(Self::with_client(
+        let wallets = client
+            .list_wallets()
+            .await
+            .expect("Failed to list loaded wallets");
+
+        if wallets.is_empty() {
+            tracing::warn!("No loaded wallet found!");
+        }
+
+        Ok(Self {
             client,
-            chain_params.rollup_name,
-            config.network,
-            private_key,
-            chain_params.reveal_light_client_prefix,
-            chain_params.reveal_batch_prover_prefix,
-            tx,
-        )
-        .await)
+            rollup_name: chain_params.rollup_name,
+            network: config.network,
+            da_private_key: private_key,
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
+            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            inscribes_queue: tx,
+        })
     }
 
     pub fn spawn_da_queue(
@@ -184,12 +192,11 @@ impl BitcoinService {
     }
 
     #[cfg(test)]
-    pub async fn new_without_client(
+    pub async fn new_without_wallet_check(
         config: DaServiceConfig,
         chain_params: RollupParams,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
-        use tokio::sync::mpsc::unbounded_channel;
-
         let client = Client::new(
             &config.node_url,
             Auth::UserPass(config.node_username, config.node_password),
@@ -202,8 +209,6 @@ impl BitcoinService {
             .transpose()
             .context("Invalid private key")?;
 
-        let (tx, _rx) = unbounded_channel();
-
         Ok(Self {
             client,
             rollup_name: chain_params.rollup_name,
@@ -213,35 +218,6 @@ impl BitcoinService {
             reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
             inscribes_queue: tx,
         })
-    }
-
-    async fn with_client(
-        client: Client,
-        rollup_name: String,
-        network: bitcoin::Network,
-        da_private_key: Option<SecretKey>,
-        reveal_light_client_prefix: Vec<u8>,
-        reveal_batch_prover_prefix: Vec<u8>,
-        inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
-    ) -> Self {
-        let wallets = client
-            .list_wallets()
-            .await
-            .expect("Failed to list loaded wallets");
-
-        if wallets.is_empty() {
-            tracing::warn!("No loaded wallet found!");
-        }
-
-        Self {
-            client,
-            rollup_name,
-            network,
-            da_private_key,
-            reveal_light_client_prefix,
-            reveal_batch_prover_prefix,
-            inscribes_queue,
-        }
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -862,7 +838,7 @@ mod tests {
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let da_service = BitcoinService::new(
+        let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
@@ -895,7 +871,7 @@ mod tests {
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let da_service = BitcoinService::new(
+        let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
                 rollup_name: "btc-sov".to_string(),
@@ -928,7 +904,7 @@ mod tests {
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let da_service = BitcoinService::new(
+        let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
                 rollup_name: "btc-sov".to_string(),
@@ -1181,13 +1157,16 @@ mod tests {
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        let incorrect_service = BitcoinService::new_without_client(
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
                 rollup_name: "sov-btc".to_string(),
                 reveal_batch_prover_prefix: vec![1, 1],
                 reveal_light_client_prefix: vec![2, 2],
             },
+            tx,
         )
         .await
         .expect("Error initialazing BitcoinService");

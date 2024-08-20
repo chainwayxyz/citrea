@@ -113,7 +113,7 @@ impl RollupBlueprint for BitcoinRollup {
         let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
 
         let service = Arc::new(
-            BitcoinService::new(
+            BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
                     rollup_name: ROLLUP_NAME.to_string(),
