@@ -1,7 +1,6 @@
 use core::ops::Deref;
 
 use bitcoin::block::{Header as BitcoinHeader, Version};
-use bitcoin::hash_types::WitnessMerkleNode;
 use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, TxMerkleNode};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -50,13 +49,13 @@ impl HeaderWrapper {
         header: BitcoinHeader,
         tx_count: u32,
         height: u64,
-        txs_commitment: WitnessMerkleNode,
+        txs_commitment: [u8; 32],
     ) -> Self {
         Self {
             header: header.into(),
             tx_count,
             height,
-            txs_commitment: txs_commitment.to_byte_array(),
+            txs_commitment,
         }
     }
 
@@ -66,6 +65,10 @@ impl HeaderWrapper {
 
     pub fn merkle_root(&self) -> [u8; 32] {
         self.header.merkle_root.to_byte_array()
+    }
+
+    pub fn inner(&self) -> &BitcoinHeader {
+        &self.header.0
     }
 }
 
