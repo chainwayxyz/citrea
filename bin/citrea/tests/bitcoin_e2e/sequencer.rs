@@ -70,18 +70,6 @@ impl Sequencer {
             client,
         })
     }
-
-    pub async fn wait_for_height(&self, height: u64, timeout: Option<Duration>) -> Result<()> {
-        let timeout = timeout.unwrap_or(Duration::from_secs(60));
-        let start = Instant::now();
-        while start.elapsed() < timeout {
-            if self.client.eth_block_number().await == height {
-                return Ok(());
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
-        anyhow::bail!("Sequencer failed to reach height within the specified timeout")
-    }
 }
 
 impl Node for Sequencer {

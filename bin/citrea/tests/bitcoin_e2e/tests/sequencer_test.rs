@@ -5,6 +5,7 @@ use bitcoincore_rpc::RpcApi;
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
+use crate::test_helpers::wait_for_l2_block;
 
 struct BasicSequencerTest;
 
@@ -25,7 +26,7 @@ impl TestCase for BasicSequencerTest {
         sequencer.client.send_publish_batch_request().await;
         da.generate(1, None).await?;
 
-        sequencer.wait_for_height(1, None).await?;
+        wait_for_l2_block(&sequencer.client, 1, None).await;
         let seq_height1 = sequencer.client.eth_block_number().await;
         assert_eq!(seq_height1, 1);
 
