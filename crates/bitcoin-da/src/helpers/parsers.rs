@@ -152,7 +152,7 @@ impl From<ScriptError> for ParserError {
     }
 }
 
-pub fn parse_transaction(
+pub fn parse_light_client_transaction(
     tx: &Transaction,
     rollup_name: &str,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
@@ -519,8 +519,8 @@ mod tests {
     use bitcoin::Transaction;
 
     use super::{
-        parse_relevant_lightclient, parse_transaction, ParsedLightClientTransaction, ParserError,
-        TransactionHeaderLightClient, TransactionKindLightClient,
+        parse_light_client_transaction, parse_relevant_lightclient, ParsedLightClientTransaction,
+        ParserError, TransactionHeaderLightClient, TransactionKindLightClient,
     };
 
     #[test]
@@ -619,7 +619,7 @@ mod tests {
         let tx: Transaction =
             bitcoin::consensus::deserialize(&hex::decode(hex_tx).unwrap()).unwrap();
 
-        let result = parse_transaction(&tx, "sov-btc");
+        let result = parse_light_client_transaction(&tx, "sov-btc");
 
         assert!(result.is_err(), "Failed to error on non-parseable tx.");
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);

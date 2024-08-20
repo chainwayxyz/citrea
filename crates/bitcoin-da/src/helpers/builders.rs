@@ -1230,7 +1230,7 @@ mod tests {
     use super::LightClientTxs;
     use crate::helpers::builders::sign_blob_with_private_key;
     use crate::helpers::compression::{compress_blob, decompress_blob};
-    use crate::helpers::parsers::{parse_transaction, ParsedLightClientTransaction};
+    use crate::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
     use crate::spec::utxo::UTXO;
     use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -1753,7 +1753,7 @@ mod tests {
         );
 
         // check inscription
-        let inscription = parse_transaction(&reveal, rollup_name).unwrap();
+        let inscription = parse_light_client_transaction(&reveal, rollup_name).unwrap();
         let ParsedLightClientTransaction::Complete(inscription) = inscription else {
             panic!("Unexpected tx kind");
         };
