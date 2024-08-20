@@ -181,15 +181,17 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
-    function declareWithdrawFiller(TransactionParams calldata withdrawTp, uint256 inputIndex, uint256 outputIndex, uint256 withdrawId) external {
+    function declareWithdrawFiller(TransactionParams calldata withdrawTp, uint256 inputIndex, uint256 withdrawId) external {
         validateAndCheckInclusion(withdrawTp);
         bytes memory input = BTCUtils.extractInputAtIndex(withdrawTp.vin, inputIndex);
         bytes32 txId = BTCUtils.extractInputTxIdLE(input);
         uint32 index = uint32(BTCUtils.extractTxIndexLE(input));
         UTXO memory utxo = withdrawalUTXOs[withdrawId];
         require(utxo.txId == txId && utxo.outputId == index, "not matching UTXO");
-        
-        bytes memory _output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, outputIndex);
+
+        uint nOuts;
+        (, nOuts) = BTCUtils.parseVarInt(withdrawTp.vout);
+        bytes memory _output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, nOuts - 1);
         uint256 withdrawFillerId = uint256(bytesToBytes32(BTCUtils.extractOpReturnData(_output)));
         withdrawFillers[withdrawId] = getInternalOperatorId(withdrawFillerId);
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
