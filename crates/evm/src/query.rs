@@ -91,13 +91,13 @@ pub struct EstimatedDiffSize {
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
-    pub async fn net_version(&self, working_set: &mut WorkingSet<C>) -> RpcResult<String> {
+    pub async fn net_version(&self, mut working_set: WorkingSet<C>) -> RpcResult<String> {
         debug!("evm module: net_version");
 
         // Network ID is the same as chain ID for most networks
         let chain_id = self
             .cfg
-            .get(working_set)
+            .get(&mut working_set)
             .expect("EVM config must be set at genesis")
             .chain_id;
 
@@ -106,12 +106,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_chainId`
     #[rpc_method(name = "eth_chainId")]
-    pub async fn chain_id(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Option<U64>> {
+    pub async fn chain_id(&self, mut working_set: WorkingSet<C>) -> RpcResult<Option<U64>> {
         tracing::debug!("evm module: eth_chainId");
 
         let chain_id = reth_primitives::U64::from(
             self.cfg
-                .get(working_set)
+                .get(&mut working_set)
                 .expect("EVM config must be set at genesis")
                 .chain_id,
         );
@@ -122,118 +122,28 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for `eth_getBlockByHash`
     #[rpc_method(name = "eth_getBlockByHash")]
-    pub async fn get_block_by_hash(
+    pub async fn _get_block_by_hash(
         &self,
         block_hash: reth_primitives::B256,
         details: Option<bool>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         debug!("evm module: eth_getBlockByHash");
-
-        // if block hash is not known, return None
-        let block_number = match self
-            .block_hashes
-            .get(&block_hash, &mut working_set.accessory_state())
-        {
-            Some(block_number) => block_number,
-            None => return Ok(None),
-        };
-
-        self.get_block_by_number(
-            Some(BlockNumberOrTag::Number(block_number)),
-            details,
-            working_set,
-        )
-        .await
+        self.get_block_by_hash(block_hash, details, &mut working_set)
+            .await
     }
 
     /// Handler for: `eth_getBlockByNumber`
     #[rpc_method(name = "eth_getBlockByNumber")]
-    pub async fn get_block_by_number(
+    pub async fn _get_block_by_number(
         &self,
         block_number: Option<BlockNumberOrTag>,
         details: Option<bool>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
         debug!("evm module: eth_getBlockByNumber");
-
-        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
-            Some(sealed_block) => sealed_block,
-            None => return Ok(None), // if block doesn't exist return null
-        };
-
-        // Build rpc header response
-        let mut header = from_primitive_with_hash(sealed_block.header.clone());
-        header.total_difficulty = Some(header.difficulty);
-        // Collect transactions with ids from db
-        let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
-            .transactions
-            .clone()
-            .map(|id| {
-                self.transactions
-                    .get(id as usize, &mut working_set.accessory_state())
-                    .expect("Transaction must be set")
-            })
-            .collect();
-
-        let block = Block {
-            header: sealed_block.header.header().clone(),
-            body: transactions
-                .iter()
-                .map(|tx| tx.signed_transaction.clone())
-                .collect(),
-            ommers: Default::default(),
-            withdrawals: Default::default(),
-            requests: None,
-        };
-
-        let size = block.length();
-
-        // Build rpc transactions response
-        let transactions = match details {
-            Some(true) => reth_rpc_types::BlockTransactions::Full(
-                transactions
-                    .iter()
-                    .enumerate()
-                    .map(|(id, tx)| {
-                        reth_rpc_types_compat::transaction::from_recovered_with_block_context(
-                            tx.clone().into(),
-                            header.hash.expect("Block must be already sealed"),
-                            header.number.expect("Block must be already sealed"),
-                            header.base_fee_per_gas.map(|bfpg| bfpg.try_into().unwrap()), // u64 max is 18446744073 gwei, for the conversion to fail the base fee per gas would have to be higher than that
-                            id,
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            ),
-            _ => reth_rpc_types::BlockTransactions::Hashes({
-                transactions
-                    .iter()
-                    .map(|tx| tx.signed_transaction.hash)
-                    .collect::<Vec<_>>()
-            }),
-        };
-
-        // Build rpc block response
-        let block = reth_rpc_types::Block {
-            header,
-            size: Some(U256::from(size)),
-            uncles: Default::default(),
-            transactions,
-            withdrawals: Default::default(),
-            other: OtherFields::new(BTreeMap::<String, _>::from([
-                (
-                    "l1FeeRate".to_string(),
-                    serde_json::json!(sealed_block.l1_fee_rate),
-                ),
-                (
-                    "l1Hash".to_string(),
-                    serde_json::json!(sealed_block.l1_hash),
-                ),
-            ])),
-        };
-
-        Ok(Some(block.into()))
+        self.get_block_by_number(block_number, details, &mut working_set)
+            .await
     }
 
     /// Handler for: `eth_getBlockReceipts`
@@ -241,7 +151,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub async fn get_block_receipts(
         &self,
         block_number_or_hash: BlockId,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<Vec<AnyTransactionReceipt>>> {
         debug!("evm module: eth_getBlockReceipts");
 
@@ -261,7 +171,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
-                match self.get_sealed_block_by_number(Some(block_number), working_set)? {
+                match self.get_sealed_block_by_number(Some(block_number), &mut working_set)? {
                     Some(block) => block,
                     None => return Ok(None), // if block doesn't exist return null
                 }
@@ -295,7 +205,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         address: reth_primitives::Address,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         debug!("evm module: eth_getBalance");
 
@@ -312,12 +222,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                set_state_to_end_of_evm_block(num, working_set);
+                set_state_to_end_of_evm_block(num, &mut working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
+                set_state_to_end_of_evm_block(0, &mut working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -329,7 +239,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let balance = self
             .accounts
-            .get(&address, working_set)
+            .get(&address, &mut working_set)
             .map(|account| account.info.balance)
             .unwrap_or_default();
 
@@ -343,7 +253,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: reth_primitives::Address,
         index: reth_primitives::U256,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::B256> {
         debug!("evm module: eth_getStorageAt");
 
@@ -360,12 +270,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                set_state_to_end_of_evm_block(num, working_set);
+                set_state_to_end_of_evm_block(num, &mut working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
+                set_state_to_end_of_evm_block(0, &mut working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -377,8 +287,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let storage_slot = self
             .accounts
-            .get(&address, working_set)
-            .and_then(|account| account.storage.get(&index, working_set))
+            .get(&address, &mut working_set)
+            .and_then(|account| account.storage.get(&index, &mut working_set))
             .unwrap_or_default();
 
         Ok(storage_slot.into())
@@ -390,7 +300,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         address: reth_primitives::Address,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         debug!("evm module: eth_getTransactionCount");
 
@@ -407,12 +317,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                set_state_to_end_of_evm_block(num, working_set);
+                set_state_to_end_of_evm_block(num, &mut working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
+                set_state_to_end_of_evm_block(0, &mut working_set);
             }
             _ => {
                 return Err(EthApiError::InvalidParams(
@@ -424,7 +334,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let nonce = self
             .accounts
-            .get(&address, working_set)
+            .get(&address, &mut working_set)
             .map(|account| account.info.nonce)
             .unwrap_or_default();
 
@@ -437,7 +347,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         address: reth_primitives::Address,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         debug!("evm module: eth_getCode");
 
@@ -453,12 +363,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 if num > curr_block_number {
                     return Err(EthApiError::UnknownBlockNumber.into());
                 }
-                set_state_to_end_of_evm_block(num, working_set);
+                set_state_to_end_of_evm_block(num, &mut working_set);
             }
             // Working state here is already at the latest state, so no need to anything
             Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
             Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
+                set_state_to_end_of_evm_block(0, &mut working_set);
             }
             // Is this the way?
             // Note that reth works for all types of BlockNumberOrTag
@@ -472,8 +382,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let code = self
             .accounts
-            .get(&address, working_set)
-            .and_then(|account| self.code.get(&account.info.code_hash, working_set))
+            .get(&address, &mut working_set)
+            .and_then(|account| self.code.get(&account.info.code_hash, &mut working_set))
             .unwrap_or_default();
 
         Ok(code.original_bytes())
@@ -485,7 +395,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_hash: reth_primitives::B256,
         index: reth_primitives::U64,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         debug!("evm module: eth_getTransactionByBlockHashAndIndex");
 
@@ -535,11 +445,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         block_number: BlockNumberOrTag,
         index: reth_primitives::U64,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         debug!("evm module: eth_getTransactionByBlockNumberAndIndex");
 
-        let block_number = match self.block_number_for_id(&block_number, working_set).await {
+        let block_number = match self
+            .block_number_for_id(&block_number, &mut working_set)
+            .await
+        {
             Ok(block_number) => block_number,
             Err(EthApiError::UnknownBlockNumber) => return Ok(None),
             Err(err) => return Err(err.into()),
@@ -580,35 +493,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_getTransactionReceipt`
     #[rpc_method(name = "eth_getTransactionReceipt")]
-    pub async fn get_transaction_receipt(
+    pub async fn _get_transaction_receipt(
         &self,
         hash: reth_primitives::B256,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<AnyTransactionReceipt>> {
         debug!("evm module: eth_getTransactionReceipt");
-        let mut accessory_state = working_set.accessory_state();
-
-        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
-
-        let receipt = tx_number.map(|number| {
-            let tx = self
-                .transactions
-                .get(number as usize, &mut accessory_state)
-                .expect("Transaction with known hash must be set");
-            let block = self
-                .blocks
-                .get(tx.block_number as usize, &mut accessory_state)
-                .expect("Block number for known transaction must be set");
-
-            let receipt = self
-                .receipts
-                .get(number as usize, &mut accessory_state)
-                .expect("Receipt for known transaction must be set");
-
-            build_rpc_receipt(&block, tx, number, receipt)
-        });
-
-        Ok(receipt)
+        self.get_transaction_receipt(hash, &mut working_set).await
     }
 
     /// Handler for: `eth_call`
@@ -621,86 +512,91 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         _state_overrides: Option<reth_rpc_types::state::StateOverride>,
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
-        debug!("evm module: eth_call");
-        let mut block_env = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
+        let s = self.clone();
+        tokio::task::spawn_blocking(move || {
+            debug!("evm module: eth_call");
+            let mut block_env = match block_number {
+                None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
+                    // if no block is produced yet, should default to genesis block env, else just return the lates
+                    s.block_env.get(&mut working_set).unwrap_or_else(|| {
+                        BlockEnv::from(
+                            &s.get_sealed_block_by_number(
                                 Some(BlockNumberOrTag::Earliest),
-                                working_set,
+                                &mut working_set,
                             )
                             .unwrap()
                             .expect("Genesis block must be set"),
-                    )
-                })
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
+                        )
+                    })
+                }
+                _ => {
+                    let block =
+                        match s.get_sealed_block_by_number(block_number, &mut working_set)? {
+                            Some(block) => block,
+                            None => return Err(EthApiError::UnknownBlockNumber.into()),
+                        };
 
-                set_state_to_end_of_evm_block(block.header.number, working_set);
+                    set_state_to_end_of_evm_block(block.header.number, &mut working_set);
 
-                BlockEnv::from(&block)
-            }
-        };
+                    BlockEnv::from(&block)
+                }
+            };
 
-        let cfg = self
-            .cfg
-            .get(working_set)
-            .expect("EVM chain config should be set");
-        let mut cfg_env = get_cfg_env(&block_env, cfg);
+            let cfg = s
+                .cfg
+                .get(&mut working_set)
+                .expect("EVM chain config should be set");
+            let mut cfg_env = get_cfg_env(&block_env, cfg);
 
-        // set endpoint specific params
-        cfg_env.disable_eip3607 = true;
-        cfg_env.disable_base_fee = true;
-        // set higher block gas limit than usual
-        // but still cap it to prevent DoS
-        block_env.gas_limit = 100_000_000;
+            // set endpoint specific params
+            cfg_env.disable_eip3607 = true;
+            cfg_env.disable_base_fee = true;
+            // set higher block gas limit than usual
+            // but still cap it to prevent DoS
+            block_env.gas_limit = 100_000_000;
 
-        let mut evm_db = self.get_db(working_set);
-        let mut tx_env = prepare_call_env(
-            &block_env,
-            request.clone(),
-            Some(
-                evm_db
-                    .basic(request.from.unwrap_or_default())
-                    .unwrap()
-                    .unwrap_or_default()
-                    .balance,
-            ),
-        )?;
+            let mut evm_db = s.get_db(&mut working_set);
+            let mut tx_env = prepare_call_env(
+                &block_env,
+                request.clone(),
+                Some(
+                    evm_db
+                        .basic(request.from.unwrap_or_default())
+                        .unwrap()
+                        .unwrap_or_default()
+                        .balance,
+                ),
+            )?;
 
-        // https://github.com/paradigmxyz/reth/issues/6574
-        tx_env.nonce = None;
+            // https://github.com/paradigmxyz/reth/issues/6574
+            tx_env.nonce = None;
 
-        let result = match inspect(
-            evm_db,
-            cfg_env,
-            block_env,
-            tx_env,
-            TracingInspector::new(TracingInspectorConfig::all()),
-        ) {
-            Ok(result) => result.result,
-            Err(err) => {
-                return Err(EthApiError::from(err).into());
-            }
-        };
+            let result = match inspect(
+                evm_db,
+                cfg_env,
+                block_env,
+                tx_env,
+                TracingInspector::new(TracingInspectorConfig::all()),
+            ) {
+                Ok(result) => result.result,
+                Err(err) => {
+                    return Err(EthApiError::from(err).into());
+                }
+            };
 
-        Ok(ensure_success(result)?)
+            Ok(ensure_success(result)?)
+        })
+        .await
+        .map_err(|_| EthApiError::EvmCustom("Could not process transaction".to_owned()))?
     }
 
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
     pub async fn block_number(
         &self,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         debug!("evm module: eth_blockNumber");
 
@@ -718,7 +614,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<AccessListWithGasUsed> {
         debug!("evm module: eth_createAccessList");
 
@@ -728,14 +624,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // so we don't unnecessarily set archival version
                 // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
+                let l1_fee_rate = self.l1_fee_rate.get(&mut working_set).unwrap_or_default();
                 // if no block is produced yet, should default to genesis block env, else just return the lates
-                let block_env = self.block_env.get(working_set).unwrap_or_else(|| {
+                let block_env = self.block_env.get(&mut working_set).unwrap_or_else(|| {
                     BlockEnv::from(
                         &self
                             .get_sealed_block_by_number(
                                 Some(BlockNumberOrTag::Earliest),
-                                working_set,
+                                &mut working_set,
                             )
                             .unwrap()
                             .expect("Genesis block must be set"),
@@ -744,12 +640,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 (l1_fee_rate, block_env)
             }
             _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
+                let block = match self.get_sealed_block_by_number(block_number, &mut working_set)? {
                     Some(block) => block,
                     None => return Err(EthApiError::UnknownBlockNumber.into()),
                 };
 
-                set_state_to_end_of_evm_block(block.header.number, working_set);
+                set_state_to_end_of_evm_block(block.header.number, &mut working_set);
                 let l1_fee_rate = block.l1_fee_rate;
                 let block_env = BlockEnv::from(&block);
                 (l1_fee_rate, block_env)
@@ -758,7 +654,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg = self
             .cfg
-            .get(working_set)
+            .get(&mut working_set)
             .expect("EVM chain config should be set");
         let mut cfg_env = get_cfg_env(&block_env, cfg);
 
@@ -769,7 +665,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // but still cap it to prevent DoS
         block_env.gas_limit = 100_000_000;
 
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(&mut working_set);
 
         let mut tx_env = prepare_call_env(
             &block_env,
@@ -830,7 +726,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             block_env,
             cfg_env,
             &mut tx_env,
-            working_set,
+            &mut working_set,
         )?;
 
         Ok(AccessListWithGasUsed {
@@ -908,11 +804,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         debug!("evm module: eth_estimateGas");
 
-        let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
+        let estimated = self.estimate_tx_expenses(request, block_number, &mut working_set)?;
         Ok(estimated.gas_with_l1_overhead())
     }
 
@@ -922,13 +818,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_number: Option<BlockNumberOrTag>,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<EstimatedDiffSize> {
         debug!("evm module: eth_estimateDiffSize");
         if request.gas.is_none() {
             return Err(EthApiError::InvalidParams("gas must be set".into()))?;
         }
-        let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
+        let estimated = self.estimate_tx_expenses(request, block_number, &mut working_set)?;
 
         Ok(EstimatedDiffSize {
             gas: estimated.gas_used,
@@ -942,12 +838,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub async fn eth_get_block_transaction_count_by_hash(
         &self,
         block_hash: reth_primitives::B256,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<reth_primitives::U256>> {
         debug!("evm module: eth_getBlockTransactionCountByHash");
         // Get the number of transactions in a block given blockhash
         let block = self
-            .get_block_by_hash(block_hash, None, working_set)
+            .get_block_by_hash(block_hash, None, &mut working_set)
             .await?;
         match block {
             Some(block) => Ok(Some(U256::from(block.transactions.len()))),
@@ -960,12 +856,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub async fn eth_get_block_transaction_count_by_number(
         &self,
         block_number: BlockNumberOrTag,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Option<reth_primitives::U256>> {
         debug!("evm module: eth_getBlockTransactionCountByNumber");
         // Get the number of transactions in a block given block number
         let block = self
-            .get_block_by_number(Some(block_number), None, working_set)
+            .get_block_by_number(Some(block_number), None, &mut working_set)
             .await?;
         match block {
             Some(block) => Ok(Some(U256::from(block.transactions.len()))),
@@ -1229,10 +1125,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub async fn eth_get_logs(
         &self,
         filter: Filter,
-        working_set: &mut WorkingSet<C>,
+        mut working_set: WorkingSet<C>,
     ) -> RpcResult<Vec<LogResponse>> {
         // https://github.com/paradigmxyz/reth/blob/8892d04a88365ba507f28c3314d99a6b54735d3f/crates/rpc/rpc/src/eth/filter.rs#L302
-        Ok(self.logs_for_filter(filter, working_set).await?)
+        Ok(self.logs_for_filter(filter, &mut working_set).await?)
     }
 
     /// Handler for: `eth_getTransactionByHash`
@@ -1643,6 +1539,148 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .iter(working_set)
             .map(|tx| tx.receipt.gas_used)
             .sum::<u128>()
+    }
+
+    /// Returns the block at the provided number.
+    pub async fn get_block_by_number(
+        &self,
+        block_number: Option<BlockNumberOrTag>,
+        details: Option<bool>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
+        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
+            Some(sealed_block) => sealed_block,
+            None => return Ok(None), // if block doesn't exist return null
+        };
+
+        // Build rpc header response
+        let mut header = from_primitive_with_hash(sealed_block.header.clone());
+        header.total_difficulty = Some(header.difficulty);
+        // Collect transactions with ids from db
+        let transactions: Vec<TransactionSignedAndRecovered> = sealed_block
+            .transactions
+            .clone()
+            .map(|id| {
+                self.transactions
+                    .get(id as usize, &mut working_set.accessory_state())
+                    .expect("Transaction must be set")
+            })
+            .collect();
+
+        let block = Block {
+            header: sealed_block.header.header().clone(),
+            body: transactions
+                .iter()
+                .map(|tx| tx.signed_transaction.clone())
+                .collect(),
+            ommers: Default::default(),
+            withdrawals: Default::default(),
+            requests: None,
+        };
+
+        let size = block.length();
+
+        // Build rpc transactions response
+        let transactions = match details {
+            Some(true) => reth_rpc_types::BlockTransactions::Full(
+                transactions
+                    .iter()
+                    .enumerate()
+                    .map(|(id, tx)| {
+                        reth_rpc_types_compat::transaction::from_recovered_with_block_context(
+                            tx.clone().into(),
+                            header.hash.expect("Block must be already sealed"),
+                            header.number.expect("Block must be already sealed"),
+                            header.base_fee_per_gas.map(|bfpg| bfpg.try_into().unwrap()), // u64 max is 18446744073 gwei, for the conversion to fail the base fee per gas would have to be higher than that
+                            id,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => reth_rpc_types::BlockTransactions::Hashes({
+                transactions
+                    .iter()
+                    .map(|tx| tx.signed_transaction.hash)
+                    .collect::<Vec<_>>()
+            }),
+        };
+
+        // Build rpc block response
+        let block = reth_rpc_types::Block {
+            header,
+            size: Some(U256::from(size)),
+            uncles: Default::default(),
+            transactions,
+            withdrawals: Default::default(),
+            other: OtherFields::new(BTreeMap::<String, _>::from([
+                (
+                    "l1FeeRate".to_string(),
+                    serde_json::json!(sealed_block.l1_fee_rate),
+                ),
+                (
+                    "l1Hash".to_string(),
+                    serde_json::json!(sealed_block.l1_hash),
+                ),
+            ])),
+        };
+
+        Ok(Some(block.into()))
+    }
+
+    /// Returns the block at the provided hash.
+    pub async fn get_block_by_hash(
+        &self,
+        block_hash: reth_primitives::B256,
+        details: Option<bool>,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
+        // if block hash is not known, return None
+        let block_number = match self
+            .block_hashes
+            .get(&block_hash, &mut working_set.accessory_state())
+        {
+            Some(block_number) => block_number,
+            None => return Ok(None),
+        };
+
+        self.get_block_by_number(
+            Some(BlockNumberOrTag::Number(block_number)),
+            details,
+            working_set,
+        )
+        .await
+    }
+
+    /// Returns the transaction receipt by hash
+    pub async fn get_transaction_receipt(
+        &self,
+        hash: reth_primitives::B256,
+        working_set: &mut WorkingSet<C>,
+    ) -> RpcResult<Option<AnyTransactionReceipt>> {
+        debug!("evm module: eth_getTransactionReceipt");
+        let mut accessory_state = working_set.accessory_state();
+
+        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+
+        let receipt = tx_number.map(|number| {
+            let tx = self
+                .transactions
+                .get(number as usize, &mut accessory_state)
+                .expect("Transaction with known hash must be set");
+            let block = self
+                .blocks
+                .get(tx.block_number as usize, &mut accessory_state)
+                .expect("Block number for known transaction must be set");
+
+            let receipt = self
+                .receipts
+                .get(number as usize, &mut accessory_state)
+                .expect("Receipt for known transaction must be set");
+
+            build_rpc_receipt(&block, tx, number, receipt)
+        });
+
+        Ok(receipt)
     }
 }
 

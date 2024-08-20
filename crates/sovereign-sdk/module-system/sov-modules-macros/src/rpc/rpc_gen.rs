@@ -43,7 +43,7 @@ fn jsonrpsee_rpc_macro_path() -> Path {
     }
 }
 
-fn find_working_set_argument(sig: &Signature) -> Option<(usize, syn::Type)> {
+fn find_working_set_argument(sig: &Signature) -> Option<(usize, syn::Type, WorkingSetPassType)> {
     for (idx, input) in sig.inputs.iter().enumerate() {
         if let FnArg::Typed(PatType { ty, .. }) = input {
             if let syn::Type::Reference(syn::TypeReference { elem, .. }) = *ty.clone() {
@@ -51,8 +51,14 @@ fn find_working_set_argument(sig: &Signature) -> Option<(usize, syn::Type)> {
                     if let Some(segment) = path.segments.last() {
                         // TODO: enforce that the working set has exactly one angle bracketed argument
                         if segment.ident == "WorkingSet" && !segment.arguments.is_empty() {
-                            return Some((idx, *elem.clone()));
+                            return Some((idx, *elem.clone(), WorkingSetPassType::RefMut));
                         }
+                    }
+                }
+            } else if let syn::Type::Path(syn::TypePath { path, .. }) = *ty.clone() {
+                if let Some(segment) = path.segments.last() {
+                    if segment.ident == "WorkingSet" {
+                        return Some((idx, *ty.clone(), WorkingSetPassType::Owned));
                     }
                 }
             }
@@ -61,10 +67,17 @@ fn find_working_set_argument(sig: &Signature) -> Option<(usize, syn::Type)> {
     None
 }
 
+#[derive(Clone)]
+enum WorkingSetPassType {
+    RefMut,
+    Owned,
+}
+
 struct RpcImplBlock {
     pub(crate) type_name: Ident,
     pub(crate) methods: Vec<RpcEnabledMethod>,
     pub(crate) working_set_type: Option<syn::Type>,
+    pub(crate) working_set_mutability: Option<WorkingSetPassType>,
     pub(crate) generics: syn::Generics,
 }
 
@@ -125,10 +138,26 @@ impl RpcImplBlock {
 
                 signature.inputs = inputs.into_iter().collect();
 
-                quote! {
-                    #( #docs )*
-                    #signature {
-                        <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* ).await
+                match self
+                    .working_set_mutability
+                    .clone()
+                    .expect("Working set mutability should be set")
+                {
+                    WorkingSetPassType::RefMut => {
+                        quote! {
+                            #( #docs )*
+                            #signature {
+                                <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* ).await
+                            }
+                        }
+                    }
+                    WorkingSetPassType::Owned => {
+                        quote! {
+                            #( #docs )*
+                            #signature {
+                                <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* Self::get_working_set(self), #(#post_working_set_args),* ).await
+                            }
+                        }
                     }
                 }
             } else {
@@ -259,6 +288,7 @@ fn build_rpc_trait(
         type_name: type_name.clone(),
         methods: vec![],
         working_set_type: None,
+        working_set_mutability: None,
         generics: generics.clone(),
     };
 
@@ -269,7 +299,7 @@ fn build_rpc_trait(
             if let Some((attr, idx_of_rpc_attr)) = get_method_attribute(&method.attrs) {
                 let mut intermediate_trait_inputs = method.sig.inputs.clone();
                 let working_set_arg = find_working_set_argument(&method.sig);
-                let idx_of_working_set_arg = if let Some((idx, ty)) = working_set_arg {
+                let idx_of_working_set_arg = if let Some((idx, ty, pass_ty)) = working_set_arg {
                     // Remove the working set argument from the intermediate trait signature
                     let mut inputs: Vec<syn::FnArg> =
                         intermediate_trait_inputs.into_iter().collect();
@@ -278,6 +308,7 @@ fn build_rpc_trait(
 
                     // Store the type of the working set argument for later reference
                     rpc_info.working_set_type = Some(ty);
+                    rpc_info.working_set_mutability = Some(pass_ty);
                     Some(idx)
                 } else {
                     None

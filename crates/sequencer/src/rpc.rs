@@ -126,7 +126,7 @@ pub(crate) fn create_rpc_module<
             debug!("Sequencer: citrea_sendRawDepositTransaction");
 
             let evm = Evm::<C>::default();
-            let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
+            let working_set = WorkingSet::<C>::new(ctx.storage.clone());
 
             let dep_tx = ctx
                 .deposit_mempool
@@ -134,9 +134,7 @@ pub(crate) fn create_rpc_module<
                 .await
                 .make_deposit_tx_from_data(deposit.clone().into());
 
-            let tx_res = evm
-                .get_call(dep_tx, None, None, None, &mut working_set)
-                .await;
+            let tx_res = evm.get_call(dep_tx, None, None, None, working_set).await;
 
             match tx_res {
                 Ok(hex_res) => {

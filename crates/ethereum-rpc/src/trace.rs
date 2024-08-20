@@ -45,10 +45,10 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         return;
     };
 
-    let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+    let working_set = WorkingSet::<C>::new(ethereum.storage.clone());
     let evm = Evm::<C>::default();
     let latest_block_number: u64 = evm
-        .block_number(&mut working_set)
+        .block_number(working_set)
         .await
         .expect("Expected at least one block")
         .saturating_to();
