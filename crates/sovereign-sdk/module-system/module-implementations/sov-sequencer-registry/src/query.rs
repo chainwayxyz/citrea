@@ -22,7 +22,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> SequencerRegistry<C, Da> {
     ///
     /// The response only contains data if the sequencer is registered.
     #[rpc_method(name = "getSequencerAddress")]
-    pub fn sequencer_address(
+    pub async fn sequencer_address(
         &self,
         da_address: Da::Address,
         working_set: &mut WorkingSet<C>,

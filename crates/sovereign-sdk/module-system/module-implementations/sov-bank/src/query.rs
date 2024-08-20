@@ -24,7 +24,7 @@ impl<C: sov_modules_api::Context> Bank<C> {
     #[rpc_method(name = "balanceOf")]
     /// Rpc method that returns the balance of the user at the address `user_address` for the token
     /// stored at the address `token_address`.
-    pub fn balance_of(
+    pub async fn balance_of(
         &self,
         user_address: C::Address,
         token_address: C::Address,
@@ -37,7 +37,7 @@ impl<C: sov_modules_api::Context> Bank<C> {
 
     #[rpc_method(name = "supplyOf")]
     /// Rpc method that returns the supply of a token stored at the address `token_address`.
-    pub fn supply_of(
+    pub async fn supply_of(
         &self,
         token_address: C::Address,
         working_set: &mut WorkingSet<C>,

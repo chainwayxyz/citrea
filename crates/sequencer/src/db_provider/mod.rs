@@ -32,14 +32,17 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
         Self { evm, storage }
     }
 
-    pub fn cfg(&self) -> EvmChainConfig {
+    pub async fn cfg(&self) -> EvmChainConfig {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        self.evm.get_chain_config(&mut working_set)
+        self.evm.get_chain_config(&mut working_set).await
     }
 
-    pub fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
+    pub async fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
-        let rich_block = self.evm.get_block_by_number(None, None, &mut working_set)?;
+        let rich_block = self
+            .evm
+            .get_block_by_number(None, None, &mut working_set)
+            .await?;
         let hashes = rich_block.map(|b| b.inner.transactions);
         match hashes {
             Some(BlockTransactions::Hashes(hashes)) => Ok(hashes),
@@ -47,19 +50,21 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
         }
     }
 
-    pub fn last_block(&self) -> RpcResult<Option<Rich<Block>>> {
+    pub async fn last_block(&self) -> RpcResult<Option<Rich<Block>>> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
         let rich_block = self
             .evm
-            .get_block_by_number(None, Some(true), &mut working_set)?;
+            .get_block_by_number(None, Some(true), &mut working_set)
+            .await?;
         Ok(rich_block)
     }
 
-    pub fn genesis_block(&self) -> RpcResult<Option<Block>> {
+    pub async fn genesis_block(&self) -> RpcResult<Option<Block>> {
         let mut working_set = WorkingSet::<C>::new(self.storage.clone());
         let rich_block = self
             .evm
-            .get_block_by_number(Some(BlockNumberOrTag::Earliest), None, &mut working_set)?
+            .get_block_by_number(Some(BlockNumberOrTag::Earliest), None, &mut working_set)
+            .await?
             .map(|b| b.inner);
         Ok(rich_block)
     }

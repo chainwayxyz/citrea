@@ -1,4 +1,3 @@
-use jsonrpsee::RpcModule;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
@@ -16,7 +15,6 @@ where
     C: Context,
     Da: DaService,
 {
-    let mut rpc = RpcModule::new(storage.clone());
     // runtime rpc.
     let mut rpc_methods = RT::rpc_methods(storage.clone());
 

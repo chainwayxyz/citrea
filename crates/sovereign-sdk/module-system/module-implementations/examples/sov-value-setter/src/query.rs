@@ -17,7 +17,7 @@ pub struct Response {
 impl<C: sov_modules_api::Context> ValueSetter<C> {
     /// Queries the state of the module.
     #[rpc_method(name = "queryValue")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Response> {
+    pub async fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Response> {
         Ok(Response {
             value: self.value.get(working_set),
         })

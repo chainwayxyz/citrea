@@ -21,7 +21,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     }
 
     /// Gets block from cache or from provider
-    pub fn get_block(
+    pub async fn get_block(
         &mut self,
         block_hash: B256,
         working_set: &mut WorkingSet<C>,
@@ -38,6 +38,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         let block = self
             .provider
             .get_block_by_hash(block_hash, Some(true), working_set)
+            .await
             .unwrap_or(None);
 
         // Add block to cache if it exists
@@ -52,7 +53,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     }
 
     /// Gets block from cache or from provider by block number
-    pub fn get_block_by_number(
+    pub async fn get_block_by_number(
         &mut self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
@@ -70,6 +71,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
                 Some(true),
                 working_set,
             )
+            .await
             .unwrap_or(None);
 
         // Add block to cache if it exists
@@ -84,26 +86,28 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
         Ok(block)
     }
 
-    pub fn get_block_with_receipts(
+    pub async fn get_block_with_receipts(
         &mut self,
         block_number: u64,
         working_set: &mut WorkingSet<C>,
     ) -> EthResult<Option<(Rich<Block>, Vec<AnyTransactionReceipt>)>> {
         // if height not in cache, get hash from provider and call get_block
-        let block = self.get_block_by_number(block_number, working_set)?;
+        let block = self.get_block_by_number(block_number, working_set).await?;
         if let Some(block) = block {
             // Receipts are not added to cache but their fee history will be kept in cache in fee_history.rs
             let receipts: Vec<_> = match &block.transactions {
                 BlockTransactions::Full(transactions) => {
-                    transactions
-                        .iter()
-                        .map(|tx| {
-                            self.provider
-                                .get_transaction_receipt(tx.hash, working_set)
-                                .unwrap()
-                                .unwrap() // There is no way to get None here
-                        })
-                        .collect()
+                    let mut receipts = vec![];
+                    for tx in transactions {
+                        let receipt = self
+                            .provider
+                            .get_transaction_receipt(tx.hash, working_set)
+                            .await
+                            .unwrap()
+                            .unwrap(); // There is no way to get None here
+                        receipts.push(receipt);
+                    }
+                    receipts
                 }
                 _ => unreachable!(),
             };

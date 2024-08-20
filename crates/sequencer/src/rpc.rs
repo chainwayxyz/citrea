@@ -105,7 +105,7 @@ pub(crate) fn create_rpc_module<
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ctx.storage.clone());
 
-                        match evm.get_transaction_by_hash(hash, &mut working_set) {
+                        match evm.get_transaction_by_hash(hash, &mut working_set).await {
                             Ok(tx) => {
                                 Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx)
                             }
@@ -134,7 +134,9 @@ pub(crate) fn create_rpc_module<
                 .await
                 .make_deposit_tx_from_data(deposit.clone().into());
 
-            let tx_res = evm.get_call(dep_tx, None, None, None, &mut working_set);
+            let tx_res = evm
+                .get_call(dep_tx, None, None, None, &mut working_set)
+                .await;
 
             match tx_res {
                 Ok(hex_res) => {

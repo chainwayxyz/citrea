@@ -7393,6 +7393,7 @@ name = "soft-confirmation-rule-enforcer"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh",
  "chrono",
  "jsonrpsee",
@@ -7442,6 +7443,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "async-trait",
  "borsh",
  "clap",
  "jsonrpsee",
@@ -7462,6 +7464,7 @@ name = "sov-bank"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh",
  "clap",
  "jsonrpsee",
@@ -7846,6 +7849,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "async-trait",
  "borsh",
  "clap",
  "jsonrpsee",
@@ -7928,6 +7932,7 @@ name = "sov-value-setter"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh",
  "clap",
  "jsonrpsee",
@@ -7946,6 +7951,7 @@ name = "sov-vec-setter"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh",
  "clap",
  "jsonrpsee",

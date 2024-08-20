@@ -27,16 +27,17 @@ type Transaction<C> = <CitreaMempoolImpl<C> as TransactionPool>::Transaction;
 pub(crate) struct CitreaMempool<C: sov_modules_api::Context>(CitreaMempoolImpl<C>);
 
 impl<C: sov_modules_api::Context> CitreaMempool<C> {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         client: DbProvider<C>,
         mempool_conf: SequencerMempoolConfig,
     ) -> anyhow::Result<Self> {
         let blob_store = NoopBlobStore::default();
         let genesis_block = client
             .genesis_block()
+            .await
             .map(|b| b.ok_or(anyhow!("Genesis block does not exist")))
             .map_err(|e| anyhow!("{e}"))??;
-        let evm_config = client.cfg();
+        let evm_config = client.cfg().await;
         let Some(nonce) = genesis_block.header.nonce else {
             bail!("Genesis nonce is not set");
         };

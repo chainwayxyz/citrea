@@ -100,7 +100,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
     /// If the requested range (start_block to end_block) is within the cache bounds,
     /// it returns the corresponding entries.
     /// Otherwise it returns None.
-    pub fn get_history(
+    pub async fn get_history(
         &mut self,
         start_block: u64,
         end_block: u64,
@@ -122,15 +122,18 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
         }
 
         // Get blocks from cache (fallback rpc) and receipts from rpc
-        let blocks_with_receipts = empty_blocks
-            .clone()
-            .into_iter()
-            .filter_map(|block_number| {
-                self.block_cache
-                    .get_block_with_receipts(block_number, working_set)
-                    .unwrap_or(None)
-            })
-            .collect();
+        let mut blocks_with_receipts = vec![];
+        for block_number in empty_blocks.iter() {
+            let Some(block_with_receipt) = self
+                .block_cache
+                .get_block_with_receipts(*block_number, working_set)
+                .await
+                .unwrap_or(None)
+            else {
+                continue;
+            };
+            blocks_with_receipts.push(block_with_receipt);
+        }
 
         // Insert blocks with receipts into cache
         self.insert_blocks(blocks_with_receipts);

@@ -408,15 +408,18 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
             let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
-            let block_number =
-                match evm.get_block_number_by_block_hash(block_hash, &mut working_set) {
-                    Some(block_number) => block_number,
-                    None => {
-                        return Err(EthApiError::UnknownBlockNumber.into());
-                    }
-                };
+            let block_number = match evm
+                .get_block_number_by_block_hash(block_hash, &mut working_set)
+                .await
+            {
+                Some(block_number) => block_number,
+                None => {
+                    return Err(EthApiError::UnknownBlockNumber.into());
+                }
+            };
 
             debug_trace_by_block_number(block_number, None, &ethereum, &evm, &mut working_set, opts)
+                .await
         },
     )?;
 
@@ -434,11 +437,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let evm = Evm::<C>::default();
             let block_number = match block_number {
                 BlockNumberOrTag::Number(block_number) => block_number,
-                BlockNumberOrTag::Latest => evm.block_number(&mut working_set)?.saturating_to(),
+                BlockNumberOrTag::Latest => evm.block_number(&mut working_set).await?.saturating_to(),
                 _ => return Err(EthApiError::Unsupported("Earliest, pending, safe and finalized are not supported for debug_traceBlockByNumber").into()),
             };
 
-            debug_trace_by_block_number(block_number, None, &ethereum, &evm, &mut working_set, opts)
+            debug_trace_by_block_number(block_number, None, &ethereum, &evm, &mut working_set, opts).await
         },
     )?;
 
@@ -462,6 +465,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let tx = evm
                 .get_transaction_by_hash(tx_hash, &mut working_set)
+                .await
                 .unwrap()
                 .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
             let trace_idx: u64 = tx
@@ -481,7 +485,8 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 &evm,
                 &mut working_set,
                 opts,
-            )?;
+            )
+            .await?;
             Ok(traces[0].clone())
         },
     )?;
@@ -572,7 +577,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         // if mempool_only is not true ask evm first then sequencer
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
-                        match evm.get_transaction_by_hash(hash, &mut working_set) {
+                        match evm.get_transaction_by_hash(hash, &mut working_set).await {
                             Ok(Some(tx)) => Ok(Some(tx)),
                             Ok(None) => {
                                 // if not found in evm then ask to sequencer mempool
@@ -627,8 +632,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 let evm = Evm::<C>::default();
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-                let block =
-                    evm.get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set);
+                let block = evm
+                    .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+                    .await;
 
                 let synced_block_number = match block {
                     Ok(Some(block)) => block.header.number.unwrap(),

@@ -39,6 +39,7 @@ impl SubscriptionManager {
                             None,
                             &mut working_set,
                         )
+                        .await
                         .expect("Error querying block from evm")
                         .expect("Received signal but evm block is not found");
 
@@ -55,6 +56,7 @@ impl SubscriptionManager {
                             height,
                             height,
                         )
+                        .await
                         .expect("Error getting logs in block range");
 
                     // Only possible error is no receiver

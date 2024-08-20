@@ -49,6 +49,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     let evm = Evm::<C>::default();
     let latest_block_number: u64 = evm
         .block_number(&mut working_set)
+        .await
         .expect("Expected at least one block")
         .saturating_to();
     let end_block = match end_block {
@@ -92,7 +93,8 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
                 &evm,
                 &mut working_set,
                 opts.clone(),
-            );
+            )
+            .await;
             match traces {
                 Ok(traces) => {
                     let msg = SubscriptionMessage::new(
@@ -125,7 +127,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     });
 }
 
-pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
+pub async fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     block_number: u64,
     trace_idx: Option<usize>,
     ethereum: &Ethereum<C, Da>,
@@ -135,8 +137,9 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
 ) -> Result<Vec<GethTrace>, ErrorObjectOwned> {
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
     if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-        let traces =
-            evm.trace_block_transactions_by_number(block_number, opts, trace_idx, working_set)?;
+        let traces = evm
+            .trace_block_transactions_by_number(block_number, opts, trace_idx, working_set)
+            .await?;
         return match trace_idx {
             Some(idx) => Ok(vec![traces[idx].clone()]),
             None => Ok(traces),
@@ -159,12 +162,9 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     }
 
     let cache_options = create_trace_cache_opts();
-    let traces = evm.trace_block_transactions_by_number(
-        block_number,
-        Some(cache_options),
-        None,
-        working_set,
-    )?;
+    let traces = evm
+        .trace_block_transactions_by_number(block_number, Some(cache_options), None, working_set)
+        .await?;
     ethereum
         .trace_cache
         .lock()

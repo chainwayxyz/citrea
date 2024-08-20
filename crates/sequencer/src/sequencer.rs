@@ -17,6 +17,7 @@ use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::executor::block_on;
 use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -156,7 +157,10 @@ where
         // used as client of reth's mempool
         let db_provider = DbProvider::new(storage.clone());
 
-        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
+        let pool = block_on(CitreaMempool::new(
+            db_provider.clone(),
+            config.mempool_conf.clone(),
+        ))?;
 
         let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
@@ -280,7 +284,7 @@ where
             &mut signed_batch,
         ) {
             (Ok(()), mut working_set_to_discard) => {
-                let block_gas_limit = self.db_provider.cfg().block_gas_limit;
+                let block_gas_limit = self.db_provider.cfg().await.block_gas_limit;
 
                 let evm = Evm::<C>::default();
 
@@ -303,8 +307,9 @@ where
                             let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
                                 citrea_evm::Evm<C>,
                             >>::encode_call(call_txs);
-                            let signed_blob =
-                                self.make_blob(raw_message, &mut working_set_to_discard)?;
+                            let signed_blob = self
+                                .make_blob(raw_message, &mut working_set_to_discard)
+                                .await?;
 
                             let txs = vec![signed_blob.clone()];
 
@@ -412,7 +417,7 @@ where
 
         let pub_key = signed_batch.pub_key().clone();
 
-        let evm_txs = self.get_best_transactions()?;
+        let evm_txs = self.get_best_transactions().await?;
 
         // Dry running transactions would basically allow for figuring out a list of
         // all transactions that would fit into the current block and the list of transactions
@@ -454,7 +459,7 @@ where
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
                             call_txs,
                         );
-                    let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
+                    let signed_blob = self.make_blob(raw_message, &mut batch_workspace).await?;
                     txs.push(signed_blob);
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
@@ -571,12 +576,12 @@ where
                 self.state_root = next_state_root;
                 self.batch_hash = signed_soft_confirmation.hash();
 
-                let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
+                let mut txs_to_remove = self.db_provider.last_block_tx_hashes().await?;
                 txs_to_remove.extend(l1_fee_failed_txs);
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
 
-                let account_updates = self.get_account_updates()?;
+                let account_updates = self.get_account_updates().await?;
 
                 self.mempool.update_accounts(account_updates);
 
@@ -1042,12 +1047,12 @@ where
         }
     }
 
-    fn get_best_transactions(
+    async fn get_best_transactions(
         &self,
     ) -> anyhow::Result<
         Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>>,
     > {
-        let cfg = self.db_provider.cfg();
+        let cfg = self.db_provider.cfg().await;
         let latest_header = self
             .db_provider
             .latest_header()
@@ -1072,14 +1077,14 @@ where
 
     /// Signs batch of messages with sovereign priv key turns them into a sov blob
     /// Returns a single sovereign transaction made up of multiple ethereum transactions
-    fn make_blob(
+    async fn make_blob(
         &mut self,
         raw_message: Vec<u8>,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
-        let nonce = self.get_nonce(working_set)?;
+        let nonce = self.get_nonce(working_set).await?;
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
@@ -1116,11 +1121,12 @@ where
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<u64> {
+    async fn get_nonce(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
 
         match accounts
             .get_account(self.sov_tx_signer_priv_key.pub_key(), working_set)
+            .await
             .map_err(|e| anyhow!("Sequencer: Failed to get sov-account: {}", e))?
         {
             AccountExists { addr: _, nonce } => Ok(nonce),
@@ -1165,10 +1171,11 @@ where
         Ok(())
     }
 
-    fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
+    async fn get_account_updates(&self) -> Result<Vec<ChangedAccount>, anyhow::Error> {
         let head = self
             .db_provider
-            .last_block()?
+            .last_block()
+            .await?
             .expect("Unrecoverable: Head must exist");
 
         let addresses: HashSet<Address> = match head.transactions {

@@ -27,7 +27,7 @@ pub enum Response {
 impl<C: sov_modules_api::Context> Accounts<C> {
     #[rpc_method(name = "getAccount")]
     /// Get the account corresponding to the given public key.
-    pub fn get_account(
+    pub async fn get_account(
         &self,
         pub_key: C::PublicKey,
         working_set: &mut WorkingSet<C>,

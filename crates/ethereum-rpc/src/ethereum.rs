@@ -90,6 +90,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         let evm = Evm::<C>::default();
         let base_fee = evm
             .get_block_by_number(None, None, working_set)
+            .await
             .unwrap()
             .unwrap()
             .header

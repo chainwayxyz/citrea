@@ -161,7 +161,8 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let end_block = self
             .provider
-            .block_number_for_id(&newest_block, working_set)?;
+            .block_number_for_id(&newest_block, working_set)
+            .await?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
         let end_block_plus = end_block + 1;
@@ -196,7 +197,9 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             let mut fee_history_cache = self.fee_history_cache.lock().await;
 
             (
-                fee_history_cache.get_history(start_block, end_block, working_set),
+                fee_history_cache
+                    .get_history(start_block, end_block, working_set)
+                    .await,
                 fee_history_cache.resolution(),
             )
         };
@@ -223,7 +226,10 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
                 last_entry.gas_used as u128,
                 last_entry.gas_limit as u128,
                 Some(last_entry.base_fee_per_gas),
-                self.provider.get_chain_config(working_set).base_fee_params,
+                self.provider
+                    .get_chain_config(working_set)
+                    .await
+                    .base_fee_params,
             )
             .unwrap() as u128,
         );
@@ -243,6 +249,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let header = &self
             .provider
             .get_block_by_number(None, None, working_set)
+            .await
             .unwrap()
             .unwrap()
             .header;
@@ -333,7 +340,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         // check the cache (this will hit the disk if the block is not cached)
         let block_hit = {
             let mut cache = self.fee_history_cache.lock().await;
-            cache.block_cache.get_block(block_hash, working_set)?
+            cache.block_cache.get_block(block_hash, working_set).await?
         };
         let block = match block_hit {
             Some(block) => block,

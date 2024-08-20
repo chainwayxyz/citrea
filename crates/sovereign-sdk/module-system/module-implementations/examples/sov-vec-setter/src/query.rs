@@ -22,7 +22,7 @@ pub struct LenResponse {
 impl<C: sov_modules_api::Context> VecSetter<C> {
     /// Queries the state vector of the module.
     #[rpc_method(name = "queryVec")]
-    pub fn query_vec(
+    pub async fn query_vec(
         &self,
         index: usize,
         working_set: &mut WorkingSet<C>,
@@ -33,7 +33,7 @@ impl<C: sov_modules_api::Context> VecSetter<C> {
     }
     /// Queries the length of the vector
     #[rpc_method(name = "lenVec")]
-    pub fn len_vec(&self, working_set: &mut WorkingSet<C>) -> RpcResult<LenResponse> {
+    pub async fn len_vec(&self, working_set: &mut WorkingSet<C>) -> RpcResult<LenResponse> {
         Ok(LenResponse {
             value: self.vector.len(working_set),
         })
