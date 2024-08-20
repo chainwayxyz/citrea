@@ -466,7 +466,7 @@ pub fn create_inscription_type_0(
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
-    // Create commit key
+    // Create reveal key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -663,7 +663,7 @@ pub fn create_inscription_type_1(
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
-    // Create commit key
+    // Create reveal key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
@@ -1036,7 +1036,7 @@ pub fn create_batchproof_type_0(
         body.len() < 520,
         "The body of a serialized sequencer commitment exceeds 520 bytes"
     );
-    // Create commit key
+    // Create reveal key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
