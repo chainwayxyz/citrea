@@ -78,7 +78,7 @@ fn get_size(
     tx.vsize()
 }
 
-/// Return (chosen_utxos, sum(chosed.amount), leftover_utxos)
+/// Return (chosen_utxos, sum(chosen.amount), leftover_utxos)
 fn choose_utxos(
     required_utxo: Option<UTXO>,
     utxos: &[UTXO],
@@ -132,8 +132,8 @@ fn choose_utxos(
     }
 
     let input_set: HashSet<_> = utxos.iter().collect();
-    let chosed_set: HashSet<_> = chosen_utxos.iter().collect();
-    let leftovers_set = input_set.difference(&chosed_set);
+    let chosen_set: HashSet<_> = chosen_utxos.iter().collect();
+    let leftovers_set = input_set.difference(&chosen_set);
     let leftovers: Vec<_> = leftovers_set.copied().cloned().collect();
 
     Ok((chosen_utxos, sum, leftovers))
@@ -516,7 +516,7 @@ pub fn create_inscription_type_0(
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
-        // push first random number and body tag
+        // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
             .push_opcode(OP_DROP);
@@ -885,7 +885,7 @@ pub fn create_inscription_type_1(
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
-        // push first random number and body tag
+        // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
             .push_opcode(OP_DROP);
@@ -1016,8 +1016,6 @@ pub fn create_inscription_type_1(
     }
 }
 
-// TODO: parametrize hardness
-// so tests are easier
 // Creates the batch proof transactions Type 0 - BatchProvingTxs - SequencerCommitment
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
@@ -1081,7 +1079,7 @@ pub fn create_batchproof_type_0(
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
-        // push first random number and body tag
+        // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
             .push_opcode(OP_DROP);

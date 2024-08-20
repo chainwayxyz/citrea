@@ -294,6 +294,7 @@ mod light_client {
     ) -> Result<ParsedComplete, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
+            // OP_FALSE = OP_PUSHBYTES_0
             return Err(ParserError::UnexpectedOpcode);
         }
 
@@ -352,6 +353,7 @@ mod light_client {
     ) -> Result<ParsedAggregate, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
+            // OP_FALSE = OP_PUSHBYTES_0
             return Err(ParserError::UnexpectedOpcode);
         }
 
@@ -410,6 +412,7 @@ mod light_client {
     ) -> Result<ParsedChunk, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
+            // OP_FALSE = OP_PUSHBYTES_0
             return Err(ParserError::UnexpectedOpcode);
         }
 
@@ -455,6 +458,7 @@ mod batch_proof {
     ) -> Result<ParsedSequencerCommitment, ParserError> {
         let op_false = read_push_bytes(instructions)?;
         if !op_false.is_empty() {
+            // OP_FALSE = OP_PUSHBYTES_0
             return Err(ParserError::UnexpectedOpcode);
         }
 

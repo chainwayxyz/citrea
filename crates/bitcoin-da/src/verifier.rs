@@ -80,7 +80,6 @@ impl DaVerifier for BitcoinVerifier {
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
             rollup_name: params.rollup_name,
-            // TODO
             reveal_batch_prover_prefix: params.reveal_batch_prover_prefix,
         }
     }
@@ -189,9 +188,9 @@ impl DaVerifier for BitcoinVerifier {
                 .starts_with(WITNESS_COMMITMENT_PREFIX)
         });
         match commitment_idx {
-            // If commitmet does not exist
+            // If commitment does not exist
             None => {
-                // Relevant txs should be empty if there is no wtiness data because data is inscribed in the witness
+                // Relevant txs should be empty if there is no witness data because data is inscribed in the witness
                 if !blobs.is_empty() {
                     return Err(ValidationError::InvalidBlock);
                 }
@@ -230,6 +229,7 @@ impl DaVerifier for BitcoinVerifier {
             inclusion_proof.coinbase_merkle_proof,
         );
 
+        // Check that the tx root in the block header matches the tx root in the inclusion proof.
         if block_header.merkle_root() != claimed_root {
             return Err(ValidationError::IncorrectInclusionProof);
         }

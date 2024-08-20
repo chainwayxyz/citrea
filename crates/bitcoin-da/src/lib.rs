@@ -11,4 +11,4 @@ pub mod verifier;
 const REVEAL_OUTPUT_AMOUNT: u64 = 546;
 
 #[cfg(feature = "native")]
-const MAX_TXBODY_SIZE: usize = 350000; // TODO: make better calculation for this value
+const MAX_TXBODY_SIZE: usize = 390000; // TODO: make better calculation for this value

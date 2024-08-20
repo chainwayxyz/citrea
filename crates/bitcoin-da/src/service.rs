@@ -332,7 +332,6 @@ impl BitcoinService {
         let rollup_name = self.rollup_name.clone();
         let da_private_key = self.da_private_key.expect("No private key set");
 
-        // Compress the blob
         let blob = match da_data {
             DaData::ZKProof(proof) => {
                 let blob = borsh::to_vec(&proof).expect("Should serialize");
@@ -1133,9 +1132,6 @@ mod tests {
         let txs = da_service.extract_relevant_blobs(&block);
 
         assert_eq!(txs, relevant_txs);
-
-        // kill tokio runtime
-        drop(da_service);
     }
 
     #[tokio::test]
