@@ -50,7 +50,7 @@ impl TestCase for BasicProverTest {
         };
 
         let Some(da) = f.nodes.get(0) else {
-            bail!("bitcoind not running. Test cannot run with bitcoind runnign as DA")
+            bail!("bitcoind not running. Test cannot run with bitcoind running as DA")
         };
 
         // Generate confirmed UTXOs
