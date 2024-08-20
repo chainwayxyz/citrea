@@ -8,14 +8,19 @@ pub fn get_available_port() -> Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
+fn get_workspace_root() -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .ancestors()
+        .nth(2)
+        .expect("Failed to find workspace root")
+        .to_path_buf()
+}
+
 /// Get genesis path from resources
 /// TODO: assess need for customable genesis path in e2e tests
 pub fn get_genesis_path() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir
-        .ancestors()
-        .nth(2)
-        .expect("Failed to find workspace root");
+    let workspace_root = get_workspace_root();
     let mut path = workspace_root.to_path_buf();
     path.push("resources");
     path.push("genesis");
@@ -27,11 +32,7 @@ pub fn get_genesis_path() -> PathBuf {
 pub fn get_citrea_path() -> PathBuf {
     std::env::var("CITREA").map_or_else(
         |_| {
-            let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            let workspace_root = manifest_dir
-                .ancestors()
-                .nth(2)
-                .expect("Failed to find workspace root");
+            let workspace_root = get_workspace_root();
             let mut path = workspace_root.to_path_buf();
             path.push("target");
             path.push("debug");
