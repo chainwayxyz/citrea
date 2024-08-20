@@ -458,7 +458,7 @@ impl DaService for BitcoinService {
 
         let finalized_blockhash = self
             .client
-            .get_block_hash(block_count - FINALITY_DEPTH)
+            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH))
             .await?;
 
         let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;

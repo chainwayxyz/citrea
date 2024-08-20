@@ -1,0 +1,29 @@
+use std::path::PathBuf;
+
+use bitcoin::Network;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitcoinConfig {
+    pub p2p_port: u16,
+    pub rpc_port: u16,
+    pub rpc_user: String,
+    pub rpc_password: String,
+    pub data_dir: Option<PathBuf>,
+    pub extra_args: Vec<String>,
+    pub network: Network,
+}
+
+impl Default for BitcoinConfig {
+    fn default() -> Self {
+        Self {
+            p2p_port: 0,
+            rpc_port: 0,
+            rpc_user: "user".to_string(),
+            rpc_password: "password".to_string(),
+            data_dir: None,
+            extra_args: vec![],
+            network: Network::Regtest,
+        }
+    }
+}

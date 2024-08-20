@@ -1,7 +1,7 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
     /// Private key of the sequencer
     pub private_key: String,
@@ -21,7 +21,7 @@ pub struct SequencerConfig {
 
 /// Mempool Config for the sequencer
 /// Read: https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerMempoolConfig {
     /// Max number of transactions in the pending sub-pool
     pub pending_tx_limit: u64,
