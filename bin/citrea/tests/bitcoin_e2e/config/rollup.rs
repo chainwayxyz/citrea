@@ -1,5 +1,6 @@
 use bitcoin_da::service::DaServiceConfig;
 use sov_stf_runner::{FullNodeConfig, RollupPublicKeys, RpcConfig, StorageConfig};
+use tempfile::TempDir;
 
 use super::BitcoinConfig;
 pub type RollupConfig = FullNodeConfig<DaServiceConfig>;
@@ -17,7 +18,9 @@ pub fn default_rollup_config() -> RollupConfig {
             max_subscriptions_per_connection: 100,
         },
         storage: StorageConfig {
-            path: Default::default(),
+            path: TempDir::new()
+                .expect("Failed to create temporary directory")
+                .into_path(),
         },
         runner: None,
         da: DaServiceConfig {
