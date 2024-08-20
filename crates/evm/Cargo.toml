@@ -28,7 +28,7 @@ schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 alloy-consensus = { workspace = true }
@@ -78,6 +78,7 @@ native = [
   "reth-provider",
   "alloy-rlp",
 
+  "tokio",
   "jsonrpsee",
   "schemars",
   "clap",

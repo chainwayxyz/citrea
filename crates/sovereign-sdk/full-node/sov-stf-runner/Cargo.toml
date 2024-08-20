@@ -62,4 +62,5 @@ native = [
   "rand",
   "tower",
   "hyper",
+  "tokio",
 ]
