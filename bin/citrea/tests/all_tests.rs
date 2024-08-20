@@ -2,7 +2,6 @@
 // mod bank;
 mod e2e;
 
-#[cfg(test)]
 mod bitcoin_e2e;
 
 mod evm;
