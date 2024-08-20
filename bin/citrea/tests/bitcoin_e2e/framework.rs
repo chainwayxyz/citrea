@@ -47,7 +47,11 @@ impl TestFramework {
             None
         };
 
-        let full_node = None;
+        let full_node = if config.test_case.with_full_node {
+            Some(FullNode::new(&config).await?)
+        } else {
+            None
+        };
 
         Ok(Self {
             nodes,
