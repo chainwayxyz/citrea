@@ -96,6 +96,7 @@ impl Node for FullNode {
             .arg(get_genesis_path())
             .stdout(Stdio::from(stdout_file))
             .stderr(Stdio::from(stderr_file))
+            .kill_on_drop(true)
             .spawn()
             .context("Failed to spawn citrea process")
     }

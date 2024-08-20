@@ -117,6 +117,7 @@ impl Node for BitcoinNode {
 
         Command::new("bitcoind")
             .args(&args)
+            .kill_on_drop(true)
             .spawn()
             .context("Failed to spawn bitcoind process")
     }

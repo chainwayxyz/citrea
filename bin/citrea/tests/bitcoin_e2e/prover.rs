@@ -8,8 +8,8 @@ use tokio::process::{Child, Command};
 use tokio::time::{sleep, Duration, Instant};
 
 use super::config::config_to_file;
-use super::config::TestConfig;
 use super::config::RollupConfig;
+use super::config::TestConfig;
 use super::node::Node;
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
@@ -98,6 +98,7 @@ impl Node for Prover {
             .arg(get_genesis_path())
             .stdout(Stdio::from(stdout_file))
             .stderr(Stdio::from(stderr_file))
+            .kill_on_drop(true)
             .spawn()
             .context("Failed to spawn citrea process")
     }
