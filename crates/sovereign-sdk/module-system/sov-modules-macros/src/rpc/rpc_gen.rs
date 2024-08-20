@@ -68,7 +68,6 @@ struct RpcImplBlock {
     pub(crate) generics: syn::Generics,
 }
 
-#[derive(Debug)]
 struct RpcEnabledMethod {
     pub(crate) method_name: Ident,
     pub(crate) method_signature: Signature,
