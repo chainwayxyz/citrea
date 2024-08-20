@@ -16,6 +16,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
+use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmationBatch;
 use crate::spec::SpecId;
 use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
@@ -268,8 +269,8 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
         preproven_commitment_indicies: Vec<usize>,
-        forks: Vec<(SpecId, u64)>,
-    ) -> (Self::StateRoot, CumulativeStateDiff);
+        forks: Vec<Fork>,
+    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);
 }
 
 /// A key-value pair representing a change to the rollup state

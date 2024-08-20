@@ -28,10 +28,10 @@ impl Zkvm for Risc0Guest {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        _serialized_proof: &'a [u8],
+    fn verify(
+        _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         // Implement this method once risc0 supports recursion: issue #633
         todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
     }

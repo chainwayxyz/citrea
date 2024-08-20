@@ -10,7 +10,7 @@ use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use citrea_primitives::fork::{Fork, ForkManager};
+use citrea_primitives::fork::ForkManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
@@ -270,8 +270,9 @@ where
         mut signed_batch: SignedSoftConfirmationBatch,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
+        let active_fork_spec = self.fork_manager.active_fork().spec_id;
         match self.stf.begin_soft_confirmation(
-            self.fork_manager.active_fork(),
+            active_fork_spec,
             pub_key,
             &self.state_root,
             prestate.clone(),
@@ -309,7 +310,7 @@ where
                             let txs = vec![signed_blob.clone()];
 
                             let (batch_workspace, _) = self.stf.apply_soft_confirmation_txs(
-                                self.fork_manager.active_fork(),
+                                active_fork_spec,
                                 txs.clone(),
                                 working_set_to_discard,
                             );
@@ -387,13 +388,15 @@ where
             .await
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
+        let active_fork_spec = self.fork_manager.active_fork().spec_id;
+
         let batch_info = HookSoftConfirmationInfo {
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
-            current_spec: self.fork_manager.active_fork(),
+            current_spec: active_fork_spec,
             pub_key,
             l1_fee_rate,
             timestamp,
@@ -435,7 +438,7 @@ where
 
         // Execute the selected transactions
         match self.stf.begin_soft_confirmation(
-            self.fork_manager.active_fork(),
+            active_fork_spec,
             &pub_key,
             &self.state_root,
             prestate.clone(),
@@ -458,7 +461,7 @@ where
                     txs.push(signed_blob);
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                        self.fork_manager.active_fork(),
+                        active_fork_spec,
                         txs.clone(),
                         batch_workspace,
                     );
@@ -479,7 +482,7 @@ where
                     self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
                 let (batch_receipt, checkpoint) = self.stf.end_soft_confirmation(
-                    self.fork_manager.active_fork(),
+                    active_fork_spec,
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
                     tx_receipts,
@@ -488,7 +491,7 @@ where
 
                 // Finalize soft confirmation
                 let slot_result = self.stf.finalize_soft_confirmation(
-                    self.fork_manager.active_fork(),
+                    active_fork_spec,
                     batch_receipt,
                     checkpoint,
                     prestate,

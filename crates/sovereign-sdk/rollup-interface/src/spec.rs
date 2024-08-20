@@ -1,4 +1,6 @@
 #![allow(clippy::module_inception)]
+use core::hash::Hash;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 pub use spec::*;
@@ -18,6 +20,7 @@ mod spec {
         BorshSerialize,
         Serialize,
         Deserialize,
+        Hash,
     )]
     #[borsh(use_discriminant = true)]
     pub enum SpecId {
@@ -42,6 +45,7 @@ mod spec {
         BorshSerialize,
         Serialize,
         Deserialize,
+        Hash,
     )]
     #[borsh(use_discriminant = true)]
     pub enum SpecId {

@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
@@ -117,9 +116,6 @@ pub trait SharedLedgerOps {
         &self,
         number: &BatchNumber,
     ) -> Result<Option<StoredSoftConfirmation>>;
-
-    /// Gets the currently active fork
-    fn get_active_fork(&self) -> Result<SpecId, anyhow::Error>;
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
     fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;

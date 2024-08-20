@@ -14,7 +14,6 @@ exclude = [
     "specs/assets/*",
 ]
 
-
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }

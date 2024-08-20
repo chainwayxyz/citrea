@@ -1,15 +1,15 @@
-use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::fork::Fork;
 
 /// Defines the interface of a migration
 pub trait ForkMigration {
-    /// Invoked when a spec is activated.
-    fn spec_activated(&self, spec_id: SpecId) -> anyhow::Result<()>;
+    /// Invoked when a fork is activated.
+    fn fork_activated(&self, fork: &Fork) -> anyhow::Result<()>;
 }
 
 pub struct NoOpMigration {}
 
 impl ForkMigration for NoOpMigration {
-    fn spec_activated(&self, _spec_id: SpecId) -> anyhow::Result<()> {
+    fn fork_activated(&self, _fork: &Fork) -> anyhow::Result<()> {
         // Do nothing
         Ok(())
     }
