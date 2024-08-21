@@ -308,15 +308,7 @@ impl BitcoinService {
         let rollup_name = self.rollup_name.clone();
         let da_private_key = self.da_private_key.expect("No private key set");
 
-        let blob = match da_data {
-            DaData::ZKProof(proof) => {
-                let blob = borsh::to_vec(&proof).expect("Should serialize");
-                compress_blob(&blob)
-            }
-            DaData::SequencerCommitment(commitment) => {
-                borsh::to_vec(&commitment).expect("Should serialize")
-            }
-        };
+        let blob = borsh::to_vec(da_data).expect("DaData serialize must not fail");
 
         // get all available utxos
         let utxos = self.get_utxos().await?;
@@ -331,6 +323,7 @@ impl BitcoinService {
 
         match da_data {
             DaData::ZKProof(_) => {
+                let blob = compress_blob(&blob);
                 // create inscribe transactions
                 let inscription_txs = create_zkproof_transactions(
                     &rollup_name,
