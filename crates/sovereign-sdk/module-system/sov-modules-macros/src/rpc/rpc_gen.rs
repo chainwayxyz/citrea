@@ -87,6 +87,8 @@ impl RpcImplBlock {
 
         let impl_trait_name = format_ident!("{}RpcImpl", self.type_name);
 
+        let mut async_methods_count = 0;
+
         for method in self.methods.iter() {
             // Extract the names of the formal arguments
             let arg_values = method
@@ -126,6 +128,7 @@ impl RpcImplBlock {
                 signature.inputs = inputs.into_iter().collect();
 
                 if method.method_signature.asyncness.is_some() {
+                    async_methods_count += 1;
                     quote! {
                         #( #docs )*
                         #signature {
@@ -147,6 +150,7 @@ impl RpcImplBlock {
                     .filter(|arg| arg.to_string() != quote! { self }.to_string());
 
                 if method.method_signature.asyncness.is_some() {
+                    async_methods_count += 1;
                     quote! {
                         #signature {
                             <#type_name  #ty_generics as ::std::default::Default>::default().#method_name(#(#arg_values),*).await
@@ -204,11 +208,18 @@ impl RpcImplBlock {
             blanket_impl_methods.push(blanket_impl_method);
         }
 
+        let mut async_trait_marker = None;
+        if async_methods_count > 0 {
+            async_trait_marker = Some(quote! {
+                #[async_trait::async_trait]
+            })
+        }
+
         let rpc_impl_trait = if let Some(ref working_set_type) = self.working_set_type {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
                 /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
-                #[async_trait::async_trait]
+                #async_trait_marker
                 pub trait #impl_trait_name #generics #where_clause {
                     /// Get a clean working set on top of the latest state
                     fn get_working_set(&self) -> #working_set_type;
@@ -219,7 +230,7 @@ impl RpcImplBlock {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
                 /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
-                #[async_trait::async_trait]
+                #async_trait_marker
                 pub trait #impl_trait_name #generics #where_clause {
                     #(#impl_trait_methods)*
                 }
@@ -236,7 +247,7 @@ impl RpcImplBlock {
         .expect("Failed to parse generics without braces as token stream");
         let rpc_server_trait_name = format_ident!("{}RpcServer", self.type_name);
         let blanket_impl = quote! {
-            #[async_trait::async_trait]
+            #async_trait_marker
             impl <MacroGeneratedTypeWithLongNameToAvoidCollisions: #impl_trait_name #ty_generics
             + Send
             + Sync
