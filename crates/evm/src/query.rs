@@ -106,7 +106,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_chainId`
     #[rpc_method(name = "eth_chainId")]
-    pub async fn chain_id(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Option<U64>> {
+    pub fn chain_id(&self, working_set: &mut WorkingSet<C>) -> RpcResult<Option<U64>> {
         tracing::debug!("evm module: eth_chainId");
 
         let chain_id = reth_primitives::U64::from(
