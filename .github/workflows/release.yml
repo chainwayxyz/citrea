@@ -7,71 +7,141 @@ on:
 
 env:
   EXPECTED_BITCOIN_DA_ID: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
 
-  build-and-push:
+  x86_64_binary_extraction:
     runs-on: ubicloud-standard-30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          load: true
-          tags: citrea-builder-image
-          platforms: linux/amd64
-
-      - name: Run and check image
-        id: check-image
+      - name: Install Dependencies
         run: |
-          echo "Starting container..."
-          docker run -d --name citrea-builder-container --entrypoint /bin/sh citrea-builder-image -c "while true; do sleep 30; done"
-          
-          echo "Checking BITCOIN_DA_ID..."
-          RESULT=$(docker exec citrea-builder-container grep -R "${{ env.EXPECTED_BITCOIN_DA_ID }}" /citrea || echo "Grep failed")        
-          echo "Grep result: $RESULT"
-          
-          echo "Extracting release binary..."
-          mkdir -p release
-          docker cp citrea-builder-container:/citrea/target/release/citrea release/
-          
-          sudo apt-get update && sudo apt-get install -y zip
-          cd release
-          tar -zcvf citrea-${{ github.ref_name }}-x86_64.tar.gz citrea 
-          zip ../citrea-${{ github.ref_name }}-x86_64.zip citrea      
-          cd ..
-          
+          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
+          sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - name: Install Cargo Binstall
+        run: |
+          source $HOME/.cargo/env
+          cargo install cargo-binstall
+
+      - name: Install Cargo Risczero
+        run: |
+          cargo binstall -y cargo-risczero
+          cargo risczero install --version v2024-04-22.0
+
+      - name: Build Project
+        env:
+          REPR_GUEST_BUILD: 1
+        run: |
+          cargo build --release
+
+      - name: Check BITCOIN_DA_ID
+        id: check-id
+        run: |
+          RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
+
           if echo "$RESULT" | grep -q "${{ env.EXPECTED_BITCOIN_DA_ID }}"; then
-            echo "check_passed=true" >> $GITHUB_OUTPUT
             echo "Check passed successfully."
           else
-            echo "check_passed=false" >> $GITHUB_OUTPUT
-            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} | Actual: $RESULT"
+            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
             exit 1
           fi
 
+      - name: Upload x86_64 Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea_${{ github.ref_name }}_x86_64
+          path: target/release/citrea
+
+  osx_arm64_binary_extraction:
+    runs-on: self-hosted-citrea-osx-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - name: Install Cargo Binstall
+        run: |
+          source $HOME/.cargo/env
+          cargo install cargo-binstall
+
+      - name: Install Cargo Risczero
+        run: |
+          source $HOME/.cargo/env
+          cargo binstall -y cargo-risczero
+          cargo risczero install --version v2024-04-22.0
+
+      - name: Build Project
+        env:
+          REPR_GUEST_BUILD: 1
+        run: |
+          source $HOME/.cargo/env
+          cargo build --release
+
+      - name: Check BITCOIN_DA_ID
+        id: check-id
+        run: |
+          RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
+          
+          if echo "$RESULT" | grep -q "${{ env.EXPECTED_BITCOIN_DA_ID }}"; then
+            echo "Check passed successfully."
+          else      
+            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+            exit 1
+          fi
+
+      - name: Upload osx_arm64 Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: citrea_${{ github.ref_name }}_osx_arm64
+          path: target/release/citrea
+
+  release:
+    needs: [ x86_64_binary_extraction, osx_arm64_binary_extraction ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download x86_64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea_${{ github.ref_name }}_x86_64
+          path: release
+
+      - name: rename file
+        run: |
+          mv release/citrea release/citrea_${{ github.ref_name }}_x86_64
+
+      - name: Download OSX ARM64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea_${{ github.ref_name }}_osx_arm64
+          path: release
+
+      - name: rename file
+        run: |
+            mv release/citrea release/citrea_${{ github.ref_name }}_osx_arm64
+
       - name: Release
-        if: steps.check-image.outputs.check_passed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            citrea-${{ github.ref_name }}-x86_64.tar.gz
-            citrea-${{ github.ref_name }}-x86_64.zip
-          name: x86_64 release ${{ github.ref_name }}
+            release/citrea_${{ github.ref_name }}_osx_arm64
+            release/citrea_${{ github.ref_name }}_x86_64
+          name: Release ${{ github.ref_name }}
           body: |
-            This is the x86_64 release for version ${{ github.ref_name }}.
+            This is the release for version ${{ github.ref_name }}.
             
             It includes:
-            - citrea-${{ github.ref_name }}-x86_64.tar.gz
-            - citrea-${{ github.ref_name }}-x86_64.zip
+            - citrea_${{ github.ref_name }}_x86_64
+            - citrea_${{ github.ref_name }}_osx_arm64
