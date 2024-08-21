@@ -59,7 +59,7 @@ pub struct BitcoinService {
 
 /// Runtime configuration for the DA service
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct DaServiceConfig {
+pub struct BitcoinServiceConfig {
     /// The URL of the Bitcoin node to connect to
     pub node_url: String,
     pub node_username: String,
@@ -81,7 +81,7 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
     pub async fn new_with_wallet_check(
-        config: DaServiceConfig,
+        config: BitcoinServiceConfig,
         chain_params: RollupParams,
         tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
@@ -193,7 +193,7 @@ impl BitcoinService {
 
     #[cfg(test)]
     pub async fn new_without_wallet_check(
-        config: DaServiceConfig,
+        config: BitcoinServiceConfig,
         chain_params: RollupParams,
         tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
@@ -817,7 +817,7 @@ mod tests {
     use super::BitcoinService;
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
-    use crate::service::DaServiceConfig;
+    use crate::service::BitcoinServiceConfig;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
     use crate::spec::transaction::TransactionWrapper;
@@ -825,7 +825,7 @@ mod tests {
     use crate::verifier::BitcoinVerifier;
 
     async fn get_service() -> Arc<BitcoinService> {
-        let runtime_config = DaServiceConfig {
+        let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/test".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
@@ -858,7 +858,7 @@ mod tests {
     }
 
     async fn get_service_wrong_rollup_name() -> Arc<BitcoinService> {
-        let runtime_config = DaServiceConfig {
+        let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/other".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
@@ -891,7 +891,7 @@ mod tests {
     }
 
     async fn get_service_correct_sig_different_public_key() -> Arc<BitcoinService> {
-        let runtime_config = DaServiceConfig {
+        let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/other2".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
@@ -1146,7 +1146,7 @@ mod tests {
             .serialize()
             .to_vec();
 
-        let runtime_config = DaServiceConfig {
+        let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
