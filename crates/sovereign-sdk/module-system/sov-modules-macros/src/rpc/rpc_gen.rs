@@ -167,6 +167,7 @@ impl RpcImplBlock {
 
             impl_trait_methods.push(impl_trait_method);
 
+            #[allow(clippy::collapsible_else_if)]
             let blanket_impl_method = if let Some(idx) = method.idx_of_working_set_arg {
                 // If necessary, adjust the signature to remove the working set argument.
                 let pre_working_set_args = arg_values.clone().take(idx);
