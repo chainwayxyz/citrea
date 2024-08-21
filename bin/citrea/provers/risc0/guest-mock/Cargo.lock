@@ -759,6 +759,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
+ "async-trait",
  "borsh",
  "citrea-primitives",
  "hex",
@@ -2536,6 +2537,7 @@ name = "soft-confirmation-rule-enforcer"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh",
  "serde",
  "sov-modules-api",
@@ -2548,6 +2550,7 @@ name = "sov-accounts"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh",
  "serde",
  "sov-modules-api",

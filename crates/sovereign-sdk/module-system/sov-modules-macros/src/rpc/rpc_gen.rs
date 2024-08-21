@@ -125,10 +125,19 @@ impl RpcImplBlock {
 
                 signature.inputs = inputs.into_iter().collect();
 
-                quote! {
-                    #( #docs )*
-                    #signature {
-                        <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* )
+                if method.method_signature.asyncness.is_some() {
+                    quote! {
+                        #( #docs )*
+                        #signature {
+                            <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* ).await
+                        }
+                    }
+                } else {
+                    quote! {
+                        #( #docs )*
+                        #signature {
+                            <#type_name #ty_generics as ::std::default::Default>::default().#method_name(#(#pre_working_set_args,)* &mut Self::get_working_set(self), #(#post_working_set_args),* )
+                        }
                     }
                 }
             } else {
@@ -136,9 +145,18 @@ impl RpcImplBlock {
                 let arg_values = arg_values
                     .clone()
                     .filter(|arg| arg.to_string() != quote! { self }.to_string());
-                quote! {
-                    #signature {
-                        <#type_name  #ty_generics as ::std::default::Default>::default().#method_name(#(#arg_values),*)
+
+                if method.method_signature.asyncness.is_some() {
+                    quote! {
+                        #signature {
+                            <#type_name  #ty_generics as ::std::default::Default>::default().#method_name(#(#arg_values),*).await
+                        }
+                    }
+                } else {
+                    quote! {
+                        #signature {
+                            <#type_name  #ty_generics as ::std::default::Default>::default().#method_name(#(#arg_values),*)
+                        }
                     }
                 }
             };
@@ -149,17 +167,36 @@ impl RpcImplBlock {
                 // If necessary, adjust the signature to remove the working set argument.
                 let pre_working_set_args = arg_values.clone().take(idx);
                 let post_working_set_args = arg_values.clone().skip(idx + 1);
-                quote! {
-                    #( #docs )*
-                    #signature {
-                        <Self as #impl_trait_name #ty_generics >::#method_name(#(#pre_working_set_args,)* #(#post_working_set_args),* )
+
+                if method.method_signature.asyncness.is_some() {
+                    quote! {
+                        #( #docs )*
+                        #signature {
+                            <Self as #impl_trait_name #ty_generics >::#method_name(#(#pre_working_set_args,)* #(#post_working_set_args),* ).await
+                        }
+                    }
+                } else {
+                    quote! {
+                        #( #docs )*
+                        #signature {
+                            <Self as #impl_trait_name #ty_generics >::#method_name(#(#pre_working_set_args,)* #(#post_working_set_args),* )
+                        }
                     }
                 }
             } else {
-                quote! {
-                    #( #docs )*
-                    #signature {
-                        <Self as #impl_trait_name #ty_generics >::#method_name(#(#arg_values),*)
+                if method.method_signature.asyncness.is_some() {
+                    quote! {
+                        #( #docs )*
+                        #signature {
+                            <Self as #impl_trait_name #ty_generics >::#method_name(#(#arg_values),*).await
+                        }
+                    }
+                } else {
+                    quote! {
+                        #( #docs )*
+                        #signature {
+                            <Self as #impl_trait_name #ty_generics >::#method_name(#(#arg_values),*)
+                        }
                     }
                 }
             };
@@ -171,6 +208,7 @@ impl RpcImplBlock {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
                 /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                #[async_trait::async_trait]
                 pub trait #impl_trait_name #generics #where_clause {
                     /// Get a clean working set on top of the latest state
                     fn get_working_set(&self) -> #working_set_type;
@@ -181,6 +219,7 @@ impl RpcImplBlock {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
                 /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                #[async_trait::async_trait]
                 pub trait #impl_trait_name #generics #where_clause {
                     #(#impl_trait_methods)*
                 }
@@ -197,6 +236,7 @@ impl RpcImplBlock {
         .expect("Failed to parse generics without braces as token stream");
         let rpc_server_trait_name = format_ident!("{}RpcServer", self.type_name);
         let blanket_impl = quote! {
+            #[async_trait::async_trait]
             impl <MacroGeneratedTypeWithLongNameToAvoidCollisions: #impl_trait_name #ty_generics
             + Send
             + Sync
