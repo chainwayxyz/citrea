@@ -900,7 +900,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
- "async-trait",
  "borsh",
  "citrea-primitives",
  "hex",

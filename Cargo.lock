@@ -1837,7 +1837,6 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
- "async-trait",
  "borsh",
  "bytes",
  "citrea-primitives",
