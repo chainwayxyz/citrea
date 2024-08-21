@@ -19,7 +19,7 @@ impl<C: sov_modules_api::Context> AccessorySetter<C> {
     /// Returns the latest value set in the accessory state via
     /// [`CallMessage::SetValueAccessory`](crate::CallMessage::SetValueAccessory).
     #[rpc_method(name = "value")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<ValueResponse> {
+    pub async fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<ValueResponse> {
         Ok(ValueResponse {
             value: self.accessory_value.get(&mut working_set.accessory_state()),
         })

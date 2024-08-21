@@ -9,7 +9,7 @@ use crate::{AccountConfig, Accounts};
 type C = DefaultContext;
 
 #[test]
-fn test_config_account() {
+async fn test_config_account() {
     let priv_key = DefaultPrivateKey::generate();
     let init_pub_key = priv_key.pub_key();
     let init_pub_key_addr = init_pub_key.to_address::<<C as Spec>::Address>();
@@ -24,7 +24,10 @@ fn test_config_account() {
 
     accounts.init_module(&account_config, working_set).unwrap();
 
-    let query_response = accounts.get_account(init_pub_key, working_set).unwrap();
+    let query_response = accounts
+        .get_account(init_pub_key, working_set)
+        .await
+        .unwrap();
 
     assert_eq!(
         query_response,
