@@ -1,7 +1,7 @@
 use core::fmt::Debug as DebugTrait;
 
 use anyhow::Context as _;
-use bitcoin_da::service::DaServiceConfig;
+use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -107,7 +107,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .await?;
         }
         SupportedDaLayer::Bitcoin => {
-            start_rollup::<BitcoinRollup, DaServiceConfig>(
+            start_rollup::<BitcoinRollup, BitcoinServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 rollup_config_path,
                 prover_config,

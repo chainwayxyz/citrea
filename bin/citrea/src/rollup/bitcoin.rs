@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, DaServiceConfig, TxidWrapper};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX, ROLLUP_NAME};
@@ -38,7 +38,7 @@ impl CitreaRollupBlueprint for BitcoinRollup {}
 impl RollupBlueprint for BitcoinRollup {
     type DaService = BitcoinService;
     type DaSpec = BitcoinSpec;
-    type DaConfig = DaServiceConfig;
+    type DaConfig = BitcoinServiceConfig;
     type Vm = Risc0BonsaiHost<'static>;
 
     type ZkContext = ZkDefaultContext;
