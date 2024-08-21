@@ -611,7 +611,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for: `eth_call`
     //https://github.com/paradigmxyz/reth/blob/f577e147807a783438a3f16aad968b4396274483/crates/rpc/rpc/src/eth/api/transactions.rs#L502
     //https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/call.rs#L7
-    #[rpc_method(name = "eth_call")]
+    #[rpc_method(name = "eth_call", blocking)]
     pub fn get_call(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -710,7 +710,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for `eth_createAccessList`
-    #[rpc_method(name = "eth_createAccessList")]
+    #[rpc_method(name = "eth_createAccessList", blocking)]
     pub fn create_access_list(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -900,7 +900,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_estimateGas`
     // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
+    #[rpc_method(name = "eth_estimateGas", blocking)]
     pub fn eth_estimate_gas(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -914,7 +914,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for: `eth_estimateDiffSize`
-    #[rpc_method(name = "eth_estimateDiffSize")]
+    #[rpc_method(name = "eth_estimateDiffSize", blocking)]
     pub fn eth_estimate_diff_size(
         &self,
         request: reth_rpc_types::TransactionRequest,
