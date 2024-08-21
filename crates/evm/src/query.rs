@@ -90,7 +90,7 @@ pub struct EstimatedDiffSize {
 #[rpc_gen(client, server)]
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for `net_version`
-    #[rpc_method(name = "net_version", blocking)]
+    #[rpc_method(name = "net_version")]
     pub fn net_version(&self, working_set: &mut WorkingSet<C>) -> RpcResult<String> {
         debug!("evm module: net_version");
 
