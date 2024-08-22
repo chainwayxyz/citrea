@@ -179,14 +179,13 @@ impl DockerEnv {
     pub async fn cleanup(&self) -> Result<()> {
         let containers = self.docker.list_containers::<String>(None).await?;
         for container in containers {
-            if let Some(network_settings) = container.network_settings {
-                if let Some(networks) = network_settings.networks {
-                    if networks.contains_key(&self.network_id) {
-                        if let Some(id) = container.id {
-                            self.docker.stop_container(&id, None).await?;
-                            self.docker.remove_container(&id, None).await?;
-                        }
-                    }
+            if let (Some(id), Some(networks)) = (
+                container.id,
+                container.network_settings.and_then(|ns| ns.networks),
+            ) {
+                if networks.contains_key(&self.network_id) {
+                    self.docker.stop_container(&id, None).await?;
+                    self.docker.remove_container(&id, None).await?;
                 }
             }
         }
