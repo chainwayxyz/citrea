@@ -450,6 +450,9 @@ fn calc_diff_size<EXT, DB: Database>(
     let slot_size = 2 * size_of::<U256>(); // key + value;
     let mut diff_size = 0usize;
     let db_account_size = 256;
+    // Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
+    // But we already add address size to diff size, so we don't need to add it here
+    let db_account_key_size = 25;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
     // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
@@ -468,6 +471,7 @@ fn calc_diff_size<EXT, DB: Database>(
 
             // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
             diff_size += db_account_size; // DbAccount size
+            diff_size += db_account_key_size; // DbAccount key size
 
             // Retrieve code from DB and apply its size
             if let Some(info) = db.basic(*addr)? {
@@ -485,6 +489,7 @@ fn calc_diff_size<EXT, DB: Database>(
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
             diff_size += db_account_size;
+            diff_size += db_account_key_size; // DbAccount key size
         }
 
         // Apply size of changed slots
