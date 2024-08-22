@@ -118,7 +118,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 973,
+                l1_diff_size: 1023,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -221,7 +221,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 973,
+                l1_diff_size: 1023,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -910,7 +910,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 885,
+                l1_diff_size: 935,
             },]
         )
     }
@@ -927,11 +927,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 885),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 935),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(885),
+        U256::from(935),
     );
 }
 
@@ -1069,7 +1069,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 853,
+                l1_diff_size: 903,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1091,7 +1091,7 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        853  + // l1 contract deploy fee
+        903  + // l1 contract deploy fee
         52; // l1 contract call fee
     assert_eq!(
         db_account.info.balance,
@@ -1108,5 +1108,5 @@ fn test_l1_fee_halt() {
         base_fee_valut.info.balance,
         U256::from(1106947_u64 * 10000000)
     );
-    assert_eq!(l1_fee_valut.info.balance, U256::from(853 + 52));
+    assert_eq!(l1_fee_valut.info.balance, U256::from(903 + 52));
 }

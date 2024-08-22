@@ -219,7 +219,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 114235,
                 log_index_start: 1,
-                l1_diff_size: 885,
+                l1_diff_size: 935,
             },
         ]
     );
@@ -230,7 +230,7 @@ fn test_sys_bitcoin_light_client() {
         base_fee_vault.info.balance,
         U256::from(114235u64 * 10000000)
     );
-    assert_eq!(l1_fee_vault.info.balance, U256::from(885));
+    assert_eq!(l1_fee_vault.info.balance, U256::from(935));
 
     let hash = evm
         .get_call(
