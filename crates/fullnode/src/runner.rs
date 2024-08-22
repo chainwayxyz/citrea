@@ -23,7 +23,8 @@ use sov_db::schema::types::{
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec,
+    SequencerCommitment,
 };
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -617,14 +618,28 @@ where
         let mut zk_proofs = Vec::<Proof>::new();
 
         self.da_service
+            .extract_relevant_proofs(&l1_block)
+            .into_iter()
+            .for_each(|data| match data {
+                DaDataLightClient::ZKProof(proof) => {
+                    zk_proofs.push(proof);
+                }
+            });
+
+        self.da_service
             .extract_relevant_blobs(&l1_block)
             .into_iter()
             .for_each(|mut tx| {
-                let data = DaData::try_from_slice(tx.full_data());
+                let data = DaDataBatchProof::try_from_slice(tx.full_data());
                 // Check for commitment
                 if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                        sequencer_commitments.push(seq_com);
+                    if let Ok(data) = data {
+                        match data {
+                            // TODO: This is where force transactions will land
+                            DaDataBatchProof::SequencerCommitment(seq_com) => {
+                                sequencer_commitments.push(seq_com);
+                            }
+                        }
                     } else {
                         tracing::warn!(
                             "Found broken DA data in block 0x{}: {:?}",
@@ -633,22 +648,22 @@ where
                         );
                     }
                 }
-                let data = DaData::try_from_slice(tx.full_data());
-                // Check for proof
-                if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                    if let Ok(DaData::ZKProof(proof)) = data {
-                        zk_proofs.push(proof);
-                    } else {
-                        tracing::warn!(
-                            "Found broken DA data in block 0x{}: {:?}",
-                            hex::encode(l1_block.hash()),
-                            data
-                        );
-                    }
-                } else {
-                    warn!("Force transactions are not implemented yet");
-                    // TODO: This is where force transactions will land - try to parse DA data force transaction
-                }
+                // let data = DaData::try_from_slice(tx.full_data());
+                // // Check for proof
+                // if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
+                //     if let Ok(DaData::ZKProof(proof)) = data {
+                //         zk_proofs.push(proof);
+                //     } else {
+                //         tracing::warn!(
+                //             "Found broken DA data in block 0x{}: {:?}",
+                //             hex::encode(l1_block.hash()),
+                //             data
+                //         );
+                //     }
+                // } else {
+                //     warn!("Force transactions are not implemented yet");
+                //     // TODO: This is where force transactions will land - try to parse DA data force transaction
+                // }
             });
         (sequencer_commitments, zk_proofs)
     }

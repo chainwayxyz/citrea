@@ -43,6 +43,22 @@ pub enum DaData {
     ZKProof(Proof),
 }
 
+/// Data written to DA and read from DA is must be borsh serialization of this enum
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub enum DaDataLightClient {
+    /// A zk proof and state diff
+    ZKProof(Proof),
+}
+
+/// Data written to DA and read from DA is must be borsh serialization of this enum
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub enum DaDataBatchProof {
+    /// A commitment from the sequencer
+    SequencerCommitment(SequencerCommitment),
+    // /// Or a forced transaction
+    // ForcedTransaction(ForcedTransaction),
+}
+
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
     'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone

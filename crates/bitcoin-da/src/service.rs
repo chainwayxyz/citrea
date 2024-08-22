@@ -18,7 +18,7 @@ use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaData, DaSpec};
+use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
@@ -155,7 +155,7 @@ impl BitcoinService {
                         match self
                             .send_transaction_with_fee_rate(
                                 prev.clone(),
-                                &request.da_data,
+                                request.da_data.clone(),
                                 fee_sat_per_vbyte,
                             )
                             .await
@@ -299,7 +299,7 @@ impl BitcoinService {
     pub async fn send_transaction_with_fee_rate(
         &self,
         prev_utxo: Option<UTXO>,
-        da_data: &DaData,
+        da_data: DaData,
         fee_sat_per_vbyte: f64,
     ) -> Result<TxWithId, anyhow::Error> {
         let client = &self.client;
@@ -307,8 +307,6 @@ impl BitcoinService {
 
         let rollup_name = self.rollup_name.clone();
         let da_private_key = self.da_private_key.expect("No private key set");
-
-        let blob = borsh::to_vec(da_data).expect("DaData serialize must not fail");
 
         // get all available utxos
         let utxos = self.get_utxos().await?;
@@ -322,7 +320,9 @@ impl BitcoinService {
             .context("Invalid network for address")?;
 
         match da_data {
-            DaData::ZKProof(_) => {
+            DaData::ZKProof(zkproof) => {
+                let data = DaDataLightClient::ZKProof(zkproof);
+                let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
                 let blob = compress_blob(&blob);
                 // create inscribe transactions
                 let inscription_txs = create_zkproof_transactions(
@@ -411,7 +411,9 @@ impl BitcoinService {
                     }
                 }
             }
-            DaData::SequencerCommitment(_) => {
+            DaData::SequencerCommitment(comm) => {
+                let data = DaDataBatchProof::SequencerCommitment(comm);
+                let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
                 // create inscribe transactions
                 let inscription_txs = create_seqcommitment_transactions(
                     &rollup_name,
@@ -592,6 +594,11 @@ impl DaService for BitcoinService {
 
         let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
         get_relevant_blobs_from_txs(txs, &self.rollup_name, &self.reveal_batch_prover_prefix)
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    fn extract_relevant_proofs(&self, block: &Self::FilteredBlock) -> Vec<DaDataLightClient> {
+        todo!()
     }
 
     #[instrument(level = "trace", skip_all)]

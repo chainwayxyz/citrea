@@ -7,7 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot::Sender as OneshotSender;
 
-use crate::da::BlockHeaderTrait;
+use crate::da::{BlockHeaderTrait, DaDataLightClient};
 #[cfg(feature = "native")]
 use crate::da::{DaData, DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
@@ -91,6 +91,9 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
+
+    /// Extract the relevant proofs from a block.
+    fn extract_relevant_proofs(&self, block: &Self::FilteredBlock) -> Vec<DaDataLightClient>;
 
     /// Generate a proof that the relevant blob transactions have been extracted correctly from the DA layer
     /// block.

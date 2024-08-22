@@ -7,7 +7,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use pin_project::pin_project;
 use sha2::Digest;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, Time};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaDataLightClient, DaSpec, Time};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
@@ -383,6 +383,10 @@ impl DaService for MockDaService {
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
         block.blobs.clone()
+    }
+
+    fn extract_relevant_proofs(&self, block: &Self::FilteredBlock) -> Vec<DaDataLightClient> {
+        todo!()
     }
 
     async fn get_extraction_proof(
