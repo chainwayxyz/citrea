@@ -91,6 +91,12 @@ fn call_multiple_test() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+
+    // Make sure the db account size is 256 bytes
+    let db_account_len = bcs::to_bytes(&db_account)
+        .expect("Failed to serialize value")
+        .len();
+    assert_eq!(db_account_len, 256);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -112,7 +118,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 565,
+                l1_diff_size: 973,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -215,7 +221,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 565,
+                l1_diff_size: 973,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -904,7 +910,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 477,
+                l1_diff_size: 885,
             },]
         )
     }
@@ -921,11 +927,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 477),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 885),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(477),
+        U256::from(885),
     );
 }
 
@@ -1063,7 +1069,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 445,
+                l1_diff_size: 853,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1085,7 +1091,7 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        445  + // l1 contract deploy fee
+        853  + // l1 contract deploy fee
         52; // l1 contract call fee
     assert_eq!(
         db_account.info.balance,
@@ -1102,5 +1108,5 @@ fn test_l1_fee_halt() {
         base_fee_valut.info.balance,
         U256::from(1106947_u64 * 10000000)
     );
-    assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
+    assert_eq!(l1_fee_valut.info.balance, U256::from(853 + 52));
 }

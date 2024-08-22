@@ -47,6 +47,7 @@ secp256k1 = { workspace = true, optional = true }
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["consensus", "providers", "signers", "signer-local"] }
+bcs ={ workspace = true }
 bytes = { workspace = true }
 lazy_static = "1.4.0"
 rand = { workspace = true }

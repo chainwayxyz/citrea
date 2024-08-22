@@ -449,6 +449,7 @@ fn calc_diff_size<EXT, DB: Database>(
 
     let slot_size = 2 * size_of::<U256>(); // key + value;
     let mut diff_size = 0usize;
+    let db_account_size = 256;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
     // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
@@ -464,9 +465,9 @@ fn calc_diff_size<EXT, DB: Database>(
         if account.destroyed {
             let account = &state[addr];
             diff_size += slot_size * account.storage.len(); // Storage size
-            diff_size += size_of::<u64>(); // Nonces are u64
-            diff_size += size_of::<U256>(); // Balances are U256
-            diff_size += size_of::<B256>(); // Code hashes are B256
+
+            // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
+            diff_size += db_account_size; // DbAccount size
 
             // Retrieve code from DB and apply its size
             if let Some(info) = db.basic(*addr)? {
@@ -483,7 +484,7 @@ fn calc_diff_size<EXT, DB: Database>(
         if account.nonce_changed || account.balance_changed || account.code_changed {
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size += 256;
+            diff_size += db_account_size;
         }
 
         // Apply size of changed slots
