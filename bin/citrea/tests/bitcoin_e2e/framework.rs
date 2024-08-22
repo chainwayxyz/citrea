@@ -184,6 +184,11 @@ impl TestFramework {
             println!("Successfully stopped full_node");
         }
 
+        if let Some(docker) = &self.ctx.docker {
+            docker.cleanup().await?;
+            println!("Successfully cleaned docker");
+        }
+
         if self.show_logs {
             println!(
                 "Logs available at {}",

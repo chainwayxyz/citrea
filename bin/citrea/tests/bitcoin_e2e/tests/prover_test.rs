@@ -44,7 +44,7 @@ impl TestCase for BasicProverTest {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(prover) = &f.prover else {
+        let Some(_) = &f.prover else {
             bail!("Prover not running. Set TestCaseConfig with_prover to true")
         };
 
