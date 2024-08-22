@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
+use borsh::BorshSerialize;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
@@ -55,6 +56,8 @@ impl Default for TestConfig {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_all_flow() {
     // citrea::initialize_logging(tracing::Level::DEBUG);
+    use std::time::Instant;
+    let now = Instant::now();
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -204,6 +207,12 @@ async fn test_all_flow() {
     let prover_proof = prover_node_test_client
         .ledger_get_proof_by_slot_height(3)
         .await;
+
+    let state_diff_size = borsh::to_vec(&prover_proof.clone().state_transition.state_diff)
+        .unwrap()
+        .len();
+
+    println!("State diff size: {}", state_diff_size);
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
@@ -367,6 +376,8 @@ async fn test_all_flow() {
     seq_task.abort();
     prover_node_task.abort();
     full_node_task.abort();
+    let elapsed = now.elapsed();
+    println!("Elapsed: {:.2?}", elapsed);
 }
 
 /// Test RPC `ledger_getHeadSoftConfirmation`

@@ -2,7 +2,7 @@ use reth_primitives::U256;
 #[cfg(test)]
 use revm::db::{CacheDB, EmptyDB};
 use revm::primitives::{Address, Bytecode, B256};
-use sov_modules_api::StateMapAccessor;
+use sov_modules_api::{StateMapAccessor, StateValueAccessor};
 
 use super::db::EvmDb;
 use super::{AccountInfo, DbAccount};
@@ -17,8 +17,11 @@ pub(crate) trait InitEvmDb {
 impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
         let parent_prefix = self.accounts.prefix();
-        let db_account = DbAccount::new_with_info(parent_prefix, sender, info);
+        let db_account = DbAccount::new(parent_prefix, sender);
 
+        db_account.nonce.set(&info.nonce, self.working_set);
+        db_account.code_hash.set(&info.code_hash, self.working_set);
+        db_account.balance.set(&info.balance, self.working_set);
         self.accounts.set(&sender, &db_account, self.working_set);
     }
 

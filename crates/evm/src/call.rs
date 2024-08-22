@@ -66,8 +66,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let system_nonce = self
             .accounts
             .get(&SYSTEM_SIGNER, working_set)
-            .map(|acc| acc.info.nonce)
-            .unwrap_or(0);
+            .map(|acc| acc.nonce.get(working_set).unwrap_or(0))
+            .unwrap_or_default();
 
         let db: EvmDb<'_, C> = self.get_db(working_set);
         let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);

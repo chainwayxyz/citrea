@@ -1,5 +1,5 @@
-use reth_primitives::{Account, Address, SealedHeader};
-use sov_modules_api::{StateMapAccessor, StateVecAccessor, WorkingSet};
+use reth_primitives::{Account, Address, SealedHeader, KECCAK_EMPTY};
+use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor, WorkingSet};
 
 use crate::{DbAccount, Evm};
 
@@ -10,17 +10,26 @@ impl<C: sov_modules_api::Context> Evm<C> {
         address: &Address,
         working_set: &mut WorkingSet<C>,
     ) -> Option<Account> {
-        Some(
-            self.accounts
-                .get(address, working_set)
-                .unwrap_or(DbAccount::new_with_info(
-                    self.accounts.prefix(),
-                    *address,
-                    Default::default(),
-                ))
-                .info
-                .into(),
-        )
+        let account = self
+            .accounts
+            .get(address, working_set)
+            .unwrap_or(DbAccount::new(self.accounts.prefix(), *address));
+
+        let code_hash = match account.code_hash.get(working_set) {
+            Some(code_hash) => {
+                if code_hash == KECCAK_EMPTY {
+                    None
+                } else {
+                    Some(code_hash)
+                }
+            }
+            None => None,
+        };
+        Some(Account {
+            nonce: account.nonce.get(working_set).unwrap_or_default(),
+            balance: account.balance.get(working_set).unwrap_or_default(),
+            bytecode_hash: code_hash,
+        })
     }
 
     /// Returns the sealed head block.

@@ -229,9 +229,29 @@ impl Case for BlockchainTestCase {
                             if let Some(account_state) =
                                 evm.accounts.get(&address, &mut working_set)
                             {
-                                assert_eq!(U256::from(account_state.info.nonce), account.nonce);
-                                assert_eq!(account_state.info.balance, account.balance);
-                                assert_eq!(*account_state.info.code_hash, **account.code);
+                                assert_eq!(
+                                    U256::from(
+                                        account_state
+                                            .nonce
+                                            .get(&mut working_set)
+                                            .unwrap_or_default()
+                                    ),
+                                    account.nonce
+                                );
+                                assert_eq!(
+                                    account_state
+                                        .balance
+                                        .get(&mut working_set)
+                                        .unwrap_or_default(),
+                                    account.balance
+                                );
+                                assert_eq!(
+                                    *account_state
+                                        .code_hash
+                                        .get(&mut working_set)
+                                        .unwrap_or_default(),
+                                    **account.code
+                                );
                                 for (key, value) in account.storage.iter() {
                                     assert_eq!(
                                         account_state.storage.get(key, &mut working_set),

@@ -104,28 +104,12 @@ fn genesis_data() {
 
     assert_eq!(
         db_account,
-        DbAccount::new_with_info(
-            evm_db.accounts.prefix(),
-            TEST_CONFIG.data[0].address,
-            AccountInfo {
-                balance: account.balance,
-                code_hash: account.code_hash,
-                nonce: account.nonce,
-            }
-        ),
+        DbAccount::new(evm_db.accounts.prefix(), TEST_CONFIG.data[0].address,),
     );
 
     assert_eq!(
         contract_account,
-        DbAccount::new_with_info(
-            evm_db.accounts.prefix(),
-            contract.address,
-            AccountInfo {
-                balance: contract.balance,
-                code_hash: contract.code_hash,
-                nonce: contract.nonce,
-            }
-        ),
+        DbAccount::new(evm_db.accounts.prefix(), contract.address,),
     );
 
     assert_eq!(

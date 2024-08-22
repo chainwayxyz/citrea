@@ -9,7 +9,7 @@ use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
@@ -104,8 +104,11 @@ fn test_sys_bitcoin_light_client() {
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
-    assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 3);
+    assert_eq!(
+        system_account.balance.get(&mut working_set).unwrap(),
+        U256::from(0)
+    );
+    assert_eq!(system_account.nonce.get(&mut working_set).unwrap(), 3);
 
     let hash = evm
         .get_call(
@@ -179,8 +182,11 @@ fn test_sys_bitcoin_light_client() {
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
-    assert_eq!(system_account.info.balance, U256::from(0));
-    assert_eq!(system_account.info.nonce, 4);
+    assert_eq!(
+        system_account.balance.get(&mut working_set).unwrap(),
+        U256::from(0)
+    );
+    assert_eq!(system_account.nonce.get(&mut working_set).unwrap(), 4);
 
     let receipts: Vec<_> = evm
         .receipts
@@ -227,10 +233,13 @@ fn test_sys_bitcoin_light_client() {
     let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(
-        base_fee_vault.info.balance,
+        base_fee_vault.balance.get(&mut working_set).unwrap(),
         U256::from(114235u64 * 10000000)
     );
-    assert_eq!(l1_fee_vault.info.balance, U256::from(477));
+    assert_eq!(
+        l1_fee_vault.balance.get(&mut working_set).unwrap(),
+        U256::from(477)
+    );
 
     let hash = evm
         .get_call(
@@ -477,7 +486,7 @@ fn test_bridge() {
         .unwrap();
 
     assert_eq!(
-        recipient_account.info.balance,
+        recipient_account.balance.get(&mut working_set).unwrap(),
         U256::from_str("0x2386f26fc10000").unwrap(),
     );
 }

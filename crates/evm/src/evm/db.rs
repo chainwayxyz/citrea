@@ -1,7 +1,7 @@
 use reth_primitives::{Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::Database;
-use sov_modules_api::{StateMapAccessor, WorkingSet};
+use sov_modules_api::{StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use super::DbAccount;
@@ -51,7 +51,12 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
         let db_account = self.accounts.get(&address, self.working_set);
-        Ok(db_account.map(|acc| acc.info.into()))
+        Ok(db_account.map(|acc| ReVmAccountInfo {
+            balance: acc.balance.get(self.working_set).unwrap_or_default(),
+            code_hash: acc.code_hash.get(self.working_set).unwrap_or_default(),
+            nonce: acc.nonce.get(self.working_set).unwrap_or_default(),
+            code: None,
+        }))
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {

@@ -2,7 +2,7 @@ use alloy_eips::eip1559::BaseFeeParams;
 use reth_primitives::{address, Address, B256, KECCAK_EMPTY, U256};
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateMap, StateVec};
+use sov_modules_api::{StateMap, StateValue, StateVec};
 use sov_state::Prefix;
 
 pub(crate) mod conversions;
@@ -63,32 +63,48 @@ impl Default for AccountInfo {
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct DbAccount {
-    pub(crate) info: AccountInfo,
+    pub(crate) balance: StateValue<U256, BcsCodec>,
+    pub(crate) code_hash: StateValue<B256, BcsCodec>,
+    pub(crate) nonce: StateValue<u64, BcsCodec>,
     pub(crate) storage: StateMap<U256, U256, BcsCodec>,
     pub(crate) keys: StateVec<U256, BcsCodec>,
 }
 
 impl DbAccount {
-    fn new(parent_prefix: &Prefix, address: Address) -> Self {
+    pub(crate) fn new(parent_prefix: &Prefix, address: Address) -> Self {
         let prefix = Self::create_storage_prefix(parent_prefix, address);
+        let balance_prefix = Self::create_balance_prefix(parent_prefix, address);
+        let code_hash_prefix = Self::create_code_hash_prefix(parent_prefix, address);
+        let nonce_prefix = Self::create_nonce_prefix(parent_prefix, address);
+
         Self {
-            info: Default::default(),
+            balance: StateValue::with_codec(balance_prefix, BcsCodec {}),
+            code_hash: StateValue::with_codec(code_hash_prefix, BcsCodec {}),
+            nonce: StateValue::with_codec(nonce_prefix, BcsCodec {}),
             storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
             keys: StateVec::with_codec(prefix, BcsCodec {}),
         }
     }
 
-    pub(crate) fn new_with_info(
-        parent_prefix: &Prefix,
-        address: Address,
-        info: AccountInfo,
-    ) -> Self {
-        let prefix = Self::create_storage_prefix(parent_prefix, address);
-        Self {
-            info,
-            storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
-            keys: StateVec::with_codec(prefix, BcsCodec {}),
-        }
+    fn create_balance_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
+        let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
+        prefix.extend_from_slice(address.as_ref());
+        prefix.push(0);
+        Prefix::new(prefix)
+    }
+
+    fn create_code_hash_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
+        let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
+        prefix.extend_from_slice(address.as_ref());
+        prefix.push(1);
+        Prefix::new(prefix)
+    }
+
+    fn create_nonce_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
+        let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
+        prefix.extend_from_slice(address.as_ref());
+        prefix.push(2);
+        Prefix::new(prefix)
     }
 
     fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {

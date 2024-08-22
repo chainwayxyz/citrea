@@ -29,6 +29,7 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
+use sov_modules_api::StateValueAccessor;
 use sov_modules_api::WorkingSet;
 use tracing::debug;
 
@@ -38,6 +39,7 @@ use crate::error::rpc::ensure_success;
 use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::evm::AccountInfo;
 use crate::handler::TxInfo;
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
@@ -329,7 +331,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let balance = self
             .accounts
             .get(&address, working_set)
-            .map(|account| account.info.balance)
+            .map(|account| account.balance.get(working_set).unwrap_or_default())
             .unwrap_or_default();
 
         Ok(balance)
@@ -424,7 +426,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let nonce = self
             .accounts
             .get(&address, working_set)
-            .map(|account| account.info.nonce)
+            .map(|account| account.nonce.get(working_set).unwrap_or_default())
             .unwrap_or_default();
 
         Ok(U64::from(nonce))
@@ -472,7 +474,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let code = self
             .accounts
             .get(&address, working_set)
-            .and_then(|account| self.code.get(&account.info.code_hash, working_set))
+            .and_then(|account| {
+                self.code
+                    .get(&account.code_hash.get(working_set).unwrap(), working_set)
+            })
             .unwrap_or_default();
 
         Ok(code.original_bytes())
@@ -990,8 +995,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let account = self
             .accounts
             .get(&tx_env.caller, working_set)
-            .map(|account| account.info)
-            .unwrap_or_default();
+            .map(|account| AccountInfo {
+                balance: account.balance.get(working_set).unwrap_or_default(),
+                code_hash: account.code_hash.get(working_set).unwrap_or_default(),
+                nonce: account.nonce.get(working_set).unwrap_or_default(),
+            })
+            .unwrap();
 
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
@@ -999,7 +1008,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let to_account = self
                     .accounts
                     .get(&to, working_set)
-                    .map(|account| account.info)
+                    .map(|account| AccountInfo {
+                        balance: account.balance.get(working_set).unwrap_or_default(),
+                        code_hash: account.code_hash.get(working_set).unwrap_or_default(),
+                        nonce: account.nonce.get(working_set).unwrap_or_default(),
+                    })
                     .unwrap_or_default();
                 if KECCAK_EMPTY == to_account.code_hash {
                     // If the tx is a simple transfer (call to an account with no code) we can

@@ -7,7 +7,7 @@ use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
@@ -343,7 +343,10 @@ fn self_destruct_test() {
         .expect("contract address should exist");
 
     // Test if we managed to send money to ocntract
-    assert_eq!(db_contract.info.balance, U256::from(contract_balance));
+    assert_eq!(
+        db_contract.balance.get(&mut working_set).unwrap(),
+        U256::from(contract_balance)
+    );
 
     // Test if we managed to set the variable in the contract
     assert_eq!(
@@ -411,16 +414,25 @@ fn self_destruct_test() {
     assert!(receipts[0].receipt.success);
 
     // after self destruct, contract balance should be 0,
-    assert_eq!(db_contract.info.balance, U256::from(0));
+    assert_eq!(
+        db_contract.balance.get(&mut working_set).unwrap(),
+        U256::from(0)
+    );
 
     // the to address balance should be equal to contract balance
-    assert_eq!(db_account.info.balance, U256::from(contract_balance));
+    assert_eq!(
+        db_account.balance.get(&mut working_set).unwrap(),
+        U256::from(contract_balance)
+    );
 
     // the codehash should be 0
-    assert_eq!(db_contract.info.code_hash, KECCAK_EMPTY);
+    assert_eq!(
+        db_contract.code_hash.get(&mut working_set).unwrap(),
+        KECCAK_EMPTY
+    );
 
     // the nonce should be 0
-    assert_eq!(db_contract.info.nonce, 0);
+    assert_eq!(db_contract.nonce.get(&mut working_set).unwrap(), 0);
 
     // the storage should be empty
     assert_eq!(
@@ -886,10 +898,22 @@ fn test_l1_fee_success() {
             .unwrap();
         assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
-        assert_eq!(db_account.info.balance, expected_balance);
-        assert_eq!(base_fee_valut.info.balance, expected_base_fee_vault_balance);
-        assert_eq!(coinbase_account.info.balance, expected_coinbase_balance);
-        assert_eq!(l1_fee_valut.info.balance, expected_l1_fee_vault_balance);
+        assert_eq!(
+            db_account.balance.get(&mut working_set).unwrap(),
+            expected_balance
+        );
+        assert_eq!(
+            base_fee_valut.balance.get(&mut working_set).unwrap(),
+            expected_base_fee_vault_balance
+        );
+        assert_eq!(
+            coinbase_account.balance.get(&mut working_set).unwrap(),
+            expected_coinbase_balance
+        );
+        assert_eq!(
+            l1_fee_valut.balance.get(&mut working_set).unwrap(),
+            expected_l1_fee_vault_balance
+        );
 
         assert_eq!(
             evm.receipts
@@ -982,8 +1006,11 @@ fn test_l1_fee_not_enough_funds() {
         .unwrap();
 
     // The account balance is unchanged
-    assert_eq!(db_account.info.balance, U256::from(1000000));
-    assert_eq!(db_account.info.nonce, 0);
+    assert_eq!(
+        db_account.balance.get(&mut working_set).unwrap(),
+        U256::from(1000000)
+    );
+    assert_eq!(db_account.nonce.get(&mut working_set).unwrap(), 0);
 
     // The coinbase was not created
     let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
@@ -1088,7 +1115,7 @@ fn test_l1_fee_halt() {
         445  + // l1 contract deploy fee
         52; // l1 contract call fee
     assert_eq!(
-        db_account.info.balance,
+        db_account.balance.get(&mut working_set).unwrap(),
         U256::from(
             20000000000000_u64 - // initial balance
             expenses
@@ -1099,8 +1126,11 @@ fn test_l1_fee_halt() {
     let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(
-        base_fee_valut.info.balance,
+        base_fee_valut.balance.get(&mut working_set).unwrap(),
         U256::from(1106947_u64 * 10000000)
     );
-    assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
+    assert_eq!(
+        l1_fee_valut.balance.get(&mut working_set).unwrap(),
+        U256::from(445 + 52)
+    );
 }
