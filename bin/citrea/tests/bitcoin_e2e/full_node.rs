@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{bail, Context};
-use tokio::process::{Child, Command};
+use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
 use super::config::config_to_file;
 use super::config::TestConfig;
-use super::node::Node;
+use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
 use crate::bitcoin_e2e::config::RollupConfig;
@@ -19,7 +19,7 @@ use crate::test_client::TestClient;
 
 #[allow(unused)]
 pub struct FullNode {
-    process: Child,
+    spawn_output: SpawnOutput,
     config: RollupConfig,
     pub dir: PathBuf,
     pub client: Box<TestClient>,
@@ -38,7 +38,7 @@ impl FullNode {
         println!("Rollup config: {rollup_config:#?}");
         println!("FullNode dir: {:#?}", dir);
 
-        let process = Self::spawn(&config.full_node_rollup, &dir).await?;
+        let spawn_output = Self::spawn(&config.full_node_rollup, &dir).await?;
 
         // Wait for ws server
         // TODO wait_for_ready
@@ -55,7 +55,7 @@ impl FullNode {
         let client = make_test_client(socket_addr).await;
 
         Ok(Self {
-            process,
+            spawn_output,
             config: rollup_config.clone(),
             dir,
             client,
@@ -66,7 +66,7 @@ impl FullNode {
 impl Node for FullNode {
     type Config = RollupConfig;
 
-    async fn spawn(config: &Self::Config, dir: &Path) -> Result<Child> {
+    async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
 
         let stdout_file =
@@ -87,10 +87,11 @@ impl Node for FullNode {
             .kill_on_drop(true)
             .spawn()
             .context("Failed to spawn citrea process")
+            .map(SpawnOutput::Child)
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        Ok(self.process.kill().await?)
+    fn spawn_output(&mut self) -> &mut SpawnOutput {
+        &mut self.spawn_output
     }
 
     async fn wait_for_ready(&self, timeout: Duration) -> Result<()> {

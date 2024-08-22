@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -6,16 +6,17 @@ use anyhow::{bail, Context};
 use async_trait::async_trait;
 use bitcoin::Address;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use tokio::process::{Child, Command};
+use tokio::process::Command;
 use tokio::time::sleep;
 
 use super::config::BitcoinConfig;
 use super::config::TestConfig;
-use super::node::Node;
+use super::docker::spawn_docker;
+use super::node::{Node, SpawnOutput};
 use super::Result;
 
 pub struct BitcoinNode {
-    process: Child,
+    spawn_output: SpawnOutput,
     pub config: BitcoinConfig,
     client: Client,
     gen_addr: Address,
@@ -23,7 +24,7 @@ pub struct BitcoinNode {
 
 impl BitcoinNode {
     pub async fn new(config: &BitcoinConfig) -> Result<Self> {
-        let process = Self::spawn(config, &PathBuf::default()).await?;
+        let spawn_output = Self::spawn(config, &PathBuf::default()).await?;
 
         let rpc_url = format!("http://127.0.0.1:{}", config.rpc_port);
         let client = Client::new(
@@ -42,7 +43,7 @@ impl BitcoinNode {
 
         let gen_addr = client.get_new_address(None, None).await?.assume_checked();
         Ok(Self {
-            process,
+            spawn_output,
             config: config.clone(),
             client,
             gen_addr,
@@ -50,12 +51,7 @@ impl BitcoinNode {
     }
 
     pub fn get_log_path(&self) -> PathBuf {
-        self.config
-            .data_dir
-            .as_ref()
-            .unwrap()
-            .join("regtest")
-            .join("debug.log")
+        self.config.data_dir.join("regtest").join("debug.log")
     }
 
     pub async fn wait_mempool_len(
@@ -100,31 +96,34 @@ impl RpcApi for BitcoinNode {
 impl Node for BitcoinNode {
     type Config = BitcoinConfig;
 
-    async fn spawn(config: &Self::Config, _dir: &Path) -> Result<Child> {
-        let mut args = vec![
-            "-regtest".to_string(),
-            format!("-datadir={}", config.data_dir.as_ref().unwrap().display()),
-            format!("-port={}", config.p2p_port),
-            format!("-rpcport={}", config.rpc_port),
-            format!("-rpcuser={}", config.rpc_user),
-            format!("-rpcpassword={}", config.rpc_password),
-            "-server".to_string(),
-            "-daemon".to_string(),
-        ];
-        println!("Running bitcoind with args : {args:?}");
+    async fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
+        if config.docker_image.is_some() {
+            spawn_docker(config.into()).await
+        } else {
+            let mut args = vec![
+                "-regtest".to_string(),
+                format!("-datadir={}", config.data_dir.display()),
+                format!("-port={}", config.p2p_port),
+                format!("-rpcport={}", config.rpc_port),
+                format!("-rpcuser={}", config.rpc_user),
+                format!("-rpcpassword={}", config.rpc_password),
+                "-server".to_string(),
+                "-daemon".to_string(),
+            ];
+            println!("Running bitcoind with args : {args:?}");
 
-        args.extend(config.extra_args.iter().cloned());
-
-        Command::new("bitcoind")
-            .args(&args)
-            .kill_on_drop(true)
-            .spawn()
-            .context("Failed to spawn bitcoind process")
+            args.extend(config.extra_args.iter().cloned());
+            Command::new("bitcoind")
+                .args(&args)
+                .kill_on_drop(true)
+                .spawn()
+                .context("Failed to spawn bitcoind process")
+                .map(SpawnOutput::Child)
+        }
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        RpcApi::stop(self).await?;
-        Ok(self.process.kill().await?)
+    fn spawn_output(&mut self) -> &mut SpawnOutput {
+        &mut self.spawn_output
     }
 
     async fn wait_for_ready(&self, timeout: Duration) -> Result<()> {
@@ -140,11 +139,11 @@ impl Node for BitcoinNode {
     }
 }
 
-pub struct NodeCluster {
+pub struct BitcoinNodeCluster {
     inner: Vec<BitcoinNode>,
 }
 
-impl NodeCluster {
+impl BitcoinNodeCluster {
     pub async fn new(config: &TestConfig) -> Result<Self> {
         let n_nodes = config.test_case.num_nodes;
         let mut cluster = Self {
@@ -171,6 +170,7 @@ impl NodeCluster {
             let mut heights = HashSet::new();
             for node in &self.inner {
                 let height = node.get_block_count().await?;
+                println!("height : {height}");
                 heights.insert(height);
             }
 
@@ -188,7 +188,7 @@ impl NodeCluster {
         for (i, from_node) in self.inner.iter().enumerate() {
             for (j, to_node) in self.inner.iter().enumerate() {
                 if i != j {
-                    let add_node_arg = format!("127.0.0.1:{}", to_node.config.p2p_port);
+                    let add_node_arg = format!("0.0.0.0:{}", to_node.config.p2p_port);
                     from_node.add_node(&add_node_arg).await?;
                 }
             }

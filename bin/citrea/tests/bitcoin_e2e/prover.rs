@@ -4,13 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::Context;
-use tokio::process::{Child, Command};
+use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
 use super::config::config_to_file;
 use super::config::RollupConfig;
 use super::config::TestConfig;
-use super::node::Node;
+use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
 use crate::bitcoin_e2e::config::ProverConfig;
@@ -20,7 +20,7 @@ use crate::test_client::TestClient;
 
 #[allow(unused)]
 pub struct Prover {
-    process: Child,
+    spawn_output: SpawnOutput,
     config: ProverConfig,
     rollup_config: RollupConfig,
     pub dir: PathBuf,
@@ -42,7 +42,7 @@ impl Prover {
         println!("Rollup config: {rollup_config:#?}");
         println!("Prover dir: {:#?}", dir);
 
-        let process =
+        let spawn_output =
             Self::spawn(&(config.prover.clone(), config.prover_rollup.clone()), &dir).await?;
 
         // Wait for ws server
@@ -60,7 +60,7 @@ impl Prover {
         let client = make_test_client(socket_addr).await;
 
         Ok(Self {
-            process,
+            spawn_output,
             config: prover_config.to_owned(),
             dir,
             rollup_config: rollup_config.to_owned(),
@@ -72,7 +72,7 @@ impl Prover {
 impl Node for Prover {
     type Config = (ProverConfig, RollupConfig);
 
-    async fn spawn(config: &Self::Config, dir: &Path) -> Result<Child> {
+    async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
 
         let stdout_file =
@@ -101,10 +101,11 @@ impl Node for Prover {
             .kill_on_drop(true)
             .spawn()
             .context("Failed to spawn citrea process")
+            .map(SpawnOutput::Child)
     }
 
-    async fn stop(&mut self) -> Result<()> {
-        Ok(self.process.kill().await?)
+    fn spawn_output(&mut self) -> &mut SpawnOutput {
+        &mut self.spawn_output
     }
 
     async fn wait_for_ready(&self, timeout: Duration) -> Result<()> {

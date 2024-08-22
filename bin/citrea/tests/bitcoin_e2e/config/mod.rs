@@ -1,4 +1,5 @@
 mod bitcoin;
+mod docker;
 mod rollup;
 mod sequencer;
 mod test;
@@ -7,6 +8,7 @@ mod utils;
 
 pub use bitcoin::BitcoinConfig;
 pub use citrea_sequencer::SequencerConfig;
+pub use docker::DockerConfig;
 pub use rollup::{default_rollup_config, RollupConfig};
 pub use sequencer::default_sequencer_config;
 pub use sov_stf_runner::ProverConfig;

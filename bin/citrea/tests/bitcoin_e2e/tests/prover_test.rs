@@ -8,7 +8,6 @@ use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::sequencer::Sequencer;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
-use crate::test_helpers::create_default_sequencer_config;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates soft confirmations and wait until it reaches the first commitment.

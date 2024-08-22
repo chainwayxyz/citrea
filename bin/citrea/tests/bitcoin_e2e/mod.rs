@@ -1,5 +1,6 @@
 mod bitcoin;
 pub mod config;
+mod docker;
 pub mod framework;
 mod full_node;
 pub mod node;

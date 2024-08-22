@@ -4,7 +4,7 @@ use anyhow::Context;
 use bitcoin_da::service::DaServiceConfig;
 use sov_stf_runner::{RpcConfig, RunnerConfig, StorageConfig};
 
-use super::bitcoin::NodeCluster;
+use super::bitcoin::BitcoinNodeCluster;
 use super::config::BitcoinConfig;
 use super::config::RollupConfig;
 use super::config::TestConfig;
@@ -17,7 +17,7 @@ use crate::bitcoin_e2e::utils::get_stdout_path;
 
 pub struct TestFramework {
     config: TestConfig,
-    pub nodes: NodeCluster,
+    pub nodes: BitcoinNodeCluster,
     pub sequencer: Option<Sequencer>,
     pub prover: Option<Prover>,
     pub full_node: Option<FullNode>,
@@ -33,7 +33,7 @@ impl TestFramework {
 
         let config = Self::generate_test_config(base_conf)?;
 
-        let nodes = NodeCluster::new(&config).await?;
+        let nodes = BitcoinNodeCluster::new(&config).await?;
 
         let sequencer = if config.test_case.with_sequencer {
             Some(Sequencer::new(&config).await?)
@@ -68,9 +68,9 @@ impl TestFramework {
 
         let mut bitcoin_confs = vec![];
         for i in 0..base_conf.test_case.num_nodes {
-            let dir = bitcoin_dir.join(i.to_string());
-            std::fs::create_dir_all(&dir)
-                .with_context(|| format!("Failed to create {} directory", dir.display()))?;
+            let data_dir = bitcoin_dir.join(i.to_string());
+            std::fs::create_dir_all(&data_dir)
+                .with_context(|| format!("Failed to create {} directory", data_dir.display()))?;
 
             let p2p_port = get_available_port()?;
             let rpc_port = get_available_port()?;
@@ -78,7 +78,7 @@ impl TestFramework {
             bitcoin_confs.push(BitcoinConfig {
                 p2p_port,
                 rpc_port,
-                data_dir: Some(dir),
+                data_dir,
                 ..base_conf.bitcoin[0].clone()
             })
         }
