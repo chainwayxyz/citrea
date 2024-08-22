@@ -480,14 +480,10 @@ fn calc_diff_size<EXT, DB: Database>(
             continue;
         }
 
-        // Apply size of changed nonce
-        if account.nonce_changed {
-            diff_size += size_of::<u64>(); // Nonces are u64
-        }
-
-        // Apply size of changed balances
-        if account.balance_changed {
-            diff_size += size_of::<U256>(); // Balances are U256
+        if account.nonce_changed || account.balance_changed || account.code_changed {
+            // DbAccount size is added because when any of those changes the db account is written to the state
+            // because these fields are part of the account info and not state values
+            diff_size += 256;
         }
 
         // Apply size of changed slots
@@ -496,7 +492,7 @@ fn calc_diff_size<EXT, DB: Database>(
         // Apply size of changed codes
         if account.code_changed {
             let account = &state[addr];
-            diff_size += size_of::<B256>(); // Code hashes are B256
+
             if let Some(code) = account.info.code.as_ref() {
                 diff_size += code.len()
             } else {
