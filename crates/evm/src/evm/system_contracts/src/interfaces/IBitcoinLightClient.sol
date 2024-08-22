@@ -7,4 +7,6 @@ interface IBitcoinLightClient {
     function getBlockHash(uint256) external view returns (bytes32);
     function getWitnessRootByHash(bytes32) external view returns (bytes32);
     function getWitnessRootByNumber(uint256) external view returns (bytes32);
+    function verifyInclusion(bytes32, bytes32, bytes calldata, uint256) external view returns (bool);
+    function verifyInclusion(uint256, bytes32, bytes calldata, uint256) external view returns (bool);
 }
