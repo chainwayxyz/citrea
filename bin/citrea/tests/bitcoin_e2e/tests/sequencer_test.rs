@@ -16,7 +16,7 @@ impl TestCase for BasicSequencerTest {
             anyhow::bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(da) = f.nodes.get(0) else {
+        let Some(da) = f.bitcoin_nodes.get(0) else {
             bail!("bitcoind not running. Test cannot run with bitcoind runnign as DA")
         };
 

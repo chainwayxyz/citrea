@@ -1,6 +1,8 @@
 use citrea_sequencer::SequencerConfig;
 use sov_stf_runner::ProverConfig;
 
+use crate::bitcoin_e2e::docker::DockerEnv;
+
 use super::bitcoin::BitcoinConfig;
 use super::rollup::RollupConfig;
 use super::test_case::TestCaseConfig;

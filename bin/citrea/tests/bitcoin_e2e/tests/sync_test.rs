@@ -22,7 +22,7 @@ impl TestCase for BasicSyncTest {
     }
 
     async fn run_test(&self, f: &TestFramework) -> Result<()> {
-        let (Some(da0), Some(da1)) = (f.nodes.get(0), f.nodes.get(1)) else {
+        let (Some(da0), Some(da1)) = (f.bitcoin_nodes.get(0), f.bitcoin_nodes.get(1)) else {
             bail!("bitcoind not running. Test should run with two da nodes")
         };
 
@@ -37,7 +37,9 @@ impl TestCase for BasicSyncTest {
         assert_eq!(height1, 0);
 
         // Sync both nodes
-        f.nodes.wait_for_sync(Duration::from_secs(30)).await?;
+        f.bitcoin_nodes
+            .wait_for_sync(Duration::from_secs(30))
+            .await?;
 
         let height0 = da0.get_block_count().await?;
         let height1 = da1.get_block_count().await?;

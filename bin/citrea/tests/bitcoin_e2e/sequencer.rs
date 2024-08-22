@@ -10,6 +10,7 @@ use tokio::time::{sleep, Duration, Instant};
 use super::config::config_to_file;
 use super::config::RollupConfig;
 use super::config::TestConfig;
+use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
@@ -28,13 +29,13 @@ pub struct Sequencer {
 }
 
 impl Sequencer {
-    pub async fn new(config: &TestConfig) -> Result<Self> {
+    pub async fn new(ctx: &TestContext) -> Result<Self> {
         let TestConfig {
             sequencer: sequencer_config,
             test_case,
             sequencer_rollup: rollup_config,
             ..
-        } = config;
+        } = &ctx.config;
 
         let dir = test_case.dir.join("sequencer");
 
@@ -42,11 +43,8 @@ impl Sequencer {
         println!("Rollup config: {rollup_config:#?}");
         println!("Sequencer dir: {:#?}", dir);
 
-        let spawn_output = Self::spawn(
-            &(config.sequencer.clone(), config.sequencer_rollup.clone()),
-            &dir,
-        )
-        .await?;
+        let spawn_output =
+            Self::spawn(&(sequencer_config.clone(), rollup_config.clone()), &dir).await?;
 
         // Wait for ws server
         // TODO Add to wait_for_ready

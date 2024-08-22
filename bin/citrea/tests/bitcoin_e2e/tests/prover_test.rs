@@ -48,7 +48,7 @@ impl TestCase for BasicProverTest {
             bail!("Prover not running. Set TestCaseConfig with_prover to true")
         };
 
-        let Some(da) = f.nodes.get(0) else {
+        let Some(da) = f.bitcoin_nodes.get(0) else {
             bail!("bitcoind not running. Test cannot run with bitcoind running as DA")
         };
 

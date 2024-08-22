@@ -8,9 +8,14 @@ use tokio::process::Child;
 
 use super::Result;
 
+pub struct ContainerSpawnOutput {
+    pub id: String,
+    pub ip: String,
+}
+
 pub enum SpawnOutput {
     Child(Child),
-    ContainerId(String),
+    Container(ContainerSpawnOutput),
 }
 /// The Node trait defines the common interface shared between
 /// BitcoinNode, Prover, Sequencer and FullNode
@@ -31,7 +36,7 @@ pub(crate) trait Node {
                     .context("Failed to kill child process")?;
                 Ok(())
             }
-            SpawnOutput::ContainerId(id) => {
+            SpawnOutput::Container(ContainerSpawnOutput { id, .. }) => {
                 println!("Removing container {id}");
                 let docker =
                     Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;

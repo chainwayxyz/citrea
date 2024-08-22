@@ -10,6 +10,7 @@ use tokio::time::{sleep, Duration, Instant};
 use super::config::config_to_file;
 use super::config::RollupConfig;
 use super::config::TestConfig;
+use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
@@ -28,13 +29,13 @@ pub struct Prover {
 }
 
 impl Prover {
-    pub async fn new(config: &TestConfig) -> Result<Self> {
+    pub async fn new(ctx: &TestContext) -> Result<Self> {
         let TestConfig {
             prover: prover_config,
             test_case,
             prover_rollup: rollup_config,
             ..
-        } = config;
+        } = &ctx.config;
 
         let dir = test_case.dir.join("prover");
 
@@ -43,7 +44,7 @@ impl Prover {
         println!("Prover dir: {:#?}", dir);
 
         let spawn_output =
-            Self::spawn(&(config.prover.clone(), config.prover_rollup.clone()), &dir).await?;
+            Self::spawn(&(prover_config.clone(), rollup_config.clone()), &dir).await?;
 
         // Wait for ws server
         // TODO Add to wait_for_ready

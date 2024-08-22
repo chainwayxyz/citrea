@@ -88,6 +88,7 @@ bitcoincore-rpc.workspace = true
 futures.workspace = true
 toml.workspace = true
 bollard.workspace = true
+rand.workspace = true
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).

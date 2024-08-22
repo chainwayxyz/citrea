@@ -6,7 +6,7 @@ pub struct DockerConfig {
     pub ports: Vec<u16>,
     pub image: String,
     pub cmd: Vec<String>,
-    pub dir: PathBuf,
+    pub dir: String,
 }
 
 impl From<&BitcoinConfig> for DockerConfig {
@@ -32,7 +32,7 @@ impl From<&BitcoinConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "ruimarinho/bitcoin-core:latest".to_string()),
             cmd: args,
-            dir: v.data_dir.clone(),
+            dir: format!("{}:/bitcoin/data", v.data_dir.display().to_string()),
         }
     }
 }

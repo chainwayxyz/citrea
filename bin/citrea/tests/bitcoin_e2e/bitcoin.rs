@@ -11,7 +11,8 @@ use tokio::time::sleep;
 
 use super::config::BitcoinConfig;
 use super::config::TestConfig;
-use super::docker::spawn_docker;
+use super::docker::DockerEnv;
+use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::Result;
 
@@ -23,8 +24,11 @@ pub struct BitcoinNode {
 }
 
 impl BitcoinNode {
-    pub async fn new(config: &BitcoinConfig) -> Result<Self> {
-        let spawn_output = Self::spawn(config, &PathBuf::default()).await?;
+    pub async fn new(config: &BitcoinConfig, docker: &Option<DockerEnv>) -> Result<Self> {
+        let spawn_output = match docker {
+            Some(docker) => docker.spawn(config.into()).await?,
+            None => Self::spawn(config, &PathBuf::default()).await?,
+        };
 
         let rpc_url = format!("http://127.0.0.1:{}", config.rpc_port);
         let client = Client::new(
@@ -97,29 +101,25 @@ impl Node for BitcoinNode {
     type Config = BitcoinConfig;
 
     async fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
-        if config.docker_image.is_some() {
-            spawn_docker(config.into()).await
-        } else {
-            let mut args = vec![
-                "-regtest".to_string(),
-                format!("-datadir={}", config.data_dir.display()),
-                format!("-port={}", config.p2p_port),
-                format!("-rpcport={}", config.rpc_port),
-                format!("-rpcuser={}", config.rpc_user),
-                format!("-rpcpassword={}", config.rpc_password),
-                "-server".to_string(),
-                "-daemon".to_string(),
-            ];
-            println!("Running bitcoind with args : {args:?}");
+        let mut args = vec![
+            "-regtest".to_string(),
+            format!("-datadir={}", config.data_dir.display()),
+            format!("-port={}", config.p2p_port),
+            format!("-rpcport={}", config.rpc_port),
+            format!("-rpcuser={}", config.rpc_user),
+            format!("-rpcpassword={}", config.rpc_password),
+            "-server".to_string(),
+            "-daemon".to_string(),
+        ];
+        println!("Running bitcoind with args : {args:?}");
 
-            args.extend(config.extra_args.iter().cloned());
-            Command::new("bitcoind")
-                .args(&args)
-                .kill_on_drop(true)
-                .spawn()
-                .context("Failed to spawn bitcoind process")
-                .map(SpawnOutput::Child)
-        }
+        args.extend(config.extra_args.iter().cloned());
+        Command::new("bitcoind")
+            .args(&args)
+            .kill_on_drop(true)
+            .spawn()
+            .context("Failed to spawn bitcoind process")
+            .map(SpawnOutput::Child)
     }
 
     fn spawn_output(&mut self) -> &mut SpawnOutput {
@@ -144,13 +144,13 @@ pub struct BitcoinNodeCluster {
 }
 
 impl BitcoinNodeCluster {
-    pub async fn new(config: &TestConfig) -> Result<Self> {
-        let n_nodes = config.test_case.num_nodes;
+    pub async fn new(ctx: &TestContext) -> Result<Self> {
+        let n_nodes = ctx.config.test_case.num_nodes;
         let mut cluster = Self {
             inner: Vec::with_capacity(n_nodes),
         };
-        for config in config.bitcoin.iter() {
-            let node = BitcoinNode::new(config).await?;
+        for config in ctx.config.bitcoin.iter() {
+            let node = BitcoinNode::new(config, &ctx.docker).await?;
             cluster.inner.push(node)
         }
 
@@ -188,7 +188,12 @@ impl BitcoinNodeCluster {
         for (i, from_node) in self.inner.iter().enumerate() {
             for (j, to_node) in self.inner.iter().enumerate() {
                 if i != j {
-                    let add_node_arg = format!("0.0.0.0:{}", to_node.config.p2p_port);
+                    let ip = match &to_node.spawn_output {
+                        SpawnOutput::Container(container) => container.ip.clone(),
+                        _ => format!("127.0.0.1"),
+                    };
+
+                    let add_node_arg = format!("{}:{}", ip, to_node.config.p2p_port);
                     from_node.add_node(&add_node_arg).await?;
                 }
             }

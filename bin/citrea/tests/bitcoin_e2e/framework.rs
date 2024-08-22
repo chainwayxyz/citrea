@@ -8,20 +8,35 @@ use super::bitcoin::BitcoinNodeCluster;
 use super::config::BitcoinConfig;
 use super::config::RollupConfig;
 use super::config::TestConfig;
+use super::docker::DockerEnv;
 use super::full_node::FullNode;
 use super::node::Node;
 use super::sequencer::Sequencer;
 use super::{get_available_port, Result};
 use crate::bitcoin_e2e::prover::Prover;
 use crate::bitcoin_e2e::utils::get_stdout_path;
+use std::future::Future;
+
+pub struct TestContext {
+    pub config: TestConfig,
+    pub docker: Option<DockerEnv>,
+}
 
 pub struct TestFramework {
-    config: TestConfig,
-    pub nodes: BitcoinNodeCluster,
+    ctx: TestContext,
+    pub bitcoin_nodes: BitcoinNodeCluster,
     pub sequencer: Option<Sequencer>,
     pub prover: Option<Prover>,
     pub full_node: Option<FullNode>,
     show_logs: bool,
+}
+
+async fn create_optional<T>(pred: bool, f: impl Future<Output = Result<T>>) -> Result<Option<T>> {
+    if pred {
+        Ok(Some(f.await?))
+    } else {
+        Ok(None)
+    }
 }
 
 impl TestFramework {
@@ -33,32 +48,29 @@ impl TestFramework {
 
         let config = Self::generate_test_config(base_conf)?;
 
-        let nodes = BitcoinNodeCluster::new(&config).await?;
-
-        let sequencer = if config.test_case.with_sequencer {
-            Some(Sequencer::new(&config).await?)
+        let docker = if config.test_case.docker {
+            Some(DockerEnv::new().await?)
         } else {
             None
         };
 
-        let prover = if config.test_case.with_prover {
-            Some(Prover::new(&config).await?)
-        } else {
-            None
-        };
+        let ctx = TestContext { config, docker };
 
-        let full_node = if config.test_case.with_full_node {
-            Some(FullNode::new(&config).await?)
-        } else {
-            None
-        };
+        let bitcoin_nodes = BitcoinNodeCluster::new(&ctx).await?;
+        let sequencer =
+            create_optional(ctx.config.test_case.with_sequencer, Sequencer::new(&ctx)).await?;
+
+        let (prover, full_node) = tokio::try_join!(
+            create_optional(ctx.config.test_case.with_prover, Prover::new(&ctx)),
+            create_optional(ctx.config.test_case.with_full_node, FullNode::new(&ctx)),
+        )?;
 
         Ok(Self {
-            nodes,
+            bitcoin_nodes,
             sequencer,
             prover,
             full_node,
-            config,
+            ctx,
             show_logs: true,
         })
     }
@@ -153,7 +165,7 @@ impl TestFramework {
 
     pub async fn stop(&mut self) -> Result<()> {
         println!("Stopping framework...");
-        self.nodes.stop_all().await?;
+        self.bitcoin_nodes.stop_all().await?;
 
         println!("Successfully stopped bitcoin nodes");
 
@@ -173,9 +185,12 @@ impl TestFramework {
         }
 
         if self.show_logs {
-            println!("Logs available at {}", self.config.test_case.dir.display());
+            println!(
+                "Logs available at {}",
+                self.ctx.config.test_case.dir.display()
+            );
 
-            if let Some(bitcoin_node) = self.nodes.get(0) {
+            if let Some(bitcoin_node) = self.bitcoin_nodes.get(0) {
                 println!(
                     "Bitcoin logs available at : {}",
                     bitcoin_node.get_log_path().display()

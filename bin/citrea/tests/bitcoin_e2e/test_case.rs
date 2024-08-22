@@ -34,7 +34,7 @@ impl<T: TestCase> TestCaseRunner<T> {
 
     /// Internal method to set up connect the nodes, wait for the nodes to be ready and run the test.
     async fn run_test_case(&self, framework: &mut TestFramework) -> Result<()> {
-        framework.nodes.connect_nodes().await?;
+        framework.bitcoin_nodes.connect_nodes().await?;
 
         if let Some(sequencer) = &framework.sequencer {
             sequencer.wait_for_ready(Duration::from_secs(5)).await?;

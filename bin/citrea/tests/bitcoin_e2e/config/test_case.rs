@@ -11,6 +11,7 @@ pub struct TestCaseConfig {
     pub with_prover: bool,
     pub timeout: Duration,
     pub dir: PathBuf,
+    pub docker: bool,
 }
 
 impl Default for TestCaseConfig {
@@ -24,6 +25,7 @@ impl Default for TestCaseConfig {
             dir: TempDir::new()
                 .expect("Failed to create temporary directory")
                 .into_path(),
+            docker: true,
         }
     }
 }

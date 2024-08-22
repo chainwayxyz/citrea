@@ -9,6 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::config_to_file;
 use super::config::TestConfig;
+use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
@@ -26,19 +27,19 @@ pub struct FullNode {
 }
 
 impl FullNode {
-    pub async fn new(config: &TestConfig) -> Result<Self> {
+    pub async fn new(ctx: &TestContext) -> Result<Self> {
         let TestConfig {
             test_case,
             full_node_rollup: rollup_config,
             ..
-        } = config;
+        } = &ctx.config;
 
         let dir = test_case.dir.join("full-node");
 
         println!("Rollup config: {rollup_config:#?}");
         println!("FullNode dir: {:#?}", dir);
 
-        let spawn_output = Self::spawn(&config.full_node_rollup, &dir).await?;
+        let spawn_output = Self::spawn(&rollup_config, &dir).await?;
 
         // Wait for ws server
         // TODO wait_for_ready
