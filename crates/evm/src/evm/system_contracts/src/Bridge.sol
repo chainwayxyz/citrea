@@ -39,22 +39,20 @@ contract Bridge is Ownable2StepUpgradeable {
     address public operator;
     bytes public depositScript;
     bytes public scriptSuffix;
-    
-    mapping(bytes32 => bool) public spentWtxIds;
+    uint256 currentDepositId;    
+    mapping(bytes32 => uint256) public spentTxIds;
     bool[1000] public isOperatorMalicious;
     UTXO[] public withdrawalUTXOs;
-    bytes32[] public kickoffRoots;
     mapping(uint256 => uint256) public withdrawFillers;
-    bytes32 public kickoff2AddressRoot;
+    bytes public kickoffScript;
     
-    event Deposit(bytes32 wtxId, address recipient, uint256 timestamp, uint256 depositId);
+    event Deposit(bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix);
     event OperatorUpdated(address oldOperator, address newOperator);
     event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
     event MaliciousOperatorMarked(uint256 operatorId);
-    event Kickoff2AddressRootSet(bytes32 kickoff2AddressRoot);
-
+    event KickoffScriptUpdate(bytes kickoffScript);
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
         _;
@@ -99,26 +97,29 @@ contract Bridge is Ownable2StepUpgradeable {
         emit DepositScriptUpdate(_depositScript, _scriptSuffix);
     }
 
-    function setKickoff2AddressRoot(bytes32 _kickoff2AddressRoot) external onlyOwner {
-        kickoff2AddressRoot = _kickoff2AddressRoot;
-        emit Kickoff2AddressRootSet(_kickoff2AddressRoot);
+    function setKickoffScript(bytes calldata _kickoffScript) external onlyOwner {
+        require(_kickoffScript.length != 0, "Deposit script cannot be empty");
+
+        kickoffScript = _kickoffScript;
+
+        emit KickoffScriptUpdate(_kickoffScript);
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
     function deposit(
-        TransactionParams calldata revealTp 
+        TransactionParams calldata moveTp 
     ) external onlyOperator {
         // We don't need to check if the contract is initialized, as without an `initialize` call and `deposit` calls afterwards,
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        bytes32 wtxId = validateAndCheckInclusion(revealTp);
-        require(!spentWtxIds[wtxId], "wtxId already spent");
-        spentWtxIds[wtxId] = true;
+        bytes32 txId = validateAndCheckInclusion(moveTp);
+        require(spentTxIds[txId] == 0, "txId already spent");
+        spentTxIds[txId] = ++currentDepositId;
         
-        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(revealTp.witness, 0);
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
-        require(_nItems == 3, "Invalid witness items"); // musig + deposit script + witness script
+        require(_nItems == 3, "Invalid witness items"); // musig + script + witness script
 
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
         uint256 _len = depositScript.length;
@@ -128,10 +129,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_suffix, scriptSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
-        bytes32 kickoffRoot = extractKickoffRoot(script);
-        kickoffRoots.push(kickoffRoot);
-
-        emit Deposit(wtxId, recipient, block.timestamp, kickoffRoots.length - 1);
+        emit Deposit(txId, recipient, block.timestamp, currentDepositId);
 
         (bool success, ) = recipient.call{value: depositAmount}("");
         require(success, "Transfer failed");
@@ -198,23 +196,33 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     // TODO: Add comment about using ValidateSPV for regular merkle proofs in natspec of this function
-    function markMaliciousOperator(bytes memory proofToKickoffRoot, TransactionParams calldata kickoff2Tp, uint256 inputIndex, uint256 depositId, uint256 operatorId, bytes32 kickoff2Address, bytes memory proofToKickoff2Address) external {
+    function markMaliciousOperator(TransactionParams calldata kickoff2Tp) external {
         validateAndCheckInclusion(kickoff2Tp);
-        require(ValidateSPV.prove(kickoff2Address, kickoff2AddressRoot, proofToKickoff2Address, operatorId), "Invalid kickoff2Address proof"); // We utilize SPV proving as a method to do regular merkle proofs
-        bytes memory scriptPubkey = BTCUtils.extractHash(BTCUtils.extractOutputAtIndex(kickoff2Tp.vout, 0));
-        require(bytesToBytes32(scriptPubkey) == kickoff2Address, "Invalid kickoff2Address");
+        
+        uint nOuts;
+        (, nOuts) = BTCUtils.parseVarInt(kickoff2Tp.vout);
+        bytes memory _output = BTCUtils.extractOutputAtIndex(kickoff2Tp.vout, nOuts - 1);
+        uint256 _operatorId;
+        bytes32 _moveTxId;
+        (_operatorId, _moveTxId) = abi.decode(BTCUtils.extractOpReturnData(_output), (uint256, bytes32));
+        uint256 _depositId = spentTxIds[_moveTxId];
+        
+        // TODO: look to the witness, check the NofN multisig
 
-        bytes memory input = BTCUtils.extractInputAtIndex(kickoff2Tp.vin, inputIndex);
-        bytes32 txId = BTCUtils.extractInputTxIdLE(input);
-        bytes4 index = BTCUtils.extractTxIndexLE(input);
-        bytes32 kickoffHash = sha256(abi.encodePacked(txId, index));
-        bytes32 root = kickoffRoots[depositId];
-        require(ValidateSPV.prove(kickoffHash, root, proofToKickoffRoot, operatorId), "Invalid proof");
-        if(withdrawFillers[depositId] == 0 || withdrawFillers[depositId] != getInternalOperatorId(operatorId)) {
-            isOperatorMalicious[operatorId] = true;
+        bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(kickoff2Tp.witness, 0);
+        (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
+        require(_nItems == 3, "Invalid witness items"); // musig + script + witness script
+
+        bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
+        uint256 _len = kickoffScript.length;
+        bytes memory _kickoffScript = script.slice(0, _len);
+        require(isBytesEqual(_kickoffScript, kickoffScript), "Invalid kickoff script");
+
+        if(withdrawFillers[_depositId] == 0 || withdrawFillers[_depositId] != getInternalOperatorId(_operatorId)) {
+            isOperatorMalicious[_operatorId] = true;
         }
 
-        emit MaliciousOperatorMarked(operatorId);
+        emit MaliciousOperatorMarked(_operatorId);
     }
 
     function getInternalOperatorId(uint256 operatorId) internal pure returns (uint256) {
@@ -267,7 +275,10 @@ contract Bridge is Ownable2StepUpgradeable {
         require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
 
         require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
-        return wtxId;
+
+        bytes32 txId = ValidateSPV.calculateTxId(tp.version, tp.vin, tp.vout, tp.locktime);
+
+        return txId;
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
@@ -276,16 +287,7 @@ contract Bridge is Ownable2StepUpgradeable {
         return address(uint160(_addr));
     }
 
-    function extractKickoffRoot(bytes memory _script) internal view returns (bytes32) {
-        uint256 offset = depositScript.length + 20; // skip depositScript + EVM address
-        bytes32 kickoffRoot = bytesToBytes32(_script.slice(offset, 32));
-        return kickoffRoot;
-    }
-
     function bytesToBytes32(bytes memory source) internal pure returns (bytes32 result) {
-        require(source.length > 0 && source.length <= 32, "Invalid source length");
-        assembly {
-            result := mload(add(source, 32))
-        }
+        return abi.decode(source, (bytes32));
     }
 }
