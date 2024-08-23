@@ -385,7 +385,11 @@ impl DaService for MockDaService {
         block.blobs.clone()
     }
 
-    fn extract_relevant_proofs(&self, block: &Self::FilteredBlock) -> Vec<DaDataLightClient> {
+    async fn extract_relevant_proofs(
+        &self,
+        _block: &Self::FilteredBlock,
+        _prover_pk: &[u8],
+    ) -> Vec<DaDataLightClient> {
         todo!()
     }
 

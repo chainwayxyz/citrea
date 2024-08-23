@@ -17,6 +17,7 @@ use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
+use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
@@ -28,11 +29,12 @@ use crate::helpers::builders::{
     create_seqcommitment_transactions, create_zkproof_transactions, write_inscription_txs,
     BatchProvingTxs, LightClientTxs, TxWithId,
 };
-use crate::helpers::compression::compress_blob;
+use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
-    parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
+    parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
+    ParsedLightClientTransaction, VerifyParsed,
 };
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -596,9 +598,92 @@ impl DaService for BitcoinService {
         get_relevant_blobs_from_txs(txs, &self.rollup_name, &self.reveal_batch_prover_prefix)
     }
 
+    /// Return a list of LightClient transactions in an unspecified order
     #[instrument(level = "trace", skip_all)]
-    fn extract_relevant_proofs(&self, block: &Self::FilteredBlock) -> Vec<DaDataLightClient> {
-        todo!()
+    async fn extract_relevant_proofs(
+        &self,
+        block: &Self::FilteredBlock,
+        prover_pk: &[u8],
+    ) -> Vec<DaDataLightClient> {
+        let mut completes = Vec::new();
+        let mut aggregate_idxs = Vec::new();
+
+        for tx in &block.txdata {
+            if !tx
+                .compute_wtxid()
+                .to_byte_array()
+                .as_slice()
+                .starts_with(&self.reveal_light_client_prefix)
+            {
+                continue;
+            }
+
+            if let Ok(tx) = parse_light_client_transaction(&tx, &self.rollup_name) {
+                match tx {
+                    ParsedLightClientTransaction::Complete(complete) => {
+                        if complete.public_key().as_ref() != prover_pk
+                            && complete.get_sig_verified_hash().is_some()
+                        {
+                            // push only when signature is correct
+                            completes.push(complete.body);
+                        }
+                    }
+                    ParsedLightClientTransaction::Aggregate(aggregate) => {
+                        if aggregate.public_key().as_ref() != prover_pk
+                            && aggregate.get_sig_verified_hash().is_some()
+                        {
+                            // push only when signature is correct
+                            // collect tx ids
+                            aggregate_idxs.push(aggregate);
+                        }
+                    }
+                    ParsedLightClientTransaction::Chunk(_chunk) => {
+                        // we ignore them for now
+                    }
+                }
+            }
+        }
+
+        // collect aggregated txs from chunks
+        let mut aggregates = Vec::new();
+        for aggregate in &aggregate_idxs {
+            let mut body = Vec::new();
+            for txid in aggregate.txids().expect("Must contain tx ids; qed") {
+                let tx_res = self
+                    .client
+                    .get_transaction(&txid, None)
+                    .await
+                    .expect("TODO handle errors");
+                let tx = tx_res.transaction().expect("TODO err");
+                let wrapped: TransactionWrapper = tx.into();
+                let parsed = parse_light_client_transaction(&wrapped, &self.rollup_name)
+                    .expect("Couldn't parse chunk");
+                match parsed {
+                    ParsedLightClientTransaction::Chunk(part) => {
+                        body.extend(part.body);
+                    }
+                    ParsedLightClientTransaction::Complete(_)
+                    | ParsedLightClientTransaction::Aggregate(_) => {
+                        panic!("unexpected tx kind")
+                    }
+                }
+            }
+            aggregates.push(body);
+        }
+
+        let mut result = Vec::new();
+        for blob in completes.into_iter().chain(aggregates) {
+            let body = decompress_blob(&blob);
+            match DaDataLightClient::try_from_slice(&body) {
+                Ok(data) => {
+                    result.push(data);
+                }
+                Err(e) => {
+                    panic!("Couldn't parse body: {}", e);
+                }
+            }
+        }
+        result
     }
 
     #[instrument(level = "trace", skip_all)]

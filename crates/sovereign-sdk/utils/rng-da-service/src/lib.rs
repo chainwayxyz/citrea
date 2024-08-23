@@ -170,7 +170,11 @@ impl DaService for RngDaService {
         vec![blob]
     }
 
-    fn extract_relevant_proofs(&self, _block: &Self::FilteredBlock) -> Vec<DaDataLightClient> {
+    async fn extract_relevant_proofs(
+        &self,
+        _block: &Self::FilteredBlock,
+        _prover_pk: &[u8],
+    ) -> Vec<DaDataLightClient> {
         unimplemented!()
     }
 
