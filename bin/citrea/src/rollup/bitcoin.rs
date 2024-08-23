@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, DaServiceConfig, TxidWrapper};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_primitives::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
+use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX, ROLLUP_NAME};
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
@@ -18,6 +19,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
@@ -36,7 +38,7 @@ impl CitreaRollupBlueprint for BitcoinRollup {}
 impl RollupBlueprint for BitcoinRollup {
     type DaService = BitcoinService;
     type DaSpec = BitcoinSpec;
-    type DaConfig = DaServiceConfig;
+    type DaConfig = BitcoinServiceConfig;
     type Vm = Risc0BonsaiHost<'static>;
 
     type ZkContext = ZkDefaultContext;
@@ -90,8 +92,10 @@ impl RollupBlueprint for BitcoinRollup {
     }
 
     #[instrument(level = "trace", skip(self), ret)]
-    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(citrea_risc0::BITCOIN_DA_ID)
+    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
+        let mut map = HashMap::new();
+        map.insert(SpecId::Genesis, Digest::new(citrea_risc0::BITCOIN_DA_ID));
+        map
     }
 
     #[instrument(level = "trace", skip_all, err)]
@@ -113,11 +117,12 @@ impl RollupBlueprint for BitcoinRollup {
         let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
 
         let service = Arc::new(
-            BitcoinService::new(
+            BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
                     rollup_name: ROLLUP_NAME.to_string(),
-                    reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+                    reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+                    reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -148,7 +153,8 @@ impl RollupBlueprint for BitcoinRollup {
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
             rollup_name: ROLLUP_NAME.to_string(),
-            reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
         });
 
         ParallelProverService::new_with_default_workers(

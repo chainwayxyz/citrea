@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use bitcoin_da::service::DaServiceConfig;
+use bitcoin_da::service::BitcoinServiceConfig;
 use sov_stf_runner::{RpcConfig, RunnerConfig, StorageConfig};
 
 use super::bitcoin::BitcoinNodeCluster;
@@ -96,7 +96,7 @@ impl TestFramework {
         }
 
         // Target first bitcoin node as DA for now
-        let da_config: DaServiceConfig = bitcoin_confs[0].clone().into();
+        let da_config: BitcoinServiceConfig = bitcoin_confs[0].clone().into();
 
         let sequencer_rollup = {
             let bind_port = get_available_port()?;

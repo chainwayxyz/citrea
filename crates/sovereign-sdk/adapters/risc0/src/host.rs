@@ -103,7 +103,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
                 receipt.journal
             }
         };
-        Ok(BorshDeserialize::deserialize(&mut journal.bytes.as_ref())?)
+        Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
@@ -116,10 +116,10 @@ impl<'host> Zkvm for Risc0Host<'host> {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         verify_from_slice(serialized_proof, code_commitment)
     }
 
@@ -140,10 +140,10 @@ impl Zkvm for Risc0Verifier {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        serialized_proof: &'a [u8],
+    fn verify(
+        serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         verify_from_slice(serialized_proof, code_commitment)
     }
 
@@ -156,11 +156,11 @@ impl Zkvm for Risc0Verifier {
     }
 }
 
-fn verify_from_slice<'a>(
-    serialized_proof: &'a [u8],
+fn verify_from_slice(
+    serialized_proof: &[u8],
     code_commitment: &Risc0MethodId,
-) -> Result<&'a [u8], anyhow::Error> {
-    let Risc0Proof::<'a> {
+) -> Result<Vec<u8>, anyhow::Error> {
+    let Risc0Proof {
         receipt, journal, ..
     } = bincode::deserialize(serialized_proof)?;
 
@@ -170,7 +170,7 @@ fn verify_from_slice<'a>(
 
     receipt.verify(code_commitment.0)?;
 
-    Ok(journal)
+    Ok(journal.to_vec())
 }
 
 /// A convenience type which contains the same data a Risc0 [`Receipt`] but borrows the journal

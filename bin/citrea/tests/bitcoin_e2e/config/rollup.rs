@@ -1,9 +1,9 @@
-use bitcoin_da::service::DaServiceConfig;
+use bitcoin_da::service::BitcoinServiceConfig;
 use sov_stf_runner::{FullNodeConfig, RollupPublicKeys, RpcConfig, StorageConfig};
 use tempfile::TempDir;
 
 use super::BitcoinConfig;
-pub type RollupConfig = FullNodeConfig<DaServiceConfig>;
+pub type RollupConfig = FullNodeConfig<BitcoinServiceConfig>;
 
 pub fn default_rollup_config() -> RollupConfig {
     RollupConfig {
@@ -23,7 +23,7 @@ pub fn default_rollup_config() -> RollupConfig {
                 .into_path(),
         },
         runner: None,
-        da: DaServiceConfig {
+        da: BitcoinServiceConfig {
             node_url: String::new(),
             node_username: String::from("user"),
             node_password: String::from("password"),
@@ -45,7 +45,7 @@ pub fn default_rollup_config() -> RollupConfig {
     }
 }
 
-impl From<BitcoinConfig> for DaServiceConfig {
+impl From<BitcoinConfig> for BitcoinServiceConfig {
     fn from(v: BitcoinConfig) -> Self {
         Self {
             node_url: format!("127.0.0.1:{}", v.rpc_port),

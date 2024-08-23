@@ -215,7 +215,7 @@ where
         &self,
         da_service: &Arc<Self::DaService>,
     ) -> Result<Vec<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
-        tracing::info!("Checking if ongoing bonsai session exists");
+        tracing::debug!("Checking if ongoing bonsai session exists");
 
         let vm = self.vm.clone();
         let proofs = vm.recover_proving_sessions()?;

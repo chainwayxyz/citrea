@@ -4,7 +4,7 @@ use bitcoin::{Address, Txid};
 use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UTXO {
     pub tx_id: Txid,
     pub vout: u32,

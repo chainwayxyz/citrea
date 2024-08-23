@@ -1,7 +1,7 @@
 #![no_main]
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_primitives::{DA_TX_ID_LEADING_ZEROS, ROLLUP_NAME};
+use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX, ROLLUP_NAME};
 use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;
 #[cfg(feature = "bench")]
@@ -43,7 +43,8 @@ pub fn main() {
         stf,
         BitcoinVerifier::new(RollupParams {
             rollup_name: ROLLUP_NAME.to_string(),
-            reveal_tx_id_prefix: DA_TX_ID_LEADING_ZEROS.to_vec(),
+            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
         }),
     );
 

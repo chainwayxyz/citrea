@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::fork::{Fork, ForkManager};
+use citrea_primitives::fork::ForkManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -27,6 +27,7 @@ use sov_rollup_interface::da::{
 };
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -65,7 +66,7 @@ where
     prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
-    code_commitment: Vm::CodeCommitment,
+    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
@@ -103,7 +104,7 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
-        code_commitment: Vm::CodeCommitment,
+        code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         sync_blocks_count: u64,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
@@ -151,7 +152,7 @@ where
             prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
-            code_commitment,
+            code_commitments_by_spec,
             accept_public_input_as_proven: runner_config
                 .accept_public_input_as_proven
                 .unwrap_or(false),
@@ -230,47 +231,37 @@ where
             l1_block.header().height()
         );
         tracing::debug!("ZK proof: {:?}", proof);
-        let state_transition = match proof.clone() {
-            Proof::Full(proof) => {
-                let code_commitment = self.code_commitment.clone();
 
-                tracing::warn!(
-                    "using code commitment: {:?}",
-                    serde_json::to_string(&code_commitment).unwrap()
-                );
+        let state_transition =
+            Vm::extract_output::<<Da as DaService>::Spec, Stf::StateRoot>(&proof)
+                .expect("Proof should be deserializable");
+        if state_transition.sequencer_da_public_key != self.sequencer_da_pub_key
+            || state_transition.sequencer_public_key != self.sequencer_pub_key
+        {
+            return Err(anyhow!(
+                "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
+            ).into());
+        }
 
-                if let Ok(proof_data) = Vm::verify_and_extract_output::<
-                    <Da as DaService>::Spec,
-                    Stf::StateRoot,
-                >(&proof, &code_commitment)
-                {
-                    if proof_data.sequencer_da_public_key != self.sequencer_da_pub_key
-                        || proof_data.sequencer_public_key != self.sequencer_pub_key
-                    {
-                        return Err(anyhow!(
-                            "Proof verification: Sequencer public key or sequencer da public key mismatch. Skipping proof."
-                        ).into());
-                    }
-                    proof_data
-                } else {
-                    return Err(anyhow!(
-                        "Proof verification: SNARK verification failed. Skipping to next proof.."
-                    )
-                    .into());
-                }
+        match &proof {
+            Proof::Full(data) => {
+                let code_commitment = self
+                    .code_commitments_by_spec
+                    .get(&state_transition.last_active_spec_id)
+                    .expect("Proof public input must contain valid spec id");
+                Vm::verify(data, code_commitment)
+                    .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
             }
             Proof::PublicInput(_) => {
                 if !self.accept_public_input_as_proven {
                     return Err(anyhow!(
-                        "Found public input in da block number: {:?}, Skipping to next proof..",
+                        "Found public input in da block number: {}, Skipping to next proof..",
                         l1_block.header().height(),
                     )
                     .into());
                 }
-                // public input is accepted only in tests, so ok to expect
-                Vm::extract_output(&proof).expect("Proof should be deserializable")
             }
-        };
+        }
 
         let stored_state_transition = StoredStateTransition {
             initial_state_root: state_transition.initial_state_root.as_ref().to_vec(),
@@ -437,7 +428,7 @@ where
             .create_storage_on_l2_height(l2_height)?;
 
         let slot_result = self.stf.apply_soft_confirmation(
-            self.fork_manager.active_fork(),
+            self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,

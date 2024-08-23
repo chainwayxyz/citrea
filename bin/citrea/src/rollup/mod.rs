@@ -11,7 +11,6 @@ use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
-use sov_rollup_interface::spec::SpecId;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tokio::sync::broadcast;
@@ -92,10 +91,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?;
-
-        let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
@@ -180,7 +176,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             },
         };
 
-        let code_commitment = self.get_code_commitment();
+        let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -188,9 +184,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?;
-        let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaFullnode::new(
@@ -202,7 +196,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             native_stf,
             storage_manager,
             init_variant,
-            code_commitment,
+            code_commitments_by_spec,
             rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
@@ -286,7 +280,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             },
         };
 
-        let code_commitment = self.get_code_commitment();
+        let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -294,9 +288,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let active_spec: SpecId = ledger_db.get_active_fork()?;
-        let mut fork_manager =
-            ForkManager::new(current_l2_height.into(), active_spec, FORKS.to_vec());
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaProver::new(
@@ -310,7 +302,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             init_variant,
             Some(prover_service),
             Some(prover_config),
-            code_commitment,
+            code_commitments_by_spec,
             rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,

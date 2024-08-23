@@ -106,7 +106,7 @@ pub struct RollupPublicKeys {
 
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct FullNodeConfig<DaServiceConfig> {
+pub struct FullNodeConfig<BitcoinServiceConfig> {
     /// RPC configuration
     pub rpc: RpcConfig,
     /// Currently rollup config runner only supports storage path parameter
@@ -114,7 +114,7 @@ pub struct FullNodeConfig<DaServiceConfig> {
     /// Runner own configuration.
     pub runner: Option<RunnerConfig>, // optional bc sequencer doesn't need it
     /// Data Availability service configuration.
-    pub da: DaServiceConfig,
+    pub da: BitcoinServiceConfig,
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
     /// Number of blocks to request during sync

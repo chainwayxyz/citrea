@@ -405,11 +405,16 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
 
     type Error = anyhow::Error;
 
-    fn verify<'a>(
-        _serialized_proof: &'a [u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<&'a [u8], Self::Error> {
-        unimplemented!();
+    fn verify(
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
+    ) -> Result<Vec<u8>, Self::Error> {
+        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+
+        #[allow(clippy::clone_on_copy)]
+        receipt.verify(code_commitment.clone())?;
+
+        Ok(receipt.journal.bytes)
     }
 
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(

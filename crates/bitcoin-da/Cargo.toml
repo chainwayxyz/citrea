@@ -7,7 +7,6 @@ homepage = { workspace = true }
 license = "MIT OR Apache-2.0"
 publish = false
 repository = { workspace = true }
-rust-version = "1.66"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,6 +29,7 @@ tracing = { workspace = true, optional = true }
 bitcoin = { workspace = true }
 brotli = { workspace = true }
 futures.workspace = true
+sha2 = { workspace = true }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 
