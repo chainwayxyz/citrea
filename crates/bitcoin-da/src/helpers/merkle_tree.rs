@@ -63,6 +63,7 @@ impl BitcoinMerkleTree {
         self.nodes[self.nodes.len() - 1][0]
     }
 
+    #[cfg(feature = "native")]
     pub fn get_idx_path(&self, index: u32) -> Vec<[u8; 32]> {
         assert!(index < self.nodes[0].len() as u32, "Index out of bounds");
         let mut path = vec![];
