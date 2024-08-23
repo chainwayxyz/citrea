@@ -40,13 +40,13 @@ contract Bridge is Ownable2StepUpgradeable {
     bytes public depositScript;
     bytes public scriptSuffix;
     uint256 currentDepositId;    
-    mapping(bytes32 => uint256) public spentTxIds;
+    mapping(bytes32 => uint256) public txIdToDepositId;
     bool[1000] public isOperatorMalicious;
     UTXO[] public withdrawalUTXOs;
     mapping(uint256 => uint256) public withdrawFillers;
     bytes public kickoffScript;
     
-    event Deposit(bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
+    event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
     event DepositScriptUpdate(bytes depositScript, bytes scriptSuffix);
     event OperatorUpdated(address oldOperator, address newOperator);
@@ -113,9 +113,11 @@ contract Bridge is Ownable2StepUpgradeable {
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        bytes32 txId = validateAndCheckInclusion(moveTp);
-        require(spentTxIds[txId] == 0, "txId already spent");
-        spentTxIds[txId] = ++currentDepositId;
+        bytes32 wtxId = validateAndCheckInclusion(moveTp);
+        bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
+
+        require(txIdToDepositId[txId] == 0, "txId already spent");
+        txIdToDepositId[txId] = ++currentDepositId;
         
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(moveTp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
@@ -129,7 +131,7 @@ contract Bridge is Ownable2StepUpgradeable {
         require(isBytesEqual(_suffix, scriptSuffix), "Invalid script suffix");
 
         address recipient = extractRecipientAddress(script);
-        emit Deposit(txId, recipient, block.timestamp, currentDepositId);
+        emit Deposit(wtxId, txId, recipient, block.timestamp, currentDepositId);
 
         (bool success, ) = recipient.call{value: depositAmount}("");
         require(success, "Transfer failed");
@@ -205,7 +207,7 @@ contract Bridge is Ownable2StepUpgradeable {
         uint256 _operatorId;
         bytes32 _moveTxId;
         (_operatorId, _moveTxId) = abi.decode(BTCUtils.extractOpReturnData(_output), (uint256, bytes32));
-        uint256 _depositId = spentTxIds[_moveTxId];
+        uint256 _depositId = txIdToDepositId[_moveTxId];
         
         // TODO: look to the witness, check the NofN multisig
 
@@ -276,9 +278,7 @@ contract Bridge is Ownable2StepUpgradeable {
 
         require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
 
-        bytes32 txId = ValidateSPV.calculateTxId(tp.version, tp.vin, tp.vout, tp.locktime);
-
-        return txId;
+        return wtxId;
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
