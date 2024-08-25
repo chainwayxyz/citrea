@@ -23,6 +23,7 @@ futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
 schnellru = "0.2.1"
 serde = { workspace = true }

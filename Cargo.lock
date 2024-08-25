@@ -1994,6 +1994,7 @@ dependencies = [
  "hex",
  "hyper 1.4.1",
  "jsonrpsee",
+ "parking_lot",
  "reth-chainspec",
  "reth-db",
  "reth-primitives",
