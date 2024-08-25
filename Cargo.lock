@@ -2811,6 +2811,7 @@ dependencies = [
  "citrea-evm",
  "citrea-primitives",
  "jsonrpsee",
+ "parking_lot",
  "proptest",
  "reth-primitives",
  "reth-rpc-eth-types",
