@@ -9,10 +9,7 @@ use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
 use bitcoin::{secp256k1, Opcode, Script, Transaction, Txid};
 use thiserror::Error;
 
-use super::{
-    calculate_double_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
-    TransactionKindBatchProof, TransactionKindLightClient,
-};
+use super::{calculate_sha256, TransactionKindBatchProof, TransactionKindLightClient};
 
 #[derive(Debug, Clone)]
 pub enum ParsedLightClientTransaction {
@@ -68,7 +65,7 @@ pub(crate) trait VerifyParsed {
     fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         let public_key = secp256k1::PublicKey::from_slice(self.public_key());
         let signature = ecdsa::Signature::from_compact(self.signature());
-        let hash = calculate_double_sha256(self.body());
+        let hash = calculate_sha256(self.body());
         let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
 
         let secp = Secp256k1::new();
@@ -154,26 +151,24 @@ impl From<ScriptError> for ParserError {
 
 pub fn parse_light_client_transaction(
     tx: &Transaction,
-    rollup_name: &str,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
     // Map all Instructions errors into ParserError::ScriptError
     let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
 
-    parse_relevant_lightclient(&mut instructions, rollup_name)
+    parse_relevant_lightclient(&mut instructions)
 }
 
 pub fn parse_batch_proof_transaction(
     tx: &Transaction,
-    rollup_name: &str,
 ) -> Result<ParsedBatchProofTransaction, ParserError> {
     let script = get_script(tx)?;
     let instructions = script.instructions().peekable();
     // Map all Instructions errors into ParserError::ScriptError
     let mut instructions = instructions.map(|r| r.map_err(ParserError::from));
 
-    parse_relevant_batchproof(&mut instructions, rollup_name)
+    parse_relevant_batchproof(&mut instructions)
 }
 
 // Returns the script from the first input of the transaction
@@ -186,7 +181,6 @@ fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
 
 fn parse_relevant_lightclient(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-    rollup_name: &str,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
     // PushBytes(XOnlyPublicKey)
     let _public_key = read_push_bytes(instructions)?;
@@ -195,18 +189,13 @@ fn parse_relevant_lightclient(
     }
 
     // Parse header
-    let header_slice = read_push_bytes(instructions)?;
-    let Some(header) = TransactionHeaderLightClient::from_bytes(header_slice.as_bytes()) else {
+    let kind_slice = read_push_bytes(instructions)?;
+    let Some(kind) = TransactionKindLightClient::from_bytes(kind_slice.as_bytes()) else {
         return Err(ParserError::InvalidHeaderLength);
     };
 
-    // Check rollup name
-    if header.rollup_name != rollup_name.as_bytes() {
-        return Err(ParserError::InvalidRollupName);
-    }
-
     // Parse transaction body according to type
-    match header.kind {
+    match kind {
         TransactionKindLightClient::Complete => light_client::parse_type_0_body(instructions)
             .map(ParsedLightClientTransaction::Complete),
         TransactionKindLightClient::Chunked => light_client::parse_type_1_body(instructions)
@@ -220,7 +209,6 @@ fn parse_relevant_lightclient(
 
 fn parse_relevant_batchproof(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
-    rollup_name: &str,
 ) -> Result<ParsedBatchProofTransaction, ParserError> {
     // PushBytes(XOnlyPublicKey)
     let _public_key = read_push_bytes(instructions)?;
@@ -230,17 +218,12 @@ fn parse_relevant_batchproof(
 
     // Parse header
     let header_slice = read_push_bytes(instructions)?;
-    let Some(header) = TransactionHeaderBatchProof::from_bytes(header_slice.as_bytes()) else {
+    let Some(kind) = TransactionKindBatchProof::from_bytes(header_slice.as_bytes()) else {
         return Err(ParserError::InvalidHeaderLength);
     };
 
-    // Check rollup name
-    if header.rollup_name != rollup_name.as_bytes() {
-        return Err(ParserError::InvalidRollupName);
-    }
-
     // Parse transaction body according to type
-    match header.kind {
+    match kind {
         TransactionKindBatchProof::SequencerCommitment => {
             batch_proof::parse_type_0_body(instructions)
                 .map(ParsedBatchProofTransaction::SequencerCommitment)
@@ -279,7 +262,7 @@ fn read_opcode(
 }
 
 mod light_client {
-    use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
 
@@ -323,7 +306,7 @@ mod light_client {
 
         // Nonce
         let _nonce = read_push_bytes(instructions)?;
-        if OP_DROP != read_opcode(instructions)? {
+        if OP_NIP != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
         }
         // END of transaction
@@ -382,7 +365,7 @@ mod light_client {
 
         // Nonce
         let _nonce = read_push_bytes(instructions)?;
-        if OP_DROP != read_opcode(instructions)? {
+        if OP_NIP != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
         }
         // END of transaction
@@ -447,7 +430,7 @@ mod light_client {
 }
 
 mod batch_proof {
-    use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
 
     use super::{read_opcode, read_push_bytes, ParsedSequencerCommitment, ParserError};
@@ -476,7 +459,7 @@ mod batch_proof {
 
         // Nonce
         let _nonce = read_push_bytes(instructions)?;
-        if OP_DROP != read_opcode(instructions)? {
+        if OP_NIP != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
         }
         // END of transaction
@@ -513,27 +496,24 @@ pub fn parse_hex_transaction(
 #[cfg(test)]
 mod tests {
     use bitcoin::key::XOnlyPublicKey;
-    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::opcodes::{OP_FALSE, OP_TRUE};
     use bitcoin::script::{self, PushBytesBuf};
     use bitcoin::Transaction;
 
     use super::{
         parse_light_client_transaction, parse_relevant_lightclient, ParsedLightClientTransaction,
-        ParserError, TransactionHeaderLightClient, TransactionKindLightClient,
+        ParserError, TransactionKindLightClient,
     };
 
     #[test]
     fn correct() {
-        let header = TransactionHeaderLightClient {
-            rollup_name: b"sov-btc",
-            kind: TransactionKindLightClient::Complete,
-        };
+        let kind = TransactionKindLightClient::Complete;
 
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -542,14 +522,14 @@ mod tests {
             .push_slice([4u8; 64]) // chunk
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP);
+            .push_opcode(OP_NIP);
 
         let reveal_script = reveal_script_builder.into_script();
         let mut instructions = reveal_script
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions);
 
         let result = result.inspect_err(|e| {
             dbg!(e);
@@ -566,39 +546,13 @@ mod tests {
     }
 
     #[test]
-    fn wrong_rollup_tag() {
-        let header = TransactionHeaderLightClient {
-            rollup_name: b"not-sov-btc",
-            kind: TransactionKindLightClient::Complete,
-        };
-
-        let reveal_script_builder = script::Builder::new()
-            .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
-            .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"));
-
-        let reveal_script = reveal_script_builder.into_script();
-        let mut instructions = reveal_script
-            .instructions()
-            .map(|r| r.map_err(ParserError::from));
-
-        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
-
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), ParserError::InvalidRollupName);
-    }
-
-    #[test]
     fn only_checksig() {
-        let header = TransactionHeaderLightClient {
-            rollup_name: b"sov-btc",
-            kind: TransactionKindLightClient::Complete,
-        };
+        let kind = TransactionKindLightClient::Complete;
 
         let reveal_script_builder = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"));
+            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"));
 
         let reveal_script = reveal_script_builder.into_script();
 
@@ -606,7 +560,7 @@ mod tests {
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions);
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedEndOfScript);
@@ -619,7 +573,7 @@ mod tests {
         let tx: Transaction =
             bitcoin::consensus::deserialize(&hex::decode(hex_tx).unwrap()).unwrap();
 
-        let result = parse_light_client_transaction(&tx, "sov-btc");
+        let result = parse_light_client_transaction(&tx);
 
         assert!(result.is_err(), "Failed to error on non-parseable tx.");
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -627,15 +581,12 @@ mod tests {
 
     #[test]
     fn complex_envelope() {
-        let header = TransactionHeaderLightClient {
-            rollup_name: b"sov-btc",
-            kind: TransactionKindLightClient::Complete,
-        };
+        let kind = TransactionKindLightClient::Complete;
 
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -648,14 +599,14 @@ mod tests {
             .push_opcode(OP_ENDIF)
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .into_script();
 
         let mut instructions = reveal_script
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions);
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -663,15 +614,12 @@ mod tests {
 
     #[test]
     fn two_envelopes() {
-        let header = TransactionHeaderLightClient {
-            rollup_name: b"sov-btc",
-            kind: TransactionKindLightClient::Complete,
-        };
+        let kind = TransactionKindLightClient::Complete;
 
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -679,7 +627,7 @@ mod tests {
             .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -687,14 +635,14 @@ mod tests {
             .push_slice(PushBytesBuf::try_from(vec![1u8; 64]).unwrap())
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .into_script();
 
         let mut instructions = reveal_script
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions);
 
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), ParserError::UnexpectedOpcode);
@@ -702,15 +650,12 @@ mod tests {
 
     #[test]
     fn big_push() {
-        let header = TransactionHeaderLightClient {
-            rollup_name: b"sov-btc",
-            kind: TransactionKindLightClient::Complete,
-        };
+        let kind = TransactionKindLightClient::Complete;
 
         let reveal_script = script::Builder::new()
             .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header.to_bytes()).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::try_from(kind.to_bytes()).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -723,14 +668,14 @@ mod tests {
             .push_slice(PushBytesBuf::try_from(vec![1u8; 512]).unwrap())
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .into_script();
 
         let mut instructions = reveal_script
             .instructions()
             .map(|r| r.map_err(ParserError::from));
 
-        let result = parse_relevant_lightclient(&mut instructions, "sov-btc");
+        let result = parse_relevant_lightclient(&mut instructions);
 
         assert!(result.is_ok());
 

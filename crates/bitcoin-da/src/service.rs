@@ -49,7 +49,6 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 #[derive(Debug)]
 pub struct BitcoinService {
     client: Client,
-    rollup_name: String,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     reveal_light_client_prefix: Vec<u8>,
@@ -108,7 +107,6 @@ impl BitcoinService {
 
         Ok(Self {
             client,
-            rollup_name: chain_params.rollup_name,
             network: config.network,
             da_private_key: private_key,
             reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
@@ -211,7 +209,6 @@ impl BitcoinService {
 
         Ok(Self {
             client,
-            rollup_name: chain_params.rollup_name,
             network: config.network,
             da_private_key,
             reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
@@ -305,7 +302,6 @@ impl BitcoinService {
         let client = &self.client;
         let network = self.network;
 
-        let rollup_name = self.rollup_name.clone();
         let da_private_key = self.da_private_key.expect("No private key set");
 
         let blob = borsh::to_vec(da_data).expect("DaData serialize must not fail");
@@ -326,7 +322,6 @@ impl BitcoinService {
                 let blob = compress_blob(&blob);
                 // create inscribe transactions
                 let inscription_txs = create_zkproof_transactions(
-                    &rollup_name,
                     blob,
                     &da_private_key,
                     prev_utxo,
@@ -414,7 +409,6 @@ impl BitcoinService {
             DaData::SequencerCommitment(_) => {
                 // create inscribe transactions
                 let inscription_txs = create_seqcommitment_transactions(
-                    &rollup_name,
                     blob,
                     &da_private_key,
                     prev_utxo,
@@ -591,7 +585,7 @@ impl DaService for BitcoinService {
         );
 
         let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs(txs, &self.rollup_name, &self.reveal_batch_prover_prefix)
+        get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -752,17 +746,12 @@ impl DaService for BitcoinService {
         &self,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let pending_txs = self.get_pending_transactions().await.unwrap();
-        get_relevant_blobs_from_txs(
-            pending_txs,
-            &self.rollup_name,
-            &self.reveal_batch_prover_prefix,
-        )
+        get_relevant_blobs_from_txs(pending_txs, &self.reveal_batch_prover_prefix)
     }
 }
 
 fn get_relevant_blobs_from_txs(
     txs: Vec<Transaction>,
-    rollup_name: &str,
     reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {
     let mut relevant_txs = Vec::new();
@@ -777,7 +766,7 @@ fn get_relevant_blobs_from_txs(
             continue;
         }
 
-        if let Ok(tx) = parse_batch_proof_transaction(&tx, rollup_name) {
+        if let Ok(tx) = parse_batch_proof_transaction(&tx) {
             match tx {
                 ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
                     if let Some(hash) = seq_comm.get_sig_verified_hash() {
@@ -834,7 +823,6 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                rollup_name: "sov-btc".to_string(),
                 reveal_batch_prover_prefix: vec![1, 1],
                 reveal_light_client_prefix: vec![2, 2],
             },
@@ -843,14 +831,13 @@ mod tests {
         .await
         .expect("Error initialazing BitcoinService");
 
-        // let da_service = Arc::new(da_service);
-        // da_service.clone().spawn_da_queue(rx);
-        // da_service
-
-        Arc::new(da_service)
+        let da_service = Arc::new(da_service);
+        // da_service.clone().spawn_da_queue(_rx);
+        #[allow(clippy::let_and_return)]
+        da_service
     }
 
-    async fn get_service_wrong_rollup_name() -> Arc<BitcoinService> {
+    async fn get_service_wrong_namespace() -> Arc<BitcoinService> {
         let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/other".to_string(),
             node_username: "chainway".to_string(),
@@ -867,9 +854,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                rollup_name: "btc-sov".to_string(),
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                reveal_batch_prover_prefix: vec![5, 6],
+                reveal_light_client_prefix: vec![5, 5],
             },
             tx,
         )
@@ -900,7 +886,6 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                rollup_name: "btc-sov".to_string(),
                 reveal_batch_prover_prefix: vec![1, 1],
                 reveal_light_client_prefix: vec![2, 2],
             },
@@ -978,8 +963,8 @@ mod tests {
 
         println!("sent 6");
 
-        // seq com different rollup name
-        get_service_wrong_rollup_name()
+        // seq com different namespace
+        get_service_wrong_namespace()
             .await
             .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
                 merkle_root: [15; 32],
@@ -1106,7 +1091,6 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -1155,7 +1139,6 @@ mod tests {
         let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                rollup_name: "sov-btc".to_string(),
                 reveal_batch_prover_prefix: vec![1, 1],
                 reveal_light_client_prefix: vec![2, 2],
             },
@@ -1174,21 +1157,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "69309c43aa5addfa0b3356e6eff316d2bdc3bf88e5e01575d2d2676c53677ca7",
+                    "31402555f54c3f89907c07e6d286c132f9984739f2b6b00cde195b10ac771522",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "b03d88f57326ea63f1b241f70f45824446e10b3db3f0e808a60e0d7c013a8322",
+                    "40642938a6cc6124246fd9601108f9671177c1834753162f19e073eaff751191",
                 )
                 .unwrap(),
-                time: 1723819158,
+                time: 1724665818,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 1,
+                nonce: 3,
             },
             3,
             1,
             WitnessMerkleNode::from_str(
-                "8acc63c09983c9e8dba2e88b9e0218498ea4a3ff25ee8ce8be7674ada84046d5",
+                "494880ce756f69b13811200d1e358a049ac3c3dd66e4ff7e86d4c4d3aad95939",
             )
             .unwrap()
             .as_raw_hash()
