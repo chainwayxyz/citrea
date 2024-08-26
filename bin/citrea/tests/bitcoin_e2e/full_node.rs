@@ -38,7 +38,7 @@ impl FullNode {
         println!("Rollup config: {rollup_config:#?}");
         println!("FullNode dir: {:#?}", dir);
 
-        let spawn_output = Self::spawn(&rollup_config, &dir).await?;
+        let spawn_output = Self::spawn(rollup_config, &dir).await?;
 
         // Wait for ws server
         // TODO wait_for_ready

@@ -31,7 +31,7 @@ impl From<&BitcoinConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "ruimarinho/bitcoin-core:latest".to_string()),
             cmd: args,
-            dir: format!("{}:/bitcoin/data", v.data_dir.display().to_string()),
+            dir: format!("{}:/bitcoin/data", v.data_dir.display()),
         }
     }
 }
@@ -56,7 +56,7 @@ impl From<&FullSequencerConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "citrea:latest".to_string()), // Default to local image
             cmd: args,
-            dir: format!("{}:/sequencer/data", v.dir.display().to_string()),
+            dir: format!("{}:/sequencer/data", v.dir.display()),
         }
     }
 }

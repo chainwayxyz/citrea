@@ -109,7 +109,7 @@ impl TestFramework {
             if let Some(sequencer) = &self.sequencer {
                 println!(
                     "Sequencer logs available at {}",
-                    get_stdout_path(&sequencer.dir()).display()
+                    get_stdout_path(sequencer.dir()).display()
                 );
             }
 

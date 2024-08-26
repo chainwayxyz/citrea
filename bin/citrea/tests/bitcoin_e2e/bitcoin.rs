@@ -189,7 +189,7 @@ impl BitcoinNodeCluster {
                 if i != j {
                     let ip = match &to_node.spawn_output {
                         SpawnOutput::Container(container) => container.ip.clone(),
-                        _ => format!("127.0.0.1"),
+                        _ => "127.0.0.1".to_string(),
                     };
 
                     let add_node_arg = format!("{}:{}", ip, to_node.config.p2p_port);

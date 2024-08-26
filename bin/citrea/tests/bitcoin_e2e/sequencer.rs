@@ -31,7 +31,7 @@ impl Sequencer {
 
         println!("Sequencer config: {config:#?}");
 
-        let spawn_output = Self::spawn(&config, &config.dir).await?;
+        let spawn_output = Self::spawn(config, &config.dir).await?;
 
         // Wait for ws server
         // TODO Add to wait_for_ready
