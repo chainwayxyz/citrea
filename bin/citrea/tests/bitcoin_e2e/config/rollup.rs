@@ -60,9 +60,7 @@ impl From<BitcoinConfig> for BitcoinServiceConfig {
             node_username: v.rpc_user,
             node_password: v.rpc_password,
             network: v.network,
-            da_private_key: Some(
-                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(),
-            ),
+            da_private_key: None,
             fee_rates_to_avg: None,
         }
     }
