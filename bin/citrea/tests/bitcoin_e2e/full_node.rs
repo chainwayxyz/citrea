@@ -7,8 +7,7 @@ use anyhow::{bail, Context};
 use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
-use super::config::config_to_file;
-use super::config::TestConfig;
+use super::config::{config_to_file, TestConfig};
 use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};

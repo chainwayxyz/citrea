@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use super::rollup::RollupConfig;
 use citrea_sequencer::SequencerConfig;
+
+use super::rollup::RollupConfig;
 
 #[derive(Clone, Debug)]
 pub struct FullSequencerConfig {

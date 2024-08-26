@@ -1,8 +1,9 @@
+use sov_stf_runner::ProverConfig;
+
 use super::bitcoin::BitcoinConfig;
 use super::rollup::RollupConfig;
 use super::test_case::TestCaseConfig;
 use super::FullSequencerConfig;
-use sov_stf_runner::ProverConfig;
 
 #[derive(Clone)]
 pub struct TestConfig {

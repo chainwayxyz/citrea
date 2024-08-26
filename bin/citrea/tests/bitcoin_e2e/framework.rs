@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use super::bitcoin::BitcoinNodeCluster;
 use super::config::TestConfig;
 use super::docker::DockerEnv;
@@ -7,7 +9,6 @@ use super::sequencer::Sequencer;
 use super::Result;
 use crate::bitcoin_e2e::prover::Prover;
 use crate::bitcoin_e2e::utils::get_stdout_path;
-use std::future::Future;
 
 pub struct TestContext {
     pub config: TestConfig,

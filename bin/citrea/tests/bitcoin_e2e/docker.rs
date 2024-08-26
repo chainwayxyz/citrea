@@ -1,7 +1,6 @@
-use super::config::DockerConfig;
-use super::node::SpawnOutput;
-use super::utils::generate_test_id;
-use crate::bitcoin_e2e::node::ContainerSpawnOutput;
+use std::collections::HashMap;
+use std::io::{stdout, Write};
+
 use anyhow::{anyhow, Context, Result};
 use bollard::container::{Config, NetworkingConfig};
 use bollard::image::CreateImageOptions;
@@ -10,8 +9,11 @@ use bollard::network::CreateNetworkOptions;
 use bollard::service::HostConfig;
 use bollard::Docker;
 use futures::StreamExt;
-use std::collections::HashMap;
-use std::io::{stdout, Write};
+
+use super::config::DockerConfig;
+use super::node::SpawnOutput;
+use super::utils::generate_test_id;
+use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 
 pub struct DockerEnv {
     pub docker: Docker,

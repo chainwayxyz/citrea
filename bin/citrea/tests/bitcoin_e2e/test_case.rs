@@ -13,10 +13,10 @@ use citrea_sequencer::SequencerConfig;
 use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::task;
 
-use super::config::TestConfig;
-use super::config::{default_rollup_config, default_sequencer_config};
-use super::config::{BitcoinConfig, FullSequencerConfig};
-use super::config::{RollupConfig, TestCaseConfig};
+use super::config::{
+    default_rollup_config, default_sequencer_config, BitcoinConfig, FullSequencerConfig,
+    RollupConfig, TestCaseConfig, TestConfig,
+};
 use super::framework::TestFramework;
 use super::{get_available_port, Result};
 use crate::bitcoin_e2e::node::Node;
