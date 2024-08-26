@@ -13,6 +13,10 @@ pub struct TestCaseConfig {
     pub timeout: Duration,
     pub dir: PathBuf,
     pub docker: bool,
+    // Either a relative dir from workspace root, i.e. "./resources/genesis/devnet"
+    // Or an absolute path.
+    // Defaults to resources/genesis/bitcoin-regtest
+    pub genesis_dir: Option<String>,
 }
 
 impl Default for TestCaseConfig {
@@ -27,6 +31,7 @@ impl Default for TestCaseConfig {
                 .expect("Failed to create temporary directory")
                 .into_path(),
             docker: true,
+            genesis_dir: None,
         }
     }
 }

@@ -94,7 +94,9 @@ impl Node for Prover {
             .arg("--prover-config-path")
             .arg(config_path)
             .arg("--genesis-paths")
-            .arg(get_genesis_path())
+            .arg(get_genesis_path(
+                dir.parent().expect("Couldn't get parent dir"),
+            ))
             .stdout(Stdio::from(stdout_file))
             .stderr(Stdio::from(stderr_file))
             .kill_on_drop(true)

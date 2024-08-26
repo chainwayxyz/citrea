@@ -46,7 +46,9 @@ impl From<&FullSequencerConfig> for DockerConfig {
             "--sequencer-config-path".to_string(),
             "sequencer_config.toml".to_string(),
             "--genesis-paths".to_string(),
-            get_genesis_path().display().to_string(),
+            get_genesis_path(v.dir.parent().expect("Couldn't get parent dir"))
+                .display()
+                .to_string(),
         ];
 
         Self {

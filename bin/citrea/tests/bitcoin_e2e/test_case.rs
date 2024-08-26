@@ -18,8 +18,10 @@ use super::config::{
     RollupConfig, TestCaseConfig, TestConfig,
 };
 use super::framework::TestFramework;
+use super::utils::copy_directory;
 use super::{get_available_port, Result};
 use crate::bitcoin_e2e::node::Node;
+use crate::bitcoin_e2e::utils::{get_default_genesis_path, get_workspace_root};
 
 // TestCaseRunner manages the lifecycle of a test case, including setup, execution, and cleanup.
 /// It creates a test framework with the associated configs, spawns required nodes, connects them,
@@ -89,8 +91,10 @@ impl<T: TestCase> TestCaseRunner<T> {
         let prover_rollup = default_rollup_config();
         let full_node_rollup = default_rollup_config();
 
-        let [bitcoin_dir, dbs_dir, _prover_dir, sequencer_dir, _full_node_dir] =
+        let [bitcoin_dir, dbs_dir, _prover_dir, sequencer_dir, _full_node_dir, genesis_dir] =
             create_dirs(&test_case.dir)?;
+
+        copy_genesis_dir(&test_case.genesis_dir, &genesis_dir)?;
 
         let mut bitcoin_confs = vec![];
         for i in 0..test_case.num_nodes {
@@ -237,9 +241,16 @@ pub trait TestCase: Send + Sync + 'static {
     async fn run_test(&self, framework: &TestFramework) -> Result<()>;
 }
 
-fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 5]> {
-    let paths =
-        ["bitcoin", "dbs", "prover", "sequencer", "full-node"].map(|dir| base_dir.join(dir));
+fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 6]> {
+    let paths = [
+        "bitcoin",
+        "dbs",
+        "prover",
+        "sequencer",
+        "full-node",
+        "genesis",
+    ]
+    .map(|dir| base_dir.join(dir));
 
     for path in &paths {
         std::fs::create_dir_all(path)
@@ -247,4 +258,20 @@ fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 5]> {
     }
 
     Ok(paths)
+}
+
+fn copy_genesis_dir(genesis_dir: &Option<String>, target_dir: &Path) -> std::io::Result<()> {
+    let genesis_dir =
+        genesis_dir
+            .as_ref()
+            .map(PathBuf::from)
+            .map_or_else(get_default_genesis_path, |dir| {
+                if dir.is_absolute() {
+                    dir
+                } else {
+                    get_workspace_root().join(dir)
+                }
+            });
+
+    copy_directory(genesis_dir, target_dir)
 }
