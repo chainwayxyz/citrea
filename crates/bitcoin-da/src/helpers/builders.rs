@@ -26,7 +26,7 @@ use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
 use super::{
-    calculate_double_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
+    calculate_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
     TransactionKindBatchProof, TransactionKindLightClient,
 };
 use crate::spec::utxo::UTXO;
@@ -37,7 +37,7 @@ pub fn sign_blob_with_private_key(
     blob: &[u8],
     private_key: &SecretKey,
 ) -> Result<(Vec<u8>, Vec<u8>), ()> {
-    let message = calculate_double_sha256(blob);
+    let message = calculate_sha256(blob);
     let secp = Secp256k1::new();
     let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
     let msg = secp256k1::Message::from_digest_slice(&message).unwrap();

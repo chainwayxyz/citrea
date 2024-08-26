@@ -10,7 +10,7 @@ use bitcoin::{secp256k1, Opcode, Script, Transaction, Txid};
 use thiserror::Error;
 
 use super::{
-    calculate_double_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
+    calculate_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
     TransactionKindBatchProof, TransactionKindLightClient,
 };
 
@@ -68,7 +68,7 @@ pub(crate) trait VerifyParsed {
     fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         let public_key = secp256k1::PublicKey::from_slice(self.public_key());
         let signature = ecdsa::Signature::from_compact(self.signature());
-        let hash = calculate_double_sha256(self.body());
+        let hash = calculate_sha256(self.body());
         let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
 
         let secp = Secp256k1::new();

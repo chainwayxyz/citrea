@@ -7,7 +7,7 @@ use bitcoin::{BlockHash, CompactTarget, Transaction};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
 use super::parsers::{parse_batch_proof_transaction, ParserError};
-use super::{calculate_double_sha256, merkle_tree};
+use super::{calculate_sha256, merkle_tree};
 use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
@@ -37,7 +37,7 @@ pub(crate) fn get_blob_with_sender(tx: &Transaction) -> Result<BlobWithSender, P
     Ok(BlobWithSender::new(
         blob.clone(),
         public_key,
-        calculate_double_sha256(&blob),
+        calculate_sha256(&blob),
     ))
 }
 
