@@ -168,6 +168,8 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
+      - name: Build citrea
+        run: make build
       - name: Run coverage
         run: make coverage
         env:
