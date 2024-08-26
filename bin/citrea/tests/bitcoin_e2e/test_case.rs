@@ -115,7 +115,13 @@ impl<T: TestCase> TestCaseRunner<T> {
         let sequencer_rollup = {
             let bind_port = get_available_port()?;
             RollupConfig {
-                da: da_config.clone(),
+                da: BitcoinServiceConfig {
+                    da_private_key: Some(
+                        "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D"
+                            .to_string(),
+                    ),
+                    ..da_config.clone()
+                },
                 storage: StorageConfig {
                     path: dbs_dir.join("sequencer-db"),
                 },
@@ -139,7 +145,13 @@ impl<T: TestCase> TestCaseRunner<T> {
         let prover_rollup = {
             let bind_port = get_available_port()?;
             RollupConfig {
-                da: da_config.clone(),
+                da: BitcoinServiceConfig {
+                    da_private_key: Some(
+                        "75BAF964D074594600366E5B111A1DA8F86B2EFE2D22DA51C8D82126A0FCAC72"
+                            .to_string(),
+                    ),
+                    ..da_config.clone()
+                },
                 storage: StorageConfig {
                     path: dbs_dir.join("prover-db"),
                 },

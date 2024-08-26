@@ -28,9 +28,7 @@ pub fn default_rollup_config() -> RollupConfig {
             node_username: String::from("user"),
             node_password: String::from("password"),
             network: bitcoin::Network::Regtest,
-            da_private_key: Some(
-                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(),
-            ),
+            da_private_key: None,
             fee_rates_to_avg: None,
         },
         public_keys: RollupPublicKeys {
