@@ -1,22 +1,16 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-
-use crate::bitcoin_e2e::node::ContainerSpawnOutput;
-
 use super::config::DockerConfig;
 use super::node::SpawnOutput;
+use super::utils::generate_test_id;
+use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 use anyhow::{anyhow, Context, Result};
-use bollard::container::{Config, CreateContainerOptions, NetworkingConfig};
+use bollard::container::{Config, NetworkingConfig};
 use bollard::image::CreateImageOptions;
 use bollard::models::{EndpointSettings, PortBinding};
 use bollard::network::CreateNetworkOptions;
-use bollard::secret::HostConfigLogConfig;
 use bollard::service::HostConfig;
 use bollard::Docker;
-use citrea_sequencer::SequencerConfig;
 use futures::StreamExt;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use std::collections::HashMap;
 use std::io::{stdout, Write};
 
 pub struct DockerEnv {
@@ -28,17 +22,9 @@ impl DockerEnv {
     pub async fn new() -> Result<Self> {
         let docker =
             Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;
-        let test_id = Self::generate_test_id();
+        let test_id = generate_test_id();
         let network_id = Self::create_network(&docker, &test_id).await?;
         Ok(Self { docker, network_id })
-    }
-
-    fn generate_test_id() -> String {
-        thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect()
     }
 
     async fn create_network(docker: &Docker, test_case_id: &str) -> Result<String> {
@@ -79,10 +65,6 @@ impl DockerEnv {
             })
             .collect();
 
-        let options: CreateContainerOptions<String> = CreateContainerOptions {
-            ..Default::default()
-        };
-
         let mut network_config = HashMap::new();
         network_config.insert(self.network_id.clone(), EndpointSettings::default());
 
@@ -108,8 +90,8 @@ impl DockerEnv {
             .context("Image not specified in config")?;
         self.ensure_image_exists(image).await?;
 
-        println!("options :{options:?}");
-        println!("config :{config:?}");
+        // println!("options :{options:?}");
+        // println!("config :{config:?}");
 
         let container = self
             .docker

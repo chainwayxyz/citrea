@@ -1,6 +1,9 @@
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+
 use super::Result;
 
 pub fn get_available_port() -> Result<u16> {
@@ -49,4 +52,12 @@ pub fn get_stdout_path(dir: &Path) -> PathBuf {
 
 pub fn get_stderr_path(dir: &Path) -> PathBuf {
     dir.join("stderr")
+}
+
+pub fn generate_test_id() -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10)
+        .map(char::from)
+        .collect()
 }

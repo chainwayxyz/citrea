@@ -1,4 +1,15 @@
-use crate::bitcoin_e2e::config::SequencerConfig;
+use std::path::PathBuf;
+
+use super::rollup::RollupConfig;
+use citrea_sequencer::SequencerConfig;
+
+#[derive(Clone, Debug)]
+pub struct FullSequencerConfig {
+    pub sequencer: SequencerConfig,
+    pub rollup: RollupConfig,
+    pub docker_image: Option<String>,
+    pub dir: PathBuf,
+}
 
 pub fn default_sequencer_config() -> SequencerConfig {
     SequencerConfig {

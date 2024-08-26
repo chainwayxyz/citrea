@@ -8,11 +8,13 @@ use tokio::process::Child;
 
 use super::Result;
 
+#[derive(Debug)]
 pub struct ContainerSpawnOutput {
     pub id: String,
     pub ip: String,
 }
 
+#[derive(Debug)]
 pub enum SpawnOutput {
     Child(Child),
     Container(ContainerSpawnOutput),

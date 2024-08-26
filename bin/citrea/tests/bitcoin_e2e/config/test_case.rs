@@ -9,6 +9,7 @@ pub struct TestCaseConfig {
     pub with_sequencer: bool,
     pub with_full_node: bool,
     pub with_prover: bool,
+    #[allow(unused)]
     pub timeout: Duration,
     pub dir: PathBuf,
     pub docker: bool,

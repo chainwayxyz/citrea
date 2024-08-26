@@ -7,14 +7,12 @@ use anyhow::Context;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
-use super::config::config_to_file;
-use super::config::RollupConfig;
 use super::config::TestConfig;
+use super::config::{config_to_file, FullSequencerConfig};
 use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
-use crate::bitcoin_e2e::config::SequencerConfig;
 use crate::bitcoin_e2e::utils::get_genesis_path;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
@@ -22,56 +20,50 @@ use crate::test_client::TestClient;
 #[allow(unused)]
 pub struct Sequencer {
     spawn_output: SpawnOutput,
-    config: SequencerConfig,
-    pub dir: PathBuf,
-    rollup_config: RollupConfig,
+    config: FullSequencerConfig,
     pub client: Box<TestClient>,
 }
 
 impl Sequencer {
     pub async fn new(ctx: &TestContext) -> Result<Self> {
         let TestConfig {
-            sequencer: sequencer_config,
-            test_case,
-            sequencer_rollup: rollup_config,
-            ..
+            sequencer: config, ..
         } = &ctx.config;
 
-        let dir = test_case.dir.join("sequencer");
+        println!("Sequencer config: {config:#?}");
 
-        println!("Sequencer config: {sequencer_config:#?}");
-        println!("Rollup config: {rollup_config:#?}");
-        println!("Sequencer dir: {:#?}", dir);
-
-        let spawn_output =
-            Self::spawn(&(sequencer_config.clone(), rollup_config.clone()), &dir).await?;
+        let spawn_output = Self::spawn(&config, &config.dir).await?;
 
         // Wait for ws server
         // TODO Add to wait_for_ready
         sleep(Duration::from_secs(3)).await;
 
         let socket_addr = SocketAddr::new(
-            rollup_config
+            config
+                .rollup
                 .rpc
                 .bind_host
                 .parse()
                 .context("Failed to parse bind host")?,
-            rollup_config.rpc.bind_port,
+            config.rollup.rpc.bind_port,
         );
+
         let client = make_test_client(socket_addr).await;
 
         Ok(Self {
             spawn_output,
-            config: sequencer_config.clone(),
-            dir,
-            rollup_config: rollup_config.clone(),
+            config: config.clone(),
             client,
         })
+    }
+
+    pub fn dir(&self) -> &PathBuf {
+        &self.config.dir
     }
 }
 
 impl Node for Sequencer {
-    type Config = (SequencerConfig, RollupConfig);
+    type Config = FullSequencerConfig;
 
     async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
@@ -81,12 +73,11 @@ impl Node for Sequencer {
         let stderr_file =
             File::create(get_stderr_path(dir)).context("Failed to create stderr file")?;
 
-        let (sequencer_config, rollup_config) = config;
         let config_path = dir.join("sequencer_config.toml");
-        config_to_file(&sequencer_config, &config_path)?;
+        config_to_file(&config.sequencer, &config_path)?;
 
         let rollup_config_path = dir.join("sequencer_rollup_config.toml");
-        config_to_file(&rollup_config, &rollup_config_path)?;
+        config_to_file(&config.rollup, &rollup_config_path)?;
 
         Command::new(citrea)
             .arg("--da-layer")

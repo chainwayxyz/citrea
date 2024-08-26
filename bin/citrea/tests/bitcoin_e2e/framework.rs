@@ -1,18 +1,10 @@
-use std::path::{Path, PathBuf};
-
-use anyhow::Context;
-use bitcoin_da::service::BitcoinServiceConfig;
-use sov_stf_runner::{RpcConfig, RunnerConfig, StorageConfig};
-
 use super::bitcoin::BitcoinNodeCluster;
-use super::config::BitcoinConfig;
-use super::config::RollupConfig;
 use super::config::TestConfig;
 use super::docker::DockerEnv;
 use super::full_node::FullNode;
 use super::node::Node;
 use super::sequencer::Sequencer;
-use super::{get_available_port, Result};
+use super::Result;
 use crate::bitcoin_e2e::prover::Prover;
 use crate::bitcoin_e2e::utils::get_stdout_path;
 use std::future::Future;
@@ -40,13 +32,11 @@ async fn create_optional<T>(pred: bool, f: impl Future<Output = Result<T>>) -> R
 }
 
 impl TestFramework {
-    pub async fn new(base_conf: TestConfig) -> Result<Self> {
+    pub async fn new(config: TestConfig) -> Result<Self> {
         anyhow::ensure!(
-            base_conf.test_case.num_nodes > 0,
+            config.test_case.num_nodes > 0,
             "At least one bitcoin node has to be running"
         );
-
-        let config = Self::generate_test_config(base_conf)?;
 
         let docker = if config.test_case.docker {
             Some(DockerEnv::new().await?)
@@ -57,6 +47,7 @@ impl TestFramework {
         let ctx = TestContext { config, docker };
 
         let bitcoin_nodes = BitcoinNodeCluster::new(&ctx).await?;
+
         let sequencer =
             create_optional(ctx.config.test_case.with_sequencer, Sequencer::new(&ctx)).await?;
 
@@ -72,94 +63,6 @@ impl TestFramework {
             full_node,
             ctx,
             show_logs: true,
-        })
-    }
-
-    fn generate_test_config(base_conf: TestConfig) -> Result<TestConfig> {
-        let (bitcoin_dir, dbs_dir) = create_dirs(&base_conf.test_case.dir)?;
-
-        let mut bitcoin_confs = vec![];
-        for i in 0..base_conf.test_case.num_nodes {
-            let data_dir = bitcoin_dir.join(i.to_string());
-            std::fs::create_dir_all(&data_dir)
-                .with_context(|| format!("Failed to create {} directory", data_dir.display()))?;
-
-            let p2p_port = get_available_port()?;
-            let rpc_port = get_available_port()?;
-
-            bitcoin_confs.push(BitcoinConfig {
-                p2p_port,
-                rpc_port,
-                data_dir,
-                ..base_conf.bitcoin[0].clone()
-            })
-        }
-
-        // Target first bitcoin node as DA for now
-        let da_config: BitcoinServiceConfig = bitcoin_confs[0].clone().into();
-
-        let sequencer_rollup = {
-            let bind_port = get_available_port()?;
-            RollupConfig {
-                da: da_config.clone(),
-                storage: StorageConfig {
-                    path: dbs_dir.join("sequencer-db"),
-                },
-                rpc: RpcConfig {
-                    bind_port,
-                    ..base_conf.sequencer_rollup.rpc
-                },
-                ..base_conf.sequencer_rollup
-            }
-        };
-
-        let runner_config = Some(RunnerConfig {
-            sequencer_client_url: format!(
-                "http://{}:{}",
-                sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port
-            ),
-            include_tx_body: true,
-            accept_public_input_as_proven: None,
-        });
-
-        let prover_rollup = {
-            let bind_port = get_available_port()?;
-            RollupConfig {
-                da: da_config.clone(),
-                storage: StorageConfig {
-                    path: dbs_dir.join("prover-db"),
-                },
-                rpc: RpcConfig {
-                    bind_port,
-                    ..base_conf.prover_rollup.rpc
-                },
-                runner: runner_config.clone(),
-                ..base_conf.prover_rollup
-            }
-        };
-
-        let full_node_rollup = {
-            let bind_port = get_available_port()?;
-            RollupConfig {
-                da: da_config.clone(),
-                storage: StorageConfig {
-                    path: dbs_dir.join("full-node-db"),
-                },
-                rpc: RpcConfig {
-                    bind_port,
-                    ..base_conf.full_node_rollup.rpc
-                },
-                runner: runner_config.clone(),
-                ..base_conf.full_node_rollup
-            }
-        };
-
-        Ok(TestConfig {
-            bitcoin: bitcoin_confs,
-            sequencer_rollup,
-            prover_rollup,
-            full_node_rollup,
-            ..base_conf
         })
     }
 
@@ -205,7 +108,7 @@ impl TestFramework {
             if let Some(sequencer) = &self.sequencer {
                 println!(
                     "Sequencer logs available at {}",
-                    get_stdout_path(&sequencer.dir).display()
+                    get_stdout_path(&sequencer.dir()).display()
                 );
             }
 
@@ -226,15 +129,4 @@ impl TestFramework {
 
         Ok(())
     }
-}
-
-fn create_dirs(base_dir: &Path) -> Result<(PathBuf, PathBuf)> {
-    let directories = ["bitcoin", "dbs", "prover", "sequencer", "full-node"];
-
-    for dir in &directories {
-        std::fs::create_dir_all(base_dir.join(dir))
-            .with_context(|| format!("Failed to create {} directory", dir))?;
-    }
-
-    Ok((base_dir.join("bitcoin"), base_dir.join("dbs")))
 }

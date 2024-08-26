@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
-use super::{BitcoinConfig, RollupConfig};
+use super::{BitcoinConfig, FullSequencerConfig};
+use crate::bitcoin_e2e::utils::get_genesis_path;
 
 pub struct DockerConfig {
     pub ports: Vec<u16>,
@@ -37,8 +36,27 @@ impl From<&BitcoinConfig> for DockerConfig {
     }
 }
 
-impl From<RollupConfig> for DockerConfig {
-    fn from(value: RollupConfig) -> Self {
-        todo!()
+impl From<&FullSequencerConfig> for DockerConfig {
+    fn from(v: &FullSequencerConfig) -> Self {
+        let args = vec![
+            "--da-layer".to_string(),
+            "bitcoin".to_string(),
+            "--rollup-config-path".to_string(),
+            "sequencer_rollup_config.toml".to_string(),
+            "--sequencer-config-path".to_string(),
+            "sequencer_config.toml".to_string(),
+            "--genesis-paths".to_string(),
+            get_genesis_path().display().to_string(),
+        ];
+
+        Self {
+            ports: vec![v.rollup.rpc.bind_port],
+            image: v
+                .docker_image
+                .clone()
+                .unwrap_or_else(|| "citrea:latest".to_string()), // Default to local image
+            cmd: args,
+            dir: format!("{}:/sequencer/data", v.dir.display().to_string()),
+        }
     }
 }

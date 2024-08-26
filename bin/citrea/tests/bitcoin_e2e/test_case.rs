@@ -2,22 +2,23 @@
 //! It handles setup, execution, and cleanup of test environments.
 
 use std::panic::{self};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use async_trait::async_trait;
+use bitcoin_da::service::BitcoinServiceConfig;
 use citrea_sequencer::SequencerConfig;
-use sov_stf_runner::ProverConfig;
+use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::task;
 
-use super::config::BitcoinConfig;
-use super::config::TestCaseConfig;
 use super::config::TestConfig;
 use super::config::{default_rollup_config, default_sequencer_config};
+use super::config::{BitcoinConfig, FullSequencerConfig};
+use super::config::{RollupConfig, TestCaseConfig};
 use super::framework::TestFramework;
-use super::sequencer::Sequencer;
-use super::Result;
+use super::{get_available_port, Result};
 use crate::bitcoin_e2e::node::Node;
 
 // TestCaseRunner manages the lifecycle of a test case, including setup, execution, and cleanup.
@@ -38,7 +39,6 @@ impl<T: TestCase> TestCaseRunner<T> {
 
         if let Some(sequencer) = &framework.sequencer {
             sequencer.wait_for_ready(Duration::from_secs(5)).await?;
-            println!("Sequencer is ready");
         }
 
         self.0.run_test(framework).await
@@ -53,18 +53,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             let mut framework = None;
             let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
                 futures::executor::block_on(async {
-                    framework = Some(
-                        TestFramework::new(TestConfig {
-                            test_case: T::test_config(),
-                            bitcoin: vec![T::bitcoin_config()],
-                            sequencer: T::sequencer_config(),
-                            prover: T::prover_config(),
-                            prover_rollup: default_rollup_config(),
-                            sequencer_rollup: default_rollup_config(),
-                            full_node_rollup: default_rollup_config(),
-                        })
-                        .await?,
-                    );
+                    framework = Some(TestFramework::new(Self::generate_test_config()?).await?);
                     self.run_test_case(framework.as_mut().unwrap()).await
                 })
             }));
@@ -89,6 +78,109 @@ impl<T: TestCase> TestCaseRunner<T> {
                 Err(anyhow!("Test panicked: {}", panic_msg))
             }
         }
+    }
+
+    fn generate_test_config() -> Result<TestConfig> {
+        let test_case = T::test_config();
+        let bitcoin = T::bitcoin_config();
+        let prover = T::prover_config();
+        let sequencer = T::sequencer_config();
+        let sequencer_rollup = default_rollup_config();
+        let prover_rollup = default_rollup_config();
+        let full_node_rollup = default_rollup_config();
+
+        let [bitcoin_dir, dbs_dir, _prover_dir, sequencer_dir, _full_node_dir] =
+            create_dirs(&test_case.dir)?;
+
+        let mut bitcoin_confs = vec![];
+        for i in 0..test_case.num_nodes {
+            let data_dir = bitcoin_dir.join(i.to_string());
+            std::fs::create_dir_all(&data_dir)
+                .with_context(|| format!("Failed to create {} directory", data_dir.display()))?;
+
+            let p2p_port = get_available_port()?;
+            let rpc_port = get_available_port()?;
+
+            bitcoin_confs.push(BitcoinConfig {
+                p2p_port,
+                rpc_port,
+                data_dir,
+                ..bitcoin.clone()
+            })
+        }
+
+        // Target first bitcoin node as DA for now
+        let da_config: BitcoinServiceConfig = bitcoin_confs[0].clone().into();
+
+        let sequencer_rollup = {
+            let bind_port = get_available_port()?;
+            RollupConfig {
+                da: da_config.clone(),
+                storage: StorageConfig {
+                    path: dbs_dir.join("sequencer-db"),
+                },
+                rpc: RpcConfig {
+                    bind_port,
+                    ..sequencer_rollup.rpc
+                },
+                ..sequencer_rollup
+            }
+        };
+
+        let runner_config = Some(RunnerConfig {
+            sequencer_client_url: format!(
+                "http://{}:{}",
+                sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port
+            ),
+            include_tx_body: true,
+            accept_public_input_as_proven: None,
+        });
+
+        let prover_rollup = {
+            let bind_port = get_available_port()?;
+            RollupConfig {
+                da: da_config.clone(),
+                storage: StorageConfig {
+                    path: dbs_dir.join("prover-db"),
+                },
+                rpc: RpcConfig {
+                    bind_port,
+                    ..prover_rollup.rpc
+                },
+                runner: runner_config.clone(),
+                ..prover_rollup
+            }
+        };
+
+        let full_node_rollup = {
+            let bind_port = get_available_port()?;
+            RollupConfig {
+                da: da_config.clone(),
+                storage: StorageConfig {
+                    path: dbs_dir.join("full-node-db"),
+                },
+                rpc: RpcConfig {
+                    bind_port,
+                    ..full_node_rollup.rpc
+                },
+                runner: runner_config.clone(),
+                ..full_node_rollup
+            }
+        };
+
+        Ok(TestConfig {
+            bitcoin: bitcoin_confs,
+            sequencer: FullSequencerConfig {
+                rollup: sequencer_rollup,
+                dir: sequencer_dir,
+                docker_image: None,
+                sequencer,
+            },
+            prover,
+            prover_rollup,
+            full_node_rollup,
+            test_case,
+        })
     }
 }
 
@@ -131,4 +223,16 @@ pub trait TestCase: Send + Sync + 'static {
     /// # Arguments
     /// * `framework` - A reference to the TestFramework instance
     async fn run_test(&self, framework: &TestFramework) -> Result<()>;
+}
+
+fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 5]> {
+    let paths =
+        ["bitcoin", "dbs", "prover", "sequencer", "full-node"].map(|dir| base_dir.join(dir));
+
+    for path in &paths {
+        std::fs::create_dir_all(path)
+            .with_context(|| format!("Failed to create {} directory", path.display()))?;
+    }
+
+    Ok(paths)
 }

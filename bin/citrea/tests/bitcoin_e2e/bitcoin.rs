@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -10,7 +10,6 @@ use tokio::process::Command;
 use tokio::time::sleep;
 
 use super::config::BitcoinConfig;
-use super::config::TestConfig;
 use super::docker::DockerEnv;
 use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
@@ -183,7 +182,7 @@ impl BitcoinNodeCluster {
         bail!("Nodes failed to sync within the specified timeout")
     }
 
-    // Connect all nodes between them
+    // Connect all bitcoin nodes between them
     pub async fn connect_nodes(&self) -> Result<()> {
         for (i, from_node) in self.inner.iter().enumerate() {
             for (j, to_node) in self.inner.iter().enumerate() {
@@ -205,6 +204,7 @@ impl BitcoinNodeCluster {
         self.inner.get(index)
     }
 
+    #[allow(unused)]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut BitcoinNode> {
         self.inner.get_mut(index)
     }
