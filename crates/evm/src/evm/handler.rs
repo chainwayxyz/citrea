@@ -417,6 +417,7 @@ fn calc_diff_size<EXT, DB: Database>(
                 account.account_info_changed = true;
             }
             JournalEntry::BalanceTransfer { from, to, .. } => {
+                // No need to check balance for 0 value sent, revm does not add it to the journal
                 let from = account_changes.entry(from).or_default();
                 from.account_info_changed = true;
                 let to = account_changes.entry(to).or_default();
