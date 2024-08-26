@@ -269,10 +269,6 @@ jobs:
       - uses: actions/setup-python@v4
       - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
-      - uses: actions/cache@v3
-        with:
-          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
-          path: ./target
       - name: Download artifact
         uses: actions/download-artifact@v3
         with:
