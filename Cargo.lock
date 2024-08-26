@@ -1700,6 +1700,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
+ "bcs",
  "borsh",
  "bytes",
  "citrea-primitives",
