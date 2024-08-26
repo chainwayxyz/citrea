@@ -262,7 +262,7 @@ fn read_opcode(
 }
 
 mod light_client {
-    use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
     use bitcoin::script::Instruction::{Op, PushBytes};
 
@@ -306,7 +306,7 @@ mod light_client {
 
         // Nonce
         let _nonce = read_push_bytes(instructions)?;
-        if OP_DROP != read_opcode(instructions)? {
+        if OP_NIP != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
         }
         // END of transaction
@@ -365,7 +365,7 @@ mod light_client {
 
         // Nonce
         let _nonce = read_push_bytes(instructions)?;
-        if OP_DROP != read_opcode(instructions)? {
+        if OP_NIP != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
         }
         // END of transaction
@@ -430,7 +430,7 @@ mod light_client {
 }
 
 mod batch_proof {
-    use bitcoin::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
 
     use super::{read_opcode, read_push_bytes, ParsedSequencerCommitment, ParserError};
@@ -459,7 +459,7 @@ mod batch_proof {
 
         // Nonce
         let _nonce = read_push_bytes(instructions)?;
-        if OP_DROP != read_opcode(instructions)? {
+        if OP_NIP != read_opcode(instructions)? {
             return Err(ParserError::UnexpectedOpcode);
         }
         // END of transaction
@@ -496,7 +496,7 @@ pub fn parse_hex_transaction(
 #[cfg(test)]
 mod tests {
     use bitcoin::key::XOnlyPublicKey;
-    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::opcodes::all::{OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::opcodes::{OP_FALSE, OP_TRUE};
     use bitcoin::script::{self, PushBytesBuf};
     use bitcoin::Transaction;
@@ -522,7 +522,7 @@ mod tests {
             .push_slice([4u8; 64]) // chunk
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP);
+            .push_opcode(OP_NIP);
 
         let reveal_script = reveal_script_builder.into_script();
         let mut instructions = reveal_script
@@ -599,7 +599,7 @@ mod tests {
             .push_opcode(OP_ENDIF)
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .into_script();
 
         let mut instructions = reveal_script
@@ -627,7 +627,7 @@ mod tests {
             .push_slice(PushBytesBuf::try_from(vec![0u8; 64]).unwrap())
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF)
             .push_slice([2u8; 64]) // signature
@@ -635,7 +635,7 @@ mod tests {
             .push_slice(PushBytesBuf::try_from(vec![1u8; 64]).unwrap())
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .into_script();
 
         let mut instructions = reveal_script
@@ -668,7 +668,7 @@ mod tests {
             .push_slice(PushBytesBuf::try_from(vec![1u8; 512]).unwrap())
             .push_opcode(OP_ENDIF)
             .push_slice(42i64.to_le_bytes()) // random
-            .push_opcode(OP_DROP)
+            .push_opcode(OP_NIP)
             .into_script();
 
         let mut instructions = reveal_script

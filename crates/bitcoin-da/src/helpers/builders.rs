@@ -6,12 +6,12 @@ use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
-use bitcoin::blockdata::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
-use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
+use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::schnorr::Signature;
@@ -507,7 +507,8 @@ pub fn create_inscription_type_0(
         // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
-            .push_opcode(OP_DROP);
+            // drop the second item, bc there is a big change it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
 
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
@@ -869,7 +870,8 @@ pub fn create_inscription_type_1(
         // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
-            .push_opcode(OP_DROP);
+            // drop the second item, bc there is a big change it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
 
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
@@ -1042,6 +1044,7 @@ pub fn create_batchproof_type_0(
         .push_slice(PushBytesBuf::try_from(body).expect("Cannot push sequencer commitment"))
         .push_opcode(OP_ENDIF);
 
+    println!("reveal_script_builder: {:?}", reveal_script_builder);
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
     loop {
@@ -1059,7 +1062,8 @@ pub fn create_batchproof_type_0(
         // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
-            .push_opcode(OP_DROP);
+            // drop the second item, bc there is a big change it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
 
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
