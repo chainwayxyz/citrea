@@ -21,6 +21,7 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
+use parking_lot::Mutex;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
@@ -46,7 +47,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Instant};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -384,7 +385,6 @@ where
         let deposit_data = self
             .deposit_mempool
             .lock()
-            .await
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let batch_info = HookSoftConfirmationInfo {
