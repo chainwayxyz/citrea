@@ -23,6 +23,12 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
+const DB_ACCOUNT_SIZE: usize = 256;
+
+// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
+// But we already add address size to diff size, so we don't need to add it here
+const DB_ACCOUNT_KEY_SIZE: usize = 25;
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub l1_diff_size: u64,
@@ -393,25 +399,28 @@ fn calc_diff_size<EXT, DB: Database>(
     struct AccountChange<'a> {
         created: bool,
         destroyed: bool,
-        nonce_changed: bool,
-        code_changed: bool,
-        balance_changed: bool,
         storage_changes: BTreeSet<&'a U256>,
+        code_changed: bool,         // implies code and code hash changed
+        account_info_changed: bool, // implies balance or nonce changed
     }
 
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
+
+    // tx.from always has `account_info_changed` because its nonce is incremented
+    let from = account_changes.entry(&env.tx.caller).or_default();
+    from.account_info_changed = true;
 
     for entry in &journal {
         match entry {
             JournalEntry::NonceChange { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.nonce_changed = true;
+                account.account_info_changed = true;
             }
             JournalEntry::BalanceTransfer { from, to, .. } => {
                 let from = account_changes.entry(from).or_default();
-                from.balance_changed = true;
+                from.account_info_changed = true;
                 let to = account_changes.entry(to).or_default();
-                to.balance_changed = true;
+                to.account_info_changed = true;
             }
             JournalEntry::StorageChanged { address, key, .. } => {
                 let account = account_changes.entry(address).or_default();
@@ -426,7 +435,7 @@ fn calc_diff_size<EXT, DB: Database>(
                 account.created = true;
                 // When account is created, there is a transfer to init its balance.
                 // So we need to only force the nonce change.
-                account.nonce_changed = true;
+                account.account_info_changed = true;
             }
             JournalEntry::AccountDestroyed { address, .. } => {
                 let account = account_changes.entry(address).or_default();
@@ -449,10 +458,6 @@ fn calc_diff_size<EXT, DB: Database>(
 
     let slot_size = 2 * size_of::<U256>(); // key + value;
     let mut diff_size = 0usize;
-    let db_account_size = 256;
-    // Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
-    // But we already add address size to diff size, so we don't need to add it here
-    let db_account_key_size = 25;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
     // thus we increment the diff size by 20 (coinbase address) + 32 (coinbase balance change)
@@ -470,8 +475,8 @@ fn calc_diff_size<EXT, DB: Database>(
             diff_size += slot_size * account.storage.len(); // Storage size
 
             // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
-            diff_size += db_account_size; // DbAccount size
-            diff_size += db_account_key_size; // DbAccount key size
+            diff_size += DB_ACCOUNT_SIZE; // DbAccount size
+            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
 
             // Retrieve code from DB and apply its size
             if let Some(info) = db.basic(*addr)? {
@@ -485,11 +490,13 @@ fn calc_diff_size<EXT, DB: Database>(
             continue;
         }
 
-        if account.nonce_changed || account.balance_changed || account.code_changed {
+        // dev signer address 0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773
+        // we don't check `code_changed` bc account_info is changed always for code_changed
+        if account.account_info_changed || account.code_changed {
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size += db_account_size;
-            diff_size += db_account_key_size; // DbAccount key size
+            diff_size += DB_ACCOUNT_SIZE;
+            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
         }
 
         // Apply size of changed slots
