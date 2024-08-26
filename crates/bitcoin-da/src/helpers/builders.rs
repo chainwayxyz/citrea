@@ -507,7 +507,7 @@ pub fn create_inscription_type_0(
         // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big change it's 0 (tx kind) and nonce is >= 16
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
             .push_opcode(OP_NIP);
 
         // finalize reveal script
@@ -870,7 +870,7 @@ pub fn create_inscription_type_1(
         // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big change it's 0 (tx kind) and nonce is >= 16
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
             .push_opcode(OP_NIP);
 
         // finalize reveal script
@@ -1062,7 +1062,7 @@ pub fn create_batchproof_type_0(
         // push nonce
         reveal_script_builder = reveal_script_builder
             .push_slice(nonce.to_le_bytes())
-            // drop the second item, bc there is a big change it's 0 (tx kind) and nonce is >= 16
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
             .push_opcode(OP_NIP);
 
         // finalize reveal script
