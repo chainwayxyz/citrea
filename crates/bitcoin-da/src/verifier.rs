@@ -17,7 +17,6 @@ use crate::spec::BitcoinSpec;
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 pub struct BitcoinVerifier {
-    rollup_name: String,
     reveal_batch_prover_prefix: Vec<u8>,
 }
 
@@ -79,7 +78,6 @@ impl DaVerifier for BitcoinVerifier {
 
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
-            rollup_name: params.rollup_name,
             reveal_batch_prover_prefix: params.reveal_batch_prover_prefix,
         }
     }
@@ -118,7 +116,7 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_batch_proof_transaction(tx, &self.rollup_name) {
+            if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
                 match parsed_tx {
                     ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
                         if let Some(blob_hash) = seq_comm.get_sig_verified_hash() {
@@ -271,7 +269,6 @@ mod tests {
     #[test]
     fn correct() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -290,7 +287,6 @@ mod tests {
     #[test]
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -372,7 +368,6 @@ mod tests {
     #[test]
     fn false_coinbase_input_witness_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -454,7 +449,6 @@ mod tests {
     #[test]
     fn false_coinbase_script_pubkey_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -552,7 +546,6 @@ mod tests {
     #[test]
     fn false_witness_script_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -643,7 +636,6 @@ mod tests {
     #[test]
     fn different_wtxid_fails_verification() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -688,7 +680,6 @@ mod tests {
     #[test]
     fn extra_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -711,7 +702,6 @@ mod tests {
     #[test]
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -734,7 +724,6 @@ mod tests {
     #[test]
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -757,7 +746,6 @@ mod tests {
     #[test]
     fn break_order_of_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -780,7 +768,6 @@ mod tests {
     #[test]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -803,7 +790,6 @@ mod tests {
     #[test]
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -826,7 +812,6 @@ mod tests {
     #[test]
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -849,7 +834,6 @@ mod tests {
     #[test]
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -873,7 +857,6 @@ mod tests {
     #[test]
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -896,7 +879,6 @@ mod tests {
     #[test]
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -920,7 +902,6 @@ mod tests {
     #[test]
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -944,7 +925,6 @@ mod tests {
     #[test]
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });
@@ -952,7 +932,7 @@ mod tests {
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
         let tx1 = &completeness_proof[1];
         let body = {
-            let parsed = parse_batch_proof_transaction(tx1, "sov-btc").unwrap();
+            let parsed = parse_batch_proof_transaction(tx1).unwrap();
             let ParsedBatchProofTransaction::SequencerCommitment(seq) = parsed;
             seq.body
         };
@@ -972,7 +952,6 @@ mod tests {
     #[test]
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
             reveal_batch_prover_prefix: vec![1, 1],
             reveal_light_client_prefix: vec![2, 2],
         });

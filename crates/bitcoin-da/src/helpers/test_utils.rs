@@ -26,7 +26,7 @@ pub(crate) fn get_mock_txs() -> Vec<Transaction> {
 pub(crate) fn get_blob_with_sender(tx: &Transaction) -> Result<BlobWithSender, ParserError> {
     let tx = tx.clone();
 
-    let parsed_transaction = parse_batch_proof_transaction(&tx, "sov-btc")?;
+    let parsed_transaction = parse_batch_proof_transaction(&tx)?;
 
     let (blob, public_key) = match parsed_transaction {
         super::parsers::ParsedBatchProofTransaction::SequencerCommitment(seq_com) => {

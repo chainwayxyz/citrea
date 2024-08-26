@@ -25,10 +25,7 @@ use bitcoin::{
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
-use super::{
-    calculate_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
-    TransactionKindBatchProof, TransactionKindLightClient,
-};
+use super::{calculate_sha256, TransactionKindBatchProof, TransactionKindLightClient};
 use crate::spec::utxo::UTXO;
 use crate::{MAX_TXBODY_SIZE, REVEAL_OUTPUT_AMOUNT};
 
@@ -330,7 +327,6 @@ impl fmt::Debug for TxWithId {
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_zkproof_transactions(
-    rollup_name: &str,
     body: Vec<u8>,
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
@@ -344,7 +340,6 @@ pub fn create_zkproof_transactions(
 ) -> Result<LightClientTxs, anyhow::Error> {
     if body.len() < MAX_TXBODY_SIZE {
         create_inscription_type_0(
-            rollup_name.as_bytes(),
             body,
             da_private_key,
             prev_utxo,
@@ -358,7 +353,6 @@ pub fn create_zkproof_transactions(
         )
     } else {
         create_inscription_type_1(
-            rollup_name.as_bytes(),
             body,
             da_private_key,
             prev_utxo,
@@ -379,7 +373,6 @@ pub fn create_zkproof_transactions(
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_seqcommitment_transactions(
-    rollup_name: &str,
     body: Vec<u8>,
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
@@ -392,7 +385,6 @@ pub fn create_seqcommitment_transactions(
     reveal_tx_prefix: &[u8],
 ) -> Result<BatchProvingTxs, anyhow::Error> {
     create_batchproof_type_0(
-        rollup_name.as_bytes(),
         body,
         da_private_key,
         prev_utxo,
@@ -454,7 +446,6 @@ impl TxListWithReveal for BatchProvingTxs {
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_0(
-    rollup_name: &[u8],
     body: Vec<u8>,
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
@@ -471,11 +462,8 @@ pub fn create_inscription_type_0(
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let header = TransactionHeaderLightClient {
-        rollup_name,
-        kind: TransactionKindLightClient::Complete,
-    };
-    let header_bytes = header.to_bytes();
+    let kind = TransactionKindLightClient::Complete;
+    let kind_bytes = kind.to_bytes();
 
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) =
@@ -485,7 +473,7 @@ pub fn create_inscription_type_0(
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -651,7 +639,6 @@ pub fn create_inscription_type_0(
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_1(
-    rollup_name: &[u8],
     body: Vec<u8>,
     da_private_key: &SecretKey,
     mut prev_utxo: Option<UTXO>,
@@ -672,17 +659,14 @@ pub fn create_inscription_type_1(
     let mut reveal_chunks: Vec<Transaction> = vec![];
 
     for body in body.chunks(MAX_TXBODY_SIZE) {
-        let header = TransactionHeaderLightClient {
-            rollup_name,
-            kind: TransactionKindLightClient::ChunkedPart,
-        };
-        let header_bytes = header.to_bytes();
+        let kind = TransactionKindLightClient::ChunkedPart;
+        let kind_bytes = kind.to_bytes();
 
         // start creating inscription content
         let mut reveal_script_builder = script::Builder::new()
             .push_x_only_key(&public_key)
             .push_opcode(OP_CHECKSIGVERIFY)
-            .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
+            .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
             .push_opcode(OP_FALSE)
             .push_opcode(OP_IF);
         // push body in chunks of 520 bytes
@@ -845,17 +829,14 @@ pub fn create_inscription_type_1(
     let (signature, signer_public_key) =
         sign_blob_with_private_key(&reveal_body, da_private_key).expect("Sequencer sign the body");
 
-    let header = TransactionHeaderLightClient {
-        rollup_name,
-        kind: TransactionKindLightClient::Chunked,
-    };
-    let header_bytes = header.to_bytes();
+    let kind = TransactionKindLightClient::Chunked;
+    let kind_bytes = kind.to_bytes();
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -1020,7 +1001,6 @@ pub fn create_inscription_type_1(
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_batchproof_type_0(
-    rollup_name: &[u8],
     body: Vec<u8>,
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
@@ -1041,11 +1021,8 @@ pub fn create_batchproof_type_0(
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
-    let header = TransactionHeaderBatchProof {
-        rollup_name,
-        kind: TransactionKindBatchProof::SequencerCommitment,
-    };
-    let header_bytes = header.to_bytes();
+    let kind = TransactionKindBatchProof::SequencerCommitment;
+    let kind_bytes = kind.to_bytes();
 
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) =
@@ -1055,7 +1032,7 @@ pub fn create_batchproof_type_0(
     let reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
+        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
@@ -1260,8 +1237,7 @@ mod tests {
     }
 
     #[allow(clippy::type_complexity)]
-    fn get_mock_data() -> (&'static str, Vec<u8>, Address, Vec<UTXO>) {
-        let rollup_name = "test_rollup";
+    fn get_mock_data() -> (Vec<u8>, Address, Vec<UTXO>) {
         let body = vec![100; 1000];
         let address =
             Address::from_str("bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9")
@@ -1325,12 +1301,12 @@ mod tests {
             },
         ];
 
-        (rollup_name, body, address, utxos)
+        (body, address, utxos)
     }
 
     #[test]
     fn choose_utxos() {
-        let (_, _, _, utxos) = get_mock_data();
+        let (_, _, utxos) = get_mock_data();
 
         let (chosen_utxos, sum, leftover_utxos) =
             super::choose_utxos(None, &utxos, 105_000).unwrap();
@@ -1373,7 +1349,7 @@ mod tests {
 
     #[test]
     fn build_commit_transaction() {
-        let (_, _, address, utxos) = get_mock_data();
+        let (_, address, utxos) = get_mock_data();
 
         let recipient =
             Address::from_str("bc1p2e37kuhnsdc5zvc8zlj2hn6awv3ruavak6ayc8jvpyvus59j3mwqwdt0zc")
@@ -1610,7 +1586,7 @@ mod tests {
 
     #[test]
     fn build_reveal_transaction() {
-        let (_, _, address, utxos) = get_mock_data();
+        let (_, address, utxos) = get_mock_data();
 
         let utxo = utxos.first().unwrap();
         let script = ScriptBuf::from_hex("62a58f2674fd840b6144bea2e63ebd35c16d7fd40252a2f28b2a01a648df356343e47976d7906a0e688bf5e134b6fd21bd365c016b57b1ace85cf30bf1206e27").unwrap();
@@ -1687,7 +1663,7 @@ mod tests {
     }
     #[test]
     fn create_inscription_transactions() {
-        let (rollup_name, body, address, utxos) = get_mock_data();
+        let (body, address, utxos) = get_mock_data();
 
         let da_private_key =
             SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
@@ -1698,7 +1674,6 @@ mod tests {
 
         let tx_prefix = &[0u8];
         let LightClientTxs::Complete { commit, reveal } = super::create_zkproof_transactions(
-            rollup_name,
             body.clone(),
             &da_private_key,
             None,
@@ -1753,7 +1728,7 @@ mod tests {
         );
 
         // check inscription
-        let inscription = parse_light_client_transaction(&reveal, rollup_name).unwrap();
+        let inscription = parse_light_client_transaction(&reveal).unwrap();
         let ParsedLightClientTransaction::Complete(inscription) = inscription else {
             panic!("Unexpected tx kind");
         };

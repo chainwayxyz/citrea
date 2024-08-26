@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX, ROLLUP_NAME};
+use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
@@ -120,7 +120,6 @@ impl RollupBlueprint for BitcoinRollup {
             BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
-                    rollup_name: ROLLUP_NAME.to_string(),
                     reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
                     reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
                 },
@@ -152,7 +151,6 @@ impl RollupBlueprint for BitcoinRollup {
         let zk_storage = ZkStorage::new();
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: ROLLUP_NAME.to_string(),
             reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
             reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
         });
