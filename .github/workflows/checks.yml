@@ -226,22 +226,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-      - uses: dcarbone/install-jq-action@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Download artifact
         uses: actions/download-artifact@v3
         with:
           name: citrea-build
           path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/uniswap
         run: npm install
@@ -278,14 +269,6 @@ jobs:
       - uses: actions/setup-python@v4
       - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@v3
         with:
           key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
@@ -295,6 +278,8 @@ jobs:
         with:
           name: citrea-build
           path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Install dependencies
         working-directory: ./bin/citrea/tests/evm/web3_py
         run: pip install -r requirements.txt
@@ -318,22 +303,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-      - uses: dcarbone/install-jq-action@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Download artifact
         uses: actions/download-artifact@v3
         with:
           name: citrea-build
           path: target/debug
+      - name: Make citrea executable
+        run: chmod +x target/debug/citrea
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/ethers_js
         run: npm install
