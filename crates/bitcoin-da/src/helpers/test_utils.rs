@@ -52,21 +52,21 @@ pub(crate) fn get_mock_data() -> (
         Header {
             version: Version::from_consensus(536870912),
             prev_blockhash: BlockHash::from_str(
-                "26d0174fbc2698dbc351f2964a45df25419b9e81d0c3764480647e9e198dbce0",
+                "426524a1b644fd8c77d32621f42a74486262bbc2eaeacf43d12cdee312885f42",
             )
             .unwrap(),
             merkle_root: TxMerkleNode::from_str(
-                "0774e6bca3ced99ea30bab6a2ba26ed63a6b3b04f399f0b844a88af7c3e7587d",
+                "34ef858c354e8fd441e49fdc9266ca2bb760034c54b28fdb660254c2546295c8",
             )
             .unwrap(),
-            time: 1723810787,
+            time: 1724662940,
             bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-            nonce: 2,
+            nonce: 0,
         },
-        48,
+        36,
         1001,
         WitnessMerkleNode::from_str(
-            "66ead7e1093f475287dc452033975c012c28b63ae8b8053eb6448275c748a540",
+            "0467b591b054383ec433945d04063742f5aabb80e52a53bc2f8ded58d350a7c5",
         )
         .unwrap()
         .to_raw_hash()
@@ -75,7 +75,7 @@ pub(crate) fn get_mock_data() -> (
 
     let block_txs = get_mock_txs();
 
-    let relevant_txs_indices = [4, 6, 18, 28, 30, 34];
+    let relevant_txs_indices = [4, 6, 18, 28, 34];
 
     let completeness_proof = relevant_txs_indices
         .into_iter()

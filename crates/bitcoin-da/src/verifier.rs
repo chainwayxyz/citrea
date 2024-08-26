@@ -376,21 +376,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "26d0174fbc2698dbc351f2964a45df25419b9e81d0c3764480647e9e198dbce0",
+                    "426524a1b644fd8c77d32621f42a74486262bbc2eaeacf43d12cdee312885f42",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "0774e6bca3ced99ea30bab6a2ba26ed63a6b3b04f399f0b844a88af7c3e7587d",
+                    "34ef858c354e8fd441e49fdc9266ca2bb760034c54b28fdb660254c2546295c8",
                 )
                 .unwrap(),
-                time: 1723810787,
+                time: 1724662940,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 2,
+                nonce: 0,
             },
-            48,
+            36,
             1001,
             WitnessMerkleNode::from_str(
-                "66ead7e1093f475287dc452033975c012c28b63ae8b8053eb6448275c748a540",
+                "0467b591b054383ec433945d04063742f5aabb80e52a53bc2f8ded58d350a7c5",
             )
             .unwrap()
             .to_raw_hash()
@@ -403,7 +403,7 @@ mod tests {
 
         block_txs[0].input[0].witness = Witness::from_slice(&[vec![1u8; 32]]);
 
-        let relevant_txs_indices = [4, 6, 18, 28, 30, 34];
+        let relevant_txs_indices = [4, 6, 18, 28, 34];
 
         let completeness_proof = relevant_txs_indices
             .into_iter()
@@ -457,21 +457,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "26d0174fbc2698dbc351f2964a45df25419b9e81d0c3764480647e9e198dbce0",
+                    "426524a1b644fd8c77d32621f42a74486262bbc2eaeacf43d12cdee312885f42",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "0774e6bca3ced99ea30bab6a2ba26ed63a6b3b04f399f0b844a88af7c3e7587d",
+                    "34ef858c354e8fd441e49fdc9266ca2bb760034c54b28fdb660254c2546295c8",
                 )
                 .unwrap(),
-                time: 1723810787,
+                time: 1724662940,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 2,
+                nonce: 0,
             },
-            48,
+            36,
             1001,
             WitnessMerkleNode::from_str(
-                "66ead7e1093f475287dc452033975c012c28b63ae8b8053eb6448275c748a540",
+                "0467b591b054383ec433945d04063742f5aabb80e52a53bc2f8ded58d350a7c5",
             )
             .unwrap()
             .to_raw_hash()
@@ -500,7 +500,7 @@ mod tests {
             182,
         ]);
 
-        let relevant_txs_indices = [4, 6, 18, 28, 30, 34];
+        let relevant_txs_indices = [4, 6, 18, 28, 34];
 
         let completeness_proof = relevant_txs_indices
             .into_iter()
@@ -554,21 +554,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "26d0174fbc2698dbc351f2964a45df25419b9e81d0c3764480647e9e198dbce0",
+                    "426524a1b644fd8c77d32621f42a74486262bbc2eaeacf43d12cdee312885f42",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "0774e6bca3ced99ea30bab6a2ba26ed63a6b3b04f399f0b844a88af7c3e7587d",
+                    "34ef858c354e8fd441e49fdc9266ca2bb760034c54b28fdb660254c2546295c8",
                 )
                 .unwrap(),
-                time: 1723810787,
+                time: 1724662940,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 2,
+                nonce: 0,
             },
-            48,
+            36,
             1001,
             WitnessMerkleNode::from_str(
-                "66ead7e1093f475287dc452033975c012c28b63ae8b8053eb6448275c748a540",
+                "0467b591b054383ec433945d04063742f5aabb80e52a53bc2f8ded58d350a7c5",
             )
             .unwrap()
             .to_raw_hash()
@@ -579,17 +579,17 @@ mod tests {
         let mut block_txs: Vec<TransactionWrapper> =
             block_txs.into_iter().map(Into::into).collect();
 
-        // This is the changed witness of the 6th tx, the second byte of the second script is changed from e0 to e1
+        // This is the changed witness of the 6th tx, the second byte of the second script is changed from 6b to 6c
         // This creates a different wtxid, thus the verification should fail
         let changed_witness = vec![
-            hex::decode("f4f3d3fd3a2e28df2562df6950d891240ca9c84ddadb5586474f7fd25295ae23cdf9d7b3df6f6246f2c2cd1b5c1d94bf4fb8d06586a557b9e3e1ca3e1ef1d19e").unwrap(),
-            hex::decode("20e1d2cd6c0943d6aded461a28175db6ecf71517bf24b81b1291efd5ecf93e9afead090000736f762d627463006340541391de69d5766a97a24e4d50a09e562ca242cdfebd4893b778e68291d1c5047a80ddad3522b035143534bf9e6d51d12f3e5c291fbcacdd6af4ddfa3784a5b22102588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9300e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e4d04000000000000dd040000000000006808a91401000000000075").unwrap(),
-            hex::decode("c0e0d2cd6c0943d6aded461a28175db6ecf71517bf24b81b1291efd5ecf93e9afe").unwrap()
+            hex::decode("9a80cec0e5697631f5833aa9e06c4254cc982abf48ef65fd38ea7c3791290a47911d99d88daa9781dc86fb2c8be70af6ee58b89f109c98c9a4bc6d69c2d8961d").unwrap(),
+            hex::decode("206c44322e08a288964df3af45c2a11b1fc9fdbcd03cdde61d0655fbf81948fc8aad0200000063400c7efadcdf53315064d4f54752544bd3c39f1e0242ef79b6de55eb3d0d0af15b0d497bb1dc367a74dd761ed066e67d7730dff4e5c78eff0db7b2cee4932c5ce12102588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc931000e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e4d04000000000000dd040000000000006808f58003000000000077").unwrap(),
+            hex::decode("c16b44322e08a288964df3af45c2a11b1fc9fdbcd03cdde61d0655fbf81948fc8a").unwrap()
         ];
 
         block_txs[6].input[0].witness = Witness::from_slice(&changed_witness);
 
-        let relevant_txs_indices = [4, 6, 18, 28, 30, 34];
+        let relevant_txs_indices = [4, 6, 18, 28, 34];
 
         let completeness_proof = relevant_txs_indices
             .into_iter()

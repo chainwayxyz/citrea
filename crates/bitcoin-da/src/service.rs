@@ -831,11 +831,10 @@ mod tests {
         .await
         .expect("Error initialazing BitcoinService");
 
-        // let da_service = Arc::new(da_service);
-        // da_service.clone().spawn_da_queue(rx);
-        // da_service
-
-        Arc::new(da_service)
+        let da_service = Arc::new(da_service);
+        // da_service.clone().spawn_da_queue(_rx);
+        #[allow(clippy::let_and_return)]
+        da_service
     }
 
     async fn get_service_wrong_namespace() -> Arc<BitcoinService> {
@@ -1158,21 +1157,21 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "69309c43aa5addfa0b3356e6eff316d2bdc3bf88e5e01575d2d2676c53677ca7",
+                    "31402555f54c3f89907c07e6d286c132f9984739f2b6b00cde195b10ac771522",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "b03d88f57326ea63f1b241f70f45824446e10b3db3f0e808a60e0d7c013a8322",
+                    "40642938a6cc6124246fd9601108f9671177c1834753162f19e073eaff751191",
                 )
                 .unwrap(),
-                time: 1723819158,
+                time: 1724665818,
                 bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 1,
+                nonce: 3,
             },
             3,
             1,
             WitnessMerkleNode::from_str(
-                "8acc63c09983c9e8dba2e88b9e0218498ea4a3ff25ee8ce8be7674ada84046d5",
+                "494880ce756f69b13811200d1e358a049ac3c3dd66e4ff7e86d4c4d3aad95939",
             )
             .unwrap()
             .as_raw_hash()
