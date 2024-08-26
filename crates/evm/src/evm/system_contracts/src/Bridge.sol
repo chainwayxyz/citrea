@@ -113,7 +113,8 @@ contract Bridge is Ownable2StepUpgradeable {
         // only the system caller can execute a transaction on Citrea, as no addresses have any balance. Thus there's no risk of 
         // `deposit` being called before `initialize` maliciously.
         
-        bytes32 wtxId = validateAndCheckInclusion(moveTp);
+        (bytes32 wtxId, uint256 _nIns) = validateAndCheckInclusion(moveTp);
+        require(_nIns == 1, "Only one input allowed");
         bytes32 txId = ValidateSPV.calculateTxId(moveTp.version, moveTp.vin, moveTp.vout, moveTp.locktime);
 
         require(txIdToDepositId[txId] == 0, "txId already spent");
@@ -266,19 +267,18 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     // TODO: Consider not validating witness for non-deposit functions
-    function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32) {
+    function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
         bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
         require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
         
         (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
-        require(_nIns == 1, "Only one input allowed");
         // Number of inputs == number of witnesses
         require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
 
         require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
 
-        return wtxId;
+        return (wtxId, _nIns);
     }
 
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
