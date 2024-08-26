@@ -129,7 +129,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -140,7 +140,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -151,7 +151,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             }
         ]
     )
@@ -232,7 +232,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             }
         ]
     )
@@ -1080,7 +1080,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 52,
+                l1_diff_size: 353,
             },
         ]
     );
@@ -1092,7 +1092,7 @@ fn test_l1_fee_halt() {
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
         903  + // l1 contract deploy fee
-        52; // l1 contract call fee
+        353; // l1 contract call fee
     assert_eq!(
         db_account.info.balance,
         U256::from(
@@ -1108,5 +1108,5 @@ fn test_l1_fee_halt() {
         base_fee_valut.info.balance,
         U256::from(1106947_u64 * 10000000)
     );
-    assert_eq!(l1_fee_valut.info.balance, U256::from(903 + 52));
+    assert_eq!(l1_fee_valut.info.balance, U256::from(903 + 353));
 }
