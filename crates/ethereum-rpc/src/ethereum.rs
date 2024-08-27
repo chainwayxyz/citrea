@@ -80,12 +80,8 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) async fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
-        let suggested_tip = self
-            .gas_price_oracle
-            .suggest_tip_cap(working_set)
-            .await
-            .unwrap();
+    pub(crate) fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
+        let suggested_tip = self.gas_price_oracle.suggest_tip_cap(working_set).unwrap();
 
         let evm = Evm::<C>::default();
         let base_fee = evm

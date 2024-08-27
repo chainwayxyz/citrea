@@ -39,51 +39,51 @@ where
 {
     let mut rpc = RpcModule::new(ledger);
 
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getSoftConfirmationByHash",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             let args: HexHash = params.one()?;
             ledger
                 .get_soft_confirmation_by_hash::<Tx>(&args.0)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getSoftConfirmationByNumber",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             let args: u64 = params.one()?;
             ledger
                 .get_soft_confirmation_by_number::<Tx>(args)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getSoftConfirmationRange",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             let args: (u64, u64) = params.parse()?;
             ledger
                 .get_soft_confirmations_range(args.0, args.1)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getSoftConfirmationStatus",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             let args: u64 = params.one()?;
             ledger
                 .get_soft_confirmation_status(args)
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
-    rpc.register_async_method("prover_getLastScannedL1Slot", |_, ledger, _| async move {
+    rpc.register_blocking_method("prover_getLastScannedL1Slot", move |_, ledger, _| {
         ledger
             .get_prover_last_scanned_l1_height()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getSequencerCommitmentsOnSlotByNumber",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             // Returns commitments on DA slot with given height.
             let height: u64 = params.one()?;
 
@@ -93,9 +93,9 @@ where
         },
     )?;
 
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getSequencerCommitmentsOnSlotByHash",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             // Returns commitments on DA slot with given hash.
             let hash: [u8; 32] = params.one()?;
             let height = ledger
@@ -110,37 +110,31 @@ where
         },
     )?;
 
-    rpc.register_async_method(
-        "ledger_getProofBySlotHeight",
-        |params, ledger, _| async move {
-            // Returns proof on DA slot with given height
-            let height: u64 = params.one()?;
-            ledger
+    rpc.register_blocking_method("ledger_getProofBySlotHeight", move |params, ledger, _| {
+        // Returns proof on DA slot with given height
+        let height: u64 = params.one()?;
+        ledger
+            .get_proof_data_by_l1_height(height)
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
+
+    rpc.register_blocking_method("ledger_getProofBySlotHash", move |params, ledger, _| {
+        // Returns proof on DA slot with given height
+        let hash: [u8; 32] = params.one()?;
+        let height = ledger
+            .get_slot_number_by_hash(hash)
+            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
+        match height {
+            Some(height) => ledger
                 .get_proof_data_by_l1_height(height)
-                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-        },
-    )?;
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
+            None => Ok(None),
+        }
+    })?;
 
-    rpc.register_async_method(
-        "ledger_getProofBySlotHash",
-        |params, ledger, _| async move {
-            // Returns proof on DA slot with given height
-            let hash: [u8; 32] = params.one()?;
-            let height = ledger
-                .get_slot_number_by_hash(hash)
-                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
-            match height {
-                Some(height) => ledger
-                    .get_proof_data_by_l1_height(height)
-                    .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
-                None => Ok(None),
-            }
-        },
-    )?;
-
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getVerifiedProofsBySlotHeight",
-        |params, ledger, _| async move {
+        move |params, ledger, _| {
             // Returns proof on DA slot with given height
             let height: u64 = params.one()?;
             ledger
@@ -149,25 +143,22 @@ where
         },
     )?;
 
-    rpc.register_async_method("ledger_getLastVerifiedProof", |_, ledger, _| async move {
+    rpc.register_blocking_method("ledger_getLastVerifiedProof", move |_, ledger, _| {
         // Returns latest proof data
         ledger
             .get_last_verified_proof()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
-    rpc.register_async_method(
-        "ledger_getHeadSoftConfirmation",
-        |_, ledger, _| async move {
-            ledger
-                .get_head_soft_confirmation()
-                .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-        },
-    )?;
+    rpc.register_blocking_method("ledger_getHeadSoftConfirmation", move |_, ledger, _| {
+        ledger
+            .get_head_soft_confirmation()
+            .map_err(|e: anyhow::Error| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+    })?;
 
-    rpc.register_async_method(
+    rpc.register_blocking_method(
         "ledger_getHeadSoftConfirmationHeight",
-        |_, ledger, _| async move {
+        move |_, ledger, _| {
             ledger
                 .get_head_soft_confirmation_height()
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
