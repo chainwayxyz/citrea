@@ -310,7 +310,7 @@ where
             sc_receipt.tx_receipts.len(),
         );
 
-        // TODO: do this only on native
+        #[cfg(feature = "native")]
         for (i, tx_receipt) in sc_receipt.tx_receipts.iter().enumerate() {
             native_debug!(
                 "tx #{} hash: 0x{} result {:?}",
