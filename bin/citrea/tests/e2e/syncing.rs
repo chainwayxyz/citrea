@@ -6,7 +6,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::CitreaStatus;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
-use sov_rollup_interface::da::{DaData, DaSpec};
+use sov_rollup_interface::da::{DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_stf_runner::ProverConfig;
 use tokio::time::sleep;
@@ -396,9 +396,15 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     let da_data = blob.data.accumulator();
 
-    let proof: DaData = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
+    let data: DaDataLightClient = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
 
-    assert!(matches!(proof, DaData::ZKProof(_)));
+    #[allow(unreachable_patterns)]
+    match data {
+        DaDataLightClient::ZKProof(_) => {
+            // All good
+        }
+        _ => panic!("Wrong da data"),
+    }
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
