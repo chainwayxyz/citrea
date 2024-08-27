@@ -360,9 +360,10 @@ where
         // TODO: maybe for prover we should accept this as valid and continue with proving
         // TODO: consider returning a Result from apply_soft_confirmation
         // and then we wouldn't to make receipt Option
-        let receipt = soft_confirmation_result
-            .soft_confirmation_receipt
-            .unwrap_or_else(|| bail!("Soft confirmation failed at height: {}", l2_height))?;
+        let receipt = match soft_confirmation_result.soft_confirmation_receipt {
+            Some(receipt) => receipt,
+            None => bail!("Soft confirmation receipt is None"),
+        };
 
         let next_state_root = soft_confirmation_result.state_root;
         // Check if post state root is the same as the one in the soft confirmation

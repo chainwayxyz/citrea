@@ -28,7 +28,7 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>> {
     phantom_da: PhantomData<Da>,
 }
 
-type ApplySoftConfirmationResult<Da: DaSpec> =
+type ApplySoftConfirmationResult<Da> =
     Result<SoftConfirmationReceipt<TxEffect, Da>, ApplySoftConfirmationError>;
 
 impl<C, Vm, Da, RT> Default for StfBlueprint<C, Da, Vm, RT>
