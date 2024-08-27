@@ -5,9 +5,12 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use borsh::BorshDeserialize;
 use pin_project::pin_project;
 use sha2::Digest;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaDataLightClient, DaSpec, Time};
+use sov_rollup_interface::da::{
+    BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaSpec, Time,
+};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
@@ -382,15 +385,24 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
-        block.blobs.clone()
+        block
+            .blobs
+            .iter()
+            .filter(|b| DaDataBatchProof::try_from_slice(b.data.accumulator()).is_ok())
+            .cloned()
+            .collect()
     }
 
     async fn extract_relevant_proofs(
         &self,
-        _block: &Self::FilteredBlock,
+        block: &Self::FilteredBlock,
         _prover_pk: &[u8],
     ) -> Vec<DaDataLightClient> {
-        todo!()
+        block
+            .blobs
+            .iter()
+            .filter_map(|b| DaDataLightClient::try_from_slice(b.data.accumulator()).ok())
+            .collect()
     }
 
     async fn get_extraction_proof(
@@ -405,7 +417,16 @@ impl DaService for MockDaService {
     }
 
     async fn send_transaction(&self, da_data: DaData) -> Result<Self::TransactionId, Self::Error> {
-        let blob = borsh::to_vec(&da_data).unwrap();
+        let blob = match da_data {
+            DaData::ZKProof(proof) => {
+                let data = DaDataLightClient::ZKProof(proof);
+                borsh::to_vec(&data).unwrap()
+            }
+            DaData::SequencerCommitment(seq_comm) => {
+                let data = DaData::SequencerCommitment(seq_comm);
+                borsh::to_vec(&data).unwrap()
+            }
+        };
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;
         Ok(MockHash([0; 32]))
@@ -566,7 +587,8 @@ mod tests {
             get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
 
         for i in 0..num_blocks {
-            let published_blob = DaData::ZKProof(Proof::Full(vec![i as u8; i + 1]));
+            let proof = Proof::Full(vec![i as u8; i + 1]);
+            let published_blob = DaData::ZKProof(proof.clone());
             let height = (i + 1) as u64;
 
             da.send_transaction(published_blob.clone()).await.unwrap();
@@ -577,8 +599,9 @@ mod tests {
             assert_eq!(1, block.blobs.len());
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
-            let retrieved_data = borsh::from_slice(&retrieved_data).unwrap();
-            assert_eq!(published_blob, retrieved_data);
+            let retrieved_data = DaDataLightClient::try_from_slice(&retrieved_data).unwrap();
+            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            assert_eq!(proof, retrieved_proof);
 
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
             validate_get_finalized_header_response(
@@ -642,10 +665,11 @@ mod tests {
             let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
             assert_eq!(expected_finalized_height, last_finalized_header.height());
 
-            let da_data = DaData::ZKProof(Proof::Full(blob));
+            let proof = Proof::Full(blob);
             let retrieved_data = fetched_block.blobs[0].full_data();
-            let retrieved_data = borsh::from_slice(retrieved_data).unwrap();
-            assert_eq!(da_data, retrieved_data);
+            let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
+            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            assert_eq!(proof, retrieved_proof);
 
             let head_block_header = da.get_head_block_header().await.unwrap();
             assert_eq!(expected_head_height, head_block_header.height());

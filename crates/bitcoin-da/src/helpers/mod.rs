@@ -62,6 +62,7 @@ enum TransactionKindBatchProof {
 }
 
 impl TransactionKindBatchProof {
+    #[cfg(feature = "native")]
     fn to_bytes(&self) -> Vec<u8> {
         match self {
             TransactionKindBatchProof::SequencerCommitment => 0u16.to_le_bytes().to_vec(),
