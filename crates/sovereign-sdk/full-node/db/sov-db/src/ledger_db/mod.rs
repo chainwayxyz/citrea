@@ -204,9 +204,10 @@ impl SharedLedgerOps for LedgerDB {
     }
 
     /// Commits a soft confirmation to the database by inserting its transactions and batches before
-    fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
+    fn commit_soft_confirmation<T: Serialize, DS: DaSpec>(
         &self,
-        mut soft_confirmation_receipt: SoftConfirmationReceipt<B, T, DS>,
+        state_root: &[u8],
+        mut soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
@@ -270,7 +271,7 @@ impl SharedLedgerOps for LedgerDB {
             prev_hash: soft_confirmation_receipt.prev_hash,
             tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,
-            state_root: soft_confirmation_receipt.state_root,
+            state_root: state_root.to_vec(),
             soft_confirmation_signature: soft_confirmation_receipt.soft_confirmation_signature,
             pub_key: soft_confirmation_receipt.pub_key,
             deposit_data: soft_confirmation_receipt.deposit_data,
