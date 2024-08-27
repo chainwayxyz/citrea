@@ -4,9 +4,9 @@ use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInf
 use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::{self, SignedSoftConfirmationBatch};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{BatchReceipt, SoftConfirmationReceipt, TransactionReceipt};
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
@@ -28,7 +28,8 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>> {
     phantom_da: PhantomData<Da>,
 }
 
-type ApplySoftConfirmationResult = Result<BatchReceipt<(), TxEffect>, ApplySoftConfirmationError>;
+type ApplySoftConfirmationResult<Da: DaSpec> =
+    Result<SoftConfirmationReceipt<TxEffect, Da>, ApplySoftConfirmationError>;
 
 impl<C, Vm, Da, RT> Default for StfBlueprint<C, Da, Vm, RT>
 where
@@ -63,7 +64,7 @@ where
         &self,
         txs: Vec<Vec<u8>>,
         current_spec: SpecId,
-        mut batch_workspace: WorkingSet<C>,
+        mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let txs = self.verify_txs_stateless_soft(&txs);
 
@@ -91,7 +92,7 @@ where
             };
             let ctx = match self
                 .runtime
-                .pre_dispatch_tx_hook(&tx, &mut batch_workspace, &hook)
+                .pre_dispatch_tx_hook(&tx, &mut sc_workspace, &hook)
             {
                 Ok(verified_tx) => verified_tx,
                 Err(e) => {
@@ -101,7 +102,7 @@ where
                     let receipt = TransactionReceipt {
                         tx_hash: raw_tx_hash,
                         body_to_save: None,
-                        events: batch_workspace.take_events(),
+                        events: sc_workspace.take_events(),
                         receipt: TxEffect::Reverted,
                     };
 
@@ -110,13 +111,13 @@ where
                 }
             };
             // Commit changes after pre_dispatch_tx_hook
-            batch_workspace = batch_workspace.checkpoint().to_revertable();
+            sc_workspace = sc_workspace.checkpoint().to_revertable();
 
-            let tx_result =
-                self.runtime
-                    .dispatch_call(msg, &mut batch_workspace, current_spec, &ctx);
+            let tx_result = self
+                .runtime
+                .dispatch_call(msg, &mut sc_workspace, current_spec, &ctx);
 
-            let events = batch_workspace.take_events();
+            let events = sc_workspace.take_events();
             let tx_effect = match tx_result {
                 Ok(_) => TxEffect::Successful,
                 Err(e) => {
@@ -127,7 +128,7 @@ where
                     );
                     // The transaction causing invalid state transition is reverted
                     // but we don't slash and we continue processing remaining transactions.
-                    batch_workspace = batch_workspace.revert().to_revertable();
+                    sc_workspace = sc_workspace.revert().to_revertable();
                     TxEffect::Reverted
                 }
             };
@@ -135,6 +136,8 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
+                // TODO: instead of re-serializing, we should just save the raw tx before decoding
+                // https://github.com/chainwayxyz/citrea/issues/1045
                 body_to_save: Some(borsh::to_vec(&tx).unwrap()),
                 events,
                 receipt: tx_effect,
@@ -142,15 +145,15 @@ where
 
             tx_receipts.push(receipt);
             // We commit after events have been extracted into receipt.
-            batch_workspace = batch_workspace.checkpoint().to_revertable();
+            sc_workspace = sc_workspace.checkpoint().to_revertable();
 
             // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             // TODO: Check if we need to put this in end_soft_onfirmation, becuase I am not sure if we can call pre_dispatch again for new txs after this
             self.runtime
-                .post_dispatch_tx_hook(&tx, &ctx, &mut batch_workspace)
+                .post_dispatch_tx_hook(&tx, &ctx, &mut sc_workspace)
                 .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
-        (batch_workspace, tx_receipts)
+        (sc_workspace, tx_receipts)
     }
 
     /// Begins the inner processes of applying soft confirmation
@@ -206,23 +209,30 @@ where
         soft_confirmation: &mut SignedSoftConfirmationBatch,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
-    ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
-        // TODO: calculate the amount based of gas and fees
-
+    ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
         if let Err(e) = self
             .runtime
             .end_soft_confirmation_hook(&mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             native_error!("Failed on `end_blob_hook`: {}", e);
+
+            // TODO: revert here?
         };
 
         (
-            Ok(BatchReceipt {
+            Ok(SoftConfirmationReceipt {
                 hash: soft_confirmation.hash(),
                 prev_hash: soft_confirmation.prev_hash(),
                 tx_receipts,
-                phantom_data: PhantomData,
+                da_slot_height: soft_confirmation.da_slot_height(),
+                da_slot_hash: soft_confirmation.da_slot_hash().into(),
+                da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
+                soft_confirmation_signature: soft_confirmation.signature().to_vec(),
+                pub_key: soft_confirmation.sequencer_pub_key().to_vec(),
+                deposit_data: soft_confirmation.deposit_data().clone(),
+                l1_fee_rate: soft_confirmation.l1_fee_rate(),
+                timestamp: soft_confirmation.timestamp(),
             }),
             batch_workspace.checkpoint(),
         )
@@ -235,7 +245,7 @@ where
         soft_confirmation: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
-    ) -> (ApplySoftConfirmationResult, StateCheckpoint<C>) {
+    ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
         match self.begin_soft_confirmation_inner(
             checkpoint,
             soft_confirmation,

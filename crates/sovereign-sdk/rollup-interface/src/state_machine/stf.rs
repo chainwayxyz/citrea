@@ -86,7 +86,7 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
+pub struct SoftConfirmationReceipt<T, DS: DaSpec> {
     /// DA layer block number
     pub da_slot_height: u64,
     /// DA layer block hash
@@ -98,11 +98,7 @@ pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: 
     /// The canonical hash of the previous batch
     pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
-    pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
-    /// Any additional structured data to be saved in the database and served over RPC
-    pub phantom_data: PhantomData<BatchReceiptContents>,
-    /// state root
-    pub state_root: Vec<u8>,
+    pub tx_receipts: Vec<TransactionReceipt<T>>,
     /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
@@ -135,6 +131,27 @@ pub struct SlotResult<S, Cs, B, T, W> {
     pub witness: W,
     /// State diff
     pub state_diff: StateDiff,
+}
+
+/// Result of applying a soft confirmation to current state
+/// Where:
+/// - S - generic for state root
+/// - Cs - generic for change set
+/// - T - generic for transaction receipt contents
+/// - W - generic for witness
+/// - Da - generic for DA layer
+pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
+    /// Finals state root after all soft confirmation txs are applied
+    pub state_root: S,
+    /// Container for all state alterations that happened during soft confirmation execution
+    pub change_set: Cs,
+    /// Witness after applying the whole block
+    pub witness: W,
+    /// State diff after applying the whole block
+    pub state_diff: StateDiff,
+    /// soft confirmation receipt
+    /// This is the receipt that is stored in the database
+    pub soft_confirmation_receipt: Option<SoftConfirmationReceipt<T, Da>>,
 }
 
 // TODO(@preston-evans98): update spec with simplified API
@@ -242,12 +259,12 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmationBatch,
-    ) -> SlotResult<
+    ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
-        Self::BatchReceiptContents,
         Self::TxReceiptContents,
         Self::Witness,
+        Da,
     >;
 
     /// Runs a vector of Soft Confirmations
