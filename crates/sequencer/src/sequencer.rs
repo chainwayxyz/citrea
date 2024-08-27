@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -31,7 +30,7 @@ use reth_transaction_pool::{
 use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::{SequencerLedgerOps, SlotCommit};
+use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
@@ -42,7 +41,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
@@ -363,7 +362,6 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
-        last_used_l1_height: u64,
     ) -> anyhow::Result<(u64, bool)> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -942,7 +940,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -958,7 +956,7 @@ where
                             }
                         };
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             last_used_l1_height = l1_block_number;
 
@@ -990,7 +988,7 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
@@ -1008,7 +1006,7 @@ where
                     let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.

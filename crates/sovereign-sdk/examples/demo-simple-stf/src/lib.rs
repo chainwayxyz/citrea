@@ -7,7 +7,9 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    BatchReceipt, SlotResult, SoftConfirmationResult, StateTransitionFunction,
+};
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 /// An implementation of the [`StateTransitionFunction`]
@@ -123,12 +125,12 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut SignedSoftConfirmationBatch,
-    ) -> SlotResult<
+    ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
-        Self::BatchReceiptContents,
         Self::TxReceiptContents,
         Self::Witness,
+        Da,
     > {
         todo!()
     }

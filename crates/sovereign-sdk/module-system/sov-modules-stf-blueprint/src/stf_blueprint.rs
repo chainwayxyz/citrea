@@ -4,9 +4,9 @@ use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInf
 use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
-use sov_rollup_interface::soft_confirmation::{self, SignedSoftConfirmationBatch};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{BatchReceipt, SoftConfirmationReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, TransactionReceipt};
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;

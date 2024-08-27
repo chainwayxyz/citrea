@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -16,7 +15,7 @@ use jsonrpsee::RpcModule;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
-use sov_db::ledger_db::{NodeLedgerOps, SlotCommit};
+use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{
     BatchNumber, SlotNumber, StoredSoftConfirmation, StoredStateTransition,
 };
@@ -29,7 +28,7 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::BatchReceipt;
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig};

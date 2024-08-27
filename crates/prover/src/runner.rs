@@ -1,6 +1,5 @@
 use core::panic;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +17,7 @@ use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
-use sov_db::ledger_db::{ProverLedgerOps, SlotCommit};
+use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData, StateDiff};
@@ -27,7 +26,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommit
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,

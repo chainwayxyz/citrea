@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{BatchReceipt, SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    BatchReceipt, SlotResult, SoftConfirmationResult, StateTransitionFunction,
+};
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
 /// A mock implementation of the [`StateTransitionFunction`]
@@ -76,12 +78,12 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
-    ) -> SlotResult<
+    ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
-        Self::BatchReceiptContents,
         Self::TxReceiptContents,
         Self::Witness,
+        Da,
     > {
         todo!()
     }
