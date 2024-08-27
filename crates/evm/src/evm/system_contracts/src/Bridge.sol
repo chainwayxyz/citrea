@@ -204,7 +204,8 @@ contract Bridge is Ownable2StepUpgradeable {
         emit WithdrawFillerDeclared(withdrawId, withdrawFillerId);
     }
 
-    // TODO: Add comment about using ValidateSPV for regular merkle proofs in natspec of this function
+    /// @notice Marks an operator as malicious if the operator burned their `kickoff2` transaction as if they filled a withdrawal even though they didn't fill a withdrawal
+    /// @param kickoff2Tp Transaction parameters of the kickoff2 transaction on Bitcoin
     function markMaliciousOperator(TransactionParams calldata kickoff2Tp) external {
         validateAndCheckInclusion(kickoff2Tp);
         
@@ -214,8 +215,6 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 _moveTxId;
         (_operatorId, _moveTxId) = abi.decode(BTCUtils.extractOpReturnData(_output), (uint256, bytes32));
         uint256 _depositId = txIdToDepositId[_moveTxId];
-        
-        // TODO: look to the witness, check the NofN multisig
 
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(kickoff2Tp.witness, 0);
         (, uint256 _nItems) = BTCUtils.parseVarInt(witness0);
@@ -233,11 +232,11 @@ contract Bridge is Ownable2StepUpgradeable {
         emit MaliciousOperatorMarked(_operatorId);
     }
 
+    // In order to prevent confusion between absence of a withdrawal filler and the first operator, we use 1-indexing for operator IDs
     function getInternalOperatorId(uint256 operatorId) internal pure returns (uint256) {
         return operatorId + 1;
     }
 
-    // TODO: Consider not validating witness for non-deposit functions
     function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
         bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
         require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
