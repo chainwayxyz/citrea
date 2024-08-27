@@ -398,13 +398,8 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     let data: DaDataLightClient = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
 
-    #[allow(unreachable_patterns)]
-    match data {
-        DaDataLightClient::ZKProof(_) => {
-            // All good
-        }
-        _ => panic!("Wrong da data"),
-    }
+    // Test we got zkproof indeed
+    let DaDataLightClient::ZKProof(_proof) = data;
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
