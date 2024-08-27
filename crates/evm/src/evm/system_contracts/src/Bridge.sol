@@ -53,6 +53,7 @@ contract Bridge is Ownable2StepUpgradeable {
     event WithdrawFillerDeclared(uint256 withdrawId, uint256 withdrawFillerId);
     event MaliciousOperatorMarked(uint256 operatorId);
     event KickoffScriptUpdate(bytes kickoffScript);
+
     modifier onlySystem() {
         require(msg.sender == SYSTEM_CALLER, "caller is not the system caller");
         _;
@@ -97,6 +98,8 @@ contract Bridge is Ownable2StepUpgradeable {
         emit DepositScriptUpdate(_depositScript, _scriptSuffix);
     }
 
+    /// @notice Sets the kickoff script that is expected in the witness field of the kickoff transaction on Bitcoin
+    /// @param _kickoffScript The kickoff script
     function setKickoffScript(bytes calldata _kickoffScript) external onlyOwner {
         require(_kickoffScript.length != 0, "Deposit script cannot be empty");
 
@@ -182,6 +185,10 @@ contract Bridge is Ownable2StepUpgradeable {
         emit OperatorUpdated(operator, _operator);
     }
 
+    /// @notice Stores the filler of a certain withdrawal after the a user's withdrawal is covered on Bitcoin side
+    /// @param withdrawTp Transaction parameters of the withdrawal transaction on Bitcoin
+    /// @param inputIndex Index of the input that is the withdrawal UTXO (withdrawing user's ANYONECANPAY)
+    /// @param withdrawId ID of the withdrawal action
     function declareWithdrawFiller(TransactionParams calldata withdrawTp, uint256 inputIndex, uint256 withdrawId) external {
         validateAndCheckInclusion(withdrawTp);
         bytes memory input = BTCUtils.extractInputAtIndex(withdrawTp.vin, inputIndex);
@@ -190,8 +197,7 @@ contract Bridge is Ownable2StepUpgradeable {
         UTXO memory utxo = withdrawalUTXOs[withdrawId];
         require(utxo.txId == txId && utxo.outputId == index, "not matching UTXO");
 
-        uint nOuts;
-        (, nOuts) = BTCUtils.parseVarInt(withdrawTp.vout);
+        (, uint256 nOuts) = BTCUtils.parseVarInt(withdrawTp.vout);
         bytes memory _output = BTCUtils.extractOutputAtIndex(withdrawTp.vout, nOuts - 1);
         uint256 withdrawFillerId = uint256(bytesToBytes32(BTCUtils.extractOpReturnData(_output)));
         withdrawFillers[withdrawId] = getInternalOperatorId(withdrawFillerId);
@@ -202,9 +208,8 @@ contract Bridge is Ownable2StepUpgradeable {
     function markMaliciousOperator(TransactionParams calldata kickoff2Tp) external {
         validateAndCheckInclusion(kickoff2Tp);
         
-        uint nOuts;
-        (, nOuts) = BTCUtils.parseVarInt(kickoff2Tp.vout);
-        bytes memory _output = BTCUtils.extractOutputAtIndex(kickoff2Tp.vout, nOuts - 1);
+        (, uint256 _nOuts) = BTCUtils.parseVarInt(kickoff2Tp.vout);
+        bytes memory _output = BTCUtils.extractOutputAtIndex(kickoff2Tp.vout, _nOuts - 1);
         uint256 _operatorId;
         bytes32 _moveTxId;
         (_operatorId, _moveTxId) = abi.decode(BTCUtils.extractOpReturnData(_output), (uint256, bytes32));
@@ -230,6 +235,27 @@ contract Bridge is Ownable2StepUpgradeable {
 
     function getInternalOperatorId(uint256 operatorId) internal pure returns (uint256) {
         return operatorId + 1;
+    }
+
+    // TODO: Consider not validating witness for non-deposit functions
+    function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
+        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
+        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
+        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
+        
+        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
+        // Number of inputs == number of witnesses
+        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
+
+        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
+
+        return (wtxId, _nIns);
+    }
+
+    function extractRecipientAddress(bytes memory _script) internal view returns (address) {
+        uint256 offset = depositScript.length;
+        bytes20 _addr = bytes20(_script.slice(offset, 20));
+        return address(uint160(_addr));
     }
 
     /// @notice Checks if two byte sequences are equal in chunks of 32 bytes
@@ -264,27 +290,6 @@ contract Bridge is Ownable2StepUpgradeable {
         }
 
         return true;
-    }
-
-    // TODO: Consider not validating witness for non-deposit functions
-    function validateAndCheckInclusion(TransactionParams calldata tp) internal view returns (bytes32, uint256) {
-        bytes32 wtxId = WitnessUtils.calculateWtxId(tp.version, tp.flag, tp.vin, tp.vout, tp.witness, tp.locktime);
-        require(BTCUtils.validateVin(tp.vin), "Vin is not properly formatted");
-        require(BTCUtils.validateVout(tp.vout), "Vout is not properly formatted");
-        
-        (, uint256 _nIns) = BTCUtils.parseVarInt(tp.vin);
-        // Number of inputs == number of witnesses
-        require(WitnessUtils.validateWitness(tp.witness, _nIns), "Witness is not properly formatted");
-
-        require(LIGHT_CLIENT.verifyInclusion(tp.block_height, wtxId, tp.intermediate_nodes, tp.index), "Transaction is not in block");
-
-        return (wtxId, _nIns);
-    }
-
-    function extractRecipientAddress(bytes memory _script) internal view returns (address) {
-        uint256 offset = depositScript.length;
-        bytes20 _addr = bytes20(_script.slice(offset, 20));
-        return address(uint160(_addr));
     }
 
     function bytesToBytes32(bytes memory source) internal pure returns (bytes32 result) {
