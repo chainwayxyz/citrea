@@ -9,7 +9,7 @@ use borsh::BorshDeserialize;
 use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{
-    BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaSpec, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaSpec, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
@@ -385,12 +385,15 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
-        block
-            .blobs
-            .iter()
-            .filter(|b| DaDataBatchProof::try_from_slice(b.data.accumulator()).is_ok())
-            .cloned()
-            .collect()
+        let mut res = vec![];
+        for b in block.blobs.clone() {
+            let mut clone_for_full_data = b.clone();
+            let full_data = clone_for_full_data.full_data();
+            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+                res.push(b)
+            }
+        }
+        res
     }
 
     async fn extract_relevant_proofs(
@@ -398,11 +401,13 @@ impl DaService for MockDaService {
         block: &Self::FilteredBlock,
         _prover_pk: &[u8],
     ) -> Vec<DaDataLightClient> {
-        block
-            .blobs
-            .iter()
-            .filter_map(|b| DaDataLightClient::try_from_slice(b.data.accumulator()).ok())
-            .collect()
+        let mut res = vec![];
+        for mut b in block.blobs.clone() {
+            if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
+                res.push(r)
+            }
+        }
+        res
     }
 
     async fn get_extraction_proof(
@@ -416,13 +421,16 @@ impl DaService for MockDaService {
         ([0u8; 32], ())
     }
 
+    #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]
     async fn send_transaction(&self, da_data: DaData) -> Result<Self::TransactionId, Self::Error> {
         let blob = match da_data {
             DaData::ZKProof(proof) => {
+                tracing::debug!("Adding a zkproof");
                 let data = DaDataLightClient::ZKProof(proof);
                 borsh::to_vec(&data).unwrap()
             }
             DaData::SequencerCommitment(seq_comm) => {
+                tracing::debug!("Adding a sequencer commitment");
                 let data = DaData::SequencerCommitment(seq_comm);
                 borsh::to_vec(&data).unwrap()
             }
