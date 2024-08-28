@@ -6,10 +6,9 @@ use bollard::container::StopContainerOptions;
 use bollard::Docker;
 use tokio::process::Child;
 
+use super::Result;
 use crate::test_client::TestClient;
 use crate::test_helpers::wait_for_l2_block;
-
-use super::Result;
 
 #[derive(Debug)]
 pub struct ContainerSpawnOutput {
