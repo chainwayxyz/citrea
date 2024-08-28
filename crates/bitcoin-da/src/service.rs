@@ -10,6 +10,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 // use std::sync::Arc;
 use async_trait::async_trait;
+use backoff::future::retry as retry_backoff;
+use backoff::ExponentialBackoff;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
@@ -598,7 +600,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         prover_pk: &[u8],
-    ) -> Vec<DaDataLightClient> {
+    ) -> anyhow::Result<Vec<DaDataLightClient>> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
@@ -612,14 +614,15 @@ impl DaService for BitcoinService {
                 continue;
             }
 
-            if let Ok(tx) = parse_light_client_transaction(tx) {
-                match tx {
+            if let Ok(parsed) = parse_light_client_transaction(tx) {
+                let tx_id = tx.compute_txid();
+                match parsed {
                     ParsedLightClientTransaction::Complete(complete) => {
                         if complete.public_key() != prover_pk
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
-                            completes.push(complete.body);
+                            completes.push((tx_id, complete.body));
                         }
                     }
                     ParsedLightClientTransaction::Aggregate(aggregate) => {
@@ -628,7 +631,7 @@ impl DaService for BitcoinService {
                         {
                             // push only when signature is correct
                             // collect tx ids
-                            aggregate_idxs.push(aggregate);
+                            aggregate_idxs.push((tx_id, aggregate));
                         }
                     }
                     ParsedLightClientTransaction::Chunk(_chunk) => {
@@ -640,44 +643,63 @@ impl DaService for BitcoinService {
 
         // collect aggregated txs from chunks
         let mut aggregates = Vec::new();
-        for aggregate in &aggregate_idxs {
+        for (tx_id, aggregate) in &aggregate_idxs {
             let mut body = Vec::new();
-            for txid in aggregate.txids().expect("Must contain tx ids; qed") {
-                let tx_res = self
-                    .client
-                    .get_transaction(&txid, None)
-                    .await
-                    .expect("TODO handle errors");
-                let tx = tx_res.transaction().expect("TODO err");
+            let Ok(chunk_ids) = aggregate.txids() else {
+                anyhow::bail!("{}: Failed to get txids from aggregate", tx_id);
+            };
+            if chunk_ids.is_empty() {
+                anyhow::bail!("{}: Empty aggregate tx list", tx_id);
+            }
+            for chunk_id in chunk_ids {
+                let tx_res = {
+                    let exponential_backoff = ExponentialBackoff::default();
+                    retry_backoff(exponential_backoff, || async move {
+                        self.client
+                            .get_transaction(&chunk_id, None)
+                            .await
+                            .map_err(|e| {
+                                use bitcoincore_rpc::Error;
+                                match e {
+                                    Error::Io(_) => backoff::Error::transient(e),
+                                    _ => backoff::Error::permanent(e),
+                                }
+                            })
+                    })
+                    .await?
+                };
+                let tx = tx_res.transaction().map_err(|e| {
+                    anyhow::anyhow!(
+                        "{}:{}: Failed to decode the body of bitcoin tx {e}",
+                        tx_id,
+                        chunk_id
+                    )
+                })?;
                 let wrapped: TransactionWrapper = tx.into();
-                let parsed =
-                    parse_light_client_transaction(&wrapped).expect("Couldn't parse chunk");
+                let parsed = parse_light_client_transaction(&wrapped).map_err(|e| {
+                    anyhow::anyhow!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id)
+                })?;
                 match parsed {
                     ParsedLightClientTransaction::Chunk(part) => {
                         body.extend(part.body);
                     }
                     ParsedLightClientTransaction::Complete(_)
                     | ParsedLightClientTransaction::Aggregate(_) => {
-                        panic!("unexpected tx kind")
+                        anyhow::bail!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
                     }
                 }
             }
-            aggregates.push(body);
+            aggregates.push((*tx_id, body));
         }
 
         let mut result = Vec::new();
-        for blob in completes.into_iter().chain(aggregates) {
+        for (tx_id, blob) in completes.into_iter().chain(aggregates) {
             let body = decompress_blob(&blob);
-            match DaDataLightClient::try_from_slice(&body) {
-                Ok(data) => {
-                    result.push(data);
-                }
-                Err(e) => {
-                    panic!("Couldn't parse body: {}", e);
-                }
-            }
+            let data = DaDataLightClient::try_from_slice(&body)
+                .map_err(|e| anyhow::anyhow!("{}: Failed to parse body: {e}", tx_id))?;
+            result.push(data);
         }
-        result
+        Ok(result)
     }
 
     #[instrument(level = "trace", skip_all)]

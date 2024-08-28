@@ -400,14 +400,14 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _prover_pk: &[u8],
-    ) -> Vec<DaDataLightClient> {
+    ) -> anyhow::Result<Vec<DaDataLightClient>> {
         let mut res = vec![];
         for mut b in block.blobs.clone() {
             if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
                 res.push(r)
             }
         }
-        res
+        Ok(res)
     }
 
     async fn get_extraction_proof(

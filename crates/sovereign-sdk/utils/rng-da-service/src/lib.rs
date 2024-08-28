@@ -174,7 +174,7 @@ impl DaService for RngDaService {
         &self,
         _block: &Self::FilteredBlock,
         _prover_pk: &[u8],
-    ) -> Vec<DaDataLightClient> {
+    ) -> anyhow::Result<Vec<DaDataLightClient>> {
         unimplemented!()
     }
 

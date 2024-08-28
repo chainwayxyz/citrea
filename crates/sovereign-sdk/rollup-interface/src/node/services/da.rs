@@ -97,7 +97,7 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
         prover_pk: &[u8],
-    ) -> Vec<DaDataLightClient>;
+    ) -> anyhow::Result<Vec<DaDataLightClient>>;
 
     /// Generate a proof that the relevant blob transactions have been extracted correctly from the DA layer
     /// block.

@@ -570,7 +570,13 @@ where
                 .unwrap();
 
             let (sequencer_commitments, zk_proofs) =
-                self.extract_relevant_l1_data(l1_block.clone()).await;
+                match self.extract_relevant_l1_data(l1_block.clone()).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Could not process L1 block: {}...skipping", e);
+                        return;
+                    }
+                };
 
             for zk_proof in zk_proofs.clone().iter() {
                 if let Err(e) = self
@@ -613,13 +619,13 @@ where
     async fn extract_relevant_l1_data(
         &self,
         l1_block: Da::FilteredBlock,
-    ) -> (Vec<SequencerCommitment>, Vec<Proof>) {
+    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<Proof>)> {
         let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
         let mut zk_proofs = Vec::<Proof>::new();
 
         self.da_service
             .extract_relevant_proofs(&l1_block, &self.prover_da_pub_key)
-            .await
+            .await?
             .into_iter()
             .for_each(|data| match data {
                 DaDataLightClient::ZKProof(proof) => {
@@ -650,7 +656,7 @@ where
                     }
                 }
             });
-        (sequencer_commitments, zk_proofs)
+        Ok((sequencer_commitments, zk_proofs))
     }
 
     /// Allows to read current state root
