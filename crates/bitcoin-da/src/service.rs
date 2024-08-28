@@ -656,7 +656,7 @@ impl DaService for BitcoinService {
             for chunk_id in chunk_ids {
                 let tx_raw = {
                     let exponential_backoff = ExponentialBackoff::default();
-                    retry_backoff(exponential_backoff, || async move {
+                    let res = retry_backoff(exponential_backoff, || async move {
                         self.client
                             .get_raw_transaction(&chunk_id, None)
                             .await
@@ -668,7 +668,14 @@ impl DaService for BitcoinService {
                                 }
                             })
                     })
-                    .await?
+                    .await;
+                    match res {
+                        Ok(r) => r,
+                        Err(e) => {
+                            error!("{}:{}: Failed to request chunk: {e}", tx_id, chunk_id);
+                            continue 'aggregate;
+                        }
+                    }
                 };
                 let wrapped: TransactionWrapper = tx_raw.into();
                 let parsed = match parse_light_client_transaction(&wrapped) {
