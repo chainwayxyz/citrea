@@ -487,8 +487,7 @@ where
                     batch_workspace,
                 );
 
-                let soft_confirmation_receipt =
-                    soft_confirmation_receipt.map_err(anyhow::Error::from)?;
+                let soft_confirmation_receipt = soft_confirmation_receipt?;
 
                 // Finalize soft confirmation
                 let soft_confirmation_result = self.stf.finalize_soft_confirmation(

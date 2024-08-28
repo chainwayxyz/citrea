@@ -727,7 +727,10 @@ where
                         validity_condition,
                         &mut soft_confirmation,
                     )
-                    .expect("Soft confirmation must succeed"); // TODO: this can be just ignoring the failing seq. com.
+                    // TODO: this can be just ignoring the failing seq. com.
+                    // We can count a failed soft confirmation as a valid state transition.
+                    // for now we don't allow "broken" seq. com.s
+                    .expect("Soft confirmation must succeed");
 
                 current_state_root = result.state_root;
                 state_diff.extend(result.state_diff);
