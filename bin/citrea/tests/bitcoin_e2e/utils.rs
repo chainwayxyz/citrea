@@ -37,11 +37,11 @@ pub fn get_citrea_path() -> PathBuf {
 }
 
 pub fn get_stdout_path(dir: &Path) -> PathBuf {
-    dir.join("stdout")
+    dir.join("stdout.log")
 }
 
 pub fn get_stderr_path(dir: &Path) -> PathBuf {
-    dir.join("stderr")
+    dir.join("stderr.log")
 }
 
 /// Get genesis path from resources
