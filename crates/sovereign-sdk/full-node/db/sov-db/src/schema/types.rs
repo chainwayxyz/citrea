@@ -8,7 +8,7 @@ use sov_rollup_interface::rpc::{
     HexTx, ProofResponse, ProofRpcResponse, SoftConfirmationResponse, StateTransitionRpcResponse,
     TxIdentifier, TxResponse, VerifiedProofResponse,
 };
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
 use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
 
@@ -194,9 +194,9 @@ pub struct StoredSoftConfirmation {
     pub timestamp: u64,
 }
 
-impl From<StoredSoftConfirmation> for SignedSoftConfirmationBatch {
+impl From<StoredSoftConfirmation> for SignedSoftConfirmation {
     fn from(value: StoredSoftConfirmation) -> Self {
-        SignedSoftConfirmationBatch::new(
+        SignedSoftConfirmation::new(
             value.hash,
             value.prev_hash,
             value.da_slot_height,

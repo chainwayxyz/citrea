@@ -1,7 +1,7 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::StateMapAccessor;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 
 use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
@@ -11,7 +11,7 @@ fn block_count_per_da_hash_must_be_correct() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let mut signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -81,7 +81,7 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
         10
     );
 
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -127,7 +127,7 @@ fn get_last_l1_fee_rate_must_be_correct() {
         0
     );
 
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -173,7 +173,7 @@ fn get_last_timestamp_must_be_correct() {
     );
 
     let timestamp = chrono::Local::now().timestamp() as u64;
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,

@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::fork::Fork;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     BatchReceipt, SlotResult, SoftConfirmationError, SoftConfirmationResult,
@@ -125,7 +125,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_confirmation: &mut SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -151,7 +151,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_confirmation: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        _soft_confirmation: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
         _preproven_commitment_indicies: Vec<usize>,
         _forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {

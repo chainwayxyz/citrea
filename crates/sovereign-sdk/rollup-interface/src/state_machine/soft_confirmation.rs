@@ -73,10 +73,10 @@ impl UnsignedSoftConfirmationBatch {
     }
 }
 
-/// Signed version of the `UnsignedSoftConfirmationBatch`
+/// Signed version of the `UnsignedSoftConfirmation`
 /// Contains the signature and public key of the sequencer
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
-pub struct SignedSoftConfirmationBatch {
+pub struct SignedSoftConfirmation {
     hash: [u8; 32],
     prev_hash: [u8; 32],
     da_slot_height: u64,
@@ -90,7 +90,7 @@ pub struct SignedSoftConfirmationBatch {
     timestamp: u64,
 }
 
-impl SignedSoftConfirmationBatch {
+impl SignedSoftConfirmation {
     /// Creates a signed soft confirmation batch
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -105,7 +105,7 @@ impl SignedSoftConfirmationBatch {
         signature: Vec<u8>,
         pub_key: Vec<u8>,
         timestamp: u64,
-    ) -> SignedSoftConfirmationBatch {
+    ) -> SignedSoftConfirmation {
         Self {
             hash,
             prev_hash,

@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
 use crate::fork::Fork;
-use crate::soft_confirmation::SignedSoftConfirmationBatch;
+use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
@@ -259,7 +259,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -288,7 +288,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         witnesses: VecDeque<Vec<Self::Witness>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
-        soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);

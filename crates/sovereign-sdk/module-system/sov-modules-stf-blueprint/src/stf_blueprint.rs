@@ -4,7 +4,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
@@ -164,7 +164,7 @@ where
     pub fn begin_soft_confirmation_inner(
         &self,
         mut batch_workspace: WorkingSet<C>,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
@@ -206,7 +206,7 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
         &self,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
@@ -242,7 +242,7 @@ where
     pub(crate) fn _apply_soft_confirmation_inner(
         &self,
         checkpoint: StateCheckpoint<C>,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {

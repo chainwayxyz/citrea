@@ -35,8 +35,8 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData,
-    StateDiff, UnsignedSoftConfirmationBatch, WorkingSet,
+    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
+    UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
@@ -267,7 +267,7 @@ where
         pub_key: &[u8],
         prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
-        mut signed_batch: SignedSoftConfirmationBatch,
+        mut signed_batch: SignedSoftConfirmation,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
@@ -400,7 +400,7 @@ where
             timestamp,
         };
         // initially create sc info and call begin soft confirmation hook with it
-        let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
+        let mut signed_batch: SignedSoftConfirmation = batch_info.clone().into();
 
         let prestate = self
             .storage_manager
@@ -1070,14 +1070,14 @@ where
         &mut self,
         soft_confirmation: UnsignedSoftConfirmationBatch,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmationBatch> {
+    ) -> anyhow::Result<SignedSoftConfirmation> {
         let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
-        Ok(SignedSoftConfirmationBatch::new(
+        Ok(SignedSoftConfirmation::new(
             hash,
             prev_soft_confirmation_hash,
             soft_confirmation.da_slot_height(),

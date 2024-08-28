@@ -7,7 +7,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::{Bytes, B256};
 use serde::Deserialize;
 use sov_rollup_interface::rpc::HexTx;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use tracing::instrument;
 
 /// Configuration for SequencerClient.
@@ -126,9 +126,9 @@ pub struct GetSoftConfirmationResponse {
     pub timestamp: u64,
 }
 
-impl From<GetSoftConfirmationResponse> for SignedSoftConfirmationBatch {
+impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation {
     fn from(val: GetSoftConfirmationResponse) -> Self {
-        SignedSoftConfirmationBatch::new(
+        SignedSoftConfirmation::new(
             val.hash,
             val.prev_hash,
             val.da_slot_height,

@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::SoftConfirmationError;
 
@@ -103,7 +103,7 @@ pub struct HookSoftConfirmationInfo {
 
 impl HookSoftConfirmationInfo {
     pub fn new(
-        signed_soft_confirmation: SignedSoftConfirmationBatch,
+        signed_soft_confirmation: SignedSoftConfirmation,
         pre_state_root: Vec<u8>,
         current_spec: SpecId,
     ) -> Self {
@@ -121,9 +121,9 @@ impl HookSoftConfirmationInfo {
     }
 }
 
-impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
+impl From<HookSoftConfirmationInfo> for SignedSoftConfirmation {
     fn from(val: HookSoftConfirmationInfo) -> Self {
-        SignedSoftConfirmationBatch::new(
+        SignedSoftConfirmation::new(
             [0u8; 32],
             [0u8; 32],
             val.da_slot_height,

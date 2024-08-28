@@ -5,7 +5,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
@@ -34,7 +34,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
         .call(call_message, &context, &mut working_set)
         .unwrap();
 
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -72,7 +72,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    let mut signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let mut signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -240,7 +240,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     let original_timestamp = chrono::Local::now().timestamp() as u64;
 
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -268,7 +268,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     // now call with a timestamp before the original one.
     // should fail
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,
@@ -300,7 +300,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
 
     // now call with a timestamp after the original one.
     // should fail
-    let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
+    let signed_soft_confirmation_batch = SignedSoftConfirmation::new(
         [0; 32],
         [0; 32],
         0,

@@ -17,7 +17,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::fork::Fork;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{
@@ -144,7 +144,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>);
 
     /// Apply soft confirmation transactions
@@ -160,7 +160,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         &self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (
@@ -175,7 +175,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
     ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -200,7 +200,7 @@ where
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!("Applying soft confirmation in STF Blueprint");
 
@@ -249,7 +249,7 @@ where
         &self,
         _current_spec: SpecId,
         sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (
@@ -301,7 +301,7 @@ where
         sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
     ) -> SoftConfirmationResult<
         <C::Storage as Storage>::Root,
         C::Storage,
@@ -445,7 +445,7 @@ where
         witness: Self::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -518,7 +518,7 @@ where
         witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
-        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
+        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
         mut preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {

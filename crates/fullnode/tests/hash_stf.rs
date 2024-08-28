@@ -81,7 +81,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         _pre_state: Self::PreState,
         _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
     ) -> (
         Result<(), SoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
@@ -105,7 +105,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         &self,
         _current_spec: SpecId,
         _sequencer_public_key: &[u8],
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
         _tx_receipts: Vec<
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,
@@ -126,7 +126,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         _sc_receipt: SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
         _checkpoint: sov_modules_api::StateCheckpoint<C>,
         _pre_state: Self::PreState,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
     ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -222,7 +222,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -249,7 +249,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmations: std::collections::VecDeque<
-            Vec<sov_modules_api::SignedSoftConfirmationBatch>,
+            Vec<sov_modules_api::SignedSoftConfirmation>,
         >,
         _preproven_commitment_indicies: Vec<usize>,
         _forks: Vec<Fork>,
