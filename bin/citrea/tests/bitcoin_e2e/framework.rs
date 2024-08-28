@@ -69,28 +69,28 @@ impl TestFramework {
 
     pub async fn stop(&mut self) -> Result<()> {
         println!("Stopping framework...");
-        self.bitcoin_nodes.stop_all().await?;
 
+        if let Some(docker) = &self.ctx.docker {
+            let _ = docker.cleanup().await;
+            println!("Successfully cleaned docker");
+        }
+
+        let _ = self.bitcoin_nodes.stop_all().await;
         println!("Successfully stopped bitcoin nodes");
 
         if let Some(sequencer) = &mut self.sequencer {
-            sequencer.stop().await?;
+            let _ = sequencer.stop().await;
             println!("Successfully stopped sequencer");
         }
 
         if let Some(prover) = &mut self.prover {
-            prover.stop().await?;
+            let _ = prover.stop().await;
             println!("Successfully stopped prover");
         }
 
         if let Some(full_node) = &mut self.full_node {
-            full_node.stop().await?;
+            let _ = full_node.stop().await;
             println!("Successfully stopped full_node");
-        }
-
-        if let Some(docker) = &self.ctx.docker {
-            docker.cleanup().await?;
-            println!("Successfully cleaned docker");
         }
 
         if self.show_logs {

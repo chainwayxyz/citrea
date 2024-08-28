@@ -18,6 +18,7 @@ use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 pub struct DockerEnv {
     pub docker: Docker,
     pub network_id: String,
+    pub network_name: String,
 }
 
 impl DockerEnv {
@@ -25,14 +26,18 @@ impl DockerEnv {
         let docker =
             Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;
         let test_id = generate_test_id();
-        let network_id = Self::create_network(&docker, &test_id).await?;
-        Ok(Self { docker, network_id })
+        let (network_id, network_name) = Self::create_network(&docker, &test_id).await?;
+        Ok(Self {
+            docker,
+            network_id,
+            network_name,
+        })
     }
 
-    async fn create_network(docker: &Docker, test_case_id: &str) -> Result<String> {
+    async fn create_network(docker: &Docker, test_case_id: &str) -> Result<(String, String)> {
         let network_name = format!("test_network_{}", test_case_id);
         let options = CreateNetworkOptions {
-            name: network_name,
+            name: network_name.clone(),
             check_duplicate: true,
             driver: "bridge".to_string(),
             ..Default::default()
@@ -43,7 +48,7 @@ impl DockerEnv {
             .await?
             .id
             .context("Error getting network id")?;
-        Ok(id)
+        Ok((id, network_name))
     }
 
     pub async fn spawn(&self, config: DockerConfig) -> Result<SpawnOutput> {
@@ -167,15 +172,14 @@ impl DockerEnv {
                 container.id,
                 container.network_settings.and_then(|ns| ns.networks),
             ) {
-                if networks.contains_key(&self.network_id) {
+                if networks.contains_key(&self.network_name) {
                     self.docker.stop_container(&id, None).await?;
                     self.docker.remove_container(&id, None).await?;
                 }
             }
         }
 
-        self.docker.remove_network(&self.network_id).await?;
-
+        self.docker.remove_network(&self.network_name).await?;
         Ok(())
     }
 }
