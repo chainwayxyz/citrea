@@ -1,5 +1,8 @@
+use std::time::Duration;
+
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
 use crate::bitcoin_e2e::config::{
@@ -20,7 +23,6 @@ impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_prover: true,
-            with_full_node: true,
             ..Default::default()
         }
     }
@@ -68,10 +70,11 @@ impl TestCase for BasicProverTest {
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        println!("Got mempool len 1");
-
-        da.generate(10, None).await?;
-        prover.wait_for_l1_height(135, None).await;
+        da.generate(5, None).await?;
+        let height = da.get_block_count().await?;
+        prover
+            .wait_for_l1_height(height - FINALITY_DEPTH, Some(Duration::from_secs(600)))
+            .await;
 
         Ok(())
     }

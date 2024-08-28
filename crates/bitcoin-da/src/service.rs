@@ -75,7 +75,7 @@ pub struct BitcoinServiceConfig {
     pub fee_rates_to_avg: Option<usize>,
 }
 
-const FINALITY_DEPTH: u64 = 4; // blocks
+pub const FINALITY_DEPTH: u64 = 4; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
