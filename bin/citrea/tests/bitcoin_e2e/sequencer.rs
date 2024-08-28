@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, FullSequencerConfig, TestConfig};
 use super::framework::TestContext;
-use super::node::{Node, SpawnOutput};
+use super::node::{L2Node, Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
 use crate::bitcoin_e2e::utils::get_genesis_path;
@@ -63,6 +63,7 @@ impl Sequencer {
 
 impl Node for Sequencer {
     type Config = FullSequencerConfig;
+    type Client = TestClient;
 
     async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
@@ -116,4 +117,9 @@ impl Node for Sequencer {
         }
         anyhow::bail!("Sequencer failed to become ready within the specified timeout")
     }
+    fn client(&self) -> &Self::Client {
+        &self.client
+    }
 }
+
+impl L2Node for Sequencer {}

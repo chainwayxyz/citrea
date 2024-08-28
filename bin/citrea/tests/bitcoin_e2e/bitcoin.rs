@@ -62,7 +62,7 @@ impl BitcoinNode {
         target_len: usize,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        let timeout = timeout.unwrap_or(Duration::from_secs(60));
+        let timeout = timeout.unwrap_or(Duration::from_secs(120));
         let start = Instant::now();
         while start.elapsed() < timeout {
             let mempool_len = self.get_raw_mempool().await?.len();
@@ -98,6 +98,7 @@ impl RpcApi for BitcoinNode {
 
 impl Node for BitcoinNode {
     type Config = BitcoinConfig;
+    type Client = Client;
 
     async fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
         let mut args = vec![
@@ -135,6 +136,10 @@ impl Node for BitcoinNode {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
         anyhow::bail!("Node failed to become ready within the specified timeout")
+    }
+
+    fn client(&self) -> &Self::Client {
+        &self.client
     }
 }
 

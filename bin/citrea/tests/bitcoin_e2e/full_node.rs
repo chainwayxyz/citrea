@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, TestConfig};
 use super::framework::TestContext;
-use super::node::{Node, SpawnOutput};
+use super::node::{L2Node, Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
 use crate::bitcoin_e2e::config::RollupConfig;
@@ -65,6 +65,7 @@ impl FullNode {
 
 impl Node for FullNode {
     type Config = RollupConfig;
+    type Client = TestClient;
 
     async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
@@ -78,6 +79,8 @@ impl Node for FullNode {
         config_to_file(&config, &rollup_config_path)?;
 
         Command::new(citrea)
+            .arg("--da-layer")
+            .arg("bitcoin")
             .arg("--rollup-config-path")
             .arg(rollup_config_path)
             .arg("--genesis-paths")
@@ -111,4 +114,10 @@ impl Node for FullNode {
         }
         bail!("FullNode failed to become ready within the specified timeout")
     }
+
+    fn client(&self) -> &Self::Client {
+        &self.client
+    }
 }
+
+impl L2Node for FullNode {}

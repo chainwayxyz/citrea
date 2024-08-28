@@ -13,7 +13,7 @@ use crate::test_helpers::{
     wait_for_prover_l1_height, NodeMode,
 };
 use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
+    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, TEST_DATA_GENESIS_PATH,
 };
 
 /// Run the sequencer, prover and full node.
@@ -127,7 +127,7 @@ async fn full_node_verify_proof_and_store() {
     wait_for_prover_l1_height(
         &prover_node_test_client,
         4,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
+        None,
     )
     .await;
 

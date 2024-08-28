@@ -19,10 +19,7 @@ use crate::test_helpers::{
     create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
     wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
-use crate::{
-    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, DEFAULT_PROOF_WAIT_DURATION,
-    TEST_DATA_GENESIS_PATH,
-};
+use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
 
 /// Run the sequencer and the full node.
 /// After publishing some blocks, the sequencer crashes.
@@ -168,12 +165,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     wait_for_l1_block(&da_service, 3, None).await;
 
-    let commitments = wait_for_commitment(
-        &da_service,
-        3,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    let commitments = wait_for_commitment(&da_service, 3, None).await;
 
     assert_eq!(commitments.len(), 1);
     assert_eq!(commitments[0].l2_start_block_number, 5);

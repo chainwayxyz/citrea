@@ -20,6 +20,7 @@ impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_prover: true,
+            with_full_node: true,
             ..Default::default()
         }
     }
@@ -44,7 +45,7 @@ impl TestCase for BasicProverTest {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(_) = &f.prover else {
+        let Some(prover) = &f.prover else {
             bail!("Prover not running. Set TestCaseConfig with_prover to true")
         };
 
@@ -66,6 +67,11 @@ impl TestCase for BasicProverTest {
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
+
+        println!("Got mempool len 1");
+
+        da.generate(10, None).await?;
+        prover.wait_for_l1_height(135, None).await;
 
         Ok(())
     }

@@ -19,7 +19,7 @@ use crate::test_helpers::{
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
+    TEST_DATA_GENESIS_PATH,
 };
 
 /// Run the sequencer.
@@ -338,12 +338,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        3,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    wait_for_prover_l1_height(&prover_node_test_client, 3, None).await;
 
     // Submit an L2 block to prevent sequencer from falling behind.
     seq_test_client.send_publish_batch_request().await;
@@ -369,12 +364,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        4,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    wait_for_prover_l1_height(&prover_node_test_client, 4, None).await;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes

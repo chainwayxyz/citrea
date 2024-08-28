@@ -9,13 +9,14 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, RollupConfig, TestConfig};
 use super::framework::TestContext;
-use super::node::{Node, SpawnOutput};
+use super::node::{L2Node, Node, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
 use super::Result;
 use crate::bitcoin_e2e::config::ProverConfig;
 use crate::bitcoin_e2e::utils::get_genesis_path;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
+use crate::test_helpers::wait_for_prover_l1_height;
 
 #[allow(unused)]
 pub struct Prover {
@@ -66,10 +67,15 @@ impl Prover {
             client,
         })
     }
+
+    pub async fn wait_for_l1_height(&self, height: u64, timeout: Option<Duration>) {
+        wait_for_prover_l1_height(&self.client, height, timeout).await
+    }
 }
 
 impl Node for Prover {
     type Config = (ProverConfig, RollupConfig);
+    type Client = TestClient;
 
     async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
@@ -124,4 +130,10 @@ impl Node for Prover {
         }
         anyhow::bail!("Prover failed to become ready within the specified timeout")
     }
+
+    fn client(&self) -> &Self::Client {
+        &self.client
+    }
 }
+
+impl L2Node for Prover {}

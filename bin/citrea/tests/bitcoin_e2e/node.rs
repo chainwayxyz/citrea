@@ -6,6 +6,9 @@ use bollard::container::StopContainerOptions;
 use bollard::Docker;
 use tokio::process::Child;
 
+use crate::test_client::TestClient;
+use crate::test_helpers::wait_for_l2_block;
+
 use super::Result;
 
 #[derive(Debug)]
@@ -23,6 +26,7 @@ pub enum SpawnOutput {
 /// BitcoinNode, Prover, Sequencer and FullNode
 pub(crate) trait Node {
     type Config;
+    type Client;
 
     /// Spawn a new node with specific config and return its child
     async fn spawn(test_config: &Self::Config, node_dir: &Path) -> Result<SpawnOutput>;
@@ -57,4 +61,12 @@ pub(crate) trait Node {
 
     /// Wait for the node to be reachable by its client.
     async fn wait_for_ready(&self, timeout: Duration) -> Result<()>;
+
+    fn client(&self) -> &Self::Client;
+}
+
+pub trait L2Node: Node<Client = TestClient> {
+    async fn wait_for_l2_height(&self, height: u64, timeout: Option<Duration>) {
+        wait_for_l2_block(self.client(), height, timeout).await
+    }
 }
