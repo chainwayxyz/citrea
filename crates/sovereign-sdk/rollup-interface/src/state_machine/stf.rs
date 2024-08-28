@@ -312,6 +312,29 @@ pub enum SoftConfirmationError {
     Other(String),
 }
 
+#[cfg(feature = "native")]
+impl std::error::Error for SoftConfirmationError {}
+
+#[cfg(feature = "native")]
+impl std::fmt::Display for SoftConfirmationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SoftConfirmationError::SequencerPublicKeyMismatch => {
+                write!(f, "Sequencer public key mismatch")
+            }
+            SoftConfirmationError::InvalidDaHash => write!(f, "Invalid DA hash"),
+            SoftConfirmationError::InvalidDaTxsCommitment => write!(f, "Invalid DA txs commitment"),
+            SoftConfirmationError::InvalidSoftConfirmationHash => {
+                write!(f, "Invalid soft confirmation hash")
+            }
+            SoftConfirmationError::InvalidSoftConfirmationSignature => {
+                write!(f, "Invalid soft confirmation signature")
+            }
+            SoftConfirmationError::Other(s) => write!(f, "Other error: {}", s),
+        }
+    }
+}
+
 /// A key-value pair representing a change to the rollup state
 #[derive(Debug, Clone, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(proptest_derive::Arbitrary))]

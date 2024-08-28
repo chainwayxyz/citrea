@@ -172,7 +172,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn finalize_soft_confirmation(
         &self,
         current_spec: SpecId,
-        batch_receipt: SoftConfirmationReceipt<TxEffect, Da>,
+        sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
         soft_confirmation: &mut SignedSoftConfirmationBatch,

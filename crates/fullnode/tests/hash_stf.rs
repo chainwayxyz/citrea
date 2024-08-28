@@ -3,6 +3,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::hooks::SoftConfirmationError;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
@@ -82,7 +83,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
     ) -> (
-        Result<(), sov_modules_api::hooks::ApplySoftConfirmationError>,
+        Result<(), SoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
     ) {
         unimplemented!()
@@ -110,7 +111,10 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         >,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (
-        SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
+        Result<
+            SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
+            SoftConfirmationError,
+        >,
         sov_modules_api::StateCheckpoint<C>,
     ) {
         unimplemented!()
@@ -219,12 +223,15 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
-    ) -> SoftConfirmationResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::TxReceiptContents,
-        Self::Witness,
-        Da,
+    ) -> Result<
+        SoftConfirmationResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::TxReceiptContents,
+            Self::Witness,
+            Da,
+        >,
+        SoftConfirmationError,
     > {
         todo!()
     }

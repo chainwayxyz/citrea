@@ -15,10 +15,7 @@ where
     /// If the number of L2 blocks exceeds the max L2 blocks per L1, the soft confirmation should fail and not be accepted by full nodes.
     /// This ensures the sequencer cannot publish more than the allowed number of L2 blocks per L1 block.
     /// Thus blocks the ability of the sequencer to censor the forced transactions in a future L1 block by not using that block.
-    #[cfg_attr(
-        feature = "native",
-        instrument(level = "trace", skip_all, err(Debug), ret)
-    )]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_block_count_rule(
         &self,
         soft_confirmation_info: &mut HookSoftConfirmationInfo,
@@ -55,10 +52,7 @@ where
     /// This ensures the sequencer cannot change the fee rate more than the allowed percentage.
     /// Thus blocks the ability of the sequencer to raise the L1 fee rates arbitrarily and charging a transaction maliciously.
     /// An ideal solution would have the L1 fee trustlessly determined by the L2 users, but that is not possible currently.
-    #[cfg_attr(
-        feature = "native",
-        instrument(level = "trace", skip_all, err(Debug), ret)
-    )]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_fee_rate_rule(
         &self,
         soft_confirmation: &mut HookSoftConfirmationInfo,
@@ -98,10 +92,7 @@ where
 
     /// Checks that the current block's timestamp.
     /// This is to make sure that the set timestamp is greater than the last block's timestamp.
-    #[cfg_attr(
-        feature = "native",
-        instrument(level = "trace", skip_all, err(Debug), ret)
-    )]
+    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_timestamp_rule(
         &self,
         soft_confirmation: &mut HookSoftConfirmationInfo,
@@ -125,7 +116,7 @@ where
     /// Checks two rules: block count rule and fee rate rule.
     #[cfg_attr(
         feature = "native",
-        instrument(level = "trace", skip(self, working_set), err(Debug), ret)
+        instrument(level = "trace", skip(self, working_set), err, ret)
     )]
     pub fn begin_soft_confirmation_hook(
         &self,

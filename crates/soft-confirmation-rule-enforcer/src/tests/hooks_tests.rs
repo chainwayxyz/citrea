@@ -1,11 +1,10 @@
 use std::str::FromStr;
 
-use anyhow::anyhow;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, Spec, StateValueAccessor};
+use sov_modules_api::{Context, Module, Spec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
 
@@ -114,18 +113,8 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
 
     assert!(res.is_err());
     assert_eq!(
-        format!(
-            "{}",
-            anyhow!(
-                "L1 fee rate {} changed more than allowed limit %{}",
-                signed_soft_confirmation_batch.l1_fee_rate(),
-                soft_confirmation_rule_enforcer
-                    .l1_fee_rate_change_percentage
-                    .get(&mut working_set)
-                    .unwrap()
-            )
-        ),
-        format!("{:?}", res.unwrap_err())
+        "Other error: L1 fee rate changed more than allowed",
+        format!("{}", res.unwrap_err())
     );
 
     // now call with 110 fee rate
@@ -211,18 +200,8 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
     assert!(res.is_err());
 
     assert_eq!(
-        format!(
-            "{}",
-            anyhow!(
-                "L1 fee rate {} changed more than allowed limit %{}",
-                signed_soft_confirmation_batch.l1_fee_rate(),
-                soft_confirmation_rule_enforcer
-                    .l1_fee_rate_change_percentage
-                    .get(&mut working_set)
-                    .unwrap()
-            )
-        ),
-        format!("{:?}", res.unwrap_err())
+        "Other error: L1 fee rate changed more than allowed",
+        format!("{}", res.unwrap_err())
     );
 
     signed_soft_confirmation_batch.set_l1_fee_rate(90);
@@ -315,18 +294,8 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     assert!(res.is_err());
 
     assert_eq!(
-        format!(
-            "{}",
-            anyhow!(
-                "Current block's timestamp {} is not greater than the previous block's one {}",
-                signed_soft_confirmation_batch.timestamp(),
-                soft_confirmation_rule_enforcer
-                    .last_timestamp
-                    .get(&mut working_set)
-                    .unwrap()
-            )
-        ),
-        format!("{:?}", res.unwrap_err())
+        "Other error: Timestamp should be greater than last timestamp",
+        format!("{}", res.unwrap_err())
     );
 
     // now call with a timestamp after the original one.

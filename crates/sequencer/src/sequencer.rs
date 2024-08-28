@@ -487,6 +487,9 @@ where
                     batch_workspace,
                 );
 
+                let soft_confirmation_receipt =
+                    soft_confirmation_receipt.map_err(anyhow::Error::from)?;
+
                 // Finalize soft confirmation
                 let soft_confirmation_result = self.stf.finalize_soft_confirmation(
                     active_fork_spec,
@@ -496,22 +499,10 @@ where
                     &mut signed_soft_confirmation,
                 );
 
-                // TODO: consider returning a Result from apply_soft_confirmation
-                // and then we wouldn't to make receipt Option
-                let receipt = match soft_confirmation_result.soft_confirmation_receipt {
-                    Some(receipt) => receipt,
-                    None => bail!("Soft confirmation receipt is None"),
-                };
+                let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
                 if soft_confirmation_result.state_root.as_ref() == self.state_root.as_ref() {
                     bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
-                    // TODO: Check if below is legit
-                    // self.storage_manager
-                    //     .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
-
-                    // tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-                    // self.storage_manager.finalize_l2(l2_height)?;
-                    // return Ok((last_used_l1_height, false));
                 }
 
                 trace!(

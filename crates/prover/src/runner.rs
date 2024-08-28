@@ -344,25 +344,23 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            self.fork_manager.active_fork().spec_id,
-            self.sequencer_pub_key.as_slice(),
-            // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
-            &self.state_root,
-            pre_state,
-            Default::default(),
-            current_l1_block.header(),
-            &current_l1_block.validity_condition(),
-            &mut soft_confirmation.clone().into(),
-        );
+        let soft_confirmation_result = self
+            .stf
+            .apply_soft_confirmation(
+                self.fork_manager.active_fork().spec_id,
+                self.sequencer_pub_key.as_slice(),
+                // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
+                &self.state_root,
+                pre_state,
+                Default::default(),
+                current_l1_block.header(),
+                &current_l1_block.validity_condition(),
+                &mut soft_confirmation.clone().into(),
+            )
+            .map_err(anyhow::Error::from)?;
 
         // TODO: maybe for prover we should accept this as valid and continue with proving
-        // TODO: consider returning a Result from apply_soft_confirmation
-        // and then we wouldn't to make receipt Option
-        let receipt = match soft_confirmation_result.soft_confirmation_receipt {
-            Some(receipt) => receipt,
-            None => bail!("Soft confirmation receipt is None"),
-        };
+        let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
         let next_state_root = soft_confirmation_result.state_root;
         // Check if post state root is the same as the one in the soft confirmation
