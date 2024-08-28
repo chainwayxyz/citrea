@@ -5,6 +5,7 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::typenum::U32;
 use digest::Digest;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::RollupAddress;
 
 use crate::common::{PublicKey, Signature, Witness};
@@ -101,14 +102,26 @@ pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     /// Sender of the transaction.
     fn sender(&self) -> &Self::Address;
 
-    /// Sequencer of the runtime.
-    fn sequencer(&self) -> &Self::Address;
-
     /// Constructor for the Context.
-    fn new(sender: Self::Address, sequencer: Self::Address, height: u64) -> Self;
+    fn new(
+        sender: Self::Address,
+        sequencer: Self::Address,
+        height: u64,
+        active_spec: SpecId,
+        l1_fee_rate: u128,
+    ) -> Self;
+
+    /// TODO: remove
+    fn sequencer(&self) -> &Self::Address;
 
     /// Returns the height of the current slot as reported by the kernel. This value is
     /// non-decreasing and is guaranteed to be less than or equal to the actual "objective" height of the rollup.
     /// Kernels should ensure that the reported height never falls too far behind the actual height.
     fn slot_height(&self) -> u64;
+
+    /// The current active spec
+    fn active_spec(&self) -> SpecId;
+
+    /// The L1 fee rate applied to the soft confirmation
+    fn l1_fee_rate(&self) -> u128;
 }
