@@ -125,7 +125,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
                     .unwrap()
             )
         ),
-        format!("{}", res.unwrap_err())
+        format!("{:?}", res.unwrap_err())
     );
 
     // now call with 110 fee rate
@@ -222,7 +222,7 @@ fn begin_soft_confirmation_hook_checks_l1_fee_rate() {
                     .unwrap()
             )
         ),
-        format!("{}", res.unwrap_err())
+        format!("{:?}", res.unwrap_err())
     );
 
     signed_soft_confirmation_batch.set_l1_fee_rate(90);
@@ -326,7 +326,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
                     .unwrap()
             )
         ),
-        format!("{}", res.unwrap_err())
+        format!("{:?}", res.unwrap_err())
     );
 
     // now call with a timestamp after the original one.

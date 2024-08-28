@@ -151,7 +151,7 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
     pub state_diff: StateDiff,
     /// soft confirmation receipt
     /// This is the receipt that is stored in the database
-    pub soft_confirmation_receipt: Option<SoftConfirmationReceipt<T, Da>>,
+    pub soft_confirmation_receipt: SoftConfirmationReceipt<T, Da>,
 }
 
 // TODO(@preston-evans98): update spec with simplified API
@@ -259,12 +259,15 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmationBatch,
-    ) -> SoftConfirmationResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::TxReceiptContents,
-        Self::Witness,
-        Da,
+    ) -> Result<
+        SoftConfirmationResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::TxReceiptContents,
+            Self::Witness,
+            Da,
+        >,
+        SoftConfirmationError,
     >;
 
     /// Runs a vector of Soft Confirmations
@@ -288,6 +291,25 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);
+}
+
+#[derive(Debug)]
+/// Error that can occur during appyling a soft confirmation
+pub enum SoftConfirmationError {
+    /// The public key of the sequencer (known by a full node or prover) does not match
+    /// the public key in the soft confirmation
+    SequencerPublicKeyMismatch,
+    /// The DA hash in the soft confirmation does not match the hash of the DA block provided
+    InvalidDaHash,
+    /// The DA tx commitment in the soft confirmation does not match the tx commitment of the DA block provided
+    InvalidDaTxsCommitment,
+    /// The hash of the soft confirmation is incorrect
+    InvalidSoftConfirmationHash,
+    /// The soft confirmation signature is incorret
+    InvalidSoftConfirmationSignature,
+    /// Any other error that can occur during the application of a soft confirmation
+    /// These can come from runtime hooks etc.
+    Other(String),
 }
 
 /// A key-value pair representing a change to the rollup state

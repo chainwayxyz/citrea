@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use sov_modules_api::hooks::SoftConfirmationError;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
@@ -78,12 +79,15 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmationBatch,
-    ) -> SoftConfirmationResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::TxReceiptContents,
-        Self::Witness,
-        Da,
+    ) -> Result<
+        SoftConfirmationResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::TxReceiptContents,
+            Self::Witness,
+            Da,
+        >,
+        SoftConfirmationError,
     > {
         todo!()
     }

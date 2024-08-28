@@ -8,7 +8,8 @@ use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    BatchReceipt, SlotResult, SoftConfirmationResult, StateTransitionFunction,
+    BatchReceipt, SlotResult, SoftConfirmationError, SoftConfirmationResult,
+    StateTransitionFunction,
 };
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 
@@ -125,12 +126,15 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut SignedSoftConfirmationBatch,
-    ) -> SoftConfirmationResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::TxReceiptContents,
-        Self::Witness,
-        Da,
+    ) -> Result<
+        SoftConfirmationResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::TxReceiptContents,
+            Self::Witness,
+            Da,
+        >,
+        SoftConfirmationError,
     > {
         todo!()
     }

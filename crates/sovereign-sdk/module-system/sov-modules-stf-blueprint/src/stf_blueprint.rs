@@ -1,12 +1,14 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::{
+    SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
+};
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
@@ -29,7 +31,7 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>> {
 }
 
 type ApplySoftConfirmationResult<Da> =
-    Result<SoftConfirmationReceipt<TxEffect, Da>, ApplySoftConfirmationError>;
+    Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>;
 
 impl<C, Vm, Da, RT> Default for StfBlueprint<C, Da, Vm, RT>
 where
@@ -161,18 +163,16 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn begin_soft_confirmation_inner(
         &self,
-        checkpoint: StateCheckpoint<C>,
+        mut batch_workspace: WorkingSet<C>,
         soft_confirmation: &mut SignedSoftConfirmationBatch,
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
-    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
+    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
             "Beginning soft confirmation 0x{} from sequencer: 0x{}",
             hex::encode(soft_confirmation.hash()),
             hex::encode(soft_confirmation.sequencer_pub_key())
         );
-
-        let mut batch_workspace = checkpoint.to_revertable();
 
         // ApplySoftConfirmationHook: begin
         if let Err(e) = self.runtime.begin_soft_confirmation_hook(
@@ -184,7 +184,7 @@ where
             &mut batch_workspace,
         ) {
             native_error!(
-                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {}",
+                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {:?}",
                 e
             );
 
@@ -215,9 +215,9 @@ where
             .end_soft_confirmation_hook(&mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-            native_error!("Failed on `end_blob_hook`: {}", e);
+            native_error!("Failed on `end_soft_confirmation_hook`: {:?}", e);
 
-            // TODO: revert here?
+            return (Err(e), batch_workspace.revert());
         };
 
         (
@@ -246,8 +246,10 @@ where
         pre_state_root: &<C::Storage as Storage>::Root,
         current_spec: SpecId,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
+        let batch_workspace = checkpoint.to_revertable();
+
         match self.begin_soft_confirmation_inner(
-            checkpoint,
+            batch_workspace,
             soft_confirmation,
             pre_state_root,
             current_spec,
