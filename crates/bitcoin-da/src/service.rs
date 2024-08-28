@@ -594,7 +594,7 @@ impl DaService for BitcoinService {
         get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
     }
 
-    /// Return a list of LightClient transactions in an unspecified order
+    /// Return a list of LightClient transactions
     #[instrument(level = "trace", skip_all)]
     async fn extract_relevant_proofs(
         &self,
@@ -604,7 +604,7 @@ impl DaService for BitcoinService {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
-        for tx in &block.txdata {
+        for (i, tx) in block.txdata.iter().enumerate() {
             if !tx
                 .compute_wtxid()
                 .to_byte_array()
@@ -622,7 +622,7 @@ impl DaService for BitcoinService {
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
-                            completes.push((tx_id, complete.body));
+                            completes.push((i, tx_id, complete.body));
                         }
                     }
                     ParsedLightClientTransaction::Aggregate(aggregate) => {
@@ -631,7 +631,7 @@ impl DaService for BitcoinService {
                         {
                             // push only when signature is correct
                             // collect tx ids
-                            aggregate_idxs.push((tx_id, aggregate));
+                            aggregate_idxs.push((i, tx_id, aggregate));
                         }
                     }
                     ParsedLightClientTransaction::Chunk(_chunk) => {
@@ -643,20 +643,22 @@ impl DaService for BitcoinService {
 
         // collect aggregated txs from chunks
         let mut aggregates = Vec::new();
-        for (tx_id, aggregate) in &aggregate_idxs {
+        'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
             let mut body = Vec::new();
             let Ok(chunk_ids) = aggregate.txids() else {
-                anyhow::bail!("{}: Failed to get txids from aggregate", tx_id);
+                error!("{}: Failed to get txids from aggregate", tx_id);
+                continue;
             };
             if chunk_ids.is_empty() {
-                anyhow::bail!("{}: Empty aggregate tx list", tx_id);
+                error!("{}: Empty aggregate tx list", tx_id);
+                continue;
             }
             for chunk_id in chunk_ids {
-                let tx_res = {
+                let tx_raw = {
                     let exponential_backoff = ExponentialBackoff::default();
                     retry_backoff(exponential_backoff, || async move {
                         self.client
-                            .get_transaction(&chunk_id, None)
+                            .get_raw_transaction(&chunk_id, None)
                             .await
                             .map_err(|e| {
                                 use bitcoincore_rpc::Error;
@@ -668,32 +670,34 @@ impl DaService for BitcoinService {
                     })
                     .await?
                 };
-                let tx = tx_res.transaction().map_err(|e| {
-                    anyhow::anyhow!(
-                        "{}:{}: Failed to decode the body of bitcoin tx {e}",
-                        tx_id,
-                        chunk_id
-                    )
-                })?;
-                let wrapped: TransactionWrapper = tx.into();
-                let parsed = parse_light_client_transaction(&wrapped).map_err(|e| {
-                    anyhow::anyhow!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id)
-                })?;
+                let wrapped: TransactionWrapper = tx_raw.into();
+                let parsed = match parse_light_client_transaction(&wrapped) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id);
+                        continue 'aggregate;
+                    }
+                };
                 match parsed {
                     ParsedLightClientTransaction::Chunk(part) => {
                         body.extend(part.body);
                     }
                     ParsedLightClientTransaction::Complete(_)
                     | ParsedLightClientTransaction::Aggregate(_) => {
-                        anyhow::bail!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
+                        error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
+                        continue 'aggregate;
                     }
                 }
             }
-            aggregates.push((*tx_id, body));
+            aggregates.push((i, tx_id, body));
         }
 
+        let mut bodies: Vec<_> = completes.into_iter().chain(aggregates).collect();
+        // restore the order of tx they appear in the block
+        bodies.sort_by_key(|b| b.0);
+
         let mut result = Vec::new();
-        for (tx_id, blob) in completes.into_iter().chain(aggregates) {
+        for (_i, tx_id, blob) in bodies {
             let body = decompress_blob(&blob);
             let data = DaDataLightClient::try_from_slice(&body)
                 .map_err(|e| anyhow::anyhow!("{}: Failed to parse body: {e}", tx_id))?;
