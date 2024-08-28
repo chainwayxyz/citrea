@@ -4,44 +4,9 @@ use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
-use thiserror::Error;
+pub use sov_rollup_interface::stf::SoftConfirmationError;
 
 use crate::transaction::Transaction;
-
-/// Soft confirmation error
-#[derive(Debug, Error)]
-pub enum ApplySoftConfirmationError {
-    /// Checks count of soft confirmations on the slot
-    #[error(
-        "Too many soft confirmations on the slot {:?} by sequencer {:?} with max L2 blocks per L1 {}",
-        hash,
-        sequencer_pub_key,
-        max_l2_blocks_per_l1
-    )]
-    TooManySoftConfirmationsOnDaSlot {
-        /// Hash of the slot
-        hash: [u8; 32],
-        /// Sequencer public key
-        sequencer_pub_key: Vec<u8>,
-        /// max L2 blocks per L1
-        max_l2_blocks_per_l1: u64,
-    },
-    #[error(
-        "L1 fee rate {} changed more than allowed limit %{}",
-        l1_fee_rate,
-        l1_fee_rate_change_percentage
-    )]
-    L1FeeRateChangeMoreThanAllowedPercentage {
-        l1_fee_rate: u128,
-        l1_fee_rate_change_percentage: u128,
-    },
-    #[error(
-        "Current block's timestamp {} is not greater than the previous block's one {}",
-        current,
-        prev
-    )]
-    CurrentTimestampIsNotGreaterThanPrev { current: u64, prev: u64 },
-}
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -102,14 +67,14 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         &self,
         soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ApplySoftConfirmationError>;
+    ) -> Result<(), SoftConfirmationError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
     fn end_soft_confirmation_hook(
         &self,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ApplySoftConfirmationError>;
+    ) -> Result<(), SoftConfirmationError>;
 }
 
 /// Information about the soft confirmation block

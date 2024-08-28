@@ -1,4 +1,4 @@
-use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
+use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
 use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_state::Storage;
 #[cfg(feature = "native")]
@@ -20,7 +20,7 @@ where
         &self,
         soft_confirmation_info: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationError> {
         let da_root_hash = soft_confirmation_info.da_slot_hash();
         let l2_block_count = self
             .da_root_hash_to_number
@@ -34,13 +34,9 @@ where
         // Adding one more l2 block will exceed the max L2 blocks per L1
         if l2_block_count + 1 > max_l2_blocks_per_l1 {
             // block count per l1 block should not be more than max L2 blocks per L1
-            return Err(
-                ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                    hash: da_root_hash,
-                    sequencer_pub_key: soft_confirmation_info.sequencer_pub_key().to_vec(),
-                    max_l2_blocks_per_l1,
-                },
-            );
+            return Err(SoftConfirmationError::Other(
+                "Too many soft confirmations on DA slot".to_string(),
+            ));
         }
 
         // increment the block count
@@ -61,7 +57,7 @@ where
         &self,
         soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationError> {
         let l1_fee_rate = soft_confirmation.l1_fee_rate();
         let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
 
@@ -83,12 +79,9 @@ where
         if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
             || l1_fee_rate * 100 > last_l1_fee_rate * (100 + l1_fee_rate_change_percentage)
         {
-            return Err(
-                ApplySoftConfirmationError::L1FeeRateChangeMoreThanAllowedPercentage {
-                    l1_fee_rate,
-                    l1_fee_rate_change_percentage,
-                },
-            );
+            return Err(SoftConfirmationError::Other(
+                "L1 fee rate changed more than allowed".to_string(),
+            ));
         }
 
         self.last_l1_fee_rate
@@ -104,17 +97,14 @@ where
         &self,
         soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationError> {
         let current_timestamp = soft_confirmation.timestamp();
         let last_timestamp = self.last_timestamp.get(working_set).unwrap_or(0);
 
         if current_timestamp < last_timestamp {
-            return Err(
-                ApplySoftConfirmationError::CurrentTimestampIsNotGreaterThanPrev {
-                    current: current_timestamp,
-                    prev: last_timestamp,
-                },
-            );
+            return Err(SoftConfirmationError::Other(
+                "Timestamp should be greater than last timestamp".to_string(),
+            ));
         }
 
         self.last_timestamp.set(&current_timestamp, working_set);
@@ -132,7 +122,7 @@ where
         &self,
         soft_confirmation: &mut HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationError> {
         self.apply_block_count_rule(soft_confirmation, working_set)?;
 
         self.apply_fee_rate_rule(soft_confirmation, working_set)?;

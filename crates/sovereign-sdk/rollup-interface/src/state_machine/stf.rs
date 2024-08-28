@@ -7,6 +7,7 @@
 extern crate alloc;
 
 use alloc::collections::VecDeque;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
 use core::marker::PhantomData;
@@ -86,7 +87,7 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: DaSpec> {
+pub struct SoftConfirmationReceipt<T, DS: DaSpec> {
     /// DA layer block number
     pub da_slot_height: u64,
     /// DA layer block hash
@@ -98,11 +99,7 @@ pub struct SoftConfirmationReceipt<BatchReceiptContents, TxReceiptContents, DS: 
     /// The canonical hash of the previous batch
     pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
-    pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
-    /// Any additional structured data to be saved in the database and served over RPC
-    pub phantom_data: PhantomData<BatchReceiptContents>,
-    /// state root
-    pub state_root: Vec<u8>,
+    pub tx_receipts: Vec<TransactionReceipt<T>>,
     /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
@@ -135,6 +132,27 @@ pub struct SlotResult<S, Cs, B, T, W> {
     pub witness: W,
     /// State diff
     pub state_diff: StateDiff,
+}
+
+/// Result of applying a soft confirmation to current state
+/// Where:
+/// - S - generic for state root
+/// - Cs - generic for change set
+/// - T - generic for transaction receipt contents
+/// - W - generic for witness
+/// - Da - generic for DA layer
+pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
+    /// Finals state root after all soft confirmation txs are applied
+    pub state_root: S,
+    /// Container for all state alterations that happened during soft confirmation execution
+    pub change_set: Cs,
+    /// Witness after applying the whole block
+    pub witness: W,
+    /// State diff after applying the whole block
+    pub state_diff: StateDiff,
+    /// soft confirmation receipt
+    /// This is the receipt that is stored in the database
+    pub soft_confirmation_receipt: SoftConfirmationReceipt<T, Da>,
 }
 
 // TODO(@preston-evans98): update spec with simplified API
@@ -242,12 +260,15 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmationBatch,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
+    ) -> Result<
+        SoftConfirmationResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::TxReceiptContents,
+            Self::Witness,
+            Da,
+        >,
+        SoftConfirmationError,
     >;
 
     /// Runs a vector of Soft Confirmations
@@ -271,6 +292,48 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
     ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);
+}
+
+#[derive(Debug)]
+/// Error that can occur during appyling a soft confirmation
+pub enum SoftConfirmationError {
+    /// The public key of the sequencer (known by a full node or prover) does not match
+    /// the public key in the soft confirmation
+    SequencerPublicKeyMismatch,
+    /// The DA hash in the soft confirmation does not match the hash of the DA block provided
+    InvalidDaHash,
+    /// The DA tx commitment in the soft confirmation does not match the tx commitment of the DA block provided
+    InvalidDaTxsCommitment,
+    /// The hash of the soft confirmation is incorrect
+    InvalidSoftConfirmationHash,
+    /// The soft confirmation signature is incorret
+    InvalidSoftConfirmationSignature,
+    /// Any other error that can occur during the application of a soft confirmation
+    /// These can come from runtime hooks etc.
+    Other(String),
+}
+
+#[cfg(feature = "native")]
+impl std::error::Error for SoftConfirmationError {}
+
+#[cfg(feature = "native")]
+impl std::fmt::Display for SoftConfirmationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SoftConfirmationError::SequencerPublicKeyMismatch => {
+                write!(f, "Sequencer public key mismatch")
+            }
+            SoftConfirmationError::InvalidDaHash => write!(f, "Invalid DA hash"),
+            SoftConfirmationError::InvalidDaTxsCommitment => write!(f, "Invalid DA txs commitment"),
+            SoftConfirmationError::InvalidSoftConfirmationHash => {
+                write!(f, "Invalid soft confirmation hash")
+            }
+            SoftConfirmationError::InvalidSoftConfirmationSignature => {
+                write!(f, "Invalid soft confirmation signature")
+            }
+            SoftConfirmationError::Other(s) => write!(f, "Other error: {}", s),
+        }
+    }
 }
 
 /// A key-value pair representing a change to the rollup state

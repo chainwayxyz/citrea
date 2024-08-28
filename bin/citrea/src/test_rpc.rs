@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use hex::ToHex;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
@@ -42,12 +40,13 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
 
 fn populate_ledger(
     ledger_db: &mut LedgerDB,
-    soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
+    state_root: &[u8],
+    soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u32, MockDaSpec>>>,
 ) {
     if let Some(soft_confirmation_receipts) = soft_confirmation_receipts {
         for soft_confirmation_receipt in soft_confirmation_receipts {
             ledger_db
-                .commit_soft_confirmation(soft_confirmation_receipt, true)
+                .commit_soft_confirmation(state_root, soft_confirmation_receipt, true)
                 .unwrap();
         }
     }
@@ -55,7 +54,7 @@ fn populate_ledger(
 
 fn test_helper(
     test_queries: Vec<TestExpect>,
-    soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u64, u32, MockDaSpec>>>,
+    soft_confirmation_receipts: Option<Vec<SoftConfirmationReceipt<u32, MockDaSpec>>>,
 ) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_io()
@@ -67,7 +66,7 @@ fn test_helper(
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
         let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
-        populate_ledger(&mut ledger_db, soft_confirmation_receipts);
+        populate_ledger(&mut ledger_db, &[1; 32], soft_confirmation_receipts);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")
             .await
@@ -109,7 +108,6 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             da_slot_height: 0,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]),
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([1u8; 32]),
-            state_root: vec![],
             soft_confirmation_signature: vec![],
             hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
             prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt").into(),
@@ -130,7 +128,6 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
                     receipt: 1,
                 },
             ],
-            phantom_data: PhantomData,
             pub_key: vec![],
             deposit_data: vec![
                 "aaaaab".as_bytes().to_vec(),
@@ -143,12 +140,10 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             da_slot_height: 1,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([2; 32]),
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([3; 32]),
-            state_root: vec![],
             soft_confirmation_signature: vec![],
             hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
             prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
-            phantom_data: PhantomData,
             pub_key: vec![],
             deposit_data: vec!["c44444".as_bytes().to_vec()],
             l1_fee_rate: 0,
@@ -198,7 +193,7 @@ macro_rules! jsonrpc_result {
 fn test_get_soft_confirmation() {
     // Get the first soft confirmation by number
     let payload = jsonrpc_req!("ledger_getSoftConfirmationByNumber", [1]);
-    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1, "txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1","stateRoot":"","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
+    let expected = jsonrpc_result!({"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1, "txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1","stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"", "l1FeeRate":0, "timestamp": 0});
     regular_test_helper(payload, &expected);
 
     // Get the first soft confirmation by hash
@@ -215,7 +210,7 @@ fn test_get_soft_confirmation() {
         .map(|tx_receipt| tx_receipt.body_to_save.unwrap().encode_hex::<String>())
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
-        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2, "txs": txs, "prevHash":"11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d","stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
+        {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2, "txs": txs, "prevHash":"11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d","stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
     );
     regular_test_helper(payload, &expected);
 
@@ -235,8 +230,8 @@ fn test_get_soft_confirmation() {
         .collect::<Vec<String>>();
     let expected = jsonrpc_result!(
         [
-            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1,"txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
-            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2,"txs": txs, "prevHash": "11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d", "stateRoot":"","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
+            {"daSlotHeight":0,"daSlotHash":"0000000000000000000000000000000000000000000000000000000000000000","daSlotTxsCommitment":"0101010101010101010101010101010101010101010101010101010101010101","depositData": ["616161616162", "65656565656565656565"],"hash":"b5515a80204963f7db40e98af11aedb49a394b1c7e3d8b5b7a33346b8627444f","l2Height":1,"txs":["74783120626f6479", "74783220626f6479"],"prevHash":"0209d4aa08c40ed0fcb2bb6eb276481f2ad045914c3065e13e4f1657e97638b1", "stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0},
+            {"daSlotHeight":1,"daSlotHash":"0202020202020202020202020202020202020202020202020202020202020202","daSlotTxsCommitment":"0303030303030303030303030303030303030303030303030303030303030303","depositData": ["633434343434"],"hash":"f85fe0cb36fdaeca571c896ed476b49bb3c8eff00d935293a8967e1e9a62071e","l2Height":2,"txs": txs, "prevHash": "11ec8b9896aa1f400cc1dbd1b0ab3dcc97f2025b3d309b70ec249f687a807d1d", "stateRoot":"0101010101010101010101010101010101010101010101010101010101010101","softConfirmationSignature":"","pubKey":"","l1FeeRate":0, "timestamp": 0}
         ]
     );
     regular_test_helper(payload, &expected);
