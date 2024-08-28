@@ -81,6 +81,8 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
 /// Does not include txs because txs can be appended by the sequencer
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct HookSoftConfirmationInfo {
+    /// L2 block height
+    pub l2_height: u64,
     /// DA block this soft confirmation was given for
     pub da_slot_height: u64,
     /// DA block hash
@@ -108,6 +110,7 @@ impl HookSoftConfirmationInfo {
         current_spec: SpecId,
     ) -> Self {
         HookSoftConfirmationInfo {
+            l2_height: signed_soft_confirmation.l2_height(),
             da_slot_height: signed_soft_confirmation.da_slot_height(),
             da_slot_hash: signed_soft_confirmation.da_slot_hash(),
             da_slot_txs_commitment: signed_soft_confirmation.da_slot_txs_commitment(),
@@ -124,6 +127,7 @@ impl HookSoftConfirmationInfo {
 impl From<HookSoftConfirmationInfo> for SignedSoftConfirmation {
     fn from(val: HookSoftConfirmationInfo) -> Self {
         SignedSoftConfirmation::new(
+            val.l2_height,
             [0u8; 32],
             [0u8; 32],
             val.da_slot_height,
@@ -140,6 +144,11 @@ impl From<HookSoftConfirmationInfo> for SignedSoftConfirmation {
 }
 
 impl HookSoftConfirmationInfo {
+    /// L2 block height
+    pub fn l2_height(&self) -> u64 {
+        self.l2_height
+    }
+
     /// DA block to build on
     pub fn da_slot_hash(&self) -> [u8; 32] {
         self.da_slot_hash

@@ -222,6 +222,7 @@ where
 
         (
             Ok(SoftConfirmationReceipt {
+                l2_height: soft_confirmation.l2_height(),
                 hash: soft_confirmation.hash(),
                 prev_hash: soft_confirmation.prev_hash(),
                 tx_receipts,

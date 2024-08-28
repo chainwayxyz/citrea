@@ -370,7 +370,7 @@ where
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
-            None => (0, da_height),
+            None => (1, da_height),
         };
         anyhow::ensure!(
             l1_height == da_height || l1_height + 1 == da_height,
@@ -389,6 +389,7 @@ where
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
         let batch_info = HookSoftConfirmationInfo {
+            l2_height,
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
@@ -467,6 +468,7 @@ where
 
                 // create the unsigned batch with the txs then sign th sc
                 let unsigned_batch = UnsignedSoftConfirmation::new(
+                    l2_height,
                     da_block.header().height(),
                     da_block.header().hash().into(),
                     da_block.header().txs_commitment().into(),
@@ -1078,6 +1080,7 @@ where
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
         Ok(SignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
             hash,
             prev_soft_confirmation_hash,
             soft_confirmation.da_slot_height(),

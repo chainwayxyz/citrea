@@ -257,6 +257,7 @@ where
         StateCheckpoint<C>,
     ) {
         let unsigned = UnsignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),

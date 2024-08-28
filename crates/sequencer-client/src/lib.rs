@@ -104,6 +104,7 @@ impl SequencerClient {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSoftConfirmationResponse {
+    l2_height: u64,
     #[serde(with = "hex::serde")]
     pub hash: SoftConfirmationHash,
     #[serde(with = "hex::serde")]
@@ -129,6 +130,7 @@ pub struct GetSoftConfirmationResponse {
 impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation {
     fn from(val: GetSoftConfirmationResponse) -> Self {
         SignedSoftConfirmation::new(
+            val.l2_height,
             val.hash,
             val.prev_hash,
             val.da_slot_height,

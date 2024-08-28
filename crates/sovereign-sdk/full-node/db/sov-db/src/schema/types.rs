@@ -164,10 +164,10 @@ pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
 /// included in the batch.
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredSoftConfirmation {
-    /// The number of the batch
-    pub da_slot_height: u64,
     /// The l2 height of the soft confirmation
     pub l2_height: u64,
+    /// The number of the batch
+    pub da_slot_height: u64,
     /// The da hash of the batch
     pub da_slot_hash: [u8; 32],
     /// The da transactions commitment of the batch
@@ -197,6 +197,7 @@ pub struct StoredSoftConfirmation {
 impl From<StoredSoftConfirmation> for SignedSoftConfirmation {
     fn from(value: StoredSoftConfirmation) -> Self {
         SignedSoftConfirmation::new(
+            value.l2_height,
             value.hash,
             value.prev_hash,
             value.da_slot_height,

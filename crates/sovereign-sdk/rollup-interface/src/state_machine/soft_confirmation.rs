@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct UnsignedSoftConfirmation {
+    l2_height: u64,
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
@@ -25,6 +26,7 @@ impl UnsignedSoftConfirmation {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
     pub fn new(
+        l2_height: u64,
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
@@ -34,6 +36,7 @@ impl UnsignedSoftConfirmation {
         timestamp: u64,
     ) -> Self {
         Self {
+            l2_height,
             da_slot_height,
             da_slot_hash,
             da_slot_txs_commitment,
@@ -42,6 +45,10 @@ impl UnsignedSoftConfirmation {
             l1_fee_rate,
             timestamp,
         }
+    }
+    /// L2 block height
+    pub fn l2_height(&self) -> u64 {
+        self.l2_height
     }
     /// DA block to build on
     pub fn da_slot_height(&self) -> u64 {
@@ -77,6 +84,7 @@ impl UnsignedSoftConfirmation {
 /// Contains the signature and public key of the sequencer
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct SignedSoftConfirmation {
+    l2_height: u64,
     hash: [u8; 32],
     prev_hash: [u8; 32],
     da_slot_height: u64,
@@ -94,6 +102,7 @@ impl SignedSoftConfirmation {
     /// Creates a signed soft confirmation batch
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        l2_height: u64,
         hash: [u8; 32],
         prev_hash: [u8; 32],
         da_slot_height: u64,
@@ -107,6 +116,7 @@ impl SignedSoftConfirmation {
         timestamp: u64,
     ) -> SignedSoftConfirmation {
         Self {
+            l2_height,
             hash,
             prev_hash,
             da_slot_height,
@@ -119,6 +129,11 @@ impl SignedSoftConfirmation {
             pub_key,
             timestamp,
         }
+    }
+
+    /// L2 block height
+    pub fn l2_height(&self) -> u64 {
+        self.l2_height
     }
 
     /// Hash of the signed batch
