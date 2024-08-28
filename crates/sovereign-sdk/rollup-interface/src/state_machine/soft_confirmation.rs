@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct UnsignedSoftConfirmationBatch {
+pub struct UnsignedSoftConfirmation {
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
@@ -21,7 +21,7 @@ pub struct UnsignedSoftConfirmationBatch {
     timestamp: u64,
 }
 
-impl UnsignedSoftConfirmationBatch {
+impl UnsignedSoftConfirmation {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
     pub fn new(

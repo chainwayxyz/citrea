@@ -190,7 +190,7 @@ pub use sov_modules_core::{
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmation, UnsignedSoftConfirmationBatch,
+    SignedSoftConfirmation, UnsignedSoftConfirmation,
 };
 pub use sov_rollup_interface::stf::{Event, StateDiff};
 pub use sov_rollup_interface::zk::{

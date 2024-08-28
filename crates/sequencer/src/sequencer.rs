@@ -36,7 +36,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
-    UnsignedSoftConfirmationBatch, WorkingSet,
+    UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
@@ -466,7 +466,7 @@ where
                 }
 
                 // create the unsigned batch with the txs then sign th sc
-                let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                let unsigned_batch = UnsignedSoftConfirmation::new(
                     da_block.header().height(),
                     da_block.header().hash().into(),
                     da_block.header().txs_commitment().into(),
@@ -1068,7 +1068,7 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch(
         &mut self,
-        soft_confirmation: UnsignedSoftConfirmationBatch,
+        soft_confirmation: UnsignedSoftConfirmation,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation> {
         let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;

@@ -12,7 +12,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
-    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -256,7 +256,7 @@ where
         Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>,
         StateCheckpoint<C>,
     ) {
-        let unsigned = UnsignedSoftConfirmationBatch::new(
+        let unsigned = UnsignedSoftConfirmation::new(
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
@@ -754,7 +754,7 @@ where
 }
 
 fn verify_soft_confirmation_signature<C: Context>(
-    unsigned_soft_confirmation: UnsignedSoftConfirmationBatch,
+    unsigned_soft_confirmation: UnsignedSoftConfirmation,
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
