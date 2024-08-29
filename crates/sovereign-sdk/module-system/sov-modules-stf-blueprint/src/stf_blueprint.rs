@@ -8,8 +8,6 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
 };
-// #[cfg(all(target_os = "zkvm", feature = "bench"))]
-// use sov_zk_cycle_macros::cycle_tracker;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
