@@ -66,21 +66,19 @@ impl BlockchainTestCase {
     ) {
         let l1_fee_rate = 0;
         // Call begin_soft_confirmation_hook
-        evm.begin_soft_confirmation_hook(
-            &HookSoftConfirmationInfo {
-                l2_height,
-                da_slot_hash: [0u8; 32],
-                da_slot_height: 0,
-                da_slot_txs_commitment: [0u8; 32],
-                pre_state_root: root.to_vec(),
-                current_spec: SovSpecId::Genesis,
-                pub_key: vec![],
-                deposit_data: vec![],
-                l1_fee_rate,
-                timestamp: 0,
-            },
-            &mut working_set,
-        );
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
+            da_slot_hash: [0u8; 32],
+            da_slot_height: 0,
+            da_slot_txs_commitment: [0u8; 32],
+            pre_state_root: root.to_vec(),
+            current_spec: SovSpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        };
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
         let dummy_address = generate_address::<DefaultContext>("dummy");
         let sequencer_address = generate_address::<DefaultContext>("sequencer");
@@ -93,7 +91,7 @@ impl BlockchainTestCase {
         );
         let _ = evm.execute_call(txs, &context, &mut working_set);
 
-        evm.end_soft_confirmation_hook(&mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         let root = commit(working_set, storage.clone());
         let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
         evm.finalize_hook(&root.into(), &mut working_set.accessory_state());

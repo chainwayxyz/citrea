@@ -474,6 +474,7 @@ where
 
                 let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     active_fork_spec,
+                    self.state_root.clone().as_ref().to_vec(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
                     tx_receipts,

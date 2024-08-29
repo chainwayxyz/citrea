@@ -71,21 +71,19 @@ fn test_state_change() {
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            l2_height,
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 1,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let call_result = evm.get_call(
         TransactionRequest {
@@ -104,7 +102,7 @@ fn test_state_change() {
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);

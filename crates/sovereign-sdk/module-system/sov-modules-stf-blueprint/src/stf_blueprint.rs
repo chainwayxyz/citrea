@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{
-    native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
+    native_debug, native_error, Context, DaSpec, DispatchCall, SpecId, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
@@ -197,13 +197,18 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
         &self,
+        current_spec: SpecId,
+        pre_state_root: Vec<u8>,
         soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
+        let hook_soft_confirmation_info =
+            HookSoftConfirmationInfo::new(soft_confirmation.clone(), pre_state_root, current_spec);
+
         if let Err(e) = self
             .runtime
-            .end_soft_confirmation_hook(&mut batch_workspace)
+            .end_soft_confirmation_hook(&hook_soft_confirmation_info, &mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             native_error!("Failed on `end_soft_confirmation_hook`: {:?}", e);

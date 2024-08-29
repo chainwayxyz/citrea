@@ -102,6 +102,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     fn end_soft_confirmation(
         &self,
         _current_spec: SpecId,
+        _pre_state_root: Vec<u8>,
         _sequencer_public_key: &[u8],
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
         _tx_receipts: Vec<

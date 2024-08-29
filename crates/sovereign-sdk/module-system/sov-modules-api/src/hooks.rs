@@ -73,6 +73,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err rollup panics
     fn end_soft_confirmation_hook(
         &self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError>;
 }

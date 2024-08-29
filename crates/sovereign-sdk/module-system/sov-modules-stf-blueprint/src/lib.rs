@@ -160,6 +160,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn end_soft_confirmation(
         &self,
         current_spec: SpecId,
+        pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -241,7 +242,8 @@ where
 
     fn end_soft_confirmation(
         &self,
-        _current_spec: SpecId,
+        current_spec: SpecId,
+        pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
@@ -287,7 +289,13 @@ where
             );
         }
 
-        self.end_soft_confirmation_inner(soft_confirmation, tx_receipts, batch_workspace)
+        self.end_soft_confirmation_inner(
+            current_spec,
+            pre_state_root,
+            soft_confirmation,
+            tx_receipts,
+            batch_workspace,
+        )
     }
 
     fn finalize_soft_confirmation(
@@ -473,6 +481,7 @@ where
 
                 match self.end_soft_confirmation(
                     current_spec,
+                    pre_state_root.as_ref().to_vec(),
                     sequencer_public_key,
                     soft_confirmation,
                     tx_receipts,
