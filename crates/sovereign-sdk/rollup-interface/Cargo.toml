@@ -39,9 +39,9 @@ serde_json = { workspace = true }
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures"]
-fuzzing = ["dep:proptest", "dep:proptest-derive", "dep:sha2", "std"]
-testing = ["native", "dep:proptest", "dep:proptest-derive"]
-arbitrary = ["dep:arbitrary", "dep:proptest", "dep:proptest-derive"]
+fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
+testing = ["native"]
+arbitrary = ["dep:arbitrary"]
 std = [
     "anyhow/default",
     "borsh/default",

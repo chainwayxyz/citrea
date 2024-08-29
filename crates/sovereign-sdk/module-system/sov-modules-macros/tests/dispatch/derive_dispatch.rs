@@ -6,7 +6,6 @@ use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{
     Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo, SpecId,
 };
-use sov_rollup_interface::spec::SpecId;
 use sov_state::ZkStorage;
 
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]

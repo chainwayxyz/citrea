@@ -3273,7 +3273,6 @@ dependencies = [
  "futures",
  "hex",
  "proptest",
- "proptest-derive",
  "serde",
  "sha2",
  "thiserror",
