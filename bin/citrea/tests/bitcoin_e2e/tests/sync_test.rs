@@ -25,6 +25,7 @@ impl TestCase for BasicSyncTest {
         let (Some(da0), Some(da1)) = (f.bitcoin_nodes.get(0), f.bitcoin_nodes.get(1)) else {
             bail!("bitcoind not running. Test should run with two da nodes")
         };
+        let initial_height = da0.get_block_count().await?;
 
         // Generate some blocks on node0
         da0.generate(5, None).await?;
@@ -33,7 +34,7 @@ impl TestCase for BasicSyncTest {
         let height1 = da1.get_block_count().await?;
 
         // Nodes are now out of sync
-        assert_eq!(height0, 5);
+        assert_eq!(height0, initial_height + 5);
         assert_eq!(height1, 0);
 
         // Sync both nodes
