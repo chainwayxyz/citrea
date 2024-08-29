@@ -3,7 +3,7 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
-    ModuleInfo, StateValue, WorkingSet,
+    ModuleInfo, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 
@@ -122,7 +122,7 @@ fn main() {
     let module = RT::decode_call(&serialized_message).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([11; 32].as_ref()).unwrap();
-    let context = C::new(sender, sequencer, 1);
+    let context = C::new(sender, sequencer, 1, SpecId::Genesis, 0);
 
     let _ = runtime
         .dispatch_call(module, working_set, SpecId::Genesis, &context)
