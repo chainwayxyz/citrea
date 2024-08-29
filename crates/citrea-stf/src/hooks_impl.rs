@@ -86,14 +86,14 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     )]
     fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError> {
         self.soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(soft_confirmation, working_set)?;
+            .begin_soft_confirmation_hook(&soft_confirmation_info, working_set)?;
 
         self.evm
-            .begin_soft_confirmation_hook(soft_confirmation, working_set);
+            .begin_soft_confirmation_hook(&soft_confirmation_info, working_set);
 
         Ok(())
     }

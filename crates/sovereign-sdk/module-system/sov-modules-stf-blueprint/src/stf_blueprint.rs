@@ -165,25 +165,19 @@ where
     pub fn begin_soft_confirmation_inner(
         &self,
         mut batch_workspace: WorkingSet<C>,
-        soft_confirmation: &mut SignedSoftConfirmation,
-        pre_state_root: &<C::Storage as Storage>::Root,
-        current_spec: SpecId,
+        soft_confirmation_info: HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
-            "Beginning soft confirmation 0x{} from sequencer: 0x{}",
-            hex::encode(soft_confirmation.hash()),
-            hex::encode(soft_confirmation.sequencer_pub_key())
+            "Beginning soft confirmation #{} from sequencer: 0x{}",
+            soft_confirmation_info.l2_height(),
+            hex::encode(soft_confirmation_info.sequencer_pub_key())
         );
 
         // ApplySoftConfirmationHook: begin
-        if let Err(e) = self.runtime.begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::new(
-                soft_confirmation.clone(),
-                pre_state_root.as_ref().to_vec(),
-                current_spec,
-            ),
-            &mut batch_workspace,
-        ) {
+        if let Err(e) = self
+            .runtime
+            .begin_soft_confirmation_hook(soft_confirmation_info, &mut batch_workspace)
+        {
             native_error!(
                 "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {:?}",
                 e
@@ -250,12 +244,13 @@ where
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
         let batch_workspace = checkpoint.to_revertable();
 
-        match self.begin_soft_confirmation_inner(
-            batch_workspace,
-            soft_confirmation,
-            pre_state_root,
+        let soft_confirmation_info = HookSoftConfirmationInfo::new(
+            soft_confirmation.clone(),
+            pre_state_root.as_ref().to_vec(),
             current_spec,
-        ) {
+        );
+
+        match self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info) {
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
                 let (batch_workspace, tx_receipts) =

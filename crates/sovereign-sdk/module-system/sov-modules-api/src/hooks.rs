@@ -65,7 +65,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError>;
 
@@ -121,25 +121,6 @@ impl HookSoftConfirmationInfo {
             l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
             timestamp: signed_soft_confirmation.timestamp(),
         }
-    }
-}
-
-impl From<HookSoftConfirmationInfo> for SignedSoftConfirmation {
-    fn from(val: HookSoftConfirmationInfo) -> Self {
-        SignedSoftConfirmation::new(
-            val.l2_height,
-            [0u8; 32],
-            [0u8; 32],
-            val.da_slot_height,
-            val.da_slot_hash(),
-            val.da_slot_txs_commitment(),
-            val.l1_fee_rate,
-            vec![],
-            val.deposit_data,
-            vec![],
-            val.pub_key.clone(),
-            val.timestamp,
-        )
     }
 }
 
