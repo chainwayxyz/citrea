@@ -38,10 +38,6 @@ impl Prover {
 
         let dir = test_case.dir.join("prover");
 
-        println!("Prover config: {prover_config:#?}");
-        println!("Rollup config: {rollup_config:#?}");
-        println!("Prover dir: {:#?}", dir);
-
         let spawn_output =
             Self::spawn(&(prover_config.clone(), rollup_config.clone()), &dir).await?;
 

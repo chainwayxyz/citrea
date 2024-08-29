@@ -35,9 +35,6 @@ impl FullNode {
 
         let dir = test_case.dir.join("full-node");
 
-        println!("Rollup config: {rollup_config:#?}");
-        println!("FullNode dir: {:#?}", dir);
-
         let spawn_output = Self::spawn(rollup_config, &dir).await?;
 
         // Wait for ws server

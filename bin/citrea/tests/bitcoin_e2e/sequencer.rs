@@ -29,8 +29,6 @@ impl Sequencer {
             sequencer: config, ..
         } = &ctx.config;
 
-        println!("Sequencer config: {config:#?}");
-
         let spawn_output = Self::spawn(config, &config.dir).await?;
 
         // Wait for ws server
