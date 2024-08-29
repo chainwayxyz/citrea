@@ -1,5 +1,6 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::SpecId;
 use sov_modules_core::capabilities::mocks::MockKernel;
 use sov_modules_core::{
     Address, Context, KernelWorkingSet, StateReaderAndWriter, StorageKey, StorageValue, WorkingSet,
@@ -36,7 +37,13 @@ fn test_versioned_workingset_get() {
     let sender = Address::from([1; 32]);
     let sequencer = Address::from([2; 32]);
     let mut working_set = WorkingSet::<DefaultContext>::new(storage.clone());
-    let mut working_set = working_set.versioned_state(&DefaultContext::new(sender, sequencer, 1));
+    let mut working_set = working_set.versioned_state(&DefaultContext::new(
+        sender,
+        sequencer,
+        1,
+        SpecId::Genesis,
+        0,
+    ));
     working_set.set(&storage_key, storage_value.clone());
 
     assert_eq!(Some(storage_value), working_set.get(&storage_key));

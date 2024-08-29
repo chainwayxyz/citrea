@@ -7,7 +7,7 @@ use sov_bank::{
 };
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -51,7 +51,7 @@ fn transfer_initial_token() {
 
     assert_eq!(Some(initial_balance), sender_balance_before);
     assert_eq!(sender_balance_before, receiver_balance_before);
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     // Transfer happy test
     {
@@ -159,7 +159,7 @@ fn transfer_initial_token() {
     {
         let unknown_sender = generate_address::<C>("non_existing_sender");
         let sequencer = generate_address::<C>("sequencer");
-        let unknown_sender_context = C::new(unknown_sender, sequencer, 1);
+        let unknown_sender_context = C::new(unknown_sender, sequencer, 1, SpecId::Genesis, 0);
 
         let sender_balance = query_user_balance(unknown_sender, &mut working_set);
         assert!(sender_balance.is_none());
@@ -293,7 +293,7 @@ fn transfer_deployed_token() {
 
     assert!(sender_balance_before.is_none());
     assert!(receiver_balance_before.is_none());
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     let mint_message = CallMessage::CreateToken {
         salt,

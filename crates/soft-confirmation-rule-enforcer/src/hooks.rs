@@ -120,14 +120,14 @@ where
     )]
     pub fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation: &HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {
-        self.apply_block_count_rule(soft_confirmation, working_set)?;
+        self.apply_block_count_rule(soft_confirmation_info, working_set)?;
 
-        self.apply_fee_rate_rule(soft_confirmation, working_set)?;
+        self.apply_fee_rate_rule(soft_confirmation_info, working_set)?;
 
-        self.apply_timestamp_rule(soft_confirmation, working_set)?;
+        self.apply_timestamp_rule(soft_confirmation_info, working_set)?;
 
         Ok(())
     }

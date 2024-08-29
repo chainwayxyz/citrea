@@ -101,6 +101,7 @@ fn test_sys_bitcoin_light_client() {
     );
 
     let l1_fee_rate = 1;
+    let l2_height = 2;
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
@@ -141,6 +142,7 @@ fn test_sys_bitcoin_light_client() {
     // New L1 block №2
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [2u8; 32],
             da_slot_height: 2,
             da_slot_txs_commitment: [3u8; 32],
@@ -156,7 +158,13 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -278,13 +286,21 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
+    let mut l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
+    );
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -315,8 +331,11 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
+    l2_height += 1;
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [10u8; 32],
             da_slot_height: 2,
             da_slot_txs_commitment: [43u8; 32],
@@ -330,7 +349,13 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         &mut working_set,
     );
     {
-        let context = C::new(sender_address, sequencer_address, 2);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let sys_tx_gas_usage = evm.get_pending_txs_cumulative_gas_used(&mut working_set);
         assert_eq!(sys_tx_gas_usage, 80720);
@@ -389,8 +414,12 @@ fn test_bridge() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let l2_height = 2;
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_height: 2,
             da_slot_hash: [2u8; 32],
             da_slot_txs_commitment: [
@@ -462,7 +491,7 @@ fn test_bridge() {
                 0, 0, 0,
             ]
             .to_vec()],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -523,12 +552,22 @@ fn test_upgrade_light_client() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let l2_height = 2;
+
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
+    );
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -536,7 +575,7 @@ fn test_upgrade_light_client() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -648,12 +687,21 @@ fn test_change_upgrade_owner() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
+    );
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -661,7 +709,7 @@ fn test_change_upgrade_owner() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -688,8 +736,18 @@ fn test_change_upgrade_owner() {
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
+    l2_height += 1;
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
+    );
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -697,7 +755,7 @@ fn test_change_upgrade_owner() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,

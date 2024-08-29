@@ -33,18 +33,15 @@ tokio = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 
-
 [dev-dependencies]
 serde_json = { workspace = true }
-proptest = { workspace = true }
-proptest-derive = { workspace = true }
 
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures"]
-fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
-testing = ["native"]
-arbitrary = ["dep:arbitrary"]
+fuzzing = ["dep:proptest", "dep:proptest-derive", "dep:sha2", "std"]
+testing = ["native", "dep:proptest", "dep:proptest-derive"]
+arbitrary = ["dep:arbitrary", "dep:proptest", "dep:proptest-derive"]
 std = [
     "anyhow/default",
     "borsh/default",

@@ -58,6 +58,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height: 1,
             da_slot_hash: [1u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [2u8; 32],

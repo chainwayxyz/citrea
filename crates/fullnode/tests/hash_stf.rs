@@ -3,7 +3,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::hooks::SoftConfirmationError;
+use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
@@ -75,13 +75,11 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
 {
     fn begin_soft_confirmation(
         &self,
-        _current_spec: SpecId,
         _sequencer_public_key: &[u8],
-        _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
+        _soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (
         Result<(), SoftConfirmationError>,
         sov_modules_api::WorkingSet<C>,
@@ -91,7 +89,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
 
     fn apply_soft_confirmation_txs(
         &self,
-        _current_spec: SpecId,
+        _soft_confirmation_info: HookSoftConfirmationInfo,
         _txs: Vec<Vec<u8>>,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (

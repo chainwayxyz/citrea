@@ -1,7 +1,6 @@
 //! Runtime call message definitions.
 
 use borsh::io;
-use sov_rollup_interface::spec::SpecId;
 
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};

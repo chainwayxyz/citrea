@@ -5,13 +5,11 @@ use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
 };
-use sov_state::Storage;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
+// #[cfg(all(target_os = "zkvm", feature = "bench"))]
+// use sov_zk_cycle_macros::cycle_tracker;
 #[cfg(feature = "native")]
 use tracing::instrument;
 

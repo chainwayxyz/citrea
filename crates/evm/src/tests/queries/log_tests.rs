@@ -21,7 +21,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.eth_get_logs(
         Filter {
@@ -66,8 +66,12 @@ fn log_filter_test_at_block_hash() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let l2_height = 2;
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -75,7 +79,7 @@ fn log_filter_test_at_block_hash() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -83,7 +87,13 @@ fn log_filter_test_at_block_hash() {
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy logs contract
         // call the contract function
@@ -273,8 +283,12 @@ fn log_filter_test_with_range() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -282,7 +296,7 @@ fn log_filter_test_with_range() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -290,7 +304,13 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy selfdestruct contract
         // call the contract function
@@ -315,6 +335,8 @@ fn log_filter_test_with_range() {
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
+    l2_height += 1;
+
     // Test with block range from start to finish, should get all logs
     let empty_topics = [
         FilterSet::default(),
@@ -337,6 +359,7 @@ fn log_filter_test_with_range() {
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -344,7 +367,7 @@ fn log_filter_test_with_range() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -352,7 +375,13 @@ fn log_filter_test_with_range() {
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
         // call the contract function
         evm.call(
             CallMessage {
@@ -397,8 +426,12 @@ fn test_log_limits() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: [5u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
@@ -406,7 +439,7 @@ fn test_log_limits() {
             current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
-            l1_fee_rate: 1,
+            l1_fee_rate,
             timestamp: 0,
         },
         &mut working_set,
@@ -414,7 +447,13 @@ fn test_log_limits() {
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -462,6 +501,8 @@ fn test_log_limits() {
     evm.end_soft_confirmation_hook(&mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
+    l2_height += 1;
+
     // Test with block range from start to finish, should get all logs
     let empty_topics = [
         FilterSet::default(),
@@ -500,6 +541,7 @@ fn test_log_limits() {
         // generate 100_000 blocks to test the max block range limit
         evm.begin_soft_confirmation_hook(
             &HookSoftConfirmationInfo {
+                l2_height,
                 da_slot_hash: [5u8; 32],
                 da_slot_height: 1,
                 da_slot_txs_commitment: [42u8; 32],
@@ -507,13 +549,15 @@ fn test_log_limits() {
                 current_spec: SpecId::Genesis,
                 pub_key: vec![],
                 deposit_data: vec![],
-                l1_fee_rate: 1,
+                l1_fee_rate,
                 timestamp: 0,
             },
             &mut working_set,
         );
         evm.end_soft_confirmation_hook(&mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+        l2_height += 1;
     }
 
     let filter = Filter {
