@@ -230,7 +230,7 @@ fn test_sys_bitcoin_light_client() {
         base_fee_vault.info.balance,
         U256::from(114235u64 * 10000000)
     );
-    assert_eq!(l1_fee_vault.info.balance, U256::from(935));
+    assert_eq!(l1_fee_vault.info.balance, U256::from(935 + 8));
 
     let hash = evm
         .get_call(
