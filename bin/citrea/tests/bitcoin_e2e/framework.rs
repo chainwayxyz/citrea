@@ -75,9 +75,6 @@ impl TestFramework {
             println!("Successfully cleaned docker");
         }
 
-        let _ = self.bitcoin_nodes.stop_all().await;
-        println!("Successfully stopped bitcoin nodes");
-
         if let Some(sequencer) = &mut self.sequencer {
             let _ = sequencer.stop().await;
             println!("Successfully stopped sequencer");
@@ -92,6 +89,9 @@ impl TestFramework {
             let _ = full_node.stop().await;
             println!("Successfully stopped full_node");
         }
+
+        let _ = self.bitcoin_nodes.stop_all().await;
+        println!("Successfully stopped bitcoin nodes");
 
         if self.show_logs {
             println!(
