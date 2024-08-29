@@ -43,14 +43,14 @@ pub enum DaData {
     ZKProof(Proof),
 }
 
-/// Data written to DA and read from DA is must be borsh serialization of this enum
+/// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaDataLightClient {
     /// A zk proof and state diff
     ZKProof(Proof),
 }
 
-/// Data written to DA and read from DA is must be borsh serialization of this enum
+/// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaDataBatchProof {
     /// A commitment from the sequencer
