@@ -19,6 +19,21 @@ pub struct SequencerConfig {
     pub block_production_interval_ms: u64,
 }
 
+impl Default for SequencerConfig {
+    fn default() -> Self {
+        SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
+            min_soft_confirmations_per_commitment: 10,
+            test_mode: true,
+            deposit_mempool_fetch_limit: 10,
+            block_production_interval_ms: 1000,
+            da_update_interval_ms: 2000,
+            mempool_conf: Default::default(),
+        }
+    }
+}
+
 /// Mempool Config for the sequencer
 /// Read: https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

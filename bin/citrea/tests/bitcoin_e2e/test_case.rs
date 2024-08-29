@@ -14,13 +14,13 @@ use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::task;
 
 use super::config::{
-    default_rollup_config, default_sequencer_config, BitcoinConfig, FullSequencerConfig,
-    RollupConfig, TestCaseConfig, TestConfig,
+    default_rollup_config, BitcoinConfig, FullSequencerConfig, RollupConfig, TestCaseConfig,
+    TestConfig,
 };
 use super::framework::TestFramework;
 use super::node::NodeKind;
-use super::utils::copy_directory;
-use super::{get_available_port, Result};
+use super::utils::{copy_directory, get_available_port};
+use super::Result;
 use crate::bitcoin_e2e::node::Node;
 use crate::bitcoin_e2e::utils::{get_default_genesis_path, get_workspace_root};
 
@@ -245,7 +245,7 @@ pub trait TestCase: Send + Sync + 'static {
     /// Returns the sequencer configuration for the test.
     /// Override this method to provide a custom sequencer configuration.
     fn sequencer_config() -> SequencerConfig {
-        default_sequencer_config()
+        SequencerConfig::default()
     }
 
     /// Returns the prover configuration for the test.

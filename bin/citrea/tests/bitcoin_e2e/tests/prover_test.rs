@@ -5,9 +5,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoin_e2e::config::{
-    default_sequencer_config, ProverConfig, SequencerConfig, TestCaseConfig,
-};
+use crate::bitcoin_e2e::config::{ProverConfig, SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
@@ -38,7 +36,7 @@ impl TestCase for BasicProverTest {
         SequencerConfig {
             min_soft_confirmations_per_commitment: 10,
             test_mode: true,
-            ..default_sequencer_config()
+            ..Default::default()
         }
     }
 
