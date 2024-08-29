@@ -7,8 +7,9 @@
 
 ### pending txs 
 ```6369747265615f65766d2f45766d2f70656e64696e675f7472616e73616374696f6e732f650000000000000000``` = 45 bytes
-valu = None
+value = None
 45 bytes
+45*avg_num_of_txs_in_block = 45 * 12 = 540
 
 ### head
 ```6369747265615f65766d2f45766d2f686561642f``` = 20 Bytes
@@ -50,13 +51,14 @@ valu = None
 ```736f765f6163636f756e74732f4163636f756e74732f6163636f756e74732f204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21``` = 63 bytes
 ```b0066359d64f97eb279947feeb083a96343d5f5a0a2c9cf82842f6f4749ff5340100000000000000``` = 40 bytes
 60 + 43 = 103 bytes
-103*300 = 30900 bytes
+
 
 ## Bitcoin
-### Commit tx
+### Sequencer Commitment
+#### Commit tx
 2 Segwit input + 1 Taproot Output = 190vb
 
-### Reveal Tx
+#### Reveal Tx
 1 taproot input
 Witness Items =>
     Signature 64 bytes
@@ -67,9 +69,23 @@ Witness Items =>
 338 + 31 = 369 vbytes
 
 
-111 + 45 + 650 + 61 + 25856 + 94 + 124 + 84 + 30900 + 369 = 58294
+### Batch Proof
+#### Reveal tx
+1.6 kb
+because OP_PUSHBYTES is 2 bytes, assuming we inscribe 400kb of data 400kb / 512 bytes ~= 800
+800*2 = 1600 bytes
+the other non push parts is 161 bytes
+1600+161 = 1761
+
+#### Output
+Full Snark Receipt except for journal is 408 bytes
+
+1761+408 = 2169
+
+
+111 + 540 + 650 + 61 + 25856 + 94 + 124 + 84 + 103 + 369 + 2169 = 30161
 
 ethereum 10 min batch avg number of txs = 7439.137755
 
-`58294/7439.137755 = 7.84`
+`30161/7439.137755 = 4.05436772289`
 
