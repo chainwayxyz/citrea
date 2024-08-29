@@ -9,6 +9,8 @@ use bitcoincore_rpc::{Auth, Client, RpcApi};
 use tokio::process::Command;
 use tokio::time::sleep;
 
+use crate::bitcoin_e2e::node::NodeKind;
+
 use super::config::BitcoinConfig;
 use super::docker::DockerEnv;
 use super::framework::TestContext;
@@ -29,7 +31,11 @@ impl BitcoinNode {
             None => Self::spawn(config, &PathBuf::default()).await?,
         };
 
-        let rpc_url = format!("http://127.0.0.1:{}", config.rpc_port);
+        let rpc_url = format!(
+            "http://127.0.0.1:{}/wallet/{}",
+            config.rpc_port,
+            NodeKind::Bitcoin
+        );
         let client = Client::new(
             &rpc_url,
             Auth::UserPass(config.rpc_user.clone(), config.rpc_password.clone()),
@@ -41,7 +47,13 @@ impl BitcoinNode {
         println!("bitcoin RPC is ready");
 
         client
-            .create_wallet("wallet", None, None, None, None)
+            .create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
+            .await?;
+        client
+            .create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)
+            .await?;
+        client
+            .create_wallet(&NodeKind::Bitcoin.to_string(), None, None, None, None)
             .await?;
 
         let gen_addr = client.get_new_address(None, None).await?.assume_checked();
@@ -72,6 +84,23 @@ impl BitcoinNode {
             sleep(Duration::from_millis(500)).await;
         }
         bail!("Timeout waiting for mempool to reach length {}", target_len)
+    }
+
+    pub async fn fund_wallet(&self, name: String) -> Result<()> {
+        let rpc_url = format!("http://127.0.0.1:{}/wallet/{}", self.config.rpc_port, name);
+        let client = Client::new(
+            &rpc_url,
+            Auth::UserPass(
+                self.config.rpc_user.clone(),
+                self.config.rpc_password.clone(),
+            ),
+        )
+        .await
+        .context("Failed to create RPC client")?;
+
+        let gen_addr = client.get_new_address(None, None).await?.assume_checked();
+        client.generate_to_address(25, &gen_addr).await?;
+        Ok(())
     }
 }
 

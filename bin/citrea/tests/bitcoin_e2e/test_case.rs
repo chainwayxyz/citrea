@@ -18,6 +18,7 @@ use super::config::{
     RollupConfig, TestCaseConfig, TestConfig,
 };
 use super::framework::TestFramework;
+use super::node::NodeKind;
 use super::utils::copy_directory;
 use super::{get_available_port, Result};
 use crate::bitcoin_e2e::node::Node;
@@ -35,15 +36,31 @@ impl<T: TestCase> TestCaseRunner<T> {
         Self(Arc::new(test_case))
     }
 
-    /// Internal method to set up connect the nodes, wait for the nodes to be ready and run the test.
-    async fn run_test_case(&self, framework: &mut TestFramework) -> Result<()> {
-        framework.bitcoin_nodes.connect_nodes().await?;
+    pub async fn setup(&self, f: &TestFramework) -> Result<()> {
+        let bitcoin_node = f.bitcoin_nodes.get(0).unwrap();
+        if f.sequencer.is_some() {
+            bitcoin_node
+                .fund_wallet(NodeKind::Sequencer.to_string())
+                .await?;
+        }
 
-        if let Some(sequencer) = &framework.sequencer {
+        if f.prover.is_some() {
+            bitcoin_node
+                .fund_wallet(NodeKind::Prover.to_string())
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Internal method to set up connect the nodes, wait for the nodes to be ready and run the test.
+    async fn run_test_case(&self, f: &mut TestFramework) -> Result<()> {
+        f.bitcoin_nodes.connect_nodes().await?;
+
+        if let Some(sequencer) = &f.sequencer {
             sequencer.wait_for_ready(Duration::from_secs(5)).await?;
         }
 
-        self.0.run_test(framework).await
+        self.0.run_test(f).await
     }
 
     /// Executes the test case, handling any panics and performing cleanup.
@@ -56,6 +73,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
                 futures::executor::block_on(async {
                     framework = Some(TestFramework::new(Self::generate_test_config()?).await?);
+                    self.setup(framework.as_ref().unwrap()).await?;
                     self.run_test_case(framework.as_mut().unwrap()).await
                 })
             }));
@@ -124,6 +142,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D"
                             .to_string(),
                     ),
+                    node_url: format!("{}/wallet/sequencer", da_config.node_url),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -154,6 +173,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         "75BAF964D074594600366E5B111A1DA8F86B2EFE2D22DA51C8D82126A0FCAC72"
                             .to_string(),
                     ),
+                    node_url: format!("{}/wallet/prover", da_config.node_url),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
