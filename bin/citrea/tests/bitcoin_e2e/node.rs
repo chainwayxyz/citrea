@@ -25,7 +25,7 @@ impl fmt::Display for NodeKind {
             NodeKind::Bitcoin => write!(f, "bitcoin"),
             NodeKind::Prover => write!(f, "prover"),
             NodeKind::Sequencer => write!(f, "sequencer"),
-            NodeKind::FullNode => write!(f, "fullnode"),
+            NodeKind::FullNode => write!(f, "full-node"),
         }
     }
 }

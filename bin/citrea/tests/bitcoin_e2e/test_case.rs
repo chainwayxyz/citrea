@@ -136,17 +136,18 @@ impl<T: TestCase> TestCaseRunner<T> {
 
         let sequencer_rollup = {
             let bind_port = get_available_port()?;
+            let node_kind = NodeKind::Sequencer.to_string();
             RollupConfig {
                 da: BitcoinServiceConfig {
                     da_private_key: Some(
                         "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D"
                             .to_string(),
                     ),
-                    node_url: format!("{}/wallet/sequencer", da_config.node_url),
+                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
-                    path: dbs_dir.join("sequencer-db"),
+                    path: dbs_dir.join(format!("{}-db", node_kind)),
                 },
                 rpc: RpcConfig {
                     bind_port,
@@ -167,17 +168,18 @@ impl<T: TestCase> TestCaseRunner<T> {
 
         let prover_rollup = {
             let bind_port = get_available_port()?;
+            let node_kind = NodeKind::Prover.to_string();
             RollupConfig {
                 da: BitcoinServiceConfig {
                     da_private_key: Some(
                         "75BAF964D074594600366E5B111A1DA8F86B2EFE2D22DA51C8D82126A0FCAC72"
                             .to_string(),
                     ),
-                    node_url: format!("{}/wallet/prover", da_config.node_url),
+                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
-                    path: dbs_dir.join("prover-db"),
+                    path: dbs_dir.join(format!("{}-db", node_kind)),
                 },
                 rpc: RpcConfig {
                     bind_port,
@@ -190,10 +192,11 @@ impl<T: TestCase> TestCaseRunner<T> {
 
         let full_node_rollup = {
             let bind_port = get_available_port()?;
+            let node_kind = NodeKind::FullNode.to_string();
             RollupConfig {
                 da: da_config.clone(),
                 storage: StorageConfig {
-                    path: dbs_dir.join("full-node-db"),
+                    path: dbs_dir.join(format!("{}-db", node_kind)),
                 },
                 rpc: RpcConfig {
                     bind_port,
@@ -263,11 +266,11 @@ pub trait TestCase: Send + Sync + 'static {
 
 fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 6]> {
     let paths = [
-        "bitcoin",
+        NodeKind::Bitcoin.to_string().as_str(),
         "dbs",
-        "prover",
-        "sequencer",
-        "full-node",
+        NodeKind::Prover.to_string().as_str(),
+        NodeKind::Sequencer.to_string().as_str(),
+        NodeKind::FullNode.to_string().as_str(),
         "genesis",
     ]
     .map(|dir| base_dir.join(dir));

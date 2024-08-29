@@ -9,13 +9,12 @@ use bitcoincore_rpc::{Auth, Client, RpcApi};
 use tokio::process::Command;
 use tokio::time::sleep;
 
-use crate::bitcoin_e2e::node::NodeKind;
-
 use super::config::BitcoinConfig;
 use super::docker::DockerEnv;
 use super::framework::TestContext;
 use super::node::{Node, SpawnOutput};
 use super::Result;
+use crate::bitcoin_e2e::node::NodeKind;
 
 pub struct BitcoinNode {
     spawn_output: SpawnOutput,
