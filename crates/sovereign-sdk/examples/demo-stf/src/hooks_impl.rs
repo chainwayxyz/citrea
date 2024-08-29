@@ -26,7 +26,8 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         let RuntimeTxHook {
             height,
             sequencer,
-            current_spec: _current_spec,
+            current_spec,
+            l1_fee_rate,
         } = arg;
         let AccountsTxHook { sender, sequencer } =
             self.accounts
@@ -35,7 +36,13 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         let hook = BankTxHook { sender, sequencer };
         self.bank.pre_dispatch_tx_hook(tx, working_set, &hook)?;
 
-        Ok(C::new(hook.sender, hook.sequencer, *height))
+        Ok(C::new(
+            hook.sender,
+            hook.sequencer,
+            *height,
+            *current_spec,
+            *l1_fee_rate,
+        ))
     }
 
     fn post_dispatch_tx_hook(

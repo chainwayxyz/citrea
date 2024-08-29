@@ -43,6 +43,8 @@ pub struct RuntimeTxHook<C: Context> {
     pub sequencer: C::PublicKey,
     /// Current spec
     pub current_spec: SpecId,
+    /// L1 fee rate
+    pub l1_fee_rate: u128,
 }
 
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -151,7 +153,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn apply_soft_confirmation_txs(
         &self,
         current_spec: SpecId,
-        txs: Vec<Vec<u8>>,
+        soft_confirmation: &SignedSoftConfirmation,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
@@ -239,10 +241,10 @@ where
     fn apply_soft_confirmation_txs(
         &self,
         current_spec: SpecId,
-        txs: Vec<Vec<u8>>,
+        soft_confirmation: &SignedSoftConfirmation,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(txs, current_spec, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation, current_spec, batch_workspace)
     }
 
     fn end_soft_confirmation(
@@ -469,7 +471,7 @@ where
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
                     current_spec,
-                    soft_confirmation.txs(),
+                    &soft_confirmation,
                     batch_workspace,
                 );
 

@@ -64,11 +64,11 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn apply_sov_txs_inner(
         &self,
-        txs: Vec<Vec<u8>>,
+        soft_confirmation: &SignedSoftConfirmation,
         current_spec: SpecId,
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        let txs = self.verify_txs_stateless_soft(&txs);
+        let txs = self.verify_txs_stateless_soft(&soft_confirmation.txs());
 
         let messages = self
             .decode_txs(&txs)
@@ -88,9 +88,10 @@ where
             // Pre dispatch hook
             // TODO set the sequencer pubkey
             let hook = RuntimeTxHook {
-                height: 1,
+                height: soft_confirmation.l2_height(),
                 sequencer: tx.pub_key().clone(),
                 current_spec,
+                l1_fee_rate: soft_confirmation.l1_fee_rate(),
             };
             let ctx = match self
                 .runtime
@@ -257,11 +258,8 @@ where
         ) {
             (Ok(()), batch_workspace) => {
                 // TODO: wait for txs here, apply_sov_txs can be called multiple times
-                let (batch_workspace, tx_receipts) = self.apply_sov_txs_inner(
-                    soft_confirmation.txs(),
-                    current_spec,
-                    batch_workspace,
-                );
+                let (batch_workspace, tx_receipts) =
+                    self.apply_sov_txs_inner(soft_confirmation, current_spec, batch_workspace);
 
                 self.end_soft_confirmation_inner(soft_confirmation, tx_receipts, batch_workspace)
             }
