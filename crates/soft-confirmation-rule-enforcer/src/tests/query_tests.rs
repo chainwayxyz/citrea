@@ -74,13 +74,6 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    assert_eq!(
-        soft_confirmation_rule_enforcer
-            .get_max_l1_fee_rate_change_percentage(&mut working_set)
-            .unwrap(),
-        10
-    );
-
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
         [0; 32],
@@ -105,14 +98,6 @@ fn get_max_l1_fee_rate_change_percentage_must_be_correct() {
             &mut working_set,
         )
         .unwrap();
-
-    // didn't change
-    assert_eq!(
-        soft_confirmation_rule_enforcer
-            .get_max_l1_fee_rate_change_percentage(&mut working_set)
-            .unwrap(),
-        10
-    );
 }
 
 #[test]
@@ -120,13 +105,6 @@ fn get_last_l1_fee_rate_must_be_correct() {
     let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
-    assert_eq!(
-        soft_confirmation_rule_enforcer
-            .get_last_l1_fee_rate(&mut working_set)
-            .unwrap(),
-        0
-    );
-
     let signed_soft_confirmation_batch = SignedSoftConfirmationBatch::new(
         [0; 32],
         [0; 32],
@@ -150,14 +128,6 @@ fn get_last_l1_fee_rate_must_be_correct() {
             &mut working_set,
         )
         .unwrap();
-
-    // now set to 1
-    assert_eq!(
-        soft_confirmation_rule_enforcer
-            .get_last_l1_fee_rate(&mut working_set)
-            .unwrap(),
-        1
-    );
 }
 
 #[test]

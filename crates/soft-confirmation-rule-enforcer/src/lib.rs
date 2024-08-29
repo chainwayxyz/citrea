@@ -32,14 +32,6 @@ pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// This address is allowed to modify the max L2 blocks per L1.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
-    /// L1 fee rate change percentage
-    /// First block after genesis does not need to abide to this rule since last l1 fee rate does not exist.
-    #[state]
-    pub(crate) l1_fee_rate_change_percentage: StateValue<u128, BcsCodec>,
-    /// Last processed L1 fee rate
-    /// 0 at genesis
-    #[state]
-    pub(crate) last_l1_fee_rate: StateValue<u128, BcsCodec>,
     /// Sequencer's block timestamp
     #[state]
     pub(crate) last_timestamp: StateValue<u64, BcsCodec>,
