@@ -15,6 +15,7 @@ use sov_rollup_interface::spec::SpecId;
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::evm::system_contracts::BitcoinLightClient;
+use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
 use crate::system_contracts::{Bridge, ProxyAdmin};
 use crate::tests::call_tests::{
@@ -230,7 +231,7 @@ fn test_sys_bitcoin_light_client() {
         base_fee_vault.info.balance,
         U256::from(114235u64 * 10000000)
     );
-    assert_eq!(l1_fee_vault.info.balance, U256::from(935 + 8));
+    assert_eq!(l1_fee_vault.info.balance, U256::from(935 + L1_FEE_OVERHEAD));
 
     let hash = evm
         .get_call(

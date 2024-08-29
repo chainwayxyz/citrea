@@ -32,8 +32,8 @@ const DB_ACCOUNT_KEY_SIZE: usize = 25;
 /// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, soft_confirmation_rule_enforcer and sov_accounts
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
 /// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 soft confirmations
-/// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/e19fbb8e83f4bbdf072a34db3f8c5323e5638780/l1_fee_overhead.md
-const L1_FEE_OVERHEAD: usize = 8;
+/// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
+pub const L1_FEE_OVERHEAD: usize = 4;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
