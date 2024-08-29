@@ -71,5 +71,5 @@ Witness Items =>
 
 ethereum 10 min batch avg number of txs = 7439.137755
 
-`58294/7439.137755 = 7,84`
+`58294/7439.137755 = 7.84`
 
