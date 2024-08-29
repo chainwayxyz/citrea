@@ -482,6 +482,7 @@ pub fn create_inscription_type_0(
         sign_blob_with_private_key(&body, da_private_key).expect("Sequencer sign the body");
 
     // start creating inscription content
+    //Here
     let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
         .push_opcode(OP_CHECKSIGVERIFY)
@@ -1227,12 +1228,68 @@ mod tests {
     use bitcoin::taproot::ControlBlock;
     use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
+    use bitcoin::absolute::LockTime;
+    use bitcoin::blockdata::opcodes::all::{OP_DROP, OP_ENDIF, OP_IF};
+    use bitcoin::blockdata::opcodes::OP_FALSE;
+    use bitcoin::blockdata::script;
+    use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
+    use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
+    use bitcoin::script::PushBytesBuf;
+    use bitcoin::secp256k1::{self, Secp256k1, XOnlyPublicKey};
+    use bitcoin::sighash::{Prevouts, SighashCache};
+    use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
+    use bitcoin::{Network, OutPoint, Sequence, Transaction, TxIn, Witness};
+
     use super::LightClientTxs;
+    use super::{
+        calculate_double_sha256, TransactionHeaderBatchProof, TransactionHeaderLightClient,
+        TransactionKindBatchProof, TransactionKindLightClient,
+    };
     use crate::helpers::builders::sign_blob_with_private_key;
     use crate::helpers::compression::{compress_blob, decompress_blob};
     use crate::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
     use crate::spec::utxo::UTXO;
     use crate::REVEAL_OUTPUT_AMOUNT;
+
+    #[test]
+    fn test1() {
+        // Create reveal key
+        let secp256k1 = Secp256k1::new();
+        let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+        let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+        let body = vec![100; 48];
+        let da_private_key = SecretKey::from_slice(&[1; 32]).unwrap();
+        let rollup_name = b"test_rollup";
+        let header = TransactionHeaderBatchProof {
+            rollup_name,
+            kind: TransactionKindBatchProof::SequencerCommitment,
+        };
+        let header_bytes = header.to_bytes();
+        let nonce: i64 = 16;
+
+        // sign the body for authentication of the sequencer
+        let (signature, signer_public_key) =
+            sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
+
+        let reveal_script_builder = script::Builder::new()
+            .push_x_only_key(&public_key)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(header_bytes).expect("Cannot push header"))
+            .push_opcode(OP_FALSE)
+            .push_opcode(OP_IF)
+            .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
+            .push_slice(
+                PushBytesBuf::try_from(signer_public_key)
+                    .expect("Cannot push sequencer public key"),
+            )
+            .push_slice(PushBytesBuf::try_from(body).expect("Cannot push sequencer commitment"))
+            .push_opcode(OP_ENDIF)
+            .push_slice(nonce.to_le_bytes())
+            .push_opcode(OP_DROP);
+
+        let reveal_script = reveal_script_builder.into_script();
+        println!("len {}", reveal_script.len());
+    }
 
     #[test]
     fn compression_decompression() {

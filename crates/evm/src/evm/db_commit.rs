@@ -25,6 +25,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
+                println!("selfdestructed account: {:?}", address);
                 db_account.info.balance = U256::from(0);
                 db_account.info.nonce = 0;
                 db_account.info.code_hash = KECCAK_EMPTY;
@@ -33,8 +34,10 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 // clear storage
 
                 let keys_to_remove: Vec<U256> = db_account.keys.iter(self.working_set).collect();
+                println!("keys_to_remove: {:?}", keys_to_remove);
                 for key in keys_to_remove {
                     db_account.storage.delete(&key, self.working_set);
+                    println!("delete key: {:?}", key);
                 }
                 db_account.keys.clear(self.working_set);
                 self.accounts.set(&address, &db_account, self.working_set);
@@ -57,6 +60,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
                 let value = value.present_value();
+                println!("key to push: {:?}, value to push: {:?}", key, value);
                 if db_account.storage.get(&key, self.working_set).is_none() {
                     db_account.keys.push(&key, self.working_set);
                 }

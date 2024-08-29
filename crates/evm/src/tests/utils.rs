@@ -82,6 +82,51 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     (evm, working_set)
 }
 
+pub(crate) fn get_evm_with_storage_2(
+    config: &EvmConfig,
+) -> (
+    Evm<C>,
+    WorkingSet<C>,
+    ProverStorage<DefaultStorageSpec, SnapshotManager>,
+) {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let storage: ProverStorage<DefaultStorageSpec, SnapshotManager> =
+        new_orphan_storage(tmpdir.path()).unwrap();
+    let mut working_set = WorkingSet::new(storage.clone());
+    let evm = Evm::<C>::default();
+    evm.genesis(config, &mut working_set).unwrap();
+
+    let root = commit(working_set, storage.clone());
+
+    let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
+    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+
+    evm.begin_soft_confirmation_hook(
+        &HookSoftConfirmationInfo {
+            da_slot_hash: [1u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [2u8; 32],
+            pre_state_root: root.to_vec(),
+            current_spec: SpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate: 0,
+            timestamp: 0,
+        },
+        &mut working_set,
+    );
+    evm.end_soft_confirmation_hook(&mut working_set);
+
+    let root = commit(working_set, storage.clone());
+    let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
+    evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
+
+    // let mut genesis_state_root = [0u8; 32];
+    // genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
+
+    (evm, working_set, storage)
+}
+
 pub(crate) fn commit(
     working_set: WorkingSet<C>,
     storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,

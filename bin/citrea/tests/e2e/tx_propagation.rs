@@ -242,3 +242,64 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
     rollup_task.abort();
     Ok(())
 }
+
+/// Full node receives transaction from RPC.
+/// Sends it to the sequencer.
+/// We send eth_getTransactionByHash RPC to the full node.
+/// The full node checks state then asks to sequencer, then returns the result.
+/// We check if the tx is included in the response.
+#[tokio::test(flavor = "multi_thread")]
+async fn custom_test() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::INFO);
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    // create some txs to test the use cases
+    let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
+
+    let pending_tx1 = seq_test_client
+        .send_eth(addr, None, None, None, 1_000_000_000u128)
+        .await
+        .unwrap();
+
+    println!("\nBefore publish with tx\n");
+
+    seq_test_client.send_publish_batch_request().await;
+
+    println!("\nAfter publish with tx\n");
+
+    println!("\nBefore publish without tx\n");
+
+    seq_test_client.send_publish_batch_request().await;
+
+    println!("\nAfter publish without tx\n");
+
+    seq_task.abort();
+    Ok(())
+}

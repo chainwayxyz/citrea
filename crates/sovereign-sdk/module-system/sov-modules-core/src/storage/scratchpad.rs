@@ -192,10 +192,23 @@ impl<S: Storage> StateReaderAndWriter for Delta<S> {
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        println!(
+            "Delta writer. String Key: {:?} \n Hex key {:?}\n Hex encoded key: {:?}\n",
+            String::from_utf8_lossy(&key.key()),
+            key.key(),
+            hex::encode(key.key().as_ref())
+        );
+        println!("Delta writer. Value: {:?}\n", hex::encode(value.value()));
         self.cache.set(key, value)
     }
 
     fn delete(&mut self, key: &StorageKey) {
+        println!(
+            "Delta deleter. String Key: {:?} \n Hex key {:?}\nHex encoded key {:?}\n",
+            String::from_utf8_lossy(&key.key()),
+            key.key(),
+            hex::encode(key.key().as_ref())
+        );
         self.cache.delete(key)
     }
 }
@@ -561,10 +574,12 @@ pub mod archival_state {
         }
 
         fn set(&mut self, key: &StorageKey, value: StorageValue) {
+            println!("set archival jmt");
             self.delta.set(key, value)
         }
 
         fn delete(&mut self, key: &StorageKey) {
+            println!("delete archival jmt");
             self.delta.delete(key)
         }
     }
@@ -744,6 +759,18 @@ impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        println!(
+            "Revertable writer insert key: {}",
+            String::from_utf8_lossy(key.key().as_ref())
+        );
+        println!(
+            "Revertable writer insert key hex: {}",
+            hex::encode(key.key().as_ref())
+        );
+        println!(
+            "Revertable writer insert hex value: {:?}",
+            hex::encode(value.value())
+        );
         self.writes.insert(
             key.to_cache_key_version(self.version),
             Some(value.into_cache_value()),
@@ -751,6 +778,14 @@ impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
     }
 
     fn delete(&mut self, key: &StorageKey) {
+        println!(
+            "Revertable writer delete key: {}",
+            String::from_utf8_lossy(key.key().as_ref())
+        );
+        println!(
+            "Revertable writer delete key hex: {}",
+            hex::encode(key.key().as_ref())
+        );
         self.writes
             .insert(key.to_cache_key_version(self.version), None);
     }

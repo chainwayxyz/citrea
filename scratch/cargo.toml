@@ -1,0 +1,2 @@
+[dependencies]
+bitcoin = { version = "0.32.2", features = ["serde", "rand"] }
