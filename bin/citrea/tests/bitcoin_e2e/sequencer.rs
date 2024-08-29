@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration, Instant};
 use super::config::{config_to_file, FullSequencerConfig, TestConfig};
 use super::framework::TestContext;
 use super::node::{L2Node, Node, SpawnOutput};
-use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
+use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::utils::get_genesis_path;
 use crate::evm::make_test_client;
@@ -31,10 +31,6 @@ impl Sequencer {
 
         let spawn_output = Self::spawn(config, &config.dir).await?;
 
-        // Wait for ws server
-        // TODO Add to wait_for_ready
-        sleep(Duration::from_secs(3)).await;
-
         let socket_addr = SocketAddr::new(
             config
                 .rollup
@@ -45,7 +41,7 @@ impl Sequencer {
             config.rollup.rpc.bind_port,
         );
 
-        let client = make_test_client(socket_addr).await;
+        let client = retry(|| async { make_test_client(socket_addr).await }, None).await?;
 
         Ok(Self {
             spawn_output,

@@ -154,7 +154,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     let seq_port = seq_port_rx.await.unwrap();
 
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
 
     assert_eq!(seq_test_client.eth_block_number().await as u64, 5);
 
@@ -428,7 +428,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await?;
 
     let (full_node_port_tx_2, full_node_port_rx_2) = tokio::sync::oneshot::channel();
 
@@ -452,7 +452,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
     });
 
     let full_node_port_2 = full_node_port_rx_2.await.unwrap();
-    let full_node_test_client_2 = make_test_client(full_node_port_2).await;
+    let full_node_test_client_2 = make_test_client(full_node_port_2).await?;
 
     let _ = execute_blocks(&seq_test_client, &full_node_test_client, &da_db_dir.clone()).await;
 

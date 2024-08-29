@@ -46,7 +46,7 @@ async fn sequencer_sends_commitments_to_da_layer() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let test_client = make_test_client(seq_port).await.unwrap();
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
@@ -209,7 +209,7 @@ async fn test_ledger_get_commitments_on_slot() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let test_client = make_test_client(seq_port).await.unwrap();
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
@@ -234,7 +234,7 @@ async fn test_ledger_get_commitments_on_slot() {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 
@@ -305,7 +305,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let test_client = make_test_client(seq_port).await.unwrap();
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
@@ -333,7 +333,7 @@ async fn test_ledger_get_commitments_on_slot_prover() {
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
-    let prover_node_test_client = make_test_client(prover_node_port).await;
+    let prover_node_test_client = make_test_client(prover_node_port).await.unwrap();
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
 

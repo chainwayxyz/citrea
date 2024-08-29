@@ -93,7 +93,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await?;
 
     wait_for_l2_block(&full_node_test_client, 10, None).await;
 
@@ -292,7 +292,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -319,7 +319,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await;
+    let prover_node_test_client = make_test_client(prover_node_port).await?;
 
     // prover should not have any blocks saved
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
@@ -464,7 +464,7 @@ async fn test_full_node_sync_status() {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
     wait_for_l2_block(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
 

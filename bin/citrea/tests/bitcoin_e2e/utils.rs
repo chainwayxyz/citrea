@@ -1,11 +1,12 @@
+use super::Result;
+use anyhow::bail;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::future::Future;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
-
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-
-use super::Result;
+use tokio::time::{sleep, Duration, Instant};
 
 pub fn get_available_port() -> Result<u16> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -90,4 +91,26 @@ pub fn copy_directory(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Resul
     }
 
     Ok(())
+}
+
+pub(crate) async fn retry<F, Fut, T>(f: F, timeout: Option<Duration>) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let start = Instant::now();
+    let timeout = start + timeout.unwrap_or_else(|| Duration::from_secs(5));
+
+    loop {
+        match tokio::time::timeout_at(timeout, f()).await {
+            Ok(Ok(result)) => return Ok(result),
+            Ok(Err(e)) => {
+                if Instant::now() >= timeout {
+                    return Err(e);
+                }
+                sleep(Duration::from_millis(500)).await;
+            }
+            Err(elapsed) => bail!("Timeout expired {elapsed}"),
+        }
+    }
 }

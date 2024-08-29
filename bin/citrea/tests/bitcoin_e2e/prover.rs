@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration, Instant};
 use super::config::{config_to_file, RollupConfig, TestConfig};
 use super::framework::TestContext;
 use super::node::{L2Node, Node, SpawnOutput};
-use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
+use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::config::ProverConfig;
 use crate::bitcoin_e2e::utils::get_genesis_path;
@@ -41,10 +41,6 @@ impl Prover {
         let spawn_output =
             Self::spawn(&(prover_config.clone(), rollup_config.clone()), &dir).await?;
 
-        // Wait for ws server
-        // TODO Add to wait_for_ready
-        sleep(Duration::from_secs(3)).await;
-
         let socket_addr = SocketAddr::new(
             rollup_config
                 .rpc
@@ -53,7 +49,7 @@ impl Prover {
                 .context("Failed to parse bind host")?,
             rollup_config.rpc.bind_port,
         );
-        let client = make_test_client(socket_addr).await;
+        let client = retry(|| async { make_test_client(socket_addr).await }, None).await?;
 
         Ok(Self {
             spawn_output,

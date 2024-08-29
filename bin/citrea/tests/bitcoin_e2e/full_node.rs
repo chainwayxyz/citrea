@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration, Instant};
 use super::config::{config_to_file, TestConfig};
 use super::framework::TestContext;
 use super::node::{L2Node, Node, SpawnOutput};
-use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path};
+use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::config::RollupConfig;
 use crate::bitcoin_e2e::utils::get_genesis_path;
@@ -37,10 +37,6 @@ impl FullNode {
 
         let spawn_output = Self::spawn(rollup_config, &dir).await?;
 
-        // Wait for ws server
-        // TODO wait_for_ready
-        sleep(Duration::from_secs(3)).await;
-
         let socket_addr = SocketAddr::new(
             rollup_config
                 .rpc
@@ -49,7 +45,7 @@ impl FullNode {
                 .context("Failed to parse bind host")?,
             rollup_config.rpc.bind_port,
         );
-        let client = make_test_client(socket_addr).await;
+        let client = retry(|| async { make_test_client(socket_addr).await }, None).await?;
 
         Ok(Self {
             spawn_output,
