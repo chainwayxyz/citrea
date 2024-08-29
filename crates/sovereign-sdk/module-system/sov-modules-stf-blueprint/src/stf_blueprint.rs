@@ -64,11 +64,11 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn apply_sov_txs_inner(
         &self,
-        soft_confirmation: &SignedSoftConfirmation,
-        current_spec: SpecId,
+        soft_confirmation_info: HookSoftConfirmationInfo,
+        txs: Vec<Vec<u8>>,
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        let txs = self.verify_txs_stateless_soft(&soft_confirmation.txs());
+        let txs = self.verify_txs_stateless_soft(txs);
 
         let messages = self
             .decode_txs(&txs)
@@ -88,10 +88,10 @@ where
             // Pre dispatch hook
             // TODO set the sequencer pubkey
             let hook = RuntimeTxHook {
-                height: soft_confirmation.l2_height(),
+                height: soft_confirmation_info.l2_height(),
                 sequencer: tx.pub_key().clone(),
-                current_spec,
-                l1_fee_rate: soft_confirmation.l1_fee_rate(),
+                current_spec: soft_confirmation_info.current_spec(),
+                l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
             };
             let ctx = match self
                 .runtime
@@ -116,9 +116,7 @@ where
             // Commit changes after pre_dispatch_tx_hook
             sc_workspace = sc_workspace.checkpoint().to_revertable();
 
-            let tx_result = self
-                .runtime
-                .dispatch_call(msg, &mut sc_workspace, current_spec, &ctx);
+            let tx_result = self.runtime.dispatch_call(msg, &mut sc_workspace, &ctx);
 
             let events = sc_workspace.take_events();
             let tx_effect = match tx_result {
@@ -165,7 +163,7 @@ where
     pub fn begin_soft_confirmation_inner(
         &self,
         mut batch_workspace: WorkingSet<C>,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
             "Beginning soft confirmation #{} from sequencer: 0x{}",
@@ -234,40 +232,12 @@ where
         )
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn _apply_soft_confirmation_inner(
-        &self,
-        checkpoint: StateCheckpoint<C>,
-        soft_confirmation: &mut SignedSoftConfirmation,
-        pre_state_root: &<C::Storage as Storage>::Root,
-        current_spec: SpecId,
-    ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
-        let batch_workspace = checkpoint.to_revertable();
-
-        let soft_confirmation_info = HookSoftConfirmationInfo::new(
-            soft_confirmation.clone(),
-            pre_state_root.as_ref().to_vec(),
-            current_spec,
-        );
-
-        match self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info) {
-            (Ok(()), batch_workspace) => {
-                // TODO: wait for txs here, apply_sov_txs can be called multiple times
-                let (batch_workspace, tx_receipts) =
-                    self.apply_sov_txs_inner(soft_confirmation, current_spec, batch_workspace);
-
-                self.end_soft_confirmation_inner(soft_confirmation, tx_receipts, batch_workspace)
-            }
-            (Err(err), batch_workspace) => (Err(err), batch_workspace.revert()),
-        }
-    }
-
     // Stateless verification of transaction, such as signature check
     // Single malformed transaction results in sequencer slashing.
-    fn verify_txs_stateless_soft(&self, txs: &[Vec<u8>]) -> Vec<TransactionAndRawHash<C>> {
+    fn verify_txs_stateless_soft(&self, txs: Vec<Vec<u8>>) -> Vec<TransactionAndRawHash<C>> {
         verify_txs_stateless(
-            txs.iter()
-                .map(|tx| RawTx { data: tx.clone() })
+            txs.into_iter()
+                .map(|tx| RawTx { data: tx })
                 .collect::<Vec<_>>(),
         )
         .expect("Sequencer must not include non-deserializable transaction.")

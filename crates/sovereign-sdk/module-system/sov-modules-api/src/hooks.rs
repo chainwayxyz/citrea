@@ -65,7 +65,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError>;
 
@@ -93,7 +93,7 @@ pub struct HookSoftConfirmationInfo {
     pub pre_state_root: Vec<u8>,
     /// The current spec
     pub current_spec: SpecId,
-    /// Public key of signer
+    /// Public key of the sequencer
     pub pub_key: Vec<u8>,
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<Vec<u8>>,
@@ -143,6 +143,11 @@ impl HookSoftConfirmationInfo {
     /// Previous batch's pre state root
     pub fn pre_state_root(&self) -> Vec<u8> {
         self.pre_state_root.clone()
+    }
+
+    /// Active spec
+    pub fn current_spec(&self) -> SpecId {
+        self.current_spec
     }
 
     /// Public key of signer

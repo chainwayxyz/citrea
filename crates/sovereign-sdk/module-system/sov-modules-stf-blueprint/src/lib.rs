@@ -145,14 +145,14 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation: HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>);
 
     /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
         &self,
-        current_spec: SpecId,
-        soft_confirmation: &SignedSoftConfirmation,
+        soft_confirmation: HookSoftConfirmationInfo,
+        txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
@@ -199,7 +199,7 @@ where
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation_info: HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!("Applying soft confirmation in STF Blueprint");
 
@@ -232,11 +232,11 @@ where
 
     fn apply_soft_confirmation_txs(
         &self,
-        current_spec: SpecId,
-        soft_confirmation: &SignedSoftConfirmation,
+        soft_confirmation_info: HookSoftConfirmationInfo,
+        txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(soft_confirmation, current_spec, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
     }
 
     fn end_soft_confirmation(
@@ -462,12 +462,12 @@ where
             pre_state.clone(),
             witness,
             slot_header,
-            soft_confirmation_info,
+            &soft_confirmation_info,
         ) {
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
-                    current_spec,
-                    &soft_confirmation,
+                    soft_confirmation_info,
+                    soft_confirmation.txs(),
                     batch_workspace,
                 );
 

@@ -267,18 +267,15 @@ where
         pub_key: &[u8],
         prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
-        mut signed_batch: SignedSoftConfirmation,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        let active_fork_spec = self.fork_manager.active_fork().spec_id;
         match self.stf.begin_soft_confirmation(
-            active_fork_spec,
             pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             &da_block_header,
-            &mut signed_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), mut working_set_to_discard) => {
                 let block_gas_limit = self.db_provider.cfg().block_gas_limit;
@@ -310,7 +307,7 @@ where
                             let txs = vec![signed_blob.clone()];
 
                             let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
-                                active_fork_spec,
+                                soft_confirmation_info.clone(),
                                 txs.clone(),
                                 working_set_to_discard,
                             );
@@ -388,7 +385,7 @@ where
 
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
-        let batch_info = HookSoftConfirmationInfo {
+        let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height,
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
@@ -396,12 +393,10 @@ where
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
             current_spec: active_fork_spec,
-            pub_key,
+            pub_key: pub_key.clone(),
             l1_fee_rate,
             timestamp,
         };
-        // initially create sc info and call begin soft confirmation hook with it
-        let mut signed_batch: SignedSoftConfirmation = batch_info.clone().into();
 
         let prestate = self
             .storage_manager
@@ -411,8 +406,6 @@ where
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
         );
-
-        let pub_key = signed_batch.pub_key().clone();
 
         let evm_txs = self.get_best_transactions()?;
 
@@ -425,7 +418,7 @@ where
                 &pub_key,
                 prestate.clone(),
                 da_block.header().clone(),
-                signed_batch.clone(),
+                soft_confirmation_info.clone(),
                 l2_block_mode,
             )
             .await?;
@@ -437,13 +430,11 @@ where
 
         // Execute the selected transactions
         match self.stf.begin_soft_confirmation(
-            active_fork_spec,
             &pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             da_block.header(),
-            &mut signed_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), mut batch_workspace) => {
                 let mut txs = vec![];
@@ -460,7 +451,7 @@ where
                     txs.push(signed_blob);
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                        active_fork_spec,
+                        soft_confirmation_info,
                         txs.clone(),
                         batch_workspace,
                     );
