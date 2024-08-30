@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
+use alloy_eips::eip2930::AccessListWithGasUsed;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{
     address, b256, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind, U256,
 };
-use reth_rpc::eth::error::RpcInvalidTransactionError;
+use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::AccessListWithGasUsed;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::WorkingSet;
@@ -93,7 +93,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0xdc"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x161"}])
             .unwrap()
     );
 
@@ -276,7 +276,7 @@ fn test_access_list() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (evm, mut working_set, signer) = init_evm_with_caller_contract();
+    let (evm, mut working_set, signer, _) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
     let input_data = caller.call_set_call_data(
@@ -339,7 +339,7 @@ fn test_access_list() {
 
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let simple_call_data = 0;
     let simple_result =

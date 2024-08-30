@@ -1,7 +1,7 @@
 use helpers::*;
 use sov_bank::{get_token_address, Bank, CallMessage};
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, WorkingSet};
+use sov_modules_api::{Context, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 mod helpers;
@@ -16,7 +16,7 @@ fn initial_and_deployed_token() {
 
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
     let minter_address = generate_address::<C>("minter");
     let initial_balance = 500;
     let token_name = "Token1".to_owned();

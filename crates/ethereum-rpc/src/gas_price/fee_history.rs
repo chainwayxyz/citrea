@@ -2,7 +2,7 @@
 use std::fmt::Debug;
 
 use reth_primitives::B256;
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::EthApiError;
 use reth_rpc_types::{
     AnyTransactionReceipt, Block, BlockTransactions, Rich, Transaction, TxGasAndReward,
 };

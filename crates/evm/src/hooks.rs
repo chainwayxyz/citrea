@@ -1,4 +1,5 @@
 use alloy_primitives::B256;
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
@@ -76,24 +77,31 @@ where
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
+        let basefee = calculate_next_block_base_fee(
+            parent_block.header.gas_used as u128,
+            parent_block.header.gas_limit as u128,
+            parent_block.header.base_fee_per_gas,
+            cfg.base_fee_params,
+        )
+        .unwrap() as u64;
+
         let new_pending_env = BlockEnv {
             number: parent_block.header.number + 1,
             coinbase: cfg.coinbase,
             timestamp: soft_confirmation_info.timestamp,
             prevrandao: soft_confirmation_info.da_slot_hash.into(),
-            basefee: parent_block
-                .header
-                .next_block_base_fee(cfg.base_fee_params)
-                .unwrap(),
+            basefee,
             gas_limit: cfg.block_gas_limit,
         };
 
         self.block_env.set(&new_pending_env, working_set);
-        self.l1_fee_rate
-            .set(&soft_confirmation_info.l1_fee_rate, working_set);
 
         if !system_events.is_empty() {
-            self.execute_system_events(system_events, working_set);
+            self.execute_system_events(
+                system_events,
+                soft_confirmation_info.l1_fee_rate(),
+                working_set,
+            );
         }
 
         // if height > 256, start removing the oldest block
@@ -113,7 +121,11 @@ where
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
-    pub fn end_soft_confirmation_hook(&self, working_set: &mut WorkingSet<C>) {
+    pub fn end_soft_confirmation_hook(
+        &self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        working_set: &mut WorkingSet<C>,
+    ) {
         let cfg = self
             .cfg
             .get(working_set)
@@ -124,15 +136,7 @@ where
             .get(working_set)
             .expect("Pending block should always be set");
 
-        let l1_fee_rate = self
-            .l1_fee_rate
-            .get(working_set)
-            .expect("L1 fee rate must be set");
-
-        let l1_hash = self
-            .last_l1_hash
-            .get(working_set)
-            .expect("Last L1 hash must be set");
+        let l1_hash = soft_confirmation_info.da_slot_hash;
 
         let parent_block = self
             .head
@@ -168,6 +172,13 @@ where
             .map(|tx| tx.receipt.receipt.clone().with_bloom())
             .collect();
 
+        let base_fee_per_gas = calculate_next_block_base_fee(
+            parent_block.header.gas_used as u128,
+            parent_block.header.gas_limit as u128,
+            parent_block.header.base_fee_per_gas,
+            cfg.base_fee_params,
+        );
+
         let header = reth_primitives::Header {
             parent_hash: parent_block.header.hash(),
             timestamp: block_env.timestamp,
@@ -189,7 +200,7 @@ where
             gas_used,
             mix_hash: block_env.prevrandao,
             nonce: 0,
-            base_fee_per_gas: parent_block.header.next_block_base_fee(cfg.base_fee_params),
+            base_fee_per_gas,
             extra_data: Bytes::default(),
             // EIP-4844 related fields
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -198,12 +209,13 @@ where
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
+            requests_root: None,
         };
 
         let block = Block {
             header,
-            l1_fee_rate,
-            l1_hash,
+            l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
+            l1_hash: l1_hash.into(),
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 

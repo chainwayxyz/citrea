@@ -1,11 +1,11 @@
 [package]
 name = "sov-modules-stf-blueprint"
-description = "Defines a generic state transition function for use with the Sovereign SDK module system"
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+description = "Defines a generic state transition function for use with the Sovereign SDK module system"
 
 version = { workspace = true }
 readme = "README.md"
@@ -13,39 +13,45 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
-thiserror = { workspace = true }
 borsh = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-tracing = { workspace = true, optional = true }
-jmt = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }
+jmt = { workspace = true }
+jsonrpsee = { workspace = true, features = ["server"], optional = true }
+rs_merkle = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }
+
+# Risc0 deps
+risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
+risc0-zkvm-platform = { workspace = true, optional = true }
+
+# Sovereign-SDK deps
+sov-modules-api = { path = "../sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-state = { path = "../sov-state" }
-sov-modules-api = { path = "../sov-modules-api", default-features = false }
 sov-zk-cycle-macros = { path = "../../utils/zk-cycle-macros", optional = true }
 sov-zk-cycle-utils = { path = "../../utils/zk-cycle-utils", optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = [
-    "std",
-], optional = true }
-risc0-zkvm-platform = { workspace = true, optional = true }
-rs_merkle = { workspace = true }
-jsonrpsee = { workspace = true, features = ["server"], optional = true }
+
+# Citrea Deps
+citrea-primitives = { path = "../../../primitives" }
 
 [features]
 bench = ["sov-zk-cycle-macros", "risc0-zkvm", "risc0-zkvm-platform"]
 default = []
 native = [
-    "sov-state/native",
-    "sov-modules-api/native",
-    "dep:tracing",
-    "jsonrpsee",
+  "sov-state/native",
+  "sov-modules-api/native",
+  "sov-rollup-interface/native",
+  "dep:tracing",
+  "jsonrpsee",
 ]
 
 [package.metadata.cargo-udeps.ignore]
 normal = [
-    "risc0-zkvm",
-    "risc0-zkvm-platform",
-    "sov-zk-cycle-macros",
-    "sov-zk-cycle-utils",
+  "risc0-zkvm",
+  "risc0-zkvm-platform",
+  "sov-zk-cycle-macros",
+  "sov-zk-cycle-utils",
 ]

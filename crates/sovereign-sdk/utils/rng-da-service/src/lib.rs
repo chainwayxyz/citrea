@@ -13,7 +13,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, AddressBech32, EncodeCall, PrivateKey, PublicKey, Spec};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, Time};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 
 const DEFAULT_CHAIN_ID: u64 = 0;
@@ -98,6 +98,7 @@ impl DaService for RngDaService {
     type HeaderStream = RngHeaderStream;
     type TransactionId = RngHash;
     type Error = anyhow::Error;
+    type BlockHash = [u8; 32];
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         let num_bytes = height.to_le_bytes();
@@ -135,7 +136,10 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn get_block_by_hash(&self, _hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
+    async fn get_block_by_hash(
+        &self,
+        _hash: Self::BlockHash,
+    ) -> Result<Self::FilteredBlock, Self::Error> {
         unimplemented!()
     }
 
@@ -175,7 +179,7 @@ impl DaService for RngDaService {
         unimplemented!()
     }
 
-    async fn send_transaction(&self, _blob: &[u8]) -> Result<Self::TransactionId, Self::Error> {
+    async fn send_transaction(&self, _blob: DaData) -> Result<Self::TransactionId, Self::Error> {
         unimplemented!()
     }
 

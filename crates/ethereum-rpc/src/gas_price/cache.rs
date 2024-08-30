@@ -1,5 +1,5 @@
 use reth_primitives::{BlockNumberOrTag, B256};
-use reth_rpc::eth::error::EthResult;
+use reth_rpc_eth_types::EthResult;
 use reth_rpc_types::{AnyTransactionReceipt, Block, BlockTransactions, Rich};
 use schnellru::{ByLength, LruMap};
 use sov_modules_api::WorkingSet;

@@ -1,15 +1,17 @@
 use core::fmt;
 use core::result::Result::Ok;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
-use bitcoin::blockdata::opcodes::all::{OP_CHECKSIG, OP_ENDIF, OP_IF};
+use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
+use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::schnorr::Signature;
@@ -20,18 +22,19 @@ use bitcoin::{
     Address, Amount, Network, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid,
     Witness,
 };
+use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
-use crate::helpers::{BODY_TAG, PUBLICKEY_TAG, RANDOM_TAG, ROLLUP_NAME_TAG, SIGNATURE_TAG};
+use super::{calculate_sha256, TransactionKindBatchProof, TransactionKindLightClient};
 use crate::spec::utxo::UTXO;
-use crate::REVEAL_OUTPUT_AMOUNT;
+use crate::{MAX_TXBODY_SIZE, REVEAL_OUTPUT_AMOUNT};
 
 // Signs a message with a private key
 pub fn sign_blob_with_private_key(
     blob: &[u8],
     private_key: &SecretKey,
 ) -> Result<(Vec<u8>, Vec<u8>), ()> {
-    let message = sha256d::Hash::hash(blob).to_byte_array();
+    let message = calculate_sha256(blob);
     let secp = Secp256k1::new();
     let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
     let msg = secp256k1::Message::from_digest_slice(&message).unwrap();
@@ -72,11 +75,12 @@ fn get_size(
     tx.vsize()
 }
 
+/// Return (chosen_utxos, sum(chosen.amount), leftover_utxos)
 fn choose_utxos(
     required_utxo: Option<UTXO>,
     utxos: &[UTXO],
     mut amount: u64,
-) -> Result<(Vec<UTXO>, u64), anyhow::Error> {
+) -> Result<(Vec<UTXO>, u64, Vec<UTXO>), anyhow::Error> {
     let mut chosen_utxos = vec![];
     let mut sum = 0;
 
@@ -87,7 +91,7 @@ fn choose_utxos(
         sum += req_amount;
     }
     if sum >= amount {
-        return Ok((chosen_utxos, sum));
+        return Ok((chosen_utxos, sum, utxos.to_vec()));
     } else {
         amount -= sum;
     }
@@ -103,8 +107,6 @@ fn choose_utxos(
         let utxo = bigger_utxos[0];
         sum += utxo.amount;
         chosen_utxos.push(utxo.clone());
-
-        Ok((chosen_utxos, sum))
     } else {
         let mut smaller_utxos: Vec<&UTXO> =
             utxos.iter().filter(|utxo| utxo.amount < amount).collect();
@@ -124,20 +126,26 @@ fn choose_utxos(
         if sum < amount {
             return Err(anyhow!("not enough UTXOs"));
         }
-
-        Ok((chosen_utxos, sum))
     }
+
+    let input_set: HashSet<_> = utxos.iter().collect();
+    let chosen_set: HashSet<_> = chosen_utxos.iter().collect();
+    let leftovers_set = input_set.difference(&chosen_set);
+    let leftovers: Vec<_> = leftovers_set.copied().cloned().collect();
+
+    Ok((chosen_utxos, sum, leftovers))
 }
 
+/// Return (tx, leftover_utxos)
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
-    prev_tx: Option<TxWithId>, // reuse outputs to add commit tx order
+    prev_utxo: Option<UTXO>, // reuse outputs to add commit tx order
     mut utxos: Vec<UTXO>,
     recipient: Address,
     change_address: Address,
     output_value: u64,
     fee_rate: f64,
-) -> Result<Transaction, anyhow::Error> {
+) -> Result<(Transaction, Vec<UTXO>), anyhow::Error> {
     // get single input single output transaction size
     let size = get_size(
         &[TxIn {
@@ -157,19 +165,7 @@ fn build_commit_transaction(
         None,
     );
 
-    // fields other then tx_id, vout, script_pubkey and amount are not really important.
-    let required_utxo = prev_tx.map(|tx| UTXO {
-        tx_id: tx.id,
-        vout: 0,
-        script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-        address: "ANY".into(),
-        amount: tx.tx.output[0].value.to_sat(),
-        confirmations: 0,
-        spendable: true,
-        solvable: true,
-    });
-
-    if let Some(req_utxo) = &required_utxo {
+    if let Some(req_utxo) = &prev_utxo {
         // if we don't do this, then we might end up using the required utxo twice
         // which would yield an invalid transaction
         // however using a different txo from the same tx is fine.
@@ -179,7 +175,7 @@ fn build_commit_transaction(
     let mut iteration = 0;
     let mut last_size = size;
 
-    let tx = loop {
+    let (leftover_utxos, tx) = loop {
         if iteration % 10 == 0 {
             trace!(iteration, "Trying to find commitment size");
             if iteration > 100 {
@@ -190,7 +186,8 @@ fn build_commit_transaction(
 
         let input_total = output_value + fee;
 
-        let (chosen_utxos, sum) = choose_utxos(required_utxo.clone(), &utxos, input_total)?;
+        let (chosen_utxos, sum, leftover_utxos) =
+            choose_utxos(prev_utxo.clone(), &utxos, input_total)?;
         let has_change = (sum - input_total) >= REVEAL_OUTPUT_AMOUNT;
         let direct_return = !has_change;
 
@@ -226,30 +223,36 @@ fn build_commit_transaction(
             .collect();
 
         if direct_return {
-            break Transaction {
-                lock_time: LockTime::ZERO,
-                version: bitcoin::transaction::Version(2),
-                input: inputs,
-                output: outputs,
-            };
+            break (
+                leftover_utxos,
+                Transaction {
+                    lock_time: LockTime::ZERO,
+                    version: bitcoin::transaction::Version(2),
+                    input: inputs,
+                    output: outputs,
+                },
+            );
         }
 
         let size = get_size(&inputs, &outputs, None, None);
 
         if size == last_size {
-            break Transaction {
-                lock_time: LockTime::ZERO,
-                version: bitcoin::transaction::Version(2),
-                input: inputs,
-                output: outputs,
-            };
+            break (
+                leftover_utxos,
+                Transaction {
+                    lock_time: LockTime::ZERO,
+                    version: bitcoin::transaction::Version(2),
+                    input: inputs,
+                    output: outputs,
+                },
+            );
         }
 
         last_size = size;
         iteration += 1;
     };
 
-    Ok(tx)
+    Ok((tx, leftover_utxos))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -301,7 +304,7 @@ fn build_reveal_transaction(
 }
 
 /// Both transaction and its hash
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct TxWithId {
     /// ID (hash)
     pub id: Txid,
@@ -320,15 +323,13 @@ impl fmt::Debug for TxWithId {
 
 // TODO: parametrize hardness
 // so tests are easier
-// Creates the inscription transactions (commit and reveal)
+// Creates the light client transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_inscription_transactions(
-    rollup_name: &str,
+pub fn create_zkproof_transactions(
     body: Vec<u8>,
-    signature: Vec<u8>,
-    sequencer_public_key: Vec<u8>,
-    prev_tx: Option<TxWithId>,
+    da_private_key: &SecretKey,
+    prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
@@ -336,34 +337,161 @@ pub fn create_inscription_transactions(
     reveal_fee_rate: f64,
     network: Network,
     reveal_tx_prefix: &[u8],
-) -> Result<(Transaction, TxWithId), anyhow::Error> {
-    // Create commit key
+) -> Result<LightClientTxs, anyhow::Error> {
+    if body.len() < MAX_TXBODY_SIZE {
+        create_inscription_type_0(
+            body,
+            da_private_key,
+            prev_utxo,
+            utxos,
+            recipient,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            reveal_tx_prefix,
+        )
+    } else {
+        create_inscription_type_1(
+            body,
+            da_private_key,
+            prev_utxo,
+            utxos,
+            recipient,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            reveal_tx_prefix,
+        )
+    }
+}
+
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the batch proof transactions (commit and reveal)
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_seqcommitment_transactions(
+    body: Vec<u8>,
+    da_private_key: &SecretKey,
+    prev_utxo: Option<UTXO>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<BatchProvingTxs, anyhow::Error> {
+    create_batchproof_type_0(
+        body,
+        da_private_key,
+        prev_utxo,
+        utxos,
+        recipient,
+        reveal_value,
+        commit_fee_rate,
+        reveal_fee_rate,
+        network,
+        reveal_tx_prefix,
+    )
+}
+
+/// This is a list of light client tx we need to send to DA
+#[derive(Serialize)]
+pub(crate) enum LightClientTxs {
+    Complete {
+        commit: Transaction, // unsigned
+        reveal: TxWithId,
+    },
+    Chunked {
+        commit_chunks: Vec<Transaction>, // unsigned
+        reveal_chunks: Vec<Transaction>,
+        commit: Transaction, // unsigned
+        reveal: TxWithId,
+    },
+}
+
+/// This is a list of batch proof tx we need to send to DA (only SequencerCommitment for now)
+#[derive(Serialize)]
+pub(crate) struct BatchProvingTxs {
+    pub(crate) commit: Transaction, // unsigned
+    pub(crate) reveal: TxWithId,
+}
+
+// To dump raw da txs into file to recover from a sequencer crash
+pub(crate) trait TxListWithReveal: Serialize {
+    fn reveal_id(&self) -> Txid;
+}
+
+impl TxListWithReveal for LightClientTxs {
+    fn reveal_id(&self) -> Txid {
+        match self {
+            Self::Complete { reveal, .. } => reveal.id,
+            Self::Chunked { reveal, .. } => reveal.id,
+        }
+    }
+}
+
+impl TxListWithReveal for BatchProvingTxs {
+    fn reveal_id(&self) -> Txid {
+        self.reveal.id
+    }
+}
+
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the inscription transactions Type 0 - LightClientTxs::Complete
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_inscription_type_0(
+    body: Vec<u8>,
+    da_private_key: &SecretKey,
+    prev_utxo: Option<UTXO>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<LightClientTxs, anyhow::Error> {
+    // Create reveal key
     let secp256k1 = Secp256k1::new();
     let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
+    let kind = TransactionKindLightClient::Complete;
+    let kind_bytes = kind.to_bytes();
+
+    // sign the body for authentication of the sequencer
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&body, da_private_key).expect("Sequencer sign the body");
+
     // start creating inscription content
-    let reveal_script_builder = script::Builder::new()
+    let mut reveal_script_builder = script::Builder::new()
         .push_x_only_key(&public_key)
-        .push_opcode(OP_CHECKSIG)
+        .push_opcode(OP_CHECKSIGVERIFY)
+        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
-        .push_slice(PushBytesBuf::from(ROLLUP_NAME_TAG))
-        .push_slice(
-            PushBytesBuf::try_from(rollup_name.as_bytes().to_vec())
-                .expect("Cannot push rollup name"),
-        )
-        .push_slice(PushBytesBuf::from(SIGNATURE_TAG))
         .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
-        .push_slice(PushBytesBuf::from(PUBLICKEY_TAG))
         .push_slice(
-            PushBytesBuf::try_from(sequencer_public_key).expect("Cannot push sequencer public key"),
-        )
-        .push_slice(PushBytesBuf::from(RANDOM_TAG));
-    // This envelope is not finished yet. The random number will be added later and followed by the body
+            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
+        );
+    // push body in chunks of 520 bytes
+    for chunk in body.chunks(520) {
+        reveal_script_builder = reveal_script_builder
+            .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
+    }
+    // push end if
+    reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+
+    // This envelope is not finished yet. The random number will be added later
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
-    let mut nonce: i64 = 0;
+    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
     loop {
         if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
@@ -376,19 +504,11 @@ pub fn create_inscription_transactions(
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
-        // push first random number and body tag
+        // push nonce
         reveal_script_builder = reveal_script_builder
-            .push_int(nonce)
-            .push_slice(PushBytesBuf::from(BODY_TAG));
-
-        // push body in chunks of 520 bytes
-        for chunk in body.chunks(520) {
-            reveal_script_builder = reveal_script_builder.push_slice(
-                PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"),
-            );
-        }
-        // push end if
-        reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+            .push_slice(nonce.to_le_bytes())
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
 
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
@@ -435,8 +555,9 @@ pub fn create_inscription_transactions(
             .ceil() as u64;
 
         // build commit tx
-        let unsigned_commit_tx = build_commit_transaction(
-            prev_tx.clone(),
+        // we don't need leftover_utxos because they will be requested from bitcoind next call
+        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+            prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
             recipient.clone(),
@@ -448,7 +569,7 @@ pub fn create_inscription_transactions(
 
         let mut reveal_tx = build_reveal_transaction(
             output_to_reveal.clone(),
-            unsigned_commit_tx.txid(),
+            unsigned_commit_tx.compute_txid(),
             0,
             recipient,
             reveal_value,
@@ -457,38 +578,37 @@ pub fn create_inscription_transactions(
             &control_block,
         )?;
 
-        let reveal_tx_id = reveal_tx.txid();
-        let reveal_hash = reveal_tx_id.as_raw_hash().to_byte_array();
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
 
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
-            // start signing reveal tx
-            let mut sighash_cache = SighashCache::new(&mut reveal_tx);
-
-            // create data to sign
-            let signature_hash = sighash_cache
-                .taproot_script_spend_signature_hash(
-                    0,
-                    &Prevouts::All(&[output_to_reveal]),
-                    TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
-                    bitcoin::sighash::TapSighashType::Default,
-                )
-                .expect("Cannot create hash for signature");
-
-            // sign reveal tx data
-            let signature = secp256k1.sign_schnorr_with_rng(
-                &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
-                    .expect("should be cryptographically secure hash"),
-                &key_pair,
-                &mut rand::thread_rng(),
-            );
-
-            // add signature to witness and finalize reveal tx
-            let witness = sighash_cache.witness_mut(0).unwrap();
-            witness.push(signature.as_ref());
-            witness.push(reveal_script);
-            witness.push(&control_block.serialize());
-
             // check if inscription locked to the correct address
             let recovery_key_pair =
                 key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
@@ -501,23 +621,580 @@ pub fn create_inscription_transactions(
                 commit_tx_address
             );
 
-            return Ok((
-                unsigned_commit_tx,
-                TxWithId {
-                    id: reveal_tx_id,
+            return Ok(LightClientTxs::Complete {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
                     tx: reveal_tx,
                 },
-            ));
+            });
         }
 
         nonce += 1;
     }
 }
 
-pub fn write_reveal_tx(tx: &[u8], tx_id: String) {
-    let reveal_tx_file = File::create(format!("reveal_{}.tx", tx_id)).unwrap();
+// TODO: parametrize hardness
+// so tests are easier
+// Creates the inscription transactions Type 1 - LightClientTxs::Chunked
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_inscription_type_1(
+    body: Vec<u8>,
+    da_private_key: &SecretKey,
+    mut prev_utxo: Option<UTXO>,
+    mut utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<LightClientTxs, anyhow::Error> {
+    // Create reveal key
+    let secp256k1 = Secp256k1::new();
+    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+
+    let mut commit_chunks: Vec<Transaction> = vec![];
+    let mut reveal_chunks: Vec<Transaction> = vec![];
+
+    for body in body.chunks(MAX_TXBODY_SIZE) {
+        let kind = TransactionKindLightClient::ChunkedPart;
+        let kind_bytes = kind.to_bytes();
+
+        // start creating inscription content
+        let mut reveal_script_builder = script::Builder::new()
+            .push_x_only_key(&public_key)
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+            .push_opcode(OP_FALSE)
+            .push_opcode(OP_IF);
+        // push body in chunks of 520 bytes
+        for chunk in body.chunks(520) {
+            reveal_script_builder = reveal_script_builder.push_slice(
+                PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"),
+            );
+        }
+        // push end if
+        let reveal_script = reveal_script_builder.push_opcode(OP_ENDIF).into_script();
+
+        // create spend info for tapscript
+        let taproot_spend_info = TaprootBuilder::new()
+            .add_leaf(0, reveal_script.clone())
+            .expect("Cannot add reveal script to taptree")
+            .finalize(&secp256k1, public_key)
+            .expect("Cannot finalize taptree");
+
+        // create control block for tapscript
+        let control_block = taproot_spend_info
+            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+            .expect("Cannot create control block");
+
+        // create commit tx address
+        let commit_tx_address = Address::p2tr(
+            &secp256k1,
+            public_key,
+            taproot_spend_info.merkle_root(),
+            network,
+        );
+
+        let commit_value = (get_size(
+            &[TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_byte_array([0; 32]),
+                    vout: 0,
+                },
+                script_sig: script::Builder::new().into_script(),
+                witness: Witness::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            }],
+            &[TxOut {
+                script_pubkey: recipient.clone().script_pubkey(),
+                value: Amount::from_sat(reveal_value),
+            }],
+            Some(&reveal_script),
+            Some(&control_block),
+        ) as f64
+            * reveal_fee_rate
+            + reveal_value as f64)
+            .ceil() as u64;
+
+        // build commit tx
+        let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
+            prev_utxo.clone(),
+            utxos,
+            commit_tx_address.clone(),
+            recipient.clone(),
+            commit_value,
+            commit_fee_rate,
+        )?;
+
+        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+
+        // If commit
+        let commit_change = if unsigned_commit_tx.output.len() > 1 {
+            Some(UTXO {
+                tx_id: unsigned_commit_tx.compute_txid(),
+                vout: 1,
+                address: None,
+                script_pubkey: unsigned_commit_tx.output[0].script_pubkey.to_hex_string(),
+                amount: unsigned_commit_tx.output[1].value.to_sat(),
+                confirmations: 0,
+                spendable: true,
+                solvable: true,
+            })
+        } else {
+            None
+        };
+
+        let mut reveal_tx = build_reveal_transaction(
+            output_to_reveal.clone(),
+            unsigned_commit_tx.compute_txid(),
+            0,
+            recipient.clone(),
+            reveal_value,
+            reveal_fee_rate,
+            &reveal_script,
+            &control_block,
+        )?;
+
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        // check if inscription locked to the correct address
+        let recovery_key_pair = key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+        let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+        assert_eq!(
+            Address::p2tr_tweaked(
+                TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                network,
+            ),
+            commit_tx_address
+        );
+
+        // set prev utxo to last reveal tx[0] to chain txs in order
+        prev_utxo = Some(UTXO {
+            tx_id: reveal_tx.compute_txid(),
+            vout: 0,
+            script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+            address: None,
+            amount: reveal_tx.output[0].value.to_sat(),
+            confirmations: 0,
+            spendable: true,
+            solvable: true,
+        });
+
+        commit_chunks.push(unsigned_commit_tx);
+        reveal_chunks.push(reveal_tx);
+
+        // Replace utxos with leftovers so we don't use prev utxos in next chunks
+        utxos = leftover_utxos;
+        if let Some(change) = commit_change {
+            utxos.push(change);
+        }
+    }
+
+    let reveal_tx_ids: Vec<_> = reveal_chunks
+        .iter()
+        .map(|tx| tx.compute_txid().to_byte_array())
+        .collect();
+
+    // To sign the list of tx ids we assume they form a contigious list of bytes
+    let reveal_body: Vec<u8> = reveal_tx_ids.iter().copied().flatten().collect();
+    // sign the body for authentication of the sequencer
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&reveal_body, da_private_key).expect("Sequencer sign the body");
+
+    let kind = TransactionKindLightClient::Chunked;
+    let kind_bytes = kind.to_bytes();
+
+    // start creating inscription content
+    let mut reveal_script_builder = script::Builder::new()
+        .push_x_only_key(&public_key)
+        .push_opcode(OP_CHECKSIGVERIFY)
+        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_opcode(OP_FALSE)
+        .push_opcode(OP_IF)
+        .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
+        .push_slice(
+            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
+        );
+    // push txids
+    for id in reveal_tx_ids {
+        reveal_script_builder = reveal_script_builder.push_slice(id);
+    }
+    // push end if
+    reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);
+
+    // This envelope is not finished yet. The random number will be added later
+
+    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
+    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    loop {
+        if nonce % 10000 == 0 {
+            trace!(nonce, "Trying to find commit & reveal nonce");
+            if nonce > 65536 {
+                warn!("Too many iterations finding nonce");
+            }
+        }
+        let utxos = utxos.clone();
+        let recipient = recipient.clone();
+        // ownerships are moved to the loop
+        let mut reveal_script_builder = reveal_script_builder.clone();
+
+        // push nonce
+        reveal_script_builder = reveal_script_builder
+            .push_slice(nonce.to_le_bytes())
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
+
+        // finalize reveal script
+        let reveal_script = reveal_script_builder.into_script();
+
+        // create spend info for tapscript
+        let taproot_spend_info = TaprootBuilder::new()
+            .add_leaf(0, reveal_script.clone())
+            .expect("Cannot add reveal script to taptree")
+            .finalize(&secp256k1, public_key)
+            .expect("Cannot finalize taptree");
+
+        // create control block for tapscript
+        let control_block = taproot_spend_info
+            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+            .expect("Cannot create control block");
+
+        // create commit tx address
+        let commit_tx_address = Address::p2tr(
+            &secp256k1,
+            public_key,
+            taproot_spend_info.merkle_root(),
+            network,
+        );
+
+        let commit_value = (get_size(
+            &[TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_byte_array([0; 32]),
+                    vout: 0,
+                },
+                script_sig: script::Builder::new().into_script(),
+                witness: Witness::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            }],
+            &[TxOut {
+                script_pubkey: recipient.clone().script_pubkey(),
+                value: Amount::from_sat(reveal_value),
+            }],
+            Some(&reveal_script),
+            Some(&control_block),
+        ) as f64
+            * reveal_fee_rate
+            + reveal_value as f64)
+            .ceil() as u64;
+
+        // build commit tx
+        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+            prev_utxo.clone(),
+            utxos,
+            commit_tx_address.clone(),
+            recipient.clone(),
+            commit_value,
+            commit_fee_rate,
+        )?;
+
+        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+
+        let mut reveal_tx = build_reveal_transaction(
+            output_to_reveal.clone(),
+            unsigned_commit_tx.compute_txid(),
+            0,
+            recipient,
+            reveal_value,
+            reveal_fee_rate,
+            &reveal_script,
+            &control_block,
+        )?;
+
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // check if inscription locked to the correct address
+            let recovery_key_pair =
+                key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
+
+            return Ok(LightClientTxs::Chunked {
+                commit_chunks,
+                reveal_chunks,
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
+                    tx: reveal_tx,
+                },
+            });
+        }
+
+        nonce += 1;
+    }
+}
+
+// Creates the batch proof transactions Type 0 - BatchProvingTxs - SequencerCommitment
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "trace", skip_all, err)]
+pub fn create_batchproof_type_0(
+    body: Vec<u8>,
+    da_private_key: &SecretKey,
+    prev_utxo: Option<UTXO>,
+    utxos: Vec<UTXO>,
+    recipient: Address,
+    reveal_value: u64,
+    commit_fee_rate: f64,
+    reveal_fee_rate: f64,
+    network: Network,
+    reveal_tx_prefix: &[u8],
+) -> Result<BatchProvingTxs, anyhow::Error> {
+    debug_assert!(
+        body.len() < 520,
+        "The body of a serialized sequencer commitment exceeds 520 bytes"
+    );
+    // Create reveal key
+    let secp256k1 = Secp256k1::new();
+    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+    let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
+
+    let kind = TransactionKindBatchProof::SequencerCommitment;
+    let kind_bytes = kind.to_bytes();
+
+    // sign the body for authentication of the sequencer
+    let (signature, signer_public_key) =
+        sign_blob_with_private_key(&body, da_private_key).expect("Sequencer sign the body");
+
+    // start creating inscription content
+    let reveal_script_builder = script::Builder::new()
+        .push_x_only_key(&public_key)
+        .push_opcode(OP_CHECKSIGVERIFY)
+        .push_slice(PushBytesBuf::try_from(kind_bytes).expect("Cannot push header"))
+        .push_opcode(OP_FALSE)
+        .push_opcode(OP_IF)
+        .push_slice(PushBytesBuf::try_from(signature).expect("Cannot push signature"))
+        .push_slice(
+            PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
+        )
+        .push_slice(PushBytesBuf::try_from(body).expect("Cannot push sequencer commitment"))
+        .push_opcode(OP_ENDIF);
+
+    println!("reveal_script_builder: {:?}", reveal_script_builder);
+    // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
+    let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    loop {
+        if nonce % 10000 == 0 {
+            trace!(nonce, "Trying to find commit & reveal nonce");
+            if nonce > 65536 {
+                warn!("Too many iterations finding nonce");
+            }
+        }
+        let utxos = utxos.clone();
+        let recipient = recipient.clone();
+        // ownerships are moved to the loop
+        let mut reveal_script_builder = reveal_script_builder.clone();
+
+        // push nonce
+        reveal_script_builder = reveal_script_builder
+            .push_slice(nonce.to_le_bytes())
+            // drop the second item, bc there is a big chance it's 0 (tx kind) and nonce is >= 16
+            .push_opcode(OP_NIP);
+
+        // finalize reveal script
+        let reveal_script = reveal_script_builder.into_script();
+
+        // create spend info for tapscript
+        let taproot_spend_info = TaprootBuilder::new()
+            .add_leaf(0, reveal_script.clone())
+            .expect("Cannot add reveal script to taptree")
+            .finalize(&secp256k1, public_key)
+            .expect("Cannot finalize taptree");
+
+        // create control block for tapscript
+        let control_block = taproot_spend_info
+            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+            .expect("Cannot create control block");
+
+        // create commit tx address
+        let commit_tx_address = Address::p2tr(
+            &secp256k1,
+            public_key,
+            taproot_spend_info.merkle_root(),
+            network,
+        );
+
+        let commit_value = (get_size(
+            &[TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_byte_array([0; 32]),
+                    vout: 0,
+                },
+                script_sig: script::Builder::new().into_script(),
+                witness: Witness::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            }],
+            &[TxOut {
+                script_pubkey: recipient.clone().script_pubkey(),
+                value: Amount::from_sat(reveal_value),
+            }],
+            Some(&reveal_script),
+            Some(&control_block),
+        ) as f64
+            * reveal_fee_rate
+            + reveal_value as f64)
+            .ceil() as u64;
+
+        // build commit tx
+        // we don't need leftover_utxos because they will be requested from bitcoind next call
+        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+            prev_utxo.clone(),
+            utxos,
+            commit_tx_address.clone(),
+            recipient.clone(),
+            commit_value,
+            commit_fee_rate,
+        )?;
+
+        let output_to_reveal = unsigned_commit_tx.output[0].clone();
+
+        let mut reveal_tx = build_reveal_transaction(
+            output_to_reveal.clone(),
+            unsigned_commit_tx.compute_txid(),
+            0,
+            recipient,
+            reveal_value,
+            reveal_fee_rate,
+            &reveal_script,
+            &control_block,
+        )?;
+
+        // start signing reveal tx
+        let mut sighash_cache = SighashCache::new(&mut reveal_tx);
+
+        // create data to sign
+        let signature_hash = sighash_cache
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&[output_to_reveal]),
+                TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+                bitcoin::sighash::TapSighashType::Default,
+            )
+            .expect("Cannot create hash for signature");
+
+        // sign reveal tx data
+        let signature = secp256k1.sign_schnorr_with_rng(
+            &secp256k1::Message::from_digest_slice(signature_hash.as_byte_array())
+                .expect("should be cryptographically secure hash"),
+            &key_pair,
+            &mut rand::thread_rng(),
+        );
+
+        // add signature to witness and finalize reveal tx
+        let witness = sighash_cache.witness_mut(0).unwrap();
+        witness.push(signature.as_ref());
+        witness.push(reveal_script);
+        witness.push(&control_block.serialize());
+
+        let reveal_wtxid = reveal_tx.compute_wtxid();
+        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+
+        // check if first N bytes equal to the given prefix
+        if reveal_hash.starts_with(reveal_tx_prefix) {
+            // check if inscription locked to the correct address
+            let recovery_key_pair =
+                key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+            assert_eq!(
+                Address::p2tr_tweaked(
+                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                    network,
+                ),
+                commit_tx_address
+            );
+
+            return Ok(BatchProvingTxs {
+                commit: unsigned_commit_tx,
+                reveal: TxWithId {
+                    id: reveal_tx.compute_txid(),
+                    tx: reveal_tx,
+                },
+            });
+        }
+
+        nonce += 1;
+    }
+}
+
+pub(crate) fn write_inscription_txs<Txs: TxListWithReveal + Serialize>(txs: &Txs) {
+    let reveal_tx_file = File::create(format!("reveal_{}.tx", txs.reveal_id())).unwrap();
+    let j = serde_json::to_string(&txs).unwrap();
     let mut reveal_tx_writer = BufWriter::new(reveal_tx_file);
-    reveal_tx_writer.write_all(tx).unwrap();
+    reveal_tx_writer.write_all(j.as_bytes()).unwrap();
 }
 
 #[cfg(test)]
@@ -527,11 +1204,14 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::constants::SCHNORR_SIGNATURE_SIZE;
     use bitcoin::secp256k1::schnorr::Signature;
+    use bitcoin::secp256k1::SecretKey;
     use bitcoin::taproot::ControlBlock;
     use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 
+    use super::LightClientTxs;
+    use crate::helpers::builders::sign_blob_with_private_key;
     use crate::helpers::compression::{compress_blob, decompress_blob};
-    use crate::helpers::parsers::parse_transaction;
+    use crate::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
     use crate::spec::utxo::UTXO;
     use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -560,26 +1240,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn write_reveal_tx() {
-        let tx = vec![100, 100, 100];
-        let tx_id = "test_tx".to_string();
-
-        super::write_reveal_tx(tx.as_slice(), tx_id);
-
-        let file = std::fs::read("reveal_test_tx.tx").unwrap();
-
-        assert_eq!(tx, file);
-
-        std::fs::remove_file("reveal_test_tx.tx").unwrap();
-    }
-
     #[allow(clippy::type_complexity)]
-    fn get_mock_data() -> (&'static str, Vec<u8>, Vec<u8>, Vec<u8>, Address, Vec<UTXO>) {
-        let rollup_name = "test_rollup";
+    fn get_mock_data() -> (Vec<u8>, Address, Vec<UTXO>) {
         let body = vec![100; 1000];
-        let signature = vec![100; 64];
-        let sequencer_public_key = vec![100; 33];
         let address =
             Address::from_str("bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9")
                 .unwrap()
@@ -592,8 +1255,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 1_000_000,
                 confirmations: 100,
@@ -606,8 +1273,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 100_000,
                 confirmations: 100,
@@ -620,8 +1291,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 10_000,
                 confirmations: 100,
@@ -630,44 +1305,45 @@ mod tests {
             },
         ];
 
-        (
-            rollup_name,
-            body,
-            signature,
-            sequencer_public_key,
-            address,
-            utxos,
-        )
+        (body, address, utxos)
     }
 
     #[test]
     fn choose_utxos() {
-        let (_, _, _, _, _, utxos) = get_mock_data();
+        let (_, _, utxos) = get_mock_data();
 
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 105_000).unwrap();
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 105_000).unwrap();
 
         assert_eq!(sum, 1_000_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[0]);
+        assert_eq!(leftover_utxos.len(), 2);
 
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 1_005_000).unwrap();
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 1_005_000).unwrap();
 
         assert_eq!(sum, 1_100_000);
         assert_eq!(chosen_utxos.len(), 2);
         assert_eq!(chosen_utxos[0], utxos[0]);
         assert_eq!(chosen_utxos[1], utxos[1]);
+        assert_eq!(leftover_utxos.len(), 1);
 
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 100_000).unwrap();
-
-        assert_eq!(sum, 100_000);
-        assert_eq!(chosen_utxos.len(), 1);
-        assert_eq!(chosen_utxos[0], utxos[1]);
-
-        let (chosen_utxos, sum) = super::choose_utxos(None, &utxos, 90_000).unwrap();
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 100_000).unwrap();
 
         assert_eq!(sum, 100_000);
         assert_eq!(chosen_utxos.len(), 1);
         assert_eq!(chosen_utxos[0], utxos[1]);
+        assert_eq!(leftover_utxos.len(), 2);
+
+        let (chosen_utxos, sum, leftover_utxos) =
+            super::choose_utxos(None, &utxos, 90_000).unwrap();
+
+        assert_eq!(sum, 100_000);
+        assert_eq!(chosen_utxos.len(), 1);
+        assert_eq!(chosen_utxos[0], utxos[1]);
+        assert_eq!(leftover_utxos.len(), 2);
 
         let res = super::choose_utxos(None, &utxos, 100_000_000);
 
@@ -677,14 +1353,14 @@ mod tests {
 
     #[test]
     fn build_commit_transaction() {
-        let (_, _, _, _, address, utxos) = get_mock_data();
+        let (_, address, utxos) = get_mock_data();
 
         let recipient =
             Address::from_str("bc1p2e37kuhnsdc5zvc8zlj2hn6awv3ruavak6ayc8jvpyvus59j3mwqwdt0zc")
                 .unwrap()
                 .require_network(bitcoin::Network::Bitcoin)
                 .unwrap();
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -693,6 +1369,7 @@ mod tests {
             8.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 2);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -712,7 +1389,7 @@ mod tests {
         assert_eq!(tx.output[1].value, Amount::from_sat(3_768));
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -721,6 +1398,7 @@ mod tests {
             45.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 2);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -738,7 +1416,7 @@ mod tests {
         assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -747,6 +1425,7 @@ mod tests {
             32.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 2);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -769,7 +1448,7 @@ mod tests {
         assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
         assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
 
-        let mut tx = super::build_commit_transaction(
+        let (mut tx, leftover_utxos) = super::build_commit_transaction(
             None,
             utxos.clone(),
             recipient.clone(),
@@ -778,6 +1457,7 @@ mod tests {
             5.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 1);
 
         tx.input[0].witness.push(
             Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
@@ -803,11 +1483,17 @@ mod tests {
         assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
         let prev_tx = tx;
-        let prev_tx_id = prev_tx.txid();
+        let prev_tx_id = prev_tx.compute_txid();
         let tx = super::build_commit_transaction(
-            Some(super::TxWithId {
-                id: prev_tx_id,
-                tx: prev_tx.clone(),
+            Some(UTXO {
+                tx_id: prev_tx_id,
+                vout: 0,
+                script_pubkey: prev_tx.output[0].script_pubkey.to_hex_string(),
+                address: None,
+                amount: prev_tx.output[0].value.to_sat(),
+                confirmations: 0,
+                spendable: true,
+                solvable: true,
             }),
             utxos.clone(),
             recipient.clone(),
@@ -827,19 +1513,26 @@ mod tests {
                 tx_id: prev_tx_id,
                 vout: i as u32,
                 script_pubkey: o.script_pubkey.to_hex_string(),
-                address: "ANY".into(),
+                address: None,
                 confirmations: 0,
                 amount: o.value.to_sat(),
                 spendable: true,
                 solvable: true,
             })
             .collect();
-        let prev_utxo = utxos.clone().into_iter().chain(prev_utxos).collect();
+        let prev_utxo: Vec<_> = utxos.clone().into_iter().chain(prev_utxos).collect();
+        assert_eq!(prev_utxo.len(), 5);
 
-        let tx = super::build_commit_transaction(
-            Some(super::TxWithId {
-                id: prev_tx_id,
-                tx: prev_tx,
+        let (tx, leftover_utxos) = super::build_commit_transaction(
+            Some(UTXO {
+                tx_id: prev_tx_id,
+                vout: 0,
+                script_pubkey: prev_tx.output[0].script_pubkey.to_hex_string(),
+                address: None,
+                amount: prev_tx.output[0].value.to_sat(),
+                confirmations: 0,
+                spendable: true,
+                solvable: true,
             }),
             prev_utxo,
             recipient.clone(),
@@ -848,6 +1541,7 @@ mod tests {
             32.0,
         )
         .unwrap();
+        assert_eq!(leftover_utxos.len(), 4);
 
         assert_eq!(tx.input.len(), 1);
         assert_eq!(tx.input[0].previous_output.txid, prev_tx_id);
@@ -872,8 +1566,12 @@ mod tests {
                 )
                 .unwrap(),
                 vout: 0,
-                address: "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9"
-                    .to_string(),
+                address: Some(
+                    Address::from_str(
+                        "bc1pp8qru0ve43rw9xffmdd8pvveths3cx6a5t6mcr0xfn9cpxx2k24qf70xq9",
+                    )
+                    .unwrap(),
+                ),
                 script_pubkey: address.script_pubkey().to_hex_string(),
                 amount: 152,
                 confirmations: 100,
@@ -892,7 +1590,7 @@ mod tests {
 
     #[test]
     fn build_reveal_transaction() {
-        let (_, _, _, _, address, utxos) = get_mock_data();
+        let (_, address, utxos) = get_mock_data();
 
         let utxo = utxos.first().unwrap();
         let script = ScriptBuf::from_hex("62a58f2674fd840b6144bea2e63ebd35c16d7fd40252a2f28b2a01a648df356343e47976d7906a0e688bf5e134b6fd21bd365c016b57b1ace85cf30bf1206e27").unwrap();
@@ -969,14 +1667,19 @@ mod tests {
     }
     #[test]
     fn create_inscription_transactions() {
-        let (rollup_name, body, signature, sequencer_public_key, address, utxos) = get_mock_data();
+        let (body, address, utxos) = get_mock_data();
+
+        let da_private_key =
+            SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+
+        // sign the body for authentication of the sequencer
+        let (signature, signer_public_key) =
+            sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
 
         let tx_prefix = &[0u8];
-        let (commit, reveal) = super::create_inscription_transactions(
-            rollup_name,
+        let LightClientTxs::Complete { commit, reveal } = super::create_zkproof_transactions(
             body.clone(),
-            signature.clone(),
-            sequencer_public_key.clone(),
+            &da_private_key,
             None,
             utxos.clone(),
             address.clone(),
@@ -986,10 +1689,16 @@ mod tests {
             bitcoin::Network::Bitcoin,
             tx_prefix,
         )
-        .unwrap();
+        .unwrap() else {
+            panic!("Unexpected tx kind was produced");
+        };
 
         // check pow
-        assert!(reveal.id.as_byte_array().starts_with(tx_prefix));
+        assert!(reveal
+            .tx
+            .compute_wtxid()
+            .as_byte_array()
+            .starts_with(tx_prefix));
 
         // check outputs
         assert_eq!(commit.output.len(), 2, "commit tx should have 2 outputs");
@@ -1008,7 +1717,7 @@ mod tests {
 
         assert_eq!(
             reveal.input[0].previous_output.txid,
-            commit.txid(),
+            commit.compute_txid(),
             "reveal should use commit as input"
         );
         assert_eq!(
@@ -1023,7 +1732,10 @@ mod tests {
         );
 
         // check inscription
-        let inscription = parse_transaction(&reveal, rollup_name).unwrap();
+        let inscription = parse_light_client_transaction(&reveal).unwrap();
+        let ParsedLightClientTransaction::Complete(inscription) = inscription else {
+            panic!("Unexpected tx kind");
+        };
 
         assert_eq!(inscription.body, body, "body should be correct");
         assert_eq!(
@@ -1031,7 +1743,7 @@ mod tests {
             "signature should be correct"
         );
         assert_eq!(
-            inscription.public_key, sequencer_public_key,
+            inscription.public_key, signer_public_key,
             "sequencer public key should be correct"
         );
     }

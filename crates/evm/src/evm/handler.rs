@@ -23,9 +23,16 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
+const DB_ACCOUNT_SIZE: usize = 256;
+
+// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
+// But we already add address size to diff size, so we don't need to add it here
+const DB_ACCOUNT_KEY_SIZE: usize = 25;
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub l1_diff_size: u64,
+    #[allow(unused)]
     pub l1_fee: U256,
 }
 
@@ -154,8 +161,8 @@ where
     fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         self.inspector.step_end(interp, context)
     }
-    fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
-        self.inspector.log(context, log)
+    fn log(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, log: &Log) {
+        self.inspector.log(interp, context, log)
     }
     fn call(
         &mut self,
@@ -300,7 +307,9 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
                     .inner
                     .journaled_state
                     .load_account(tx_caller, &mut context.evm.inner.db)?;
+                // Update nonce and mark account touched
                 caller_account.info.nonce = caller_account.info.nonce.saturating_add(1);
+                caller_account.mark_touch();
             }
             return Ok(());
         }
@@ -354,9 +363,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             l1_diff_size: diff_size,
             l1_fee,
         });
-        if context.is_system_caller() {
-            // System caller doesn't pay L1 fee.
-        } else {
+        // System caller doesn't pay L1 fee.
+        if !context.is_system_caller() {
             if let Some(_out_of_funds) = decrease_caller_balance(context, l1_fee)? {
                 return Err(EVMError::Custom(format!(
                     "Not enough funds for L1 fee: {}",
@@ -391,27 +399,31 @@ fn calc_diff_size<EXT, DB: Database>(
     struct AccountChange<'a> {
         created: bool,
         destroyed: bool,
-        nonce_changed: bool,
-        code_changed: bool,
-        balance_changed: bool,
         storage_changes: BTreeSet<&'a U256>,
+        code_changed: bool,         // implies code and code hash changed
+        account_info_changed: bool, // implies balance or nonce changed
     }
 
     let mut account_changes: BTreeMap<&Address, AccountChange<'_>> = BTreeMap::new();
+
+    // tx.from always has `account_info_changed` because its nonce is incremented
+    let from = account_changes.entry(&env.tx.caller).or_default();
+    from.account_info_changed = true;
 
     for entry in &journal {
         match entry {
             JournalEntry::NonceChange { address } => {
                 let account = account_changes.entry(address).or_default();
-                account.nonce_changed = true;
+                account.account_info_changed = true;
             }
             JournalEntry::BalanceTransfer { from, to, .. } => {
+                // No need to check balance for 0 value sent, revm does not add it to the journal
                 let from = account_changes.entry(from).or_default();
-                from.balance_changed = true;
+                from.account_info_changed = true;
                 let to = account_changes.entry(to).or_default();
-                to.balance_changed = true;
+                to.account_info_changed = true;
             }
-            JournalEntry::StorageChange { address, key, .. } => {
+            JournalEntry::StorageChanged { address, key, .. } => {
                 let account = account_changes.entry(address).or_default();
                 account.storage_changes.insert(key);
             }
@@ -424,7 +436,7 @@ fn calc_diff_size<EXT, DB: Database>(
                 account.created = true;
                 // When account is created, there is a transfer to init its balance.
                 // So we need to only force the nonce change.
-                account.nonce_changed = true;
+                account.account_info_changed = true;
             }
             JournalEntry::AccountDestroyed { address, .. } => {
                 let account = account_changes.entry(address).or_default();
@@ -462,9 +474,10 @@ fn calc_diff_size<EXT, DB: Database>(
         if account.destroyed {
             let account = &state[addr];
             diff_size += slot_size * account.storage.len(); // Storage size
-            diff_size += size_of::<u64>(); // Nonces are u64
-            diff_size += size_of::<U256>(); // Balances are U256
-            diff_size += size_of::<B256>(); // Code hashes are B256
+
+            // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
+            diff_size += DB_ACCOUNT_SIZE; // DbAccount size
+            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
 
             // Retrieve code from DB and apply its size
             if let Some(info) = db.basic(*addr)? {
@@ -478,14 +491,13 @@ fn calc_diff_size<EXT, DB: Database>(
             continue;
         }
 
-        // Apply size of changed nonce
-        if account.nonce_changed {
-            diff_size += size_of::<u64>(); // Nonces are u64
-        }
-
-        // Apply size of changed balances
-        if account.balance_changed {
-            diff_size += size_of::<U256>(); // Balances are U256
+        // dev signer address 0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773
+        // we don't check `code_changed` bc account_info is changed always for code_changed
+        if account.account_info_changed || account.code_changed {
+            // DbAccount size is added because when any of those changes the db account is written to the state
+            // because these fields are part of the account info and not state values
+            diff_size += DB_ACCOUNT_SIZE;
+            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
         }
 
         // Apply size of changed slots
@@ -494,7 +506,7 @@ fn calc_diff_size<EXT, DB: Database>(
         // Apply size of changed codes
         if account.code_changed {
             let account = &state[addr];
-            diff_size += size_of::<B256>(); // Code hashes are B256
+
             if let Some(code) = account.info.code.as_ref() {
                 diff_size += code.len()
             } else {

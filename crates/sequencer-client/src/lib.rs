@@ -7,7 +7,7 @@ use jsonrpsee::rpc_params;
 use reth_primitives::{Bytes, B256};
 use serde::Deserialize;
 use sov_rollup_interface::rpc::HexTx;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use tracing::instrument;
 
 /// Configuration for SequencerClient.
@@ -29,13 +29,13 @@ impl SequencerClient {
 
     /// Gets l2 block given l2 height
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn get_soft_batch<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub async fn get_soft_confirmation<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
-    ) -> anyhow::Result<Option<GetSoftBatchResponse>> {
-        let res: Result<Option<GetSoftBatchResponse>, Error> = self
+    ) -> anyhow::Result<Option<GetSoftConfirmationResponse>> {
+        let res: Result<Option<GetSoftConfirmationResponse>, Error> = self
             .client
-            .request("ledger_getSoftBatchByNumber", rpc_params![num])
+            .request("ledger_getSoftConfirmationByNumber", rpc_params![num])
             .await;
 
         match res {
@@ -49,14 +49,14 @@ impl SequencerClient {
 
     /// Gets l2 blocks given a range
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn get_soft_batch_range<DaSpec: sov_rollup_interface::da::DaSpec>(
+    pub async fn get_soft_confirmation_range<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         range: Range<u64>,
-    ) -> anyhow::Result<Vec<Option<GetSoftBatchResponse>>> {
-        let res: Result<Vec<Option<GetSoftBatchResponse>>, Error> = self
+    ) -> anyhow::Result<Vec<Option<GetSoftConfirmationResponse>>> {
+        let res: Result<Vec<Option<GetSoftConfirmationResponse>>, Error> = self
             .client
             .request(
-                "ledger_getSoftBatchRange",
+                "ledger_getSoftConfirmationRange",
                 rpc_params![range.start, range.end],
             )
             .await;
@@ -74,7 +74,7 @@ impl SequencerClient {
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn block_number(&self) -> Result<u64, Error> {
         self.client
-            .request("ledger_getHeadSoftBatchHeight", rpc_params![])
+            .request("ledger_getHeadSoftConfirmationHeight", rpc_params![])
             .await
     }
 
@@ -103,7 +103,8 @@ impl SequencerClient {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct GetSoftBatchResponse {
+pub struct GetSoftConfirmationResponse {
+    l2_height: u64,
     #[serde(with = "hex::serde")]
     pub hash: SoftConfirmationHash,
     #[serde(with = "hex::serde")]
@@ -126,9 +127,10 @@ pub struct GetSoftBatchResponse {
     pub timestamp: u64,
 }
 
-impl From<GetSoftBatchResponse> for SignedSoftConfirmationBatch {
-    fn from(val: GetSoftBatchResponse) -> Self {
-        SignedSoftConfirmationBatch::new(
+impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation {
+    fn from(val: GetSoftConfirmationResponse) -> Self {
+        SignedSoftConfirmation::new(
+            val.l2_height,
             val.hash,
             val.prev_hash,
             val.da_slot_height,

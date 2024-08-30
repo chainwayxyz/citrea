@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 #[cfg(feature = "native")]
-use crate::stf::Event;
 use crate::stf::EventKey;
 use crate::zk::CumulativeStateDiff;
 
@@ -62,13 +61,13 @@ pub struct TxIdAndKey {
     pub key: EventKey,
 }
 
-/// An identifier that specifies a single soft batch
+/// An identifier that specifies a single soft confirmation
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged, rename_all = "camelCase")]
-pub enum SoftBatchIdentifier {
-    /// The monotonically increasing number of the soft batch
+pub enum SoftConfirmationIdentifier {
+    /// The monotonically increasing number of the soft confirmation
     Number(u64),
-    /// The hex-encoded hash of the soft batch
+    /// The hex-encoded hash of the soft confirmation
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
 }
 
@@ -135,45 +134,6 @@ pub enum SlotIdentifier {
     Number(u64),
 }
 
-/// A QueryMode specifies how much information to return in response to an RPC query
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum QueryMode {
-    /// Returns the parent struct but no details about its children.
-    /// For example, a `Compact` "get_slots" response would simply state the range of batch
-    /// numbers which occurred in the slot, but not the hashes of the batches themselves.
-    Compact,
-    /// Returns the parent struct and the hashes of all its children.
-    Standard,
-    /// Returns the parent struct and all its children, recursively fetching its children
-    /// in `Full` mode. For example, a `Full` "get_batch" response would include the `Full`
-    /// details of all the transactions in the batch, and those would in turn return the event bodies
-    /// which had occurred in those transactions.
-    Full,
-}
-
-impl Default for QueryMode {
-    fn default() -> Self {
-        Self::Standard
-    }
-}
-
-/// The body of a response to a JSON-RPC request for a particular slot.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SlotResponse<B, Tx> {
-    /// The slot number.
-    pub number: u64,
-    /// The hex encoded slot hash.
-    #[serde(with = "utils::rpc_hex")]
-    pub hash: [u8; 32],
-    /// The range of batches in this slot.
-    pub batch_range: core::ops::Range<u64>,
-    /// The batches in this slot, if the [`QueryMode`] of the request is not `Compact`
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
-}
-
 /// A type that represents a transaction hash bytes.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(transparent, rename_all = "camelCase")]
@@ -189,32 +149,32 @@ impl From<Vec<u8>> for HexTx {
     }
 }
 
-/// The response to a JSON-RPC request for a particular soft batch.
+/// The response to a JSON-RPC request for a particular soft confirmation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SoftBatchResponse {
-    /// The DA height of the soft batch.
-    pub da_slot_height: u64,
-    /// The L2 height of the soft batch.
+pub struct SoftConfirmationResponse {
+    /// The L2 height of the soft confirmation.
     pub l2_height: u64,
-    /// The DA slothash of the soft batch.
+    /// The DA height of the soft confirmation.
+    pub da_slot_height: u64,
+    /// The DA slothash of the soft confirmation.
     // TODO: find a way to hex serialize this and then
     // deserialize in `SequencerClient`
     #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
     #[serde(with = "hex::serde")]
-    /// The DA slot transactions commitment of the soft batch.
+    /// The DA slot transactions commitment of the soft confirmation.
     pub da_slot_txs_commitment: [u8; 32],
-    /// The hash of the soft batch.
+    /// The hash of the soft confirmation.
     #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
-    /// The hash of the previous soft batch.
+    /// The hash of the previous soft confirmation.
     #[serde(with = "hex::serde")]
     pub prev_hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
-    /// State root of the soft batch.
+    /// State root of the soft confirmation.
     #[serde(with = "hex::serde")]
     pub state_root: Vec<u8>,
     /// Signature of the batch
@@ -401,24 +361,6 @@ pub fn sequencer_commitment_to_response(
     }
 }
 
-/// The response to a JSON-RPC request for a particular batch.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchResponse<B, Tx> {
-    /// The hex encoded batch hash.
-    #[serde(with = "utils::rpc_hex")]
-    pub hash: [u8; 32],
-    /// The range of transactions in this batch.
-    pub tx_range: core::ops::Range<u64>,
-    /// The transactions in this batch, if the [`QueryMode`] of the request is not `Compact`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<ItemOrHash<TxResponse<Tx>>>>,
-    /// The custom receipt specified by the rollup. This typically contains
-    /// information about the outcome of the batch.
-    #[serde(skip_serializing)]
-    pub phantom_data: PhantomData<B>,
-}
-
 /// The response to a JSON-RPC request for a particular transaction.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -455,156 +397,48 @@ pub enum SoftConfirmationStatus {
     Trusted,
     /// The soft confirmation has been finalized with a sequencer commitment
     Finalized,
-    /// The soft batch has been ZK-proven
+    /// The soft confirmation has been ZK-proven
     Proven,
 }
 
 /// A LedgerRpcProvider provides a way to query the ledger for information about slots, batches, transactions, and events.
 #[cfg(feature = "native")]
 pub trait LedgerRpcProvider {
-    /// Get the latest slot in the ledger.
-    fn get_head<B: DeserializeOwned + Clone, T: DeserializeOwned>(
+    /// Get a list of soft confirmations by id. The IDs need not be ordered.
+    fn get_soft_confirmations(
         &self,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+        batch_ids: &[SoftConfirmationIdentifier],
+    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
-    /// Get a list of slots by id. The IDs need not be ordered.
-    fn get_slots<B: DeserializeOwned, T: DeserializeOwned>(
+    /// Get soft confirmation
+    fn get_soft_confirmation(
         &self,
-        slot_ids: &[SlotIdentifier],
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error>;
+        batch_id: &SoftConfirmationIdentifier,
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get a list of batches by id. The IDs need not be ordered.
-    fn get_batches<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        batch_ids: &[BatchIdentifier],
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
-
-    /// Get a list of soft batches by id. The IDs need not be ordered.
-    fn get_soft_batches(
-        &self,
-        batch_ids: &[SoftBatchIdentifier],
-    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
-
-    /// Get soft batch
-    fn get_soft_batch(
-        &self,
-        batch_id: &SoftBatchIdentifier,
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
-
-    /// Get a list of transactions by id. The IDs need not be ordered.
-    fn get_transactions<T: DeserializeOwned>(
-        &self,
-        tx_ids: &[TxIdentifier],
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
-
-    /// Get events by id. The IDs need not be ordered.
-    fn get_events(
-        &self,
-        event_ids: &[EventIdentifier],
-    ) -> Result<Vec<Option<Event>>, anyhow::Error>;
-
-    /// Get a single slot by hash.
-    fn get_slot_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
+    /// Get a single soft confirmation by hash.
+    fn get_soft_confirmation_by_hash<T: DeserializeOwned>(
         &self,
         hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get a single soft batch by hash.
-    fn get_soft_batch_by_hash<T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
-
-    /// Get a single batch by hash.
-    fn get_batch_by_hash<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
-
-    /// Get a single transaction by hash.
-    fn get_tx_by_hash<T: DeserializeOwned>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error>;
-
-    /// Get a single slot by number.
-    fn get_slot_by_number<B: DeserializeOwned, T: DeserializeOwned>(
+    /// Get a single soft confirmation by number.
+    fn get_soft_confirmation_by_number<T: DeserializeOwned>(
         &self,
         number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>;
+    ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get a single soft batch by number.
-    fn get_soft_batch_by_number<T: DeserializeOwned>(
-        &self,
-        number: u64,
-    ) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
-
-    /// Get a single batch by number.
-    fn get_batch_by_number<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>;
-
-    /// Get a single event by number.
-    fn get_event_by_number(&self, number: u64) -> Result<Option<Event>, anyhow::Error>;
-
-    /// Get a single tx by number.
-    fn get_tx_by_number<T: DeserializeOwned>(
-        &self,
-        number: u64,
-        query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error>;
-
-    /// Get a range of slots. This query is the most efficient way to
-    /// fetch large numbers of slots, since it allows for easy batching of
-    /// db queries for adjacent items.
-    fn get_slots_range<B: DeserializeOwned, T: DeserializeOwned>(
+    /// Get a range of soft confirmations.
+    fn get_soft_confirmations_range(
         &self,
         start: u64,
         end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, anyhow::Error>;
+    ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error>;
 
-    /// Get a range of batches. This query is the most efficient way to
-    /// fetch large numbers of batches, since it allows for easy batching of
-    /// db queries for adjacent items.
-    fn get_batches_range<B: DeserializeOwned, T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, anyhow::Error>;
-
-    /// Get a range of soft batches.
-    fn get_soft_batches_range(
-        &self,
-        start: u64,
-        end: u64,
-    ) -> Result<Vec<Option<SoftBatchResponse>>, anyhow::Error>;
-
-    /// Get a range of batches. This query is the most efficient way to
-    /// fetch large numbers of transactions, since it allows for easy batching of
-    /// db queries for adjacent items.
-    fn get_transactions_range<T: DeserializeOwned>(
-        &self,
-        start: u64,
-        end: u64,
-        query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, anyhow::Error>;
-
-    /// Takes an L2 Height and and returns the soft confirmation status of the soft batch
+    /// Takes an L2 Height and and returns the soft confirmation status of the soft confirmation
     fn get_soft_confirmation_status(
         &self,
-        soft_batch_receipt: u64,
+        soft_confirmation_receipt: u64,
     ) -> Result<SoftConfirmationStatus, anyhow::Error>;
 
     /// (Prover) returns the last scanned L1 height (for sequencer commitments)
@@ -618,9 +452,6 @@ pub trait LedgerRpcProvider {
         &self,
         height: u64,
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
-
-    /// Get a notification each time a slot is processed
-    fn subscribe_slots(&self) -> Result<tokio::sync::broadcast::Receiver<u64>, anyhow::Error>;
 
     /// Get proof by l1 height
     fn get_proof_data_by_l1_height(
@@ -637,11 +468,12 @@ pub trait LedgerRpcProvider {
     /// Get last verified proof
     fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
 
-    /// Get head soft batch
-    fn get_head_soft_batch(&self) -> Result<Option<SoftBatchResponse>, anyhow::Error>;
+    /// Get head soft confirmation
+    fn get_head_soft_confirmation(&self)
+        -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
-    /// Get head soft batch height
-    fn get_head_soft_batch_height(&self) -> Result<u64, anyhow::Error>;
+    /// Get head soft confirmation height
+    fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error>;
 }
 
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most

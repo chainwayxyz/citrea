@@ -2,7 +2,7 @@ use helpers::*;
 use sov_bank::{get_genesis_token_address, Bank, BankConfig, CallMessage, TokenConfig};
 use sov_modules_api::macros::config_constant;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, WorkingSet};
+use sov_modules_api::{Context, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use tempfile::TempDir;
 
@@ -51,7 +51,13 @@ impl BankGasTestCase {
         let height = 1;
         let minter_address = generate_address::<C>("minter");
         let sequencer_address = generate_address::<C>("sequencer");
-        let ctx = C::new(sender_address, sequencer_address, height);
+        let ctx = C::new(
+            sender_address,
+            sequencer_address,
+            height,
+            SpecId::Genesis,
+            0,
+        );
 
         // create a bank instance
         let bank = Bank::default();

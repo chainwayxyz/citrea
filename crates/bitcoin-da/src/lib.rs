@@ -1,6 +1,6 @@
+#![allow(dead_code)] // FIXME
+
 mod helpers;
-#[cfg(feature = "native")]
-mod rpc;
 pub mod spec;
 
 #[cfg(feature = "native")]
@@ -9,3 +9,6 @@ pub mod verifier;
 
 #[cfg(feature = "native")]
 const REVEAL_OUTPUT_AMOUNT: u64 = 546;
+
+#[cfg(feature = "native")]
+const MAX_TXBODY_SIZE: usize = 397000;

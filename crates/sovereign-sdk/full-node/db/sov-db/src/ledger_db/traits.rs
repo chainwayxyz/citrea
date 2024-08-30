@@ -2,31 +2,22 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{Event, SoftBatchReceipt, StateDiff};
+use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
-use super::{ItemNumbers, SlotCommit};
+use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredBatch, StoredSlot, StoredSoftBatch,
+    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredSlot, StoredSoftConfirmation,
     StoredStateTransition, StoredTransaction, TxNumber,
 };
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
-    /// Put soft batch to db
-    fn put_soft_batch(
+    /// Put soft confirmation to db
+    fn put_soft_confirmation(
         &self,
-        batch: &StoredSoftBatch,
-        batch_number: &BatchNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Put batch to db
-    fn put_batch(
-        &self,
-        batch: &StoredBatch,
+        batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
@@ -48,10 +39,11 @@ pub trait SharedLedgerOps {
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
-    /// Commits a soft batch to the database by inserting its transactions and batches before
-    fn commit_soft_batch<B: Serialize, T: Serialize, DS: DaSpec>(
+    /// Commits a soft confirmation to the database by inserting its transactions and batches before
+    fn commit_soft_confirmation<T: Serialize, DS: DaSpec>(
         &self,
-        batch_receipt: SoftBatchReceipt<B, T, DS>,
+        state_root: &[u8],
+        sc_receipt: SoftConfirmationReceipt<T, DS>,
         include_tx_body: bool,
     ) -> Result<()>;
 
@@ -71,17 +63,14 @@ pub trait SharedLedgerOps {
     /// directly via rpc.
     fn _get_slot_range(&self, range: &std::ops::Range<SlotNumber>) -> Result<Vec<StoredSlot>>;
 
-    /// Gets all batches with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    fn get_batch_range(&self, range: &std::ops::Range<BatchNumber>) -> Result<Vec<StoredBatch>>;
-
     /// Gets l1 height of l1 hash
     fn get_state_diff(&self) -> Result<StateDiff>;
 
     /// Sets l1 height of l1 hash
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> Result<()>;
+
+    /// Gets l1 height of l1 hash
+    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 
     /// Saves a soft confirmation status for a given L1 height
     fn put_soft_confirmation_status(
@@ -89,6 +78,12 @@ pub trait SharedLedgerOps {
         height: BatchNumber,
         status: sov_rollup_interface::rpc::SoftConfirmationStatus,
     ) -> Result<()>;
+
+    /// Returns a soft confirmation status for a given L1 height
+    fn get_soft_confirmation_status(
+        &self,
+        height: BatchNumber,
+    ) -> Result<Option<sov_rollup_interface::rpc::SoftConfirmationStatus>>;
 
     /// Gets the commitments in the da slot with given height if any
     /// Adds the new coming commitment info
@@ -104,20 +99,31 @@ pub trait SharedLedgerOps {
         state_root: &StateRoot,
     ) -> anyhow::Result<()>;
 
-    /// Get the most recent committed soft batch, if any
-    fn get_head_soft_batch(&self) -> Result<Option<(BatchNumber, StoredSoftBatch)>>;
+    /// Get the most recent committed soft confirmation, if any
+    fn get_head_soft_confirmation(&self) -> Result<Option<(BatchNumber, StoredSoftConfirmation)>>;
 
     /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
     /// Note that this method blindly preallocates for the requested range, so it should not be exposed
     /// directly via rpc.
-    fn get_soft_batch_range(
+    fn get_soft_confirmation_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredSoftBatch>>;
+    ) -> Result<Vec<StoredSoftConfirmation>>;
 
     /// Gets all soft confirmations by numbers
-    fn get_soft_batch_by_number(&self, number: &BatchNumber) -> Result<Option<StoredSoftBatch>>;
+
+    fn get_soft_confirmation_by_number(
+        &self,
+        number: &BatchNumber,
+    ) -> Result<Option<StoredSoftConfirmation>>;
+
+    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
+    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
+
+    /// Get the most recent committed batch
+    /// Returns L2 height.
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
 }
 
 /// Node ledger operations
@@ -141,13 +147,10 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
-
-    /// Gets l1 height of l1 hash
-    fn get_l1_height_of_l1_hash(&self, hash: [u8; 32]) -> Result<Option<u64>>;
 }
 
 /// Prover ledger operations
-pub trait ProverLedgerOps: SharedLedgerOps {
+pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get the state root by L2 height
     fn get_l2_state_root<StateRoot: DeserializeOwned>(
         &self,
@@ -155,11 +158,11 @@ pub trait ProverLedgerOps: SharedLedgerOps {
     ) -> anyhow::Result<Option<StateRoot>>;
 
     /// Get the last scanned slot by the prover
-    fn get_prover_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
+    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
 
     /// Set the last scanned slot by the prover
     /// Called by the prover.
-    fn set_prover_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
 
     /// Get the witness by L2 height
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
@@ -175,6 +178,27 @@ pub trait ProverLedgerOps: SharedLedgerOps {
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
+
+    /// Save a specific L2 range state diff
+    fn set_l2_state_diff(&self, l2_height: BatchNumber, state_diff: StateDiff) -> Result<()>;
+
+    /// Returns an L2 state diff
+    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> Result<Option<StateDiff>>;
+}
+
+/// Ledger operations for the prover service
+pub trait ProvingServiceLedgerOps: ProverLedgerOps + SharedLedgerOps + Send + Sync {
+    /// Gets all pending sessions and step numbers
+    fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
+
+    /// Adds a pending proving session
+    fn add_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+
+    /// Removes a pending proving session
+    fn remove_pending_proving_session(&self, session: Vec<u8>) -> Result<()>;
+
+    /// Clears all pending proving sessions
+    fn clear_pending_proving_sessions(&self) -> Result<()>;
 }
 
 /// Sequencer ledger operations
@@ -185,13 +209,6 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
         slot: &StoredSlot,
         slot_number: &SlotNumber,
         schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Commits a slot to the database by inserting its events, transactions, and batches before
-    /// inserting the slot metadata.
-    fn commit_slot<S: SlotData, B: Serialize, T: Serialize>(
-        &self,
-        data_to_commit: SlotCommit<S, B, T>,
     ) -> Result<()>;
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
@@ -210,10 +227,15 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     /// Sets the latest state diff
     fn set_state_diff(&self, state_diff: StateDiff) -> Result<()>;
 
-    /// Get the most recent committed batch
-    /// Returns L2 height.
-    fn get_last_sequencer_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
-
     /// Get the most recent commitment's l1 height
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>>;
+
+    /// Insert mempool transaction
+    fn insert_mempool_tx(&self, tx_hash: Vec<u8>, tx: Vec<u8>) -> anyhow::Result<()>;
+
+    /// Insert mempool transaction
+    fn remove_mempool_txs(&self, tx_hashes: Vec<Vec<u8>>) -> anyhow::Result<()>;
+
+    /// Fetch mempool transactions
+    fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
 }

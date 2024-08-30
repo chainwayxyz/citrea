@@ -4,12 +4,16 @@
 mod runtime_rpc;
 mod wallet;
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::Storage;
@@ -21,9 +25,11 @@ pub use wallet::*;
 #[async_trait]
 pub trait RollupBlueprint: Sized + Send + Sync {
     /// Data Availability service.
-    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Clone + Send + Sync;
+    type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Send + Sync;
+
     /// A specification for the types used by a DA layer.
     type DaSpec: DaSpec + Send + Sync;
+
     /// Data Availability config.
     type DaConfig: Send + Sync;
 
@@ -32,6 +38,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
+
     /// Context for Native environment.
     type NativeContext: Context;
 
@@ -58,15 +65,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
 
-    /// Get code commitment.
-    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
+    /// Get code commitments by fork.
+    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
@@ -99,14 +106,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService;
+    ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].

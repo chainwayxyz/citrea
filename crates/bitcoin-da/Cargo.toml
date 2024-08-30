@@ -7,7 +7,6 @@ homepage = { workspace = true }
 license = "MIT OR Apache-2.0"
 publish = false
 repository = { workspace = true }
-rust-version = "1.66"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,12 +17,10 @@ tokio = { workspace = true, features = ["full"], optional = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-base64 = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }
-reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror = { workspace = true }
@@ -32,13 +29,16 @@ tracing = { workspace = true, optional = true }
 bitcoin = { workspace = true }
 brotli = { workspace = true }
 futures.workspace = true
+sha2 = { workspace = true }
+
+bitcoincore-rpc = { workspace = true, optional = true }
 
 [features]
 default = []
 native = [
   "dep:tokio",
-  "dep:reqwest",
   "dep:pin-project",
   "dep:tracing",
   "sov-rollup-interface/native",
+  "dep:bitcoincore-rpc",
 ]

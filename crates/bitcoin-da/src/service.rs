@@ -5,57 +5,67 @@ use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
 use std::collections::HashSet;
+use std::sync::Arc;
 
+use anyhow::{Context, Result};
 // use std::sync::Arc;
 use async_trait::async_trait;
-use bitcoin::consensus::encode;
-use bitcoin::hashes::{sha256d, Hash};
+use bitcoin::block::Header;
+use bitcoin::consensus::{encode, Decodable};
+use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Address, BlockHash, Transaction, Txid};
-use hex::ToHex;
+use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
+use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::{BlobWithNotifier, DaService};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use sov_rollup_interface::da::{DaData, DaSpec};
+use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::{
-    create_inscription_transactions, sign_blob_with_private_key, write_reveal_tx, TxWithId,
+    create_seqcommitment_transactions, create_zkproof_transactions, write_inscription_txs,
+    BatchProvingTxs, LightClientTxs, TxWithId,
 };
-use crate::helpers::compression::{compress_blob, decompress_blob};
-use crate::helpers::parsers::{parse_hex_transaction, parse_transaction};
-use crate::rpc::{BitcoinNode, RPCError};
+use crate::helpers::compression::compress_blob;
+use crate::helpers::merkle_tree;
+use crate::helpers::merkle_tree::BitcoinMerkleTree;
+use crate::helpers::parsers::{
+    parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
+};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
+use crate::spec::header::HeaderWrapper;
 use crate::spec::header_stream::BitcoinHeaderStream;
 use crate::spec::proof::InclusionMultiProof;
+use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
 /// A service that provides data and data availability proofs for Bitcoin
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BitcoinService {
-    client: BitcoinNode,
-    rollup_name: String,
+    client: Client,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    reveal_tx_id_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
+    reveal_light_client_prefix: Vec<u8>,
+    reveal_batch_prover_prefix: Vec<u8>,
+    inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
 }
 
 /// Runtime configuration for the DA service
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct DaServiceConfig {
+pub struct BitcoinServiceConfig {
     /// The URL of the Bitcoin node to connect to
     pub node_url: String,
     pub node_username: String,
     pub node_password: String,
 
     // network of the bitcoin node
-    pub network: String,
+    pub network: bitcoin::Network,
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
@@ -69,45 +79,54 @@ const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
     // Create a new instance of the DA service from the given configuration.
-    pub async fn new(config: DaServiceConfig, chain_params: RollupParams) -> Self {
-        let network =
-            bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
-
-        let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
+    pub async fn new_with_wallet_check(
+        config: BitcoinServiceConfig,
+        chain_params: RollupParams,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        let client = Client::new(
+            &config.node_url,
+            Auth::UserPass(config.node_username, config.node_password),
+        )
+        .await?;
 
         let private_key = config
             .da_private_key
-            .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
+            .map(|pk| SecretKey::from_str(&pk))
+            .transpose()
+            .context("Invalid private key")?;
 
-        let (tx, mut rx) = unbounded_channel::<BlobWithNotifier<TxidWrapper>>();
+        let wallets = client
+            .list_wallets()
+            .await
+            .expect("Failed to list loaded wallets");
 
-        let this = Self::with_client(
+        if wallets.is_empty() {
+            tracing::warn!("No loaded wallet found!");
+        }
+
+        Ok(Self {
             client,
-            chain_params.rollup_name,
-            network,
-            private_key,
-            chain_params.reveal_tx_id_prefix,
-            tx,
-        )
-        .await;
+            network: config.network,
+            da_private_key: private_key,
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
+            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            inscribes_queue: tx,
+        })
+    }
 
-        let serv = this.clone();
-
+    pub fn spawn_da_queue(
+        self: Arc<Self>,
+        mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
+    ) {
         // This is a queue of inscribe requests
         tokio::task::spawn_blocking(|| {
-            let this = serv;
             tokio::runtime::Handle::current().block_on(async move {
-                // TODO https://github.com/chainwayxyz/citrea/issues/537
-                // TODO find last tx by utxo chain
-                let mut prev_tx = match this.get_pending_transactions().await {
-                    Ok(pending_txs) => {
-                        if !pending_txs.is_empty() {
-                            let tx = pending_txs.first().unwrap().clone();
-                            let txid = tx.txid();
-                            Some(TxWithId { tx, id: txid })
-                        } else {
-                            None
-                        }
+                let mut prev_utxo = match self.get_prev_utxo().await {
+                    Ok(Some(prev_utxo)) => Some(prev_utxo),
+                    Ok(None) => {
+                        info!("No pending transactions found");
+                        None
                     }
                     Err(e) => {
                         error!(?e, "Failed to get pending transactions");
@@ -120,11 +139,10 @@ impl BitcoinService {
                 // We execute commit and reveal txs one by one to chain them
                 while let Some(request) = rx.recv().await {
                     trace!("A new request is received");
-                    let prev = prev_tx.take();
+                    let prev = prev_utxo.take();
                     loop {
                         // Build and send tx with retries:
-                        let blob = request.blob.clone();
-                        let fee_sat_per_vbyte = match this.get_fee_rate().await {
+                        let fee_sat_per_vbyte = match self.get_fee_rate().await {
                             Ok(rate) => rate,
                             Err(e) => {
                                 error!(?e, "Failed to call get_fee_rate. Retrying...");
@@ -132,14 +150,28 @@ impl BitcoinService {
                                 continue;
                             }
                         };
-                        match this
-                            .send_transaction_with_fee_rate(prev.clone(), blob, fee_sat_per_vbyte)
+                        match self
+                            .send_transaction_with_fee_rate(
+                                prev.clone(),
+                                &request.da_data,
+                                fee_sat_per_vbyte,
+                            )
                             .await
                         {
                             Ok(tx) => {
                                 let tx_id = TxidWrapper(tx.id);
                                 info!(%tx.id, "Sent tx to BitcoinDA");
-                                prev_tx = Some(tx);
+                                prev_utxo = Some(UTXO {
+                                    tx_id: tx.id,
+                                    vout: 0,
+                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+                                    address: None,
+                                    amount: tx.tx.output[0].value.to_sat(),
+                                    confirmations: 0,
+                                    spendable: true,
+                                    solvable: true,
+                                });
+
                                 let _ = request.notify.send(Ok(tx_id));
                             }
                             Err(e) => {
@@ -155,70 +187,72 @@ impl BitcoinService {
                 error!("BitcoinDA queue stopped");
             });
         });
-
-        this
     }
 
     #[cfg(test)]
-    pub async fn new_without_client(config: DaServiceConfig, chain_params: RollupParams) -> Self {
-        let network =
-            bitcoin::Network::from_str(&config.network).expect("Invalid bitcoin network name");
+    pub async fn new_without_wallet_check(
+        config: BitcoinServiceConfig,
+        chain_params: RollupParams,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        let client = Client::new(
+            &config.node_url,
+            Auth::UserPass(config.node_username, config.node_password),
+        )
+        .await?;
 
-        let client = BitcoinNode::new(config.node_url, config.node_username, config.node_password);
-
-        let private_key = config
+        let da_private_key = config
             .da_private_key
-            .map(|pk| SecretKey::from_str(&pk).expect("Invalid private key"));
+            .map(|pk| SecretKey::from_str(&pk))
+            .transpose()
+            .context("Invalid private key")?;
 
-        let (tx, _rx) = unbounded_channel();
-
-        Self {
+        Ok(Self {
             client,
-            rollup_name: chain_params.rollup_name,
-            network,
-            da_private_key: private_key,
-            reveal_tx_id_prefix: chain_params.reveal_tx_id_prefix,
+            network: config.network,
+            da_private_key,
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
+            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
             inscribes_queue: tx,
-        }
+        })
     }
 
-    async fn with_client(
-        client: BitcoinNode,
-        rollup_name: String,
-        network: bitcoin::Network,
-        da_private_key: Option<SecretKey>,
-        reveal_tx_id_prefix: Vec<u8>,
-        inscribes_queue: UnboundedSender<BlobWithNotifier<TxidWrapper>>,
-    ) -> Self {
-        let wallets = client
-            .list_wallets()
-            .await
-            .expect("Failed to list loaded wallets");
+    #[instrument(level = "trace", skip_all, ret)]
+    async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
+        let mut pending_utxos = self
+            .client
+            .list_unspent(Some(0), Some(0), None, None, None)
+            .await?;
 
-        if wallets.is_empty() {
-            tracing::warn!("No loaded wallet found!");
-        }
+        pending_utxos.retain(|u| u.spendable && u.solvable);
 
-        Self {
-            client,
-            rollup_name,
-            network,
-            da_private_key,
-            reveal_tx_id_prefix,
-            inscribes_queue,
-        }
+        // Sorted by ancestor count, the tx with the most ancestors is the latest tx
+        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
+
+        Ok(pending_utxos
+            .into_iter()
+            .find(|u| u.amount >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT))
+            .map(|u| u.into()))
     }
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
-        let utxos = self.client.get_utxos().await?;
+        let utxos = self
+            .client
+            .list_unspent(None, None, None, None, None)
+            .await?;
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no UTXOs"));
         }
 
         let utxos: Vec<UTXO> = utxos
             .into_iter()
-            .filter(|utxo| utxo.spendable && utxo.solvable && utxo.amount > REVEAL_OUTPUT_AMOUNT)
+            .filter(|utxo| {
+                utxo.spendable
+                    && utxo.solvable
+                    && utxo.amount > Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
+            })
+            .map(Into::into)
             .collect();
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no spendable UTXOs"));
@@ -229,7 +263,10 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, anyhow::Error> {
-        let mut pending_utxos = self.client.get_pending_utxos().await?;
+        let mut pending_utxos = self
+            .client
+            .list_unspent(Some(0), Some(0), None, None, None)
+            .await?;
         // Sorted by ancestor count, the tx with the most ancestors is the latest tx
         pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
 
@@ -237,96 +274,177 @@ impl BitcoinService {
         let mut scanned_txids = HashSet::new();
 
         for utxo in pending_utxos.iter() {
-            let txid = utxo.txid.clone();
+            let txid = utxo.txid;
             // Check if tx is already in the pending transactions vector
             if scanned_txids.contains(&txid) {
                 continue;
             }
 
-            let raw_tx = self
+            let tx = self
                 .client
-                .get_raw_transaction(txid.clone())
+                .get_raw_transaction(&txid, None)
                 .await
                 .expect("Transaction should exist with existing utxo");
-            let parsed_tx = parse_hex_transaction(&raw_tx).expect("Rpc tx should be parsable");
-            pending_transactions.push(parsed_tx);
+            pending_transactions.push(tx);
             scanned_txids.insert(txid);
         }
 
         Ok(pending_transactions)
     }
 
-    #[instrument(level = "trace", fields(prev_tx), ret, err)]
+    #[instrument(level = "trace", fields(prev_utxo), ret, err)]
     pub async fn send_transaction_with_fee_rate(
         &self,
-        prev_tx: Option<TxWithId>,
-        blob: Vec<u8>,
+        prev_utxo: Option<UTXO>,
+        da_data: &DaData,
         fee_sat_per_vbyte: f64,
     ) -> Result<TxWithId, anyhow::Error> {
-        let client = self.client.clone();
+        let client = &self.client;
         let network = self.network;
 
-        let rollup_name = self.rollup_name.clone();
         let da_private_key = self.da_private_key.expect("No private key set");
 
-        // Compress the blob
-        let blob = compress_blob(&blob);
+        let blob = borsh::to_vec(da_data).expect("DaData serialize must not fail");
 
         // get all available utxos
-        let utxos: Vec<UTXO> = self.get_utxos().await?;
+        let utxos = self.get_utxos().await?;
 
         // get address from a utxo
-        let address = Address::from_str(&utxos[0].address.clone())
-            .unwrap()
+        let address = utxos[0]
+            .address
+            .clone()
+            .context("Missing address")?
             .require_network(network)
-            .expect("Invalid network for address");
+            .context("Invalid network for address")?;
 
-        // sign the blob for authentication of the sequencer
-        let (signature, public_key) =
-            sign_blob_with_private_key(&blob, &da_private_key).expect("Sequencer sign the blob");
+        match da_data {
+            DaData::ZKProof(_) => {
+                let blob = compress_blob(&blob);
+                // create inscribe transactions
+                let inscription_txs = create_zkproof_transactions(
+                    blob,
+                    &da_private_key,
+                    prev_utxo,
+                    utxos,
+                    address,
+                    REVEAL_OUTPUT_AMOUNT,
+                    fee_sat_per_vbyte,
+                    fee_sat_per_vbyte,
+                    network,
+                    &self.reveal_light_client_prefix,
+                )?;
 
-        // create inscribe transactions
-        let (unsigned_commit_tx, reveal_tx) = create_inscription_transactions(
-            &rollup_name,
-            blob,
-            signature,
-            public_key,
-            prev_tx,
-            utxos,
-            address,
-            REVEAL_OUTPUT_AMOUNT,
-            fee_sat_per_vbyte,
-            fee_sat_per_vbyte,
-            network,
-            self.reveal_tx_id_prefix.as_slice(),
-        )?;
+                // write txs to file, it can be used to continue revealing blob if something goes wrong
+                write_inscription_txs(&inscription_txs);
 
-        // sign inscribe transactions
-        let serialized_unsigned_commit_tx = &encode::serialize(&unsigned_commit_tx);
-        let signed_raw_commit_tx = client
-            .sign_raw_transaction_with_wallet(serialized_unsigned_commit_tx.encode_hex())
-            .await?;
+                match inscription_txs {
+                    LightClientTxs::Complete { commit, reveal } => {
+                        // sign inscribe transactions
+                        let signed_raw_commit_tx = client
+                            .sign_raw_transaction_with_wallet(&commit, None, None)
+                            .await?;
 
-        // send inscribe transactions
-        client.send_raw_transaction(signed_raw_commit_tx).await?;
+                        // send inscribe transactions
+                        client
+                            .send_raw_transaction(&signed_raw_commit_tx.hex)
+                            .await?;
 
-        // serialize reveal tx
-        let serialized_reveal_tx = &encode::serialize(&reveal_tx.tx);
+                        // serialize reveal tx
+                        let serialized_reveal_tx = &encode::serialize(&reveal.tx);
 
-        // write reveal tx to file, it can be used to continue revealing blob if something goes wrong
-        write_reveal_tx(
-            serialized_reveal_tx,
-            unsigned_commit_tx.txid().to_raw_hash().to_string(),
-        );
+                        // send reveal tx
+                        let reveal_tx_hash =
+                            client.send_raw_transaction(serialized_reveal_tx).await?;
 
-        // send reveal tx
-        let reveal_tx_hash = client
-            .send_raw_transaction(serialized_reveal_tx.encode_hex())
-            .await?;
+                        info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
+                        Ok(reveal)
+                    }
+                    LightClientTxs::Chunked {
+                        commit_chunks,
+                        reveal_chunks,
+                        commit,
+                        reveal,
+                    } => {
+                        for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+                            // sign inscribe transactions
+                            let signed_raw_commit_tx = client
+                                .sign_raw_transaction_with_wallet(&commit, None, None)
+                                .await?;
 
-        info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
+                            // send inscribe transactions
+                            client
+                                .send_raw_transaction(&signed_raw_commit_tx.hex)
+                                .await?;
 
-        Ok(reveal_tx)
+                            // serialize reveal tx
+                            let serialized_reveal_tx = encode::serialize(&reveal);
+
+                            // send reveal tx
+                            let reveal_tx_hash =
+                                client.send_raw_transaction(&serialized_reveal_tx).await?;
+                            info!("Blob chunk inscribe tx sent. Hash: {}", reveal_tx_hash);
+                        }
+
+                        // sign inscribe transactions
+                        let signed_raw_commit_tx = client
+                            .sign_raw_transaction_with_wallet(&commit, None, None)
+                            .await?;
+
+                        // send inscribe transactions
+                        client
+                            .send_raw_transaction(&signed_raw_commit_tx.hex)
+                            .await?;
+
+                        // serialize reveal tx
+                        let serialized_reveal_tx = encode::serialize(&reveal.tx);
+
+                        // send reveal tx
+                        let reveal_tx_hash =
+                            client.send_raw_transaction(&serialized_reveal_tx).await?;
+                        info!("Blob chunk aggregate tx sent. Hash: {}", reveal_tx_hash);
+                        Ok(reveal)
+                    }
+                }
+            }
+            DaData::SequencerCommitment(_) => {
+                // create inscribe transactions
+                let inscription_txs = create_seqcommitment_transactions(
+                    blob,
+                    &da_private_key,
+                    prev_utxo,
+                    utxos,
+                    address,
+                    REVEAL_OUTPUT_AMOUNT,
+                    fee_sat_per_vbyte,
+                    fee_sat_per_vbyte,
+                    network,
+                    &self.reveal_batch_prover_prefix,
+                )?;
+
+                // write txs to file, it can be used to continue revealing blob if something goes wrong
+                write_inscription_txs(&inscription_txs);
+
+                let BatchProvingTxs { commit, reveal } = inscription_txs;
+                // sign inscribe transactions
+                let signed_raw_commit_tx = client
+                    .sign_raw_transaction_with_wallet(&commit, None, None)
+                    .await?;
+
+                // send inscribe transactions
+                client
+                    .send_raw_transaction(&signed_raw_commit_tx.hex)
+                    .await?;
+
+                // serialize reveal tx
+                let serialized_reveal_tx = &encode::serialize(&reveal.tx);
+
+                // send reveal tx
+                let reveal_tx_hash = client.send_raw_transaction(serialized_reveal_tx).await?;
+
+                info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
+                Ok(reveal)
+            }
+        }
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -336,7 +454,14 @@ impl BitcoinService {
             return Ok(2.0);
         }
 
-        self.client.estimate_smart_fee().await
+        self.get_fee_rate_as_sat_vb_ceiled().await
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
+    pub async fn get_fee_rate_as_sat_vb_ceiled(&self) -> Result<f64, anyhow::Error> {
+        let smart_fee = self.client.estimate_smart_fee(1, None).await?;
+        let btc_vkb = smart_fee.fee_rate.map_or(0.00001f64, |rate| rate.to_btc());
+        Ok((btc_vkb * 100_000_000.0 / 1000.0).ceil())
     }
 }
 
@@ -346,6 +471,22 @@ impl From<TxidWrapper> for [u8; 32] {
     fn from(val: TxidWrapper) -> Self {
         val.0.to_byte_array()
     }
+}
+
+fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
+    let hashes = txdata
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            if i == 0 {
+                // Replace the first hash with zeroes.
+                Wtxid::all_zeros().to_raw_hash().to_byte_array()
+            } else {
+                t.compute_wtxid().to_raw_hash().to_byte_array()
+            }
+        })
+        .collect();
+    BitcoinMerkleTree::new(hashes).root()
 }
 
 #[async_trait]
@@ -362,6 +503,8 @@ impl DaService for BitcoinService {
 
     type Error = anyhow::Error;
 
+    type BlockHash = bitcoin::BlockHash;
+
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     #[instrument(level = "trace", skip(self), err)]
@@ -372,28 +515,27 @@ impl DaService for BitcoinService {
         loop {
             block_hash = match self.client.get_block_hash(height).await {
                 Ok(block_hash_response) => block_hash_response,
-                Err(error) => {
-                    match error.downcast_ref::<RPCError>() {
-                        Some(error) => {
-                            if error.code == -8 {
+                Err(e) => {
+                    match e {
+                        Error::JsonRpc(RpcError::Rpc(rpc_err)) => {
+                            if rpc_err.code == -8 {
                                 info!("Block not found, waiting");
                                 tokio::time::sleep(Duration::from_secs(POLLING_INTERVAL)).await;
                                 continue;
                             } else {
                                 // other error, return message
-                                return Err(anyhow::anyhow!(error.message.clone()));
+                                return Err(anyhow::anyhow!(rpc_err.message));
                             }
                         }
-                        None => {
-                            return Err(anyhow::anyhow!(error));
-                        }
+                        _ => return Err(anyhow::anyhow!(e)),
                     }
                 }
             };
 
             break;
         }
-        let block = self.client.get_block(block_hash).await?;
+
+        let block = self.get_block_by_hash(block_hash).await?;
 
         Ok(block)
     }
@@ -410,9 +552,9 @@ impl DaService for BitcoinService {
             .get_block_hash(block_count - FINALITY_DEPTH)
             .await?;
 
-        let finalized_block_header = self.client.get_block_header(finalized_blockhash).await?;
+        let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;
 
-        Ok(finalized_block_header)
+        Ok(finalized_block_header.header)
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
@@ -424,11 +566,11 @@ impl DaService for BitcoinService {
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        let best_blockhash = self.client.get_best_blockhash().await?;
+        let best_blockhash = self.client.get_best_block_hash().await?;
 
-        let head_block_header = self.client.get_block_header(best_blockhash).await?;
+        let head_block_header = self.get_block_by_hash(best_blockhash).await?;
 
-        Ok(head_block_header)
+        Ok(head_block_header.header)
     }
 
     // Extract the blob transactions relevant to a particular rollup from a block.
@@ -443,7 +585,7 @@ impl DaService for BitcoinService {
         );
 
         let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs(txs, &self.rollup_name, self.reveal_tx_id_prefix.as_slice())
+        get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -462,30 +604,43 @@ impl DaService for BitcoinService {
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
-        let mut txids = Vec::with_capacity(block.txdata.len());
         let mut wtxids = Vec::with_capacity(block.txdata.len());
         wtxids.push([0u8; 32]);
-        let coinbase_tx_hash = block.txdata[0].txid().to_raw_hash().to_byte_array();
-        txids.push(coinbase_tx_hash);
-        if coinbase_tx_hash.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+
+        // coinbase starts with 0, so we skip it unless the prefix is all 0's
+        if self.reveal_batch_prover_prefix.iter().all(|&x| x == 0) {
             completeness_proof.push(block.txdata[0].clone());
         }
 
         block.txdata[1..].iter().for_each(|tx| {
-            let txid = tx.txid().to_raw_hash().to_byte_array();
-            let wtxid = tx.wtxid().to_raw_hash().to_byte_array();
+            let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
 
-            // if tx_hash has two leading zeros, it is in the completeness proof
-            if txid.starts_with(self.reveal_tx_id_prefix.as_slice()) {
+            // if tx_hash starts with the given prefix, it is in the completeness proof
+            if wtxid.starts_with(&self.reveal_batch_prover_prefix) {
                 completeness_proof.push(tx.clone());
             }
 
             wtxids.push(wtxid);
-            txids.push(txid);
         });
 
+        let txid_merkle_tree = merkle_tree::BitcoinMerkleTree::new(
+            block
+                .txdata
+                .iter()
+                .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        assert_eq!(
+            txid_merkle_tree.root(),
+            block.header.merkle_root(),
+            "Merkle root mismatch"
+        );
+
+        let coinbase_proof = txid_merkle_tree.get_idx_path(0);
+
         (
-            InclusionMultiProof::new(txids, wtxids, block.txdata[0].clone()),
+            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
             completeness_proof,
         )
     }
@@ -514,18 +669,20 @@ impl DaService for BitcoinService {
     #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
-        blob: &[u8],
+        da_data: DaData,
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
-        queue.send(BlobWithNotifier {
-            blob: blob.to_vec(),
+        queue.send(SenderWithNotifier {
+            da_data,
             notify: tx,
         })?;
         rx.await?
     }
 
-    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+    fn get_send_transaction_queue(
+        &self,
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
         self.inscribes_queue.clone()
     }
 
@@ -542,21 +699,46 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        // This already returns ceil, so the conversion should work
-        let res = self.client.estimate_smart_fee().await? as u128;
+        let sat_vb_ceil = self.get_fee_rate_as_sat_vb_ceiled().await? as u128;
+
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000
-        let multiplied_fee = res.saturating_mul(2_500_000_000);
+        let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
         Ok(multiplied_fee)
     }
 
     #[instrument(level = "trace", skip(self))]
-    async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error> {
-        info!("Getting block with hash {:?}", hash);
+    async fn get_block_by_hash(
+        &self,
+        hash: Self::BlockHash,
+    ) -> Result<Self::FilteredBlock, Self::Error> {
+        debug!("Getting block with hash {:?}", hash);
 
-        let hash = BlockHash::from_byte_array(hash);
+        let block = self.client.get_block_verbose(&hash).await?;
 
-        let block = self.client.get_block(hash.to_string()).await?;
-        Ok(block)
+        let header: Header = Header {
+            bits: CompactTarget::from_unprefixed_hex(&block.bits)?,
+            merkle_root: block.merkleroot,
+            nonce: block.nonce,
+            prev_blockhash: block.previousblockhash.unwrap_or_else(BlockHash::all_zeros),
+            time: block.time as u32,
+            version: block.version,
+        };
+
+        let txs = block
+            .tx
+            .iter()
+            .map(|tx| {
+                Transaction::consensus_decode(&mut &tx.hex[..])
+                    .map(|transaction| transaction.into())
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let witness_root = calculate_witness_root(&txs);
+
+        Ok(BitcoinBlock {
+            header: HeaderWrapper::new(header, txs.len() as u32, block.height, witness_root),
+            txdata: txs,
+        })
     }
 
     #[instrument(level = "trace", skip(self))]
@@ -564,45 +746,36 @@ impl DaService for BitcoinService {
         &self,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let pending_txs = self.get_pending_transactions().await.unwrap();
-        get_relevant_blobs_from_txs(
-            pending_txs,
-            &self.rollup_name,
-            self.reveal_tx_id_prefix.as_slice(),
-        )
+        get_relevant_blobs_from_txs(pending_txs, &self.reveal_batch_prover_prefix)
     }
 }
 
 fn get_relevant_blobs_from_txs(
     txs: Vec<Transaction>,
-    rollup_name: &str,
-    reveal_tx_id_prefix: &[u8],
+    reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {
     let mut relevant_txs = Vec::new();
 
     for tx in txs {
         if !tx
-            .txid()
+            .compute_wtxid()
             .to_byte_array()
             .as_slice()
-            .starts_with(reveal_tx_id_prefix)
+            .starts_with(reveal_wtxid_prefix)
         {
             continue;
         }
 
-        let parsed_inscription = parse_transaction(&tx, rollup_name);
+        if let Ok(tx) = parse_batch_proof_transaction(&tx) {
+            match tx {
+                ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                    if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                        let relevant_tx =
+                            BlobWithSender::new(seq_comm.body, seq_comm.public_key, hash);
 
-        if let Ok(inscription) = parsed_inscription {
-            if inscription.get_sig_verified_hash().is_some() {
-                // Decompress the blob
-                let decompressed_blob = decompress_blob(&inscription.body);
-
-                let relevant_tx = BlobWithSender::new(
-                    decompressed_blob,
-                    inscription.public_key,
-                    sha256d::Hash::hash(&inscription.body).to_byte_array(),
-                );
-
-                relevant_txs.push(relevant_tx);
+                        relevant_txs.push(relevant_tx);
+                    }
+                }
             }
         }
     }
@@ -612,52 +785,253 @@ fn get_relevant_blobs_from_txs(
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
+    use std::sync::Arc;
 
     // use futures::{Stream, StreamExt};
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
+    use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
-    use bitcoin::string::FromHexStr;
     use bitcoin::{BlockHash, CompactTarget};
-    use sov_rollup_interface::da::DaVerifier;
+    use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
     use super::BitcoinService;
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
-    use crate::service::DaServiceConfig;
+    use crate::service::BitcoinServiceConfig;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
     use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
     use crate::verifier::BitcoinVerifier;
 
-    async fn get_service() -> BitcoinService {
-        let runtime_config = DaServiceConfig {
-            node_url: "http://localhost:38332".to_string(),
+    async fn get_service() -> Arc<BitcoinService> {
+        let runtime_config = BitcoinServiceConfig {
+            node_url: "http://localhost:38332/wallet/test".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
-            network: "regtest".to_string(),
+            network: bitcoin::Network::Regtest,
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        BitcoinService::new_without_client(
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0, 0],
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
             },
+            tx,
         )
         .await
+        .expect("Error initialazing BitcoinService");
+
+        let da_service = Arc::new(da_service);
+        // da_service.clone().spawn_da_queue(_rx);
+        #[allow(clippy::let_and_return)]
+        da_service
+    }
+
+    async fn get_service_wrong_namespace() -> Arc<BitcoinService> {
+        let runtime_config = BitcoinServiceConfig {
+            node_url: "http://localhost:38332/wallet/other".to_string(),
+            node_username: "chainway".to_string(),
+            node_password: "topsecret".to_string(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
+            ),
+            fee_rates_to_avg: Some(2), // small to speed up tests
+        };
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let da_service = BitcoinService::new_without_wallet_check(
+            runtime_config,
+            RollupParams {
+                reveal_batch_prover_prefix: vec![5, 6],
+                reveal_light_client_prefix: vec![5, 5],
+            },
+            tx,
+        )
+        .await
+        .expect("Error initialazing BitcoinService");
+
+        let da_service = Arc::new(da_service);
+
+        da_service.clone().spawn_da_queue(rx);
+
+        da_service
+    }
+
+    async fn get_service_correct_sig_different_public_key() -> Arc<BitcoinService> {
+        let runtime_config = BitcoinServiceConfig {
+            node_url: "http://localhost:38332/wallet/other2".to_string(),
+            node_username: "chainway".to_string(),
+            node_password: "topsecret".to_string(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
+            ),
+            fee_rates_to_avg: Some(2), // small to speed up tests
+        };
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let da_service = BitcoinService::new_without_wallet_check(
+            runtime_config,
+            RollupParams {
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
+            },
+            tx,
+        )
+        .await
+        .expect("Error initialazing BitcoinService");
+
+        let da_service = Arc::new(da_service);
+
+        da_service.clone().spawn_da_queue(rx);
+
+        da_service
+    }
+
+    #[tokio::test]
+    #[ignore]
+    /// A test we use to generate some data for the other tests
+    async fn send_transaction() {
+        use sov_rollup_interface::da::DaData;
+        use sov_rollup_interface::zk::Proof;
+        let da_service = get_service().await;
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [13; 32],
+                l2_start_block_number: 1002,
+                l2_end_block_number: 1100,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 1");
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [14; 32],
+                l2_start_block_number: 1101,
+                l2_end_block_number: 1245,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 2");
+
+        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
+
+        println!("sent 3");
+
+        let size = 2000;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 4");
+
+        println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
+
+        println!("sent 5");
+
+        let size = 600 * 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 6");
+
+        // seq com different namespace
+        get_service_wrong_namespace()
+            .await
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        let size = 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 7");
+
+        // seq com incorrect pubkey and sig
+        get_service_correct_sig_different_public_key()
+            .await
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [15; 32],
+                l2_start_block_number: 1246,
+                l2_end_block_number: 1268,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 8");
+
+        let size = 1200 * 1024;
+        let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+        da_service
+            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 9");
+
+        da_service
+            .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+                merkle_root: [30; 32],
+                l2_start_block_number: 1268,
+                l2_end_block_number: 1314,
+            }))
+            .await
+            .expect("Failed to send transaction");
+
+        println!("sent 10");
     }
 
     // #[tokio::test]
     // async fn get_finalized_at() {
     //     let da_service = get_service().await;
-    //
+
     //     da_service
     //         .get_finalized_at(132)
     //         .await
@@ -711,14 +1085,14 @@ mod tests {
 
         let txs = da_service.extract_relevant_blobs(&block);
 
-        assert_eq!(txs, relevant_txs)
+        assert_eq!(txs, relevant_txs);
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            rollup_name: "sov-btc".to_string(),
-            reveal_tx_id_prefix: vec![0, 0],
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let da_service = get_service().await;
@@ -749,25 +1123,29 @@ mod tests {
             .serialize()
             .to_vec();
 
-        let runtime_config = DaServiceConfig {
+        let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332".to_string(),
             node_username: "chainway".to_string(),
             node_password: "topsecret".to_string(),
-            network: "regtest".to_string(),
+            network: bitcoin::Network::Regtest,
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
             fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
-        let incorrect_service = BitcoinService::new_without_client(
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                rollup_name: "sov-btc".to_string(),
-                reveal_tx_id_prefix: vec![0, 0],
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
             },
+            tx,
         )
-        .await;
+        .await
+        .expect("Error initialazing BitcoinService");
 
         let incorrect_pub_key =
             Keypair::from_secret_key(&secp, &incorrect_service.da_private_key.unwrap())
@@ -779,23 +1157,25 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "19bd253df7a58cb8131f223fa4d99db2ad4eee171b47e31c2b1a75d7c0c89ea6",
+                    "31402555f54c3f89907c07e6d286c132f9984739f2b6b00cde195b10ac771522",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "478fd2a0d8b251d37bcda9b408d4b50a5b5387dedb9af1cfb16c0e543e8f2a9b",
+                    "40642938a6cc6124246fd9601108f9671177c1834753162f19e073eaff751191",
                 )
                 .unwrap(),
-                time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
-                nonce: 0,
+                time: 1724665818,
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+                nonce: 3,
             },
             3,
             1,
             WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+                "494880ce756f69b13811200d1e358a049ac3c3dd66e4ff7e86d4c4d3aad95939",
             )
-            .unwrap(),
+            .unwrap()
+            .as_raw_hash()
+            .to_byte_array(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/false_signature_txs.txt").unwrap();
@@ -840,23 +1220,25 @@ mod tests {
             Header {
                 version: Version::from_consensus(536870912),
                 prev_blockhash: BlockHash::from_str(
-                    "427b67c04afcbbee6856b764535c512dc22d0eeef21a55ebb2a37157074563b7",
+                    "4ebd11342b9d9e2a23b0f14c17a12bbb4f52a9290fe6a1cf313c270d5a49c2ea",
                 )
                 .unwrap(),
                 merkle_root: TxMerkleNode::from_str(
-                    "574efcf98001bf273b489f3b5065cdd8b983ec9b9c31e001e2f3397a885911ca",
+                    "a720804fbad45307b61958059c06f787a1ae10180ce91df2802a40023dea7e84",
                 )
                 .unwrap(),
-                time: 1694177029,
-                bits: CompactTarget::from_hex_str_no_prefix("207fffff").unwrap(),
+                time: 1723820296,
+                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
                 nonce: 0,
             },
             3,
             2273,
             WitnessMerkleNode::from_str(
-                "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
+                "ab0edbf1611637701117cfc70b878b4196be1c5e4c256609ca8b620a0838860a",
             )
-            .unwrap(),
+            .unwrap()
+            .as_raw_hash()
+            .to_byte_array(),
         );
 
         let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();

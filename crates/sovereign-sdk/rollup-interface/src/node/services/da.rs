@@ -9,14 +9,14 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaSpec, DaVerifier};
+use crate::da::{DaData, DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
 #[cfg(feature = "native")]
-pub struct BlobWithNotifier<TxID> {
-    /// Blob to send.
-    pub blob: Vec<u8>,
+pub struct SenderWithNotifier<TxID> {
+    /// Data to send.
+    pub da_data: DaData,
     /// Channel to receive result of the operation.
     pub notify: OneshotSender<Result<TxID, anyhow::Error>>,
 }
@@ -52,6 +52,9 @@ pub trait DaService: Send + Sync + 'static {
     /// The error type for fallible methods.
     type Error: core::fmt::Debug + Send + Sync + core::fmt::Display;
 
+    /// Use for get_block_by_hash retrieval
+    type BlockHash;
+
     /// Fetch the block at the given height, waiting for one to be mined if necessary.
     /// The returned block may not be final, and can be reverted without a consensus violation.
     /// Call it for the same height are allowed to return different results.
@@ -59,7 +62,10 @@ pub trait DaService: Send + Sync + 'static {
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error>;
 
     /// Fetch block by hash.
-    async fn get_block_by_hash(&self, hash: [u8; 32]) -> Result<Self::FilteredBlock, Self::Error>;
+    async fn get_block_by_hash(
+        &self,
+        hash: Self::BlockHash,
+    ) -> Result<Self::FilteredBlock, Self::Error>;
 
     /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     /// If there's no finalized block yet, it should return an error.
@@ -122,10 +128,12 @@ pub trait DaService: Send + Sync + 'static {
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
-    async fn send_transaction(&self, blob: &[u8]) -> Result<Self::TransactionId, Self::Error>;
+    async fn send_transaction(&self, da_data: DaData) -> Result<Self::TransactionId, Self::Error>;
 
     /// A tx part of the queue to send transactions in order
-    fn get_send_transaction_queue(&self) -> UnboundedSender<BlobWithNotifier<Self::TransactionId>> {
+    fn get_send_transaction_queue(
+        &self,
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
         unimplemented!()
     }
 

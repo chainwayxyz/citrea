@@ -2,11 +2,12 @@ use lazy_static::lazy_static;
 use rand::Rng;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
-    EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
+    Address, Bloom, Bytes, Header, Signature, TransactionSigned, B256, EMPTY_OMMER_ROOT_HASH,
+    KECCAK_EMPTY, U256,
 };
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
+use sov_rollup_interface::spec::SpecId;
 
 use super::genesis_tests::{GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
 use crate::evm::primitive_types::{
@@ -25,19 +26,20 @@ lazy_static! {
 fn begin_soft_confirmation_hook_creates_pending_block() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: DA_ROOT_HASH.0,
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 54,
-        },
-        &mut working_set,
-    );
+    let l2_height = 2;
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 54,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     let pending_block = evm.block_env.get(&mut working_set).unwrap();
     assert_eq!(
         pending_block,
@@ -59,20 +61,22 @@ fn end_soft_confirmation_hook_sets_head() {
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
+    let l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: DA_ROOT_HASH.0,
-            da_slot_height: 1,
-            da_slot_txs_commitment: txs_commitment.into(),
-            pre_state_root: pre_state_root.to_vec(),
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 54,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: txs_commitment.into(),
+        pre_state_root: pre_state_root.to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 54,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
@@ -84,7 +88,7 @@ fn end_soft_confirmation_hook_sets_head() {
         &mut working_set,
     );
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     let head = evm.head.get(&mut working_set).unwrap();
     let pending_head = evm
         .pending_head
@@ -97,7 +101,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "f664bb45f3cde370b0e86edee379d69d2d88c4bc636fdc2155795028561f92c7"
+                    "aadf971cb98d470377904a36ab9e8fcb5b4a0eb95a3b4ad9d3aba0d2afbff15e"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -123,6 +127,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 blob_gas_used: None,
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
+                requests_root: None,
             },
             l1_fee_rate: 0,
             l1_hash: B256::from(DA_ROOT_HASH.0),
@@ -135,19 +140,21 @@ fn end_soft_confirmation_hook_sets_head() {
 fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: DA_ROOT_HASH.0,
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
     evm.pending_transactions.push(&tx1, &mut working_set);
@@ -155,7 +162,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
     evm.pending_transactions.push(&tx2, &mut working_set);
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let tx1_hash = tx1.transaction.signed_transaction.hash;
     let tx2_hash = tx2.transaction.signed_transaction.hash;
@@ -239,20 +246,21 @@ fn finalize_hook_creates_final_block() {
 
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
+    let mut l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: txs_commitment.into(),
-            pre_state_root: root.to_vec(),
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 54,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: txs_commitment.into(),
+        pre_state_root: root.to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 54,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     evm.pending_transactions.push(
         &create_pending_transaction(B256::from([1u8; 32]), 1),
@@ -262,7 +270,7 @@ fn finalize_hook_creates_final_block() {
         &create_pending_transaction(B256::from([2u8; 32]), 2),
         &mut working_set,
     );
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let root_hash = [99u8; 32];
 
@@ -270,12 +278,16 @@ fn finalize_hook_creates_final_block() {
     evm.finalize_hook(&root_hash.into(), &mut accessory_state);
     assert_eq!(evm.blocks.len(&mut accessory_state), 3);
 
+    l2_height += 1;
+
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: DA_ROOT_HASH.0,
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
             pre_state_root: root_hash.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -290,42 +302,39 @@ fn finalize_hook_creates_final_block() {
     let parent_hash = parent_block.header.hash();
     let block = evm.blocks.get(2usize, &mut accessory_state).unwrap();
 
+    let header = Header {
+        parent_hash,
+        ommers_hash: EMPTY_OMMER_ROOT_HASH,
+        beneficiary: TEST_CONFIG.coinbase,
+        state_root: B256::from(root_hash),
+        transactions_root: B256::from(hex!(
+            "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
+        )),
+        receipts_root: B256::from(hex!(
+            "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
+        )),
+        withdrawals_root: None,
+        logs_bloom: Bloom::default(),
+        difficulty: U256::ZERO,
+        number: 2,
+        gas_limit: 30000000,
+        gas_used: 200,
+        timestamp: 54,
+        mix_hash: B256::from(hex!(
+            "0505050505050505050505050505050505050505050505050505050505050505"
+        )),
+        nonce: 0,
+        base_fee_per_gas: Some(765625000),
+        extra_data: Bytes::default(),
+        blob_gas_used: None,
+        excess_blob_gas: None,
+        parent_beacon_block_root: None,
+        requests_root: None,
+    };
     assert_eq!(
         block,
         SealedBlock {
-            header: SealedHeader::new(
-                Header {
-                    parent_hash,
-                    ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                    beneficiary: TEST_CONFIG.coinbase,
-                    state_root: B256::from(root_hash),
-                    transactions_root: B256::from(hex!(
-                        "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
-                    )),
-                    receipts_root: B256::from(hex!(
-                        "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
-                    )),
-                    withdrawals_root: None,
-                    logs_bloom: Bloom::default(),
-                    difficulty: U256::ZERO,
-                    number: 2,
-                    gas_limit: 30000000,
-                    gas_used: 200,
-                    timestamp: 54,
-                    mix_hash: B256::from(hex!(
-                        "0505050505050505050505050505050505050505050505050505050505050505"
-                    )),
-                    nonce: 0,
-                    base_fee_per_gas: Some(765625000),
-                    extra_data: Bytes::default(),
-                    blob_gas_used: None,
-                    excess_blob_gas: None,
-                    parent_beacon_block_root: None,
-                },
-                B256::from(hex!(
-                    "fd01e66ab6de887f27d53f9d71f32137e9e8e9c8550ff01aa5303557c539bb8d"
-                ))
-            ),
+            header: header.seal_slow(),
             l1_fee_rate: 0,
             l1_hash: B256::from(DA_ROOT_HASH.0),
             transactions: 0..2
@@ -355,20 +364,21 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
     let l1_fee_rate = 0;
+    let mut l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: DA_ROOT_HASH.0,
-            da_slot_height: 1,
-            da_slot_txs_commitment: txs_commitment.into(),
-            pre_state_root: root.to_vec(),
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: txs_commitment.into(),
+        pre_state_root: root.to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // on block 2, only block 0 and 1 exists
     for i in 0..2 {
@@ -389,49 +399,53 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         .get(&U256::from(2), &mut working_set)
         .is_none());
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let mut random_32_bytes: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
     evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
 
+    l2_height += 1;
+
     // finalize blocks 2-257 with random state root hashes
     for _ in 2..257 {
         let l1_fee_rate = 0;
-        evm.begin_soft_confirmation_hook(
-            &HookSoftConfirmationInfo {
-                da_slot_hash: DA_ROOT_HASH.0,
-                da_slot_height: 1,
-                da_slot_txs_commitment: random_32_bytes,
-                pre_state_root: random_32_bytes.to_vec(),
-                pub_key: vec![],
-                deposit_data: vec![],
-                l1_fee_rate,
-                timestamp: 0,
-            },
-            &mut working_set,
-        );
-
-        evm.end_soft_confirmation_hook(&mut working_set);
-
-        random_32_bytes = rand::thread_rng().gen::<[u8; 32]>();
-        evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
-    }
-
-    // start environment for block 258
-    let l1_fee_rate = 0;
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
             da_slot_hash: DA_ROOT_HASH.0,
             da_slot_height: 1,
             da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes.to_vec(),
+            current_spec: SpecId::Genesis,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
             timestamp: 0,
-        },
-        &mut working_set,
-    );
+        };
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+
+        random_32_bytes = rand::thread_rng().gen::<[u8; 32]>();
+        evm.finalize_hook(&random_32_bytes.into(), &mut working_set.accessory_state());
+
+        l2_height += 1;
+    }
+
+    // start environment for block 258
+    let l1_fee_rate = 0;
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: DA_ROOT_HASH.0,
+        da_slot_height: 1,
+        da_slot_txs_commitment: random_32_bytes,
+        pre_state_root: random_32_bytes.to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // only the last 256 blocks should exist on block 258
     // which is [2, 257]

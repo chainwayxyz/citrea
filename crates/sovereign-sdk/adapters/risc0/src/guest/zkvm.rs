@@ -18,16 +18,10 @@ impl Risc0Guest {
 
 impl ZkvmGuest for Risc0Guest {
     fn read_from_host<T: BorshDeserialize>(&self) -> T {
-        // read len(u64) in LE
-        let mut len_buf = [0u8; 8];
-        env::read_slice(&mut len_buf);
-        let len = u64::from_le_bytes(len_buf);
-        // read buf
-        let mut buf: Vec<u32> = vec![0; len as usize];
-        env::read_slice(&mut buf);
-        let slice: &[u8] = bytemuck::cast_slice(&buf);
+        let mut reader = env::stdin();
         // deserialize
-        BorshDeserialize::deserialize(&mut &*slice).expect("Failed to deserialize input from host")
+        BorshDeserialize::deserialize_reader(&mut reader)
+            .expect("Failed to deserialize input from host")
     }
 
     fn commit<T: BorshSerialize>(&self, item: &T) {

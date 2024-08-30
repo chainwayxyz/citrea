@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use alloy::signers::wallet::LocalWallet;
+use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
@@ -92,7 +92,7 @@ async fn execute(
     let one_eth = u128::pow(10, 18);
     let mut wallets = Vec::with_capacity(wallets_count as usize);
     for i in 0..wallets_count {
-        let mut wallet = LocalWallet::random();
+        let mut wallet = PrivateKeySigner::random();
         wallet.set_chain_id(Some(client.chain_id));
         let address = wallet.address();
         let _pending = client
@@ -108,7 +108,7 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
-    wait_for_l2_block(client, block_index, None).await;
+    wait_for_l2_block(client, block_index, Some(Duration::from_secs(60))).await;
     block_index += 1;
 
     // send 15 transactions from each wallet
@@ -122,7 +122,7 @@ async fn execute(
         }
     }
     client.send_publish_batch_request().await;
-    wait_for_l2_block(client, block_index, None).await;
+    wait_for_l2_block(client, block_index, Some(Duration::from_secs(60))).await;
     block_index += 1;
 
     let block = client.eth_get_block_by_number(None).await;

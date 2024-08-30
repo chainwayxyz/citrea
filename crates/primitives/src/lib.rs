@@ -1,3 +1,4 @@
+pub mod basefee;
 #[cfg(feature = "native")]
 mod cache;
 mod constants;
@@ -5,7 +6,11 @@ mod constants;
 mod da;
 #[cfg(feature = "native")]
 mod error;
+pub mod fork;
+pub mod forks;
 pub mod types;
+#[cfg(feature = "native")]
+pub mod utils;
 
 #[cfg(feature = "native")]
 pub use cache::*;

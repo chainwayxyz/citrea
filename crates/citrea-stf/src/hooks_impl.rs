@@ -1,7 +1,7 @@
 use sov_accounts::AccountsTxHook;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
-    HookSoftConfirmationInfo, SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
+    SoftConfirmationError, TxHooks,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
@@ -25,12 +25,23 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         working_set: &mut WorkingSet<C>,
         arg: &RuntimeTxHook<C>,
     ) -> anyhow::Result<C> {
-        let RuntimeTxHook { height, sequencer } = arg;
+        let RuntimeTxHook {
+            height,
+            sequencer,
+            current_spec,
+            l1_fee_rate,
+        } = arg;
         let AccountsTxHook { sender, sequencer } =
             self.accounts
                 .pre_dispatch_tx_hook(tx, working_set, sequencer)?;
 
-        Ok(C::new(sender, sequencer, *height))
+        Ok(C::new(
+            sender,
+            sequencer,
+            *height,
+            *current_spec,
+            *l1_fee_rate,
+        ))
     }
 
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
@@ -75,14 +86,14 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     )]
     fn begin_soft_confirmation_hook(
         &self,
-        soft_batch: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationError> {
         self.soft_confirmation_rule_enforcer
-            .begin_soft_confirmation_hook(soft_batch, working_set)?;
+            .begin_soft_confirmation_hook(soft_confirmation_info, working_set)?;
 
         self.evm
-            .begin_soft_confirmation_hook(soft_batch, working_set);
+            .begin_soft_confirmation_hook(soft_confirmation_info, working_set);
 
         Ok(())
     }
@@ -90,9 +101,11 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn end_soft_confirmation_hook(
         &self,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
-        self.evm.end_soft_confirmation_hook(working_set);
+    ) -> Result<(), SoftConfirmationError> {
+        self.evm
+            .end_soft_confirmation_hook(&soft_confirmation_info, working_set);
         Ok(())
     }
 }

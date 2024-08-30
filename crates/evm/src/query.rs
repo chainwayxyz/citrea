@@ -1,21 +1,21 @@
 use std::collections::BTreeMap;
 use std::ops::{Range, RangeInclusive};
 
+use alloy_consensus::Eip658Value;
+use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
-use reth_interfaces::provider::ProviderError;
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::revm::env::tx_env_with_recovered;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
 };
-use reth_rpc::eth::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
-use reth_rpc_types::other::OtherFields;
+use reth_provider::ProviderError;
+use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{
-    AccessListWithGasUsed, AnyReceiptEnvelope, AnyTransactionReceipt, Log, ReceiptWithBloom,
+    AnyReceiptEnvelope, AnyTransactionReceipt, Log, OtherFields, ReceiptWithBloom,
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -33,7 +33,8 @@ use sov_modules_api::WorkingSet;
 use tracing::debug;
 
 use crate::call::get_cfg_env;
-use crate::error::rpc::{ensure_success, RpcInvalidTransactionErrorExt};
+use crate::conversions::create_tx_env;
+use crate::error::rpc::ensure_success;
 use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
@@ -182,6 +183,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .collect(),
             ommers: Default::default(),
             withdrawals: Default::default(),
+            requests: None,
         };
 
         let size = block.length();
@@ -611,7 +613,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for: `eth_call`
     //https://github.com/paradigmxyz/reth/blob/f577e147807a783438a3f16aad968b4396274483/crates/rpc/rpc/src/eth/api/transactions.rs#L502
     //https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/call.rs#L7
-    #[rpc_method(name = "eth_call")]
+    #[rpc_method(name = "eth_call", blocking)]
     pub fn get_call(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -710,7 +712,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for `eth_createAccessList`
-    #[rpc_method(name = "eth_createAccessList")]
+    #[rpc_method(name = "eth_createAccessList", blocking)]
     pub fn create_access_list(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -721,35 +723,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut request = request.clone();
 
-        let (l1_fee_rate, mut block_env) = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                let block_env = self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                });
-                (l1_fee_rate, block_env)
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
+        let (l1_fee_rate, mut block_env, block_num) = {
+            let block = match self.get_sealed_block_by_number(block_number, working_set)? {
+                Some(block) => block,
+                None => return Err(EthApiError::UnknownBlockNumber.into()),
+            };
+            let l1_fee_rate = block.l1_fee_rate;
+            let block_env = BlockEnv::from(&block);
 
-                set_state_to_end_of_evm_block(block.header.number, working_set);
-                let l1_fee_rate = block.l1_fee_rate;
-                let block_env = BlockEnv::from(&block);
-                (l1_fee_rate, block_env)
+            (l1_fee_rate, block_env, block.header.number)
+        };
+
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => {
+                set_state_to_end_of_evm_block(block_num, working_set);
             }
         };
 
@@ -819,7 +807,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let access_list = inspector.into_access_list();
 
         request.access_list = Some(access_list.clone());
-        tx_env.access_list = access_list.clone().into_flattened();
+        tx_env.access_list = access_list.to_vec();
 
         let estimated = self.estimate_gas_with_env(
             request,
@@ -844,35 +832,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let (l1_fee_rate, block_env) = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                let block_env = self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                });
-                (l1_fee_rate, block_env)
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
+        let (l1_fee_rate, block_env, block_num) = {
+            let block = match self.get_sealed_block_by_number(block_number, working_set)? {
+                Some(block) => block,
+                None => return Err(EthApiError::UnknownBlockNumber.into()),
+            };
+            let l1_fee_rate = block.l1_fee_rate;
+            let block_env = BlockEnv::from(&block);
 
-                set_state_to_end_of_evm_block(block.header.number, working_set);
-                let l1_fee_rate = block.l1_fee_rate;
-                let block_env = BlockEnv::from(&block);
-                (l1_fee_rate, block_env)
+            (l1_fee_rate, block_env, block.header.number)
+        };
+
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => {
+                set_state_to_end_of_evm_block(block_num, working_set);
             }
         };
 
@@ -900,7 +874,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_estimateGas`
     // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
+    #[rpc_method(name = "eth_estimateGas", blocking)]
     pub fn eth_estimate_gas(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -914,7 +888,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for: `eth_estimateDiffSize`
-    #[rpc_method(name = "eth_estimateDiffSize")]
+    #[rpc_method(name = "eth_estimateDiffSize", blocking)]
     pub fn eth_estimate_diff_size(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -1318,7 +1292,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
                 block_env,
-                tx_env_with_recovered(&tx),
+                create_tx_env(&tx),
                 tx.hash(),
                 &mut evm_db,
                 l1_fee_rate,
@@ -1682,7 +1656,7 @@ pub(crate) fn build_rpc_receipt(
     }
 
     let rpc_receipt = reth_rpc_types::Receipt {
-        status: receipt.receipt.success,
+        status: Eip658Value::Eip658(receipt.receipt.success),
         cumulative_gas_used: receipt.receipt.cumulative_gas_used as u128,
         logs,
     };
@@ -1702,7 +1676,7 @@ pub(crate) fn build_rpc_receipt(
         from: transaction.signer(),
         to: match transaction_kind {
             Create => None,
-            Call(addr) => Some(*addr),
+            Call(addr) => Some(addr),
         },
         gas_used: receipt.gas_used,
         contract_address: match transaction_kind {
@@ -1716,6 +1690,7 @@ pub(crate) fn build_rpc_receipt(
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         blob_gas_price: None,
         blob_gas_used: None,
+        authorization_list: None,
     };
     AnyTransactionReceipt {
         inner: res_receipt,
@@ -1749,7 +1724,7 @@ fn map_out_of_gas_err<C: sov_modules_api::Context>(
             ExecutionResult::Success { .. } => {
                 // transaction succeeded by manually increasing the gas limit to
                 // highest, which means the caller lacks funds to pay for the tx
-                RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
+                RpcInvalidTransactionError::BasicOutOfGas(req_gas_limit).into()
             }
             ExecutionResult::Revert { output, .. } => {
                 // reverted again after bumping the limit

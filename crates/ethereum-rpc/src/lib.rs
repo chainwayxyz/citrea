@@ -3,6 +3,8 @@ mod gas_price;
 mod subscription;
 mod trace;
 
+use std::sync::Arc;
+
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{Evm, Filter};
@@ -12,7 +14,7 @@ pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{keccak256, BlockNumberOrTag, Bytes, B256, U256};
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::EthApiError;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{FeeHistory, Index};
 use sequencer_client::SequencerClient;
@@ -40,7 +42,7 @@ pub enum CitreaStatus {
 }
 
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
-    da_service: Da,
+    da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
     sequencer_client_url: Option<String>,
@@ -81,13 +83,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     is_sequencer: bool,
     enable_subscriptions: bool,
 ) -> Result<(), jsonrpsee::core::RegisterMethodError> {
-    rpc.register_async_method("web3_clientVersion", |_, ethereum| async move {
+    rpc.register_async_method("web3_clientVersion", |_, ethereum, _| async move {
         info!("eth module: web3_clientVersion");
 
         Ok::<_, ErrorObjectOwned>(ethereum.web3_client_version.clone())
     })?;
 
-    rpc.register_async_method("web3_sha3", |params, _| async move {
+    rpc.register_blocking_method("web3_sha3", move |params, _, _| {
         info!("eth module: web3_sha3");
         let data: Bytes = params.one()?;
 
@@ -96,12 +98,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         Ok::<_, ErrorObjectOwned>(hash)
     })?;
 
-    rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
+    rpc.register_blocking_method("eth_gasPrice", move |_, ethereum, _| {
         info!("eth module: eth_gasPrice");
         let price = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set);
 
             suggested_tip + base_fee
         };
@@ -109,12 +111,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         Ok::<U256, ErrorObjectOwned>(price)
     })?;
 
-    rpc.register_async_method("eth_maxFeePerGas", |_, ethereum| async move {
+    rpc.register_blocking_method("eth_maxFeePerGas", move |_, ethereum, _| {
         info!("eth module: eth_maxFeePerGas");
         let max_fee_per_gas = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+            let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set);
 
             suggested_tip + base_fee
         };
@@ -122,12 +124,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         Ok::<U256, ErrorObjectOwned>(max_fee_per_gas)
     })?;
 
-    rpc.register_async_method("eth_maxPriorityFeePerGas", |_, ethereum| async move {
+    rpc.register_blocking_method("eth_maxPriorityFeePerGas", move |_, ethereum, _| {
         info!("eth module: eth_maxPriorityFeePerGas");
         let max_priority_fee = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            let (_base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set).await;
+            let (_base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set);
 
             suggested_tip
         };
@@ -135,7 +137,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         Ok::<U256, ErrorObjectOwned>(max_priority_fee)
     })?;
 
-    rpc.register_async_method("eth_feeHistory", |params, ethereum| async move {
+    rpc.register_blocking_method("eth_feeHistory", move |params, ethereum, _| {
         info!("eth module: eth_feeHistory");
         let mut params = params.sequence();
 
@@ -149,22 +151,19 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         let fee_history = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-            ethereum
-                .gas_price_oracle
-                .fee_history(
-                    block_count,
-                    newest_block,
-                    reward_percentiles,
-                    &mut working_set,
-                )
-                .await?
+            ethereum.gas_price_oracle.fee_history(
+                block_count,
+                newest_block,
+                reward_percentiles,
+                &mut working_set,
+            )?
         };
 
         Ok::<FeeHistory, ErrorObjectOwned>(fee_history)
     })?;
 
     #[cfg(feature = "local")]
-    rpc.register_async_method("eth_accounts", |_, ethereum| async move {
+    rpc.register_async_method("eth_accounts", |_, ethereum, _| async move {
         info!("eth module: eth_accounts");
 
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
@@ -394,9 +393,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     //     Ok::<_, ErrorObjectOwned>(tx_hash)
     // })?;
 
-    rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
+    rpc.register_blocking_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _>(
         "debug_traceBlockByHash",
-        |parameters, ethereum| async move {
+        move |parameters, ethereum, _| {
             info!("eth module: debug_traceBlockByHash");
 
             let mut params = parameters.sequence();
@@ -418,9 +417,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
-    rpc.register_async_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _, _>(
+    rpc.register_blocking_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _>(
         "debug_traceBlockByNumber",
-        |parameters, ethereum| async move {
+        move |parameters, ethereum, _| {
             info!("eth module: debug_traceBlockByNumber");
 
             let mut params = parameters.sequence();
@@ -440,9 +439,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
-    rpc.register_async_method::<Result<GethTrace, ErrorObjectOwned>, _, _>(
+    rpc.register_blocking_method::<Result<GethTrace, ErrorObjectOwned>, _>(
         "debug_traceTransaction",
-        |parameters, ethereum| async move {
+        move |parameters, ethereum, _| {
             // the main rpc handler for debug_traceTransaction
             // Checks the cache in ethereum struct if the trace exists
             // if found; returns the trace
@@ -484,7 +483,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
-    rpc.register_async_method("txpool_content", |_, _| async move {
+    rpc.register_async_method("txpool_content", |_, _, _| async move {
         info!("eth module: txpool_content");
 
         // This is a simple mock for serde.
@@ -498,7 +497,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     rpc.register_async_method(
         "eth_getUncleByBlockHashAndIndex",
-        |parameters, _| async move {
+        |parameters, _, _| async move {
             info!("eth module: eth_getUncleByBlockHashAndIndex");
 
             let mut params = parameters.sequence();
@@ -515,7 +514,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     if !is_sequencer {
         rpc.register_async_method::<Result<B256, ErrorObjectOwned>, _, _>(
             "eth_sendRawTransaction",
-            |parameters, ethereum| async move {
+            |parameters, ethereum, _| async move {
                 info!(params = ?parameters, "Full Node: eth_sendRawTransaction");
                 // send this directly to the sequencer
                 let data: Bytes = parameters.one()?;
@@ -539,7 +538,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         rpc.register_async_method::<Result<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>, _, _>(
             "eth_getTransactionByHash",
-            |parameters, ethereum| async move {
+            |parameters, ethereum, _| async move {
                 let mut params = parameters.sequence();
                 let hash: B256 = params.next()?;
                 let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
@@ -603,7 +602,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
         rpc.register_async_method::<Result<CitreaStatus, ErrorObjectOwned>, _, _>(
             "citrea_syncStatus",
-            |_, ethereum| async move {
+            |_, ethereum, _| async move {
                 info!("Full Node: citrea_syncStatus");
 
                 // sequencer client should send it
@@ -651,7 +650,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             "debug_subscribe",
             "debug_subscription",
             "debug_unsubscribe",
-            |parameters, pending, ethereum| async move {
+            |parameters, pending, ethereum, _| async move {
                 let mut params = parameters.sequence();
 
                 let topic: String = match params.next() {
@@ -679,7 +678,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             "eth_subscribe",
             "eth_subscription",
             "eth_unsubscribe",
-            |parameters, pending, ethereum| async move {
+            |parameters, pending, ethereum, _| async move {
                 let mut params = parameters.sequence();
 
                 let topic: String = match params.next() {

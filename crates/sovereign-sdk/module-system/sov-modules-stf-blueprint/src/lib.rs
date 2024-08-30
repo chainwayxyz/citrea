@@ -1,31 +1,38 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod batch;
-mod stf_blueprint;
-mod tx_verifier;
-
-pub use batch::Batch;
 use borsh::BorshDeserialize;
+use citrea_primitives::fork::ForkManager;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationError, ApplySoftConfirmationHooks, FinalizeHook,
-    SlotHooks, TxHooks,
+    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
+    TxHooks,
 };
 use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
-    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::fork::Fork;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
-use sov_rollup_interface::stf::{SlotResult, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    SlotResult, SoftConfirmationError, SoftConfirmationReceipt, SoftConfirmationResult,
+    StateTransitionFunction,
+};
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
+
+mod batch;
+mod stf_blueprint;
+mod tx_verifier;
+
+pub use batch::Batch;
 pub use stf_blueprint::StfBlueprint;
 pub use tx_verifier::RawTx;
 
@@ -35,6 +42,10 @@ pub struct RuntimeTxHook<C: Context> {
     pub height: u64,
     /// Sequencer public key
     pub sequencer: C::PublicKey,
+    /// Current spec
+    pub current_spec: SpecId,
+    /// L1 fee rate
+    pub l1_fee_rate: u128,
 }
 
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
@@ -126,46 +137,53 @@ pub enum SlashingReason {
 pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     StateTransitionFunction<Vm, Da>
 {
-    /// Begin a soft batch
-    fn begin_soft_batch(
+    /// Begin a soft confirmation
+    #[allow(clippy::too_many_arguments)]
+    fn begin_soft_confirmation(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>);
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>);
 
-    /// Apply soft batch transactions
-    fn apply_soft_batch_txs(
+    /// Apply soft confirmation transactions
+    fn apply_soft_confirmation_txs(
         &self,
+        soft_confirmation: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
-    /// End a soft batch
-    fn end_soft_batch(
+    /// End a soft confirmation
+    fn end_soft_confirmation(
         &self,
+        current_spec: SpecId,
+        pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
-    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>);
+    ) -> (
+        Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>,
+        StateCheckpoint<C>,
+    );
 
-    /// Finalizes a soft batch
-    fn finalize_soft_batch(
+    /// Finalizes a soft confirmation
+    fn finalize_soft_confirmation(
         &self,
-        batch_receipt: BatchReceipt<(), TxEffect>,
+        current_spec: SpecId,
+        sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> SlotResult<
+        soft_confirmation: &mut SignedSoftConfirmation,
+    ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
-        Self::BatchReceiptContents,
         Self::TxReceiptContents,
         Self::Witness,
+        Da,
     >;
 }
 
@@ -176,117 +194,133 @@ where
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    fn begin_soft_batch(
+    fn begin_soft_confirmation(
         &self,
         sequencer_public_key: &[u8],
-        pre_state_root: &Self::StateRoot,
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> (Result<(), ApplySoftConfirmationError>, WorkingSet<C>) {
-        native_debug!("Applying soft batch in STF Blueprint");
-
-        // check if soft confirmation is coming from our sequencer
-        assert_eq!(
-            soft_batch.sequencer_pub_key(),
-            sequencer_public_key,
-            "Sequencer public key must match"
-        );
-
-        // then verify da hashes match
-        assert_eq!(
-            soft_batch.da_slot_hash(),
-            slot_header.hash().into(),
-            "DA slot hashes must match"
-        );
-
-        // then verify da transactions commitment match
-        assert_eq!(
-            soft_batch.da_slot_txs_commitment(),
-            slot_header.txs_commitment().into(),
-            "DA slot hashes must match"
-        );
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
+        native_debug!("Applying soft confirmation in STF Blueprint");
 
         let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
+        let batch_workspace = checkpoint.to_revertable();
 
-        self.begin_soft_confirmation_inner(checkpoint, soft_batch, pre_state_root)
+        // check if soft confirmation is coming from our sequencer
+        if soft_confirmation_info.sequencer_pub_key() != sequencer_public_key {
+            return (
+                Err(SoftConfirmationError::SequencerPublicKeyMismatch),
+                batch_workspace,
+            );
+        };
+
+        // then verify da hashes match
+        if soft_confirmation_info.da_slot_hash() != slot_header.hash().into() {
+            return (Err(SoftConfirmationError::InvalidDaHash), batch_workspace);
+        }
+
+        // then verify da transactions commitment match
+        if soft_confirmation_info.da_slot_txs_commitment() != slot_header.txs_commitment().into() {
+            return (
+                Err(SoftConfirmationError::InvalidDaTxsCommitment),
+                batch_workspace,
+            );
+        }
+
+        self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info)
     }
 
-    fn apply_soft_batch_txs(
+    fn apply_soft_confirmation_txs(
         &self,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(txs, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
     }
 
-    fn end_soft_batch(
+    fn end_soft_confirmation(
         &self,
+        current_spec: SpecId,
+        pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
-        soft_batch: &mut SignedSoftConfirmationBatch,
+        soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
-    ) -> (BatchReceipt<(), TxEffect>, StateCheckpoint<C>) {
-        let unsigned = UnsignedSoftConfirmationBatch::new(
-            soft_batch.da_slot_height(),
-            soft_batch.da_slot_hash(),
-            soft_batch.da_slot_txs_commitment(),
-            soft_batch.txs(),
-            soft_batch.deposit_data(),
-            soft_batch.l1_fee_rate(),
-            soft_batch.timestamp(),
+    ) -> (
+        Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>,
+        StateCheckpoint<C>,
+    ) {
+        let unsigned = UnsignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
+            soft_confirmation.da_slot_height(),
+            soft_confirmation.da_slot_hash(),
+            soft_confirmation.da_slot_txs_commitment(),
+            soft_confirmation.txs(),
+            soft_confirmation.deposit_data(),
+            soft_confirmation.l1_fee_rate(),
+            soft_confirmation.timestamp(),
         );
 
         let unsigned_raw = borsh::to_vec(&unsigned).unwrap();
 
         // check the claimed hash
-        assert_eq!(
-            soft_batch.hash(),
-            Into::<[u8; 32]>::into(<C as Spec>::Hasher::digest(unsigned_raw)),
-            "Soft confirmation hashes must match"
-        );
+        if soft_confirmation.hash()
+            != Into::<[u8; 32]>::into(<C as Spec>::Hasher::digest(unsigned_raw))
+        {
+            return (
+                Err(SoftConfirmationError::InvalidSoftConfirmationHash),
+                batch_workspace.revert(),
+            );
+        }
 
         // verify signature
-        assert!(
-            verify_soft_batch_signature::<C>(
-                unsigned,
-                soft_batch.signature().as_slice(),
-                sequencer_public_key
-            )
-            .is_ok(),
-            "Signature verification must succeed"
-        );
+        if verify_soft_confirmation_signature::<C>(
+            unsigned,
+            soft_confirmation.signature().as_slice(),
+            sequencer_public_key,
+        )
+        .is_err()
+        {
+            return (
+                Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
+                batch_workspace.revert(),
+            );
+        }
 
-        let (apply_soft_batch_result, checkpoint) =
-            self.end_soft_confirmation_inner(soft_batch, tx_receipts, batch_workspace);
-
-        (apply_soft_batch_result.unwrap(), checkpoint)
+        self.end_soft_confirmation_inner(
+            current_spec,
+            pre_state_root,
+            soft_confirmation,
+            tx_receipts,
+            batch_workspace,
+        )
     }
 
-    fn finalize_soft_batch(
+    fn finalize_soft_confirmation(
         &self,
-        batch_receipt: BatchReceipt<(), TxEffect>,
+        _current_spec: SpecId,
+        sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> SlotResult<
+        soft_confirmation: &mut SignedSoftConfirmation,
+    ) -> SoftConfirmationResult<
         <C::Storage as Storage>::Root,
         C::Storage,
-        (),
         TxEffect,
         <<C as Spec>::Storage as Storage>::Witness,
+        Da,
     > {
         native_debug!(
-            "soft batch with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
-            soft_batch.hash(),
-            soft_batch.sequencer_pub_key(),
-            batch_receipt.tx_receipts.len(),
+            "soft confirmation with hash: {:?} from sequencer {:?} has been applied with #{} transactions.",
+            soft_confirmation.hash(),
+            soft_confirmation.sequencer_pub_key(),
+            sc_receipt.tx_receipts.len(),
         );
 
-        let mut batch_receipts = vec![];
-
-        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+        #[cfg(feature = "native")]
+        for (i, tx_receipt) in sc_receipt.tx_receipts.iter().enumerate() {
             native_debug!(
                 "tx #{} hash: 0x{} result {:?}",
                 i,
@@ -294,7 +328,6 @@ where
                 tx_receipt.receipt
             );
         }
-        batch_receipts.push(batch_receipt);
 
         let (state_root, witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
@@ -320,12 +353,12 @@ where
             (root_hash, witness, pre_state, state_diff)
         };
 
-        SlotResult {
+        SoftConfirmationResult {
             state_root,
             change_set: storage,
-            batch_receipts,
             witness,
             state_diff,
+            soft_confirmation_receipt: sc_receipt,
         }
     }
 }
@@ -386,6 +419,7 @@ where
 
     fn apply_slot<'a, I>(
         &self,
+        _current_spec: SpecId,
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _witness: Self::Witness,
@@ -405,56 +439,77 @@ where
         unimplemented!();
     }
 
-    fn apply_soft_batch(
+    fn apply_soft_confirmation(
         &self,
+        current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
-        soft_batch: &mut SignedSoftConfirmationBatch,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
+        soft_confirmation: &mut SignedSoftConfirmation,
+    ) -> Result<
+        SoftConfirmationResult<
+            Self::StateRoot,
+            Self::ChangeSet,
+            Self::TxReceiptContents,
+            Self::Witness,
+            Da,
+        >,
+        SoftConfirmationError,
     > {
-        match self.begin_soft_batch(
+        let soft_confirmation_info = HookSoftConfirmationInfo::new(
+            soft_confirmation.clone(),
+            pre_state_root.as_ref().to_vec(),
+            current_spec,
+        );
+
+        match self.begin_soft_confirmation(
             sequencer_public_key,
-            pre_state_root,
             pre_state.clone(),
             witness,
             slot_header,
-            soft_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), batch_workspace) => {
-                let (batch_workspace, tx_receipts) =
-                    self.apply_soft_batch_txs(soft_batch.txs(), batch_workspace);
-
-                let (batch_receipt, checkpoint) = self.end_soft_batch(
-                    sequencer_public_key,
-                    soft_batch,
-                    tx_receipts,
+                let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
+                    soft_confirmation_info,
+                    soft_confirmation.txs(),
                     batch_workspace,
                 );
 
-                self.finalize_soft_batch(batch_receipt, checkpoint, pre_state, soft_batch)
+                match self.end_soft_confirmation(
+                    current_spec,
+                    pre_state_root.as_ref().to_vec(),
+                    sequencer_public_key,
+                    soft_confirmation,
+                    tx_receipts,
+                    batch_workspace,
+                ) {
+                    (Ok(batch_receipt), checkpoint) => Ok(self.finalize_soft_confirmation(
+                        current_spec,
+                        batch_receipt,
+                        checkpoint,
+                        pre_state,
+                        soft_confirmation,
+                    )),
+                    (Err(err), _checkpoint) => {
+                        native_warn!(
+                            "Error applying soft confirmation: {:?} \n reverting batch workspace",
+                            err
+                        );
+                        Err(err)
+                    }
+                }
             }
             (Err(err), batch_workspace) => {
                 native_warn!(
-                    "Error applying soft batch: {:?} \n reverting batch workspace",
+                    "Error applying soft confirmation: {:?} \n reverting batch workspace",
                     err
                 );
                 batch_workspace.revert();
-                SlotResult {
-                    state_root: pre_state_root.clone(),
-                    change_set: pre_state, // should be empty
-                    batch_receipts: vec![],
-                    witness: <<C as Spec>::Storage as Storage>::Witness::default(),
-                    state_diff: vec![],
-                }
+                Err(err)
             }
         }
     }
@@ -471,8 +526,10 @@ where
         witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
-        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmationBatch>>,
-    ) -> (Self::StateRoot, CumulativeStateDiff) {
+        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
+        mut preproven_commitment_indicies: Vec<usize>,
+        forks: Vec<Fork>,
+    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
         let mut state_diff = CumulativeStateDiff::default();
 
         // First extract all sequencer commitments
@@ -489,11 +546,30 @@ where
             }
         }
 
-        // Then verify these soft confirmations.
+        // Sort commitments just in case
+        sequencer_commitments.sort_unstable();
 
+        // The preproven indicies are sorted by the prover when originally passed.
+        // Therefore, we pass the commitments sequentially to make sure that the current
+        // commitment index is not at the beginning of the list of preproven indicies.
+        let mut filtered = vec![];
+        for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
+            if let Some(exclude_index) = preproven_commitment_indicies.first() {
+                if index == *exclude_index {
+                    preproven_commitment_indicies.remove(0);
+                    continue;
+                }
+            }
+            filtered.push(sequencer_commitment);
+        }
+        sequencer_commitments = filtered;
+
+        // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();
         let mut previous_batch_hash = initial_batch_hash;
         let mut last_commitment_end_height: Option<u64> = None;
+
+        let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
@@ -638,6 +714,8 @@ where
             let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
+            let mut l2_height = sequencer_commitment.l2_start_block_number;
+
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
             for (mut soft_confirmation, witness) in soft_confirmations.into_iter().zip_eq(witnesses)
@@ -646,27 +724,45 @@ where
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
 
-                let result = self.apply_soft_batch(
-                    sequencer_public_key,
-                    &current_state_root,
-                    pre_state.clone(),
-                    witness,
-                    &da_block_header,
-                    validity_condition,
-                    &mut soft_confirmation,
-                );
+                let result = self
+                    .apply_soft_confirmation(
+                        fork_manager.active_fork().spec_id,
+                        sequencer_public_key,
+                        &current_state_root,
+                        pre_state.clone(),
+                        witness,
+                        &da_block_header,
+                        validity_condition,
+                        &mut soft_confirmation,
+                    )
+                    // TODO: this can be just ignoring the failing seq. com.
+                    // We can count a failed soft confirmation as a valid state transition.
+                    // for now we don't allow "broken" seq. com.s
+                    .expect("Soft confirmation must succeed");
 
                 current_state_root = result.state_root;
                 state_diff.extend(result.state_diff);
+
+                // Notify fork manager about the block so that the next spec / fork
+                // is transitioned into if criteria is met.
+                if let Err(e) = fork_manager.register_block(l2_height) {
+                    panic!("Fork transition failed {}", e);
+                }
+                l2_height += 1;
             }
+            assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
-        (current_state_root, state_diff)
+        (
+            current_state_root,
+            state_diff,
+            fork_manager.active_fork().spec_id,
+        )
     }
 }
 
-fn verify_soft_batch_signature<C: Context>(
-    unsigned_soft_confirmation: UnsignedSoftConfirmationBatch,
+fn verify_soft_confirmation_signature<C: Context>(
+    unsigned_soft_confirmation: UnsignedSoftConfirmation,
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {

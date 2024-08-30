@@ -59,17 +59,15 @@ tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
 citrea-evm = { path = "../../crates/evm", features = ["native"] }
-shared-backup-db = { path = "../../crates/shared-backup-db", features = ["test-utils"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
 
-alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signer-wallet", "signers"] }
+alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers", "signer-local"] }
 alloy-rlp = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
-humantime = "2.1"
 proptest = { workspace = true }
 reqwest = { workspace = true }
 rs_merkle = { workspace = true }

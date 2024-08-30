@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
+use alloy_primitives::Address;
 use reth_primitives::{KECCAK_EMPTY, U256};
-use revm::primitives::{Account, Address, HashMap};
+use revm::primitives::{Account, AccountInfo, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
 
@@ -17,11 +18,15 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 continue;
             }
             let accounts_prefix = self.accounts.prefix();
+            let mut new_account_flag = false;
 
             let mut db_account = self
                 .accounts
                 .get(&address, self.working_set)
-                .unwrap_or_else(|| DbAccount::new(accounts_prefix, address));
+                .unwrap_or_else(|| {
+                    new_account_flag = true;
+                    DbAccount::new(accounts_prefix, address)
+                });
 
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
@@ -51,8 +56,6 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 }
             }
 
-            db_account.info = account_info.into();
-
             let storage_slots = account.storage.into_iter().collect::<BTreeMap<_, _>>();
             // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
@@ -63,7 +66,16 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 db_account.storage.set(&key, &value, self.working_set);
             }
 
-            self.accounts.set(&address, &db_account, self.working_set)
+            if new_account_flag || check_account_info_changed(&db_account, &account_info) {
+                db_account.info = account_info.into();
+                self.accounts.set(&address, &db_account, self.working_set)
+            }
         }
     }
+}
+
+fn check_account_info_changed(db_account: &DbAccount, account_info: &AccountInfo) -> bool {
+    db_account.info.balance != account_info.balance
+        || db_account.info.code_hash != account_info.code_hash
+        || db_account.info.nonce != account_info.nonce
 }

@@ -13,7 +13,7 @@ pub fn register_rpc<RT, C, Da>(
 where
     RT: RuntimeTrait<C, <Da as DaService>::Spec> + Send + Sync + 'static,
     C: Context,
-    Da: DaService + Clone,
+    Da: DaService,
 {
     // runtime rpc.
     let mut rpc_methods = RT::rpc_methods(storage.clone());
@@ -26,23 +26,6 @@ where
             TxEffect,
         >(ledger_db.clone())?)?;
     }
-
-    // Disable sov-sequencer
-    // sequencer rpc.
-    // {
-    //     let batch_builder = FiFoStrictBatchBuilder::new(
-    //         1024 * 100,
-    //         u32::MAX as usize,
-    //         RT::default(),
-    //         storage.clone(),
-    //         sequencer,
-    //     );
-
-    //     let sequencer_rpc = sov_sequencer::get_sequencer_rpc(batch_builder, da_service.clone());
-    //     rpc_methods
-    //         .merge(sequencer_rpc)
-    //         .context("Failed to merge Txs RPC modules")?;
-    // }
 
     Ok(rpc_methods)
 }

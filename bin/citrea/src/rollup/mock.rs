@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
@@ -11,6 +14,7 @@ use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
+use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
@@ -54,7 +58,7 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         storage: &<Self::NativeContext as Spec>::Storage,
         ledger_db: &LedgerDB,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
@@ -79,27 +83,34 @@ impl RollupBlueprint for MockDemoRollup {
         Ok(rpc_methods)
     }
 
-    fn get_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(citrea_risc0::MOCK_DA_ID)
+    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
+        let mut map = HashMap::new();
+        map.insert(SpecId::Genesis, Digest::new(citrea_risc0::MOCK_DA_ID));
+        map
     }
 
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> Self::DaService {
-        MockDaService::new(rollup_config.da.sender_address, &rollup_config.da.db_path)
+    ) -> Result<Arc<Self::DaService>, anyhow::Error> {
+        Ok(Arc::new(MockDaService::new(
+            rollup_config.da.sender_address,
+            &rollup_config.da.db_path,
+        )))
     }
 
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
-        _da_service: &Self::DaService,
+        _da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
             citrea_risc0::MOCK_DA_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db.clone(),
         );
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
@@ -111,6 +122,7 @@ impl RollupBlueprint for MockDemoRollup {
             da_verifier,
             prover_config,
             zk_storage,
+            ledger_db,
         )
         .expect("Should be able to instantiate prover service")
     }

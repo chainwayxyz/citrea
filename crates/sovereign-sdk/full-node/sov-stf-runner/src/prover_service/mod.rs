@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::Zkvm;
@@ -109,6 +111,12 @@ pub trait ProverService<Vm: Zkvm> {
     async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-        da_service: &Self::DaService,
+        da_service: &Arc<Self::DaService>,
     ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
+
+    /// Recovers pending proving sessions and sends proofs to the DA.
+    async fn recover_proving_sessions_and_send_to_da(
+        &self,
+        da_service: &Arc<Self::DaService>,
+    ) -> Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>, anyhow::Error>;
 }

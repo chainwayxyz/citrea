@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use reth_primitives::{address, b256, BlockId, BlockNumberOrTag, TxKind, U64};
-use reth_rpc::eth::error::EthApiError;
+use reth_rpc_eth_types::EthApiError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::{AnyTransactionReceipt, Block, Rich};
 use revm::primitives::{B256, U256};
@@ -13,7 +13,7 @@ use crate::tests::queries::init_evm;
 #[test]
 fn get_block_by_hash_test() {
     // make a block
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.get_block_by_hash([5u8; 32].into(), Some(false), &mut working_set);
 
@@ -34,7 +34,7 @@ fn get_block_by_hash_test() {
 #[test]
 fn get_block_by_number_test() {
     // make a block
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.get_block_by_number(
         Some(BlockNumberOrTag::Number(1000)),
@@ -60,7 +60,7 @@ fn get_block_by_number_test() {
 #[test]
 fn get_block_receipts_test() {
     // make a block
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.get_block_receipts(
         BlockId::Number(BlockNumberOrTag::Number(1000)),
@@ -91,7 +91,7 @@ fn get_block_receipts_test() {
 
 #[test]
 fn get_transaction_by_block_hash_and_index_test() {
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.get_transaction_by_block_hash_and_index(
         [0u8; 32].into(),
@@ -135,7 +135,7 @@ fn get_transaction_by_block_hash_and_index_test() {
 
 #[test]
 fn get_transaction_by_block_number_and_index_test() {
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.get_transaction_by_block_number_and_index(
         BlockNumberOrTag::Number(100),
@@ -184,7 +184,7 @@ fn get_transaction_by_block_number_and_index_test() {
 
 #[test]
 fn get_block_transaction_count_by_hash_test() {
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result =
         evm.eth_get_block_transaction_count_by_hash(B256::from([0u8; 32]), &mut working_set);
@@ -230,7 +230,7 @@ fn get_block_transaction_count_by_hash_test() {
 
 #[test]
 fn get_block_transaction_count_by_number_test() {
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm
         .eth_get_block_transaction_count_by_number(BlockNumberOrTag::Number(5), &mut working_set);
@@ -252,7 +252,7 @@ fn get_block_transaction_count_by_number_test() {
 
 #[test]
 fn call_test() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let fail_result = evm.get_call(
         TransactionRequest {
@@ -453,7 +453,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x161",
         "contractAddress": null,
         "logs": [
             {
@@ -504,7 +504,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x161",
         "contractAddress": null,
         "logs": [
             {
@@ -555,7 +555,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x161",
         "contractAddress": null,
         "logs": [
             {
@@ -606,7 +606,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x9c",
+        "l1DiffSize": "0x161",
         "contractAddress": null,
         "logs": [
             {

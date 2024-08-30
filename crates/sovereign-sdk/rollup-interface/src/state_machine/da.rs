@@ -21,6 +21,18 @@ pub struct SequencerCommitment {
     pub l2_end_block_number: u64,
 }
 
+impl core::cmp::PartialOrd for SequencerCommitment {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl core::cmp::Ord for SequencerCommitment {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.l2_start_block_number.cmp(&other.l2_start_block_number)
+    }
+}
+
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -42,7 +54,7 @@ pub trait DaSpec:
     type BlockHeader: BlockHeaderTrait<Hash = Self::SlotHash> + Send + Sync;
 
     /// The transaction type used by the DA layer.
-    type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync;
+    type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync + Clone;
 
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress + Send + Sync;
@@ -216,7 +228,7 @@ pub trait BlobReaderTrait:
 /// Trait with collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + core::hash::Hash
+    BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + From<[u8; 32]> + Into<[u8; 32]> + core::hash::Hash
 {
 }
 

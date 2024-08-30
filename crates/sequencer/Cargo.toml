@@ -16,15 +16,14 @@ resolver = "2"
 alloy-rlp = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
-bincode = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
-deadpool-postgres = { workspace = true }
 digest = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
 schnellru = "0.2.1"
 serde = { workspace = true }
@@ -34,11 +33,11 @@ tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
 
+reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
-reth-interfaces = { workspace = true }
 reth-primitives = { workspace = true }
 reth-provider = { workspace = true }
-reth-rpc = { workspace = true }
+reth-rpc-eth-types = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
 reth-tasks = { workspace = true }
@@ -61,7 +60,6 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
-shared-backup-db = { path = "../shared-backup-db" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
