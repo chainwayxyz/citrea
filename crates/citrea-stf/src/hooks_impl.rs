@@ -101,11 +101,11 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn end_soft_confirmation_hook(
         &self,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {
         self.evm
-            .end_soft_confirmation_hook(soft_confirmation_info, working_set);
+            .end_soft_confirmation_hook(&soft_confirmation_info, working_set);
         Ok(())
     }
 }

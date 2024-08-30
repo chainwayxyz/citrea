@@ -206,7 +206,7 @@ where
 
         if let Err(e) = self
             .runtime
-            .end_soft_confirmation_hook(&hook_soft_confirmation_info, &mut batch_workspace)
+            .end_soft_confirmation_hook(hook_soft_confirmation_info, &mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             native_error!("Failed on `end_soft_confirmation_hook`: {:?}", e);
