@@ -1,7 +1,5 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::StateValueAccessor;
-use sov_rollup_interface::spec::SpecId;
 
 use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
 use crate::tests::sc_info_helper;
