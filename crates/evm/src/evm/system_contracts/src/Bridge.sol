@@ -35,16 +35,16 @@ contract Bridge is Ownable2StepUpgradeable {
     address public constant SYSTEM_CALLER = address(0xdeaDDeADDEaDdeaDdEAddEADDEAdDeadDEADDEaD);
 
     bool public initialized;
-    uint256 public depositAmount;
     address public operator;
+    bool[1000] public isOperatorMalicious;
+    uint256 public depositAmount;
+    uint256 currentDepositId;
     bytes public scriptPrefix;
     bytes public scriptSuffix;
-    uint256 currentDepositId;    
-    mapping(bytes32 => uint256) public txIdToDepositId;
-    bool[1000] public isOperatorMalicious;
-    UTXO[] public withdrawalUTXOs;
-    mapping(uint256 => uint256) public withdrawFillers;
     bytes public slashOrTakeScript;
+    UTXO[] public withdrawalUTXOs;
+    mapping(bytes32 => uint256) public txIdToDepositId;
+    mapping(uint256 => uint256) public withdrawFillers;
     
     event Deposit(bytes32 wtxId, bytes32 txId, address recipient, uint256 timestamp, uint256 depositId);
     event Withdrawal(UTXO utxo, uint256 index, uint256 timestamp);
