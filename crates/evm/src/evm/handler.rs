@@ -29,6 +29,12 @@ const DB_ACCOUNT_SIZE: usize = 256;
 // But we already add address size to diff size, so we don't need to add it here
 const DB_ACCOUNT_KEY_SIZE: usize = 25;
 
+/// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, soft_confirmation_rule_enforcer and sov_accounts
+/// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
+/// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 soft confirmations
+/// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
+pub const L1_FEE_OVERHEAD: usize = 4;
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub l1_diff_size: u64,
@@ -358,7 +364,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
         let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
         let l1_fee_rate = context.external.l1_fee_rate();
-        let l1_fee = U256::from(diff_size) * U256::from(l1_fee_rate);
+        let l1_fee =
+            U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
         context.external.set_tx_info(TxInfo {
             l1_diff_size: diff_size,
             l1_fee,
