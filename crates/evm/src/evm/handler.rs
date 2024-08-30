@@ -25,9 +25,15 @@ use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 const DB_ACCOUNT_SIZE: usize = 256;
 
-// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
-// But we already add address size to diff size, so we don't need to add it here
+/// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
+/// But we already add address size to diff size, so we don't need to add it here
 const DB_ACCOUNT_KEY_SIZE: usize = 25;
+
+/// Storage key is 77 bytes because of sov sdk prefix
+const STORAGE_KEY_SIZE: usize = 77;
+
+/// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
+const STORAGE_VALUE_SIZE: usize = 33;
 
 /// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, soft_confirmation_rule_enforcer and sov_accounts
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
@@ -48,10 +54,10 @@ Let's consider a batch of 1 block with the following transactions:
     In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
     So A and B should share that cost thus we have the ratios below
 */
-const BALANCE_RATIO: u8 = 32;
-const NONCE_RATIO: u8 = 55;
-const STORAGE_RATIO: u8 = 66;
-const ACCOUNT_RATIO: u8 = 29;
+const BALANCE_DISCOUNTED_PERCENTAGE: usize = 32;
+const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
+const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
+const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -482,7 +488,7 @@ fn calc_diff_size<EXT, DB: Database>(
         "Total accounts for diff size"
     );
 
-    let slot_size = 2 * size_of::<U256>() * STORAGE_RATIO as usize / 100; // key + value;
+    let slot_size = (STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE) * STORAGE_DISCOUNTED_PERCENTAGE / 100; // key + value;
     let mut diff_size = 0usize;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
@@ -494,15 +500,15 @@ fn calc_diff_size<EXT, DB: Database>(
 
     for (addr, account) in account_changes {
         // Apply size of address of changed account
-        diff_size += size_of::<Address>() * ACCOUNT_RATIO as usize / 100;
+        diff_size += size_of::<Address>() * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
         if account.destroyed {
             let account = &state[addr];
             diff_size += slot_size * account.storage.len(); // Storage size
 
             // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
-            diff_size += DB_ACCOUNT_SIZE; // DbAccount size
-            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
+            diff_size +=
+                (DB_ACCOUNT_SIZE + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
 
             // Retrieve code from DB and apply its size
             if let Some(info) = db.basic(*addr)? {
@@ -520,7 +526,8 @@ fn calc_diff_size<EXT, DB: Database>(
         if account.account_info_changed {
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size += (DB_ACCOUNT_SIZE + DB_ACCOUNT_KEY_SIZE) * NONCE_RATIO as usize / 100;
+            diff_size +=
+                (DB_ACCOUNT_SIZE + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots
