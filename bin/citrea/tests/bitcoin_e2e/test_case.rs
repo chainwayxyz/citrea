@@ -266,12 +266,12 @@ pub trait TestCase: Send + Sync + 'static {
 
 fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 6]> {
     let paths = [
-        NodeKind::Bitcoin.to_string().as_str(),
-        "dbs",
-        NodeKind::Prover.to_string().as_str(),
-        NodeKind::Sequencer.to_string().as_str(),
-        NodeKind::FullNode.to_string().as_str(),
-        "genesis",
+        NodeKind::Bitcoin.to_string(),
+        "dbs".to_string(),
+        NodeKind::Prover.to_string(),
+        NodeKind::Sequencer.to_string(),
+        NodeKind::FullNode.to_string(),
+        "genesis".to_string(),
     ]
     .map(|dir| base_dir.join(dir));
 
