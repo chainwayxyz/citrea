@@ -54,7 +54,6 @@ Let's consider a batch of 1 block with the following transactions:
     In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
     So A and B should share that cost thus we have the ratios below
 */
-const BALANCE_DISCOUNTED_PERCENTAGE: usize = 32;
 const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
 const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
