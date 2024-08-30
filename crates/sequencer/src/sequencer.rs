@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -27,7 +26,6 @@ use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
     PoolTransaction, ValidPoolTransaction,
 };
-use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -91,7 +89,6 @@ where
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
-    soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -162,9 +159,6 @@ where
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
-        let soft_confirmation_rule_enforcer =
-            SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
-
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
@@ -185,7 +179,6 @@ where
             batch_hash: prev_batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
-            soft_confirmation_rule_enforcer,
             last_state_diff,
             fork_manager,
             soft_confirmation_tx,
@@ -825,12 +818,7 @@ where
             }
         }
 
-        // Initialize our knowledge of the state of the DA-layer
-        let fee_rate_range = get_l1_fee_rate_range::<C, Da>(
-            self.storage.clone(),
-            self.soft_confirmation_rule_enforcer.clone(),
-        )?;
-        let (mut last_finalized_block, l1_fee_rate) =
+        let (mut last_finalized_block, mut l1_fee_rate) =
             match get_da_block_data(self.da_service.clone()).await {
                 Ok(l1_data) => l1_data,
                 Err(e) => {
@@ -838,7 +826,6 @@ where
                     return Err(e);
                 }
             };
-        let mut l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
         let mut last_finalized_height = last_finalized_block.header().height();
 
         let mut last_used_l1_height = match self.ledger_db.get_head_soft_confirmation() {
@@ -931,15 +918,6 @@ where
                         missed_da_blocks_count = 0;
                     }
 
-                    let l1_fee_rate_range =
-                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
-                            Ok(fee_rate_range) => fee_rate_range,
-                            Err(e) => {
-                                error!("Could not fetch L1 fee rate range: {}", e);
-                                continue;
-                            }
-                        };
-                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
                     match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             last_used_l1_height = l1_block_number;
@@ -979,15 +957,6 @@ where
                         missed_da_blocks_count = 0;
                     }
 
-                    let l1_fee_rate_range =
-                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
-                            Ok(fee_rate_range) => fee_rate_range,
-                            Err(e) => {
-                                error!("Could not fetch L1 fee rate range: {}", e);
-                                continue;
-                            }
-                        };
-                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
                     match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
@@ -1166,21 +1135,6 @@ where
 
         Ok(updates)
     }
-}
-
-fn get_l1_fee_rate_range<C, Da>(
-    storage: C::Storage,
-    rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
-) -> Result<RangeInclusive<u128>, anyhow::Error>
-where
-    C: Context,
-    Da: DaService,
-{
-    let mut working_set = WorkingSet::<C>::new(storage);
-
-    rule_enforcer
-        .get_next_min_max_l1_fee_rate(&mut working_set)
-        .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
 }
 
 async fn da_block_monitor<Da>(

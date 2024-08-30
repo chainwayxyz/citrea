@@ -1,5 +1,4 @@
 {
     "max_l2_blocks_per_l1": 86400,
-    "authority": "sov1tz5dqrfqrtcsejn4ux7a3dscljqcgvxzf4qarcl5tmqsgsymxw3se4x3a0",
-    "l1_fee_rate_change_percentage": 10
+    "authority": "sov1tz5dqrfqrtcsejn4ux7a3dscljqcgvxzf4qarcl5tmqsgsymxw3se4x3a0"
 }

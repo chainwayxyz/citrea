@@ -12,9 +12,6 @@ pub struct SoftConfirmationRuleEnforcerConfig<C: Context> {
     pub(crate) authority: C::Address,
     ///  Maximum number of L2 blocks per L1 slot.
     pub(crate) max_l2_blocks_per_l1: u64,
-    /// L1 fee rate change percentage
-    /// Out of 100.
-    pub(crate) l1_fee_rate_change_percentage: u128,
 }
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
@@ -26,8 +23,6 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         self.authority.set(&config.authority, working_set);
         self.max_l2_blocks_per_l1
             .set(&config.max_l2_blocks_per_l1, working_set);
-        self.l1_fee_rate_change_percentage
-            .set(&config.l1_fee_rate_change_percentage, working_set);
         Ok(())
     }
 }
