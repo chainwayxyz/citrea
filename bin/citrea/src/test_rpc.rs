@@ -105,6 +105,7 @@ fn batch2_tx_receipts() -> Vec<TransactionReceipt<u32>> {
 fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value) {
     let soft_confirmation_receipts = vec![
         SoftConfirmationReceipt {
+            l2_height: 1,
             da_slot_height: 0,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([0u8; 32]),
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([1u8; 32]),
@@ -137,6 +138,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             timestamp: 0,
         },
         SoftConfirmationReceipt {
+            l2_height: 2,
             da_slot_height: 1,
             da_slot_hash: <MockDaSpec as DaSpec>::SlotHash::from([2; 32]),
             da_slot_txs_commitment: <MockDaSpec as DaSpec>::SlotHash::from([3; 32]),

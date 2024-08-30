@@ -20,7 +20,7 @@ use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
-use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData, StateDiff};
+use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmation, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -40,7 +40,7 @@ type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
 type CommitmentStateTransitionData<Stf, Vm, Da> = (
     VecDeque<Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>>,
-    VecDeque<Vec<SignedSoftConfirmationBatch>>,
+    VecDeque<Vec<SignedSoftConfirmation>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
@@ -648,7 +648,7 @@ where
         let mut state_transition_witnesses: VecDeque<
             Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>,
         > = VecDeque::new();
-        let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>> = VecDeque::new();
+        let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
         let mut da_block_headers_of_soft_confirmations: VecDeque<
             Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
         > = VecDeque::new();
@@ -695,7 +695,7 @@ where
                     };
                     da_block_headers_to_push.push(filtered_block.header().clone());
                 }
-                let signed_soft_confirmation: SignedSoftConfirmationBatch =
+                let signed_soft_confirmation: SignedSoftConfirmation =
                     soft_confirmation.clone().into();
                 commitment_soft_confirmations.push(signed_soft_confirmation.clone());
             }

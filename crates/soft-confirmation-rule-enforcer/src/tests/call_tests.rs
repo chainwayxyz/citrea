@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, Spec, StateValueAccessor};
+use sov_modules_api::{Context, Module, Spec, SpecId, StateValueAccessor};
 
 use crate::call::CallMessage;
 use crate::tests::genesis_tests::{get_soft_confirmation_rule_enforcer, TEST_CONFIG};
@@ -25,7 +25,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
     .unwrap();
 
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
+    let context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     let _ = soft_confirmation_rule_enforcer
         .call(call_message, &context, &mut working_set)
@@ -92,7 +92,7 @@ fn change_max_l2_blocks_per_l1_and_authority() {
     );
 
     // create a new context with the new authority
-    let context = C::new(new_authority, sequencer_address, 1);
+    let context = C::new(new_authority, sequencer_address, 1, SpecId::Genesis, 0);
     let _ = soft_confirmation_rule_enforcer
         .call(
             modify_max_l2_blocks_per_l1_message,

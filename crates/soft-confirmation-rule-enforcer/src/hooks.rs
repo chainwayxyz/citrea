@@ -72,7 +72,7 @@ where
     )]
     pub fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {
         let RuleEnforcerData {
@@ -86,13 +86,13 @@ where
             .expect("should be set in genesis");
 
         self.apply_block_count_rule(
-            soft_confirmation,
+            soft_confirmation_info,
             max_l2_blocks_per_l1,
             &mut last_da_root_hash,
             &mut counter,
         )?;
 
-        self.apply_timestamp_rule(soft_confirmation, &mut last_timestamp)?;
+        self.apply_timestamp_rule(soft_confirmation_info, &mut last_timestamp)?;
 
         self.data.set(
             &RuleEnforcerData {

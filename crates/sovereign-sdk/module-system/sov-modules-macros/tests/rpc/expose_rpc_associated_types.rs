@@ -1,9 +1,10 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
+use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    prelude::*, Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
-    MessageCodec, Module, ModuleInfo, StateValue, WorkingSet,
+    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
+    ModuleInfo, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 
@@ -94,7 +95,6 @@ pub mod my_module {
 }
 
 use my_module::query::{QueryModuleRpcImpl, QueryModuleRpcServer};
-use sov_rollup_interface::spec::SpecId;
 
 #[expose_rpc]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
@@ -124,9 +124,9 @@ fn main() {
     let module = RT::decode_call(&serialized_message).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([12; 32].as_ref()).unwrap();
-    let context = C::new(sender, sequencer, 1);
+    let context = C::new(sender, sequencer, 1, SpecId::Genesis, 0);
 
     let _ = runtime
-        .dispatch_call(module, working_set, SpecId::Genesis, &context)
+        .dispatch_call(module, working_set, &context)
         .unwrap();
 }
