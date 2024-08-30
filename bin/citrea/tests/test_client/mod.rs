@@ -43,7 +43,7 @@ impl TestClient {
         key: PrivateKeySigner,
         from_addr: Address,
         rpc_addr: std::net::SocketAddr,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let http_host = format!("http://localhost:{}", rpc_addr.port());
         let ws_host = format!("ws://localhost:{}", rpc_addr.port());
 
@@ -56,14 +56,12 @@ impl TestClient {
 
         let http_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_secs(120))
-            .build(http_host)
-            .unwrap();
+            .build(http_host)?;
 
         let ws_client = WsClientBuilder::default()
             .enable_ws_ping(PingConfig::default().inactive_limit(Duration::from_secs(10)))
             .build(ws_host)
-            .await
-            .unwrap();
+            .await?;
 
         let client = Self {
             chain_id,
@@ -75,7 +73,7 @@ impl TestClient {
             rpc_addr,
         };
         client.sync_nonce().await;
-        client
+        Ok(client)
     }
 
     pub(crate) async fn spam_publish_batch_request(

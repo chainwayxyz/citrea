@@ -49,7 +49,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
 
-    let test_client = make_test_client(port).await;
+    let test_client = make_test_client(port).await?;
 
     test_client.send_publish_batch_request().await;
     wait_for_l2_block(&test_client, 1, None).await;

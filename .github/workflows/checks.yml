@@ -168,6 +168,8 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
+      - name: Build citrea
+        run: make build
       - name: Run coverage
         run: make coverage
         env:
@@ -351,6 +353,8 @@ jobs:
         run: cargo risczero install --version r0.1.79.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: make build
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests

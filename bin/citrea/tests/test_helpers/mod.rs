@@ -22,6 +22,7 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, warn, Instrument};
 
 use crate::test_client::TestClient;
+use crate::DEFAULT_PROOF_WAIT_DURATION;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
@@ -225,7 +226,7 @@ pub async fn wait_for_prover_l1_height(
     timeout: Option<Duration>,
 ) {
     let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30)); // Default 30 seconds timeout
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 300 seconds timeout
     loop {
         debug!("Waiting for prover height {}", num);
         let latest_block = prover_client.prover_get_last_scanned_l1_height().await;
