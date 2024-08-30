@@ -1,9 +1,12 @@
 use std::marker::PhantomData;
 
+use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    native_debug, native_error, Context, DaSpec, DispatchCall, SpecId, StateCheckpoint, WorkingSet,
+    native_debug, native_error, Context, DaSpec, Spec, SpecId, StateCheckpoint, WorkingSet,
 };
+use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
@@ -11,8 +14,7 @@ use sov_rollup_interface::stf::{
 #[cfg(feature = "native")]
 use tracing::instrument;
 
-use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
-use crate::{RawTx, Runtime, RuntimeTxHook, SlashingReason, TxEffect};
+use crate::{Runtime, RuntimeTxHook, TxEffect};
 
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -64,23 +66,27 @@ where
         txs: Vec<Vec<u8>>,
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        let txs = self.verify_txs_stateless_soft(txs);
-
-        let messages = self
-            .decode_txs(&txs)
-            .expect("Decoding transactions from the sequencer failed");
-
-        // Sanity check after pre processing
-        assert_eq!(
-            txs.len(),
-            messages.len(),
-            "Error in preprocessing batch, there should be same number of txs and messages"
-        );
-        // Dispatching transactions
         let mut tx_receipts = Vec::with_capacity(txs.len());
-        for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
-            txs.into_iter().zip(messages.into_iter())
-        {
+        for raw_tx in txs {
+            let raw_tx_hash = <C as Spec>::Hasher::digest(&raw_tx).into();
+            // Stateless verification of transaction, such as signature check
+            // Single malformed transaction results in sequencer slashing.
+            let tx = Transaction::<C>::deserialize_reader(&mut &*raw_tx)
+                .expect("Sequencer must not include non-deserializable transaction.");
+            tx.verify()
+                .expect("Sequencer must include correctly signed transaction.");
+            // Checks that runtime message can be decoded from transaction.
+            // If a single message cannot be decoded, sequencer is slashed
+            let msg = match RT::decode_call(tx.runtime_msg()) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    native_error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
+                    panic!("Decoding transactions from the sequencer failed");
+                }
+            };
+
+            // Dispatching transactions
+
             // Pre dispatch hook
             // TODO set the sequencer pubkey
             let hook = RuntimeTxHook {
@@ -223,7 +229,7 @@ where
                 da_slot_height: soft_confirmation.da_slot_height(),
                 da_slot_hash: soft_confirmation.da_slot_hash().into(),
                 da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
-                soft_confirmation_signature: soft_confirmation.signature().to_vec(),
+                soft_confirmation_signature: soft_confirmation.signature(),
                 pub_key: soft_confirmation.sequencer_pub_key().to_vec(),
                 deposit_data: soft_confirmation.deposit_data().clone(),
                 l1_fee_rate: soft_confirmation.l1_fee_rate(),
@@ -231,35 +237,5 @@ where
             }),
             batch_workspace.checkpoint(),
         )
-    }
-
-    // Stateless verification of transaction, such as signature check
-    // Single malformed transaction results in sequencer slashing.
-    fn verify_txs_stateless_soft(&self, txs: Vec<Vec<u8>>) -> Vec<TransactionAndRawHash<C>> {
-        verify_txs_stateless(
-            txs.into_iter()
-                .map(|tx| RawTx { data: tx })
-                .collect::<Vec<_>>(),
-        )
-        .expect("Sequencer must not include non-deserializable transaction.")
-    }
-
-    // Checks that runtime message can be decoded from transaction.
-    // If a single message cannot be decoded, sequencer is slashed
-    fn decode_txs(
-        &self,
-        txs: &[TransactionAndRawHash<C>],
-    ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
-        let mut decoded_messages = Vec::with_capacity(txs.len());
-        for TransactionAndRawHash { tx, raw_tx_hash } in txs {
-            match RT::decode_call(tx.runtime_msg()) {
-                Ok(msg) => decoded_messages.push(msg),
-                Err(e) => {
-                    native_error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
-                    return Err(SlashingReason::InvalidTransactionEncoding);
-                }
-            }
-        }
-        Ok(decoded_messages)
     }
 }
