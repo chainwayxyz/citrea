@@ -43,8 +43,8 @@ fn block_count_rule_is_enforced() {
             .data
             .get(&mut working_set)
             .unwrap()
-            .last_da_root_hash,
-        [1; 32]
+            .counter,
+        3
     );
 
     signed_soft_confirmation_batch.set_da_slot_hash([2; 32]);
@@ -66,8 +66,8 @@ fn block_count_rule_is_enforced() {
             .data
             .get(&mut working_set)
             .unwrap()
-            .last_da_root_hash,
-        [2; 32]
+            .counter,
+        1
     );
 }
 
