@@ -18,7 +18,7 @@ pub enum CallMessage<C: Context> {
     /// Remove a sequencer from the sequencer registry.
     ModifyMaxL2BlocksPerL1 {
         /// The new max L2 blocks per L1 representing max number of L2 blocks published per L1 block.
-        max_l2_blocks_per_l1: u64,
+        max_l2_blocks_per_l1: u32,
     },
 }
 
@@ -46,7 +46,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
 
     pub(crate) fn modify_max_l2_blocks_per_l1(
         &self,
-        max_l2_blocks_per_l1: u64,
+        max_l2_blocks_per_l1: u32,
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<CallResponse> {
@@ -54,8 +54,13 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
             *context.sender() == self.get_authority(working_set),
             "Only authority can change the max L2 blocks per L1"
         );
-        self.max_l2_blocks_per_l1
-            .set(&max_l2_blocks_per_l1, working_set);
+
+        let mut data = self.data.get(working_set).expect("Data must be set");
+
+        data.max_l2_blocks_per_l1 = max_l2_blocks_per_l1;
+
+        self.data.set(&data, working_set);
+
         Ok(CallResponse::default())
     }
 }

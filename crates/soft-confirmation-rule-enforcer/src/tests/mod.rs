@@ -14,7 +14,7 @@ fn sc_info_helper() -> HookSoftConfirmationInfo {
     HookSoftConfirmationInfo {
         l2_height: 1,
         da_slot_height: 1,
-        da_slot_hash: [0; 32],
+        da_slot_hash: [1; 32],
         da_slot_txs_commitment: [0; 32],
         pre_state_root: vec![0; 32],
         current_spec: SpecId::Genesis,

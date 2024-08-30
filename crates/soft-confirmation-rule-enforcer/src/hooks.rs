@@ -1,10 +1,10 @@
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
-use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
 use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
-use crate::SoftConfirmationRuleEnforcer;
+use crate::{RuleEnforcerData, SoftConfirmationRuleEnforcer};
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
 where
@@ -19,29 +19,26 @@ where
     fn apply_block_count_rule(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        max_l2_blocks_per_l1: u32,
+        last_da_root_hash: &mut [u8; 32],
+        counter: &mut u32,
     ) -> Result<(), SoftConfirmationError> {
         let da_root_hash = soft_confirmation_info.da_slot_hash();
-        let l2_block_count = self
-            .da_root_hash_to_number
-            .get(&da_root_hash, working_set)
-            .unwrap_or(0);
-        let max_l2_blocks_per_l1 = self
-            .max_l2_blocks_per_l1
-            .get(working_set)
-            .expect("max L2 blocks per L1 must be set");
 
-        // Adding one more l2 block will exceed the max L2 blocks per L1
-        if l2_block_count + 1 > max_l2_blocks_per_l1 {
-            // block count per l1 block should not be more than max L2 blocks per L1
-            return Err(SoftConfirmationError::Other(
-                "Too many soft confirmations on DA slot".to_string(),
-            ));
+        if da_root_hash == *last_da_root_hash {
+            *counter += 1;
+
+            // Adding one more l2 block will exceed the max L2 blocks per L1
+            if *counter > max_l2_blocks_per_l1 {
+                // block count per l1 block should not be more than max L2 blocks per L1
+                return Err(SoftConfirmationError::Other(
+                    "Too many soft confirmations on DA slot".to_string(),
+                ));
+            }
+        } else {
+            *counter = 1;
+            *last_da_root_hash = da_root_hash;
         }
-
-        // increment the block count
-        self.da_root_hash_to_number
-            .set(&da_root_hash, &(l2_block_count + 1), working_set);
 
         Ok(())
     }
@@ -52,18 +49,17 @@ where
     fn apply_timestamp_rule(
         &self,
         soft_confirmation: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        last_timestamp: &mut u64,
     ) -> Result<(), SoftConfirmationError> {
         let current_timestamp = soft_confirmation.timestamp();
-        let last_timestamp = self.last_timestamp.get(working_set).unwrap_or(0);
 
-        if current_timestamp < last_timestamp {
+        if current_timestamp < *last_timestamp {
             return Err(SoftConfirmationError::Other(
                 "Timestamp should be greater than last timestamp".to_string(),
             ));
         }
 
-        self.last_timestamp.set(&current_timestamp, working_set);
+        *last_timestamp = current_timestamp;
 
         Ok(())
     }
@@ -79,9 +75,34 @@ where
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {
-        self.apply_block_count_rule(soft_confirmation_info, working_set)?;
+        let RuleEnforcerData {
+            max_l2_blocks_per_l1,
+            mut last_da_root_hash,
+            mut counter,
+            mut last_timestamp,
+        } = self
+            .data
+            .get(working_set)
+            .expect("should be set in genesis");
 
-        self.apply_timestamp_rule(soft_confirmation_info, working_set)?;
+        self.apply_block_count_rule(
+            soft_confirmation_info,
+            max_l2_blocks_per_l1,
+            &mut last_da_root_hash,
+            &mut counter,
+        )?;
+
+        self.apply_timestamp_rule(soft_confirmation_info, &mut last_timestamp)?;
+
+        self.data.set(
+            &RuleEnforcerData {
+                max_l2_blocks_per_l1,
+                last_da_root_hash,
+                counter,
+                last_timestamp,
+            },
+            working_set,
+        );
 
         Ok(())
     }
