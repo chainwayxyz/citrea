@@ -42,7 +42,7 @@ fn main() {
 
         assert_eq!(runtime.module_address(&module), runtime.first.address());
         let _ = runtime
-            .dispatch_call(module, working_set, 2, SpecId::Genesis, &context)
+            .dispatch_call(module, working_set, &context)
             .unwrap();
     }
 
@@ -62,7 +62,7 @@ fn main() {
         assert_eq!(runtime.module_address(&module), runtime.second.address());
 
         let _ = runtime
-            .dispatch_call(module, working_set, 3, SpecId::Genesis, &context)
+            .dispatch_call(module, working_set, &context)
             .unwrap();
     }
 

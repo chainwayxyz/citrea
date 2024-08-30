@@ -92,7 +92,6 @@ pub mod my_module {
 }
 
 use my_module::query::{QueryModuleRpcImpl, QueryModuleRpcServer};
-use sov_rollup_interface::spec::SpecId;
 
 #[expose_rpc]
 #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
@@ -125,6 +124,6 @@ fn main() {
     let context = C::new(sender, sequencer, 1, SpecId::Genesis, 0);
 
     let _ = runtime
-        .dispatch_call(module, working_set, SpecId::Genesis, &context)
+        .dispatch_call(module, working_set, &context)
         .unwrap();
 }
