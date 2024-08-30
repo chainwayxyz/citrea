@@ -33,9 +33,10 @@ fn change_max_l2_blocks_per_l1_and_authority() {
 
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .max_l2_blocks_per_l1
+            .data
             .get(&mut working_set)
-            .unwrap(),
+            .unwrap()
+            .max_l2_blocks_per_l1,
         999
     );
 
@@ -76,9 +77,10 @@ fn change_max_l2_blocks_per_l1_and_authority() {
     // make sure it is still the same
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .max_l2_blocks_per_l1
+            .data
             .get(&mut working_set)
-            .unwrap(),
+            .unwrap()
+            .max_l2_blocks_per_l1,
         999
     );
     assert_eq!(
@@ -101,9 +103,10 @@ fn change_max_l2_blocks_per_l1_and_authority() {
 
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .max_l2_blocks_per_l1
+            .data
             .get(&mut working_set)
-            .unwrap(),
+            .unwrap()
+            .max_l2_blocks_per_l1,
         123
     );
 

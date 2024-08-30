@@ -13,28 +13,32 @@ pub use query::*;
 mod tests;
 
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
-use sov_modules_api::{Context, DaSpec, ModuleInfo, StateMap, StateValue, WorkingSet};
+use sov_modules_api::{Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct RuleEnforcerData {
+    ///  Maximum number of L2 blocks per L1 slot.
+    max_l2_blocks_per_l1: u32,
+    /// Last DA slot hash.
+    last_da_root_hash: [u8; 32],
+    /// How many L2 blocks were published for a specific L1 block.
+    counter: u32,
+    /// Sequencer's block timestamp
+    last_timestamp: u64,
+}
 
 #[derive(ModuleInfo, Clone)]
 pub struct SoftConfirmationRuleEnforcer<C: Context, Da: DaSpec> {
     /// Address of the SoftConfirmationRuleEnforcer module.
     #[address]
     address: C::Address,
-    ///  Maximum number of L2 blocks per L1 slot.
     #[state]
-    pub(crate) max_l2_blocks_per_l1: StateValue<u64, BcsCodec>,
-    /// Mapping from DA root hash to a number.
-    /// Checks how many L1 blocks were published for a specific L1 block with given DA root hash.
-    #[state]
-    pub(crate) da_root_hash_to_number: StateMap<[u8; 32], u64, BcsCodec>,
+    pub(crate) data: StateValue<RuleEnforcerData, BcsCodec>,
     /// Authority address. Address of the sequencer.
     /// This address is allowed to modify the max L2 blocks per L1.
     #[state]
     pub(crate) authority: StateValue<C::Address, BcsCodec>,
-    /// Sequencer's block timestamp
-    #[state]
-    pub(crate) last_timestamp: StateValue<u64, BcsCodec>,
     /// Phantom state using the da type.
     /// This is used to make sure that the state is generic over the DA type.
     #[allow(dead_code)]
