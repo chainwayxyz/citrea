@@ -33,6 +33,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn execute_system_events(
         &self,
         system_events: Vec<SystemEvent>,
+        l1_fee_rate: u128,
         working_set: &mut WorkingSet<C>,
     ) {
         let block_env = self
@@ -42,11 +43,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
-
-        let l1_fee_rate = self
-            .l1_fee_rate
-            .get(working_set)
-            .expect("L1 fee rate must be set");
 
         let l1_block_hash_exists = self
             .accounts
@@ -128,7 +124,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn execute_call(
         &self,
         txs: Vec<RlpEvmTransaction>,
-        _context: &C,
+        context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
@@ -147,10 +143,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
-        let l1_fee_rate = self
-            .l1_fee_rate
-            .get(working_set)
-            .expect("L1 fee rate must be set");
+        let l1_fee_rate = context.l1_fee_rate();
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
 
         let block_number = block_env.number;

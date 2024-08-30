@@ -23,6 +23,7 @@ mod spec {
         Hash,
     )]
     #[borsh(use_discriminant = true)]
+    #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub enum SpecId {
         /// Genesis spec
         #[default]
@@ -48,6 +49,7 @@ mod spec {
         Hash,
     )]
     #[borsh(use_discriminant = true)]
+    #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub enum SpecId {
         /// Genesis spec
         #[default]

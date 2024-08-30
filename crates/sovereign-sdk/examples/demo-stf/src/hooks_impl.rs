@@ -26,7 +26,8 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         let RuntimeTxHook {
             height,
             sequencer,
-            current_spec: _current_spec,
+            current_spec,
+            l1_fee_rate,
         } = arg;
         let AccountsTxHook { sender, sequencer } =
             self.accounts
@@ -35,7 +36,13 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         let hook = BankTxHook { sender, sequencer };
         self.bank.pre_dispatch_tx_hook(tx, working_set, &hook)?;
 
-        Ok(C::new(hook.sender, hook.sequencer, *height))
+        Ok(C::new(
+            hook.sender,
+            hook.sequencer,
+            *height,
+            *current_spec,
+            *l1_fee_rate,
+        ))
     }
 
     fn post_dispatch_tx_hook(
@@ -76,7 +83,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn begin_soft_confirmation_hook(
         &self,
-        _soft_confirmation: &mut HookSoftConfirmationInfo,
+        _soft_confirmation: &HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError> {
         // Before executing each batch, check that the sender is registered as a sequencer
@@ -85,6 +92,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     fn end_soft_confirmation_hook(
         &self,
+        _soft_confirmation: HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {
         Ok(())

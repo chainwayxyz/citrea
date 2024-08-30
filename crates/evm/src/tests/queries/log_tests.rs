@@ -21,7 +21,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _) = init_evm();
+    let (evm, mut working_set, _, _) = init_evm();
 
     let result = evm.eth_get_logs(
         Filter {
@@ -66,24 +66,32 @@ fn log_filter_test_at_block_hash() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let l1_fee_rate = 1;
+    let l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy logs contract
         // call the contract function
@@ -105,7 +113,7 @@ fn log_filter_test_at_block_hash() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     // `AnotherLog` topics
@@ -273,24 +281,32 @@ fn log_filter_test_with_range() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy selfdestruct contract
         // call the contract function
@@ -312,8 +328,10 @@ fn log_filter_test_with_range() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
 
     // Test with block range from start to finish, should get all logs
     let empty_topics = [
@@ -335,24 +353,29 @@ fn log_filter_test_with_range() {
 
     assert_eq!(rpc_logs.len(), 4);
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [99u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [99u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
         // call the contract function
         evm.call(
             CallMessage {
@@ -369,7 +392,7 @@ fn log_filter_test_with_range() {
         .unwrap();
         // the last topic will be Keccak256("message")
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[100u8; 32].into(), &mut working_set.accessory_state());
     let filter = Filter {
         block_option: crate::FilterBlockOption::Range {
@@ -397,24 +420,32 @@ fn test_log_limits() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -459,8 +490,10 @@ fn test_log_limits() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
 
     // Test with block range from start to finish, should get all logs
     let empty_topics = [
@@ -497,23 +530,24 @@ fn test_log_limits() {
     ];
 
     for _ in 1..100_001 {
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32].to_vec(),
+            current_spec: SpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        };
         // generate 100_000 blocks to test the max block range limit
-        evm.begin_soft_confirmation_hook(
-            &HookSoftConfirmationInfo {
-                da_slot_hash: [5u8; 32],
-                da_slot_height: 1,
-                da_slot_txs_commitment: [42u8; 32],
-                pre_state_root: [99u8; 32].to_vec(),
-                current_spec: SpecId::Genesis,
-                pub_key: vec![],
-                deposit_data: vec![],
-                l1_fee_rate: 1,
-                timestamp: 0,
-            },
-            &mut working_set,
-        );
-        evm.end_soft_confirmation_hook(&mut working_set);
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+        l2_height += 1;
     }
 
     let filter = Filter {

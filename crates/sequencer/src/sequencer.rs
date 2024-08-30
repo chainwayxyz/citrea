@@ -33,8 +33,8 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData,
-    StateDiff, UnsignedSoftConfirmationBatch, WorkingSet,
+    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
+    UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
@@ -260,18 +260,15 @@ where
         pub_key: &[u8],
         prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
-        mut signed_batch: SignedSoftConfirmationBatch,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        let active_fork_spec = self.fork_manager.active_fork().spec_id;
         match self.stf.begin_soft_confirmation(
-            active_fork_spec,
             pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             &da_block_header,
-            &mut signed_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), mut working_set_to_discard) => {
                 let block_gas_limit = self.db_provider.cfg().block_gas_limit;
@@ -303,7 +300,7 @@ where
                             let txs = vec![signed_blob.clone()];
 
                             let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
-                                active_fork_spec,
+                                soft_confirmation_info.clone(),
                                 txs.clone(),
                                 working_set_to_discard,
                             );
@@ -363,7 +360,7 @@ where
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
-            None => (0, da_height),
+            None => (1, da_height),
         };
         anyhow::ensure!(
             l1_height == da_height || l1_height + 1 == da_height,
@@ -381,19 +378,18 @@ where
 
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
-        let batch_info = HookSoftConfirmationInfo {
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
             current_spec: active_fork_spec,
-            pub_key,
+            pub_key: pub_key.clone(),
             l1_fee_rate,
             timestamp,
         };
-        // initially create sc info and call begin soft confirmation hook with it
-        let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
 
         let prestate = self
             .storage_manager
@@ -403,8 +399,6 @@ where
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
         );
-
-        let pub_key = signed_batch.pub_key().clone();
 
         let evm_txs = self.get_best_transactions()?;
 
@@ -417,7 +411,7 @@ where
                 &pub_key,
                 prestate.clone(),
                 da_block.header().clone(),
-                signed_batch.clone(),
+                soft_confirmation_info.clone(),
                 l2_block_mode,
             )
             .await?;
@@ -429,13 +423,11 @@ where
 
         // Execute the selected transactions
         match self.stf.begin_soft_confirmation(
-            active_fork_spec,
             &pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             da_block.header(),
-            &mut signed_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), mut batch_workspace) => {
                 let mut txs = vec![];
@@ -452,14 +444,15 @@ where
                     txs.push(signed_blob);
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                        active_fork_spec,
+                        soft_confirmation_info,
                         txs.clone(),
                         batch_workspace,
                     );
                 }
 
                 // create the unsigned batch with the txs then sign th sc
-                let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                let unsigned_batch = UnsignedSoftConfirmation::new(
+                    l2_height,
                     da_block.header().height(),
                     da_block.header().hash().into(),
                     da_block.header().txs_commitment().into(),
@@ -474,6 +467,7 @@ where
 
                 let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     active_fork_spec,
+                    self.state_root.as_ref().to_vec(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
                     tx_receipts,
@@ -1037,16 +1031,17 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch(
         &mut self,
-        soft_confirmation: UnsignedSoftConfirmationBatch,
+        soft_confirmation: UnsignedSoftConfirmation,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmationBatch> {
+    ) -> anyhow::Result<SignedSoftConfirmation> {
         let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
-        Ok(SignedSoftConfirmationBatch::new(
+        Ok(SignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
             hash,
             prev_soft_confirmation_hash,
             soft_confirmation.da_slot_height(),

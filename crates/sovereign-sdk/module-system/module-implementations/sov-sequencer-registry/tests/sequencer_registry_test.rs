@@ -1,6 +1,6 @@
 use helpers::*;
 use sov_mock_da::MockAddress;
-use sov_modules_api::{Context, Error, Module, ModuleInfo, WorkingSet};
+use sov_modules_api::{Context, Error, Module, ModuleInfo, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
@@ -34,7 +34,7 @@ fn test_registration_lifecycle() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(sequencer_address, reward_address, 1);
+    let sender_context = C::new(sequencer_address, reward_address, 1, SpecId::Genesis, 0);
 
     let balance_before = test_sequencer
         .query_balance(sequencer_address, working_set)
@@ -105,7 +105,7 @@ fn test_registration_not_enough_funds() {
 
     let sequencer_address = generate_address(LOW_FUND_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(sequencer_address, reward_address, 1);
+    let sender_context = C::new(sequencer_address, reward_address, 1, SpecId::Genesis, 0);
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
@@ -159,7 +159,7 @@ fn test_registration_second_time() {
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(sequencer_address, reward_address, 1);
+    let sender_context = C::new(sequencer_address, reward_address, 1, SpecId::Genesis, 0);
 
     let register_message = CallMessage::Register {
         da_address: da_address.as_ref().to_vec(),
@@ -184,9 +184,9 @@ fn test_exit_different_sender() {
 
     let sequencer_address = generate_address(ANOTHER_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(sequencer_address, reward_address, 1);
+    let sender_context = C::new(sequencer_address, reward_address, 1, SpecId::Genesis, 0);
     let attacker_address = generate_address("some_random_key");
-    let attacker_context = C::new(attacker_address, reward_address, 1);
+    let attacker_context = C::new(attacker_address, reward_address, 1, SpecId::Genesis, 0);
 
     let register_message = CallMessage::Register {
         da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
@@ -221,7 +221,7 @@ fn test_allow_exit_last_sequencer() {
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let rewards_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(sequencer_address, rewards_address, 1);
+    let sender_context = C::new(sequencer_address, rewards_address, 1, SpecId::Genesis, 0);
     let exit_message = CallMessage::Exit {
         da_address: GENESIS_SEQUENCER_DA_ADDRESS.to_vec(),
     };
@@ -264,7 +264,7 @@ fn test_preferred_sequencer_returned_and_removed() {
 
     let sequencer_address = generate_address(GENESIS_SEQUENCER_KEY);
     let reward_address = generate_address(REWARD_SEQUENCER_KEY);
-    let sender_context = C::new(sequencer_address, reward_address, 1);
+    let sender_context = C::new(sequencer_address, reward_address, 1, SpecId::Genesis, 0);
     let exit_message = CallMessage::Exit {
         da_address: GENESIS_SEQUENCER_DA_ADDRESS.to_vec(),
     };

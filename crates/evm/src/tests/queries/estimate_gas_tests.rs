@@ -276,7 +276,7 @@ fn test_access_list() {
     // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
     // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
 
-    let (evm, mut working_set, signer) = init_evm_with_caller_contract();
+    let (evm, mut working_set, signer, _) = init_evm_with_caller_contract();
 
     let caller = CallerContract::default();
     let input_data = caller.call_set_call_data(
@@ -339,7 +339,7 @@ fn test_access_list() {
 
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let simple_call_data = 0;
     let simple_result =
