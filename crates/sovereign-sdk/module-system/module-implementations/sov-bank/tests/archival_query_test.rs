@@ -3,7 +3,7 @@ mod helpers;
 use helpers::*;
 use sov_bank::{get_genesis_token_address, Amount, Bank, CallMessage, Coins};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Address, Context, Module, StateReaderAndWriter, WorkingSet};
+use sov_modules_api::{Address, Context, Module, SpecId, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::storage::{StorageKey, StorageValue};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -264,7 +264,7 @@ fn transfer(
         },
     };
 
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     bank.call(transfer_message, &sender_context, working_set)
         .expect("Transfer call failed");

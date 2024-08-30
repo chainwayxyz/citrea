@@ -16,7 +16,7 @@ fn test_value_setter() {
     #[cfg(feature = "native")]
     {
         let config = ValueSetterConfig { admin };
-        let context = DefaultContext::new(admin, sequencer, 1);
+        let context = DefaultContext::new(admin, sequencer, 1, sov_modules_api::SpecId::Genesis, 0);
         test_value_setter_helper(context, &config, &mut working_set);
     }
 
@@ -25,7 +25,8 @@ fn test_value_setter() {
     // Test Zk-Context
     {
         let config = ValueSetterConfig { admin };
-        let zk_context = ZkDefaultContext::new(admin, sequencer, 1);
+        let zk_context =
+            ZkDefaultContext::new(admin, sequencer, 1, sov_modules_api::SpecId::Genesis, 0);
         let mut zk_working_set = WorkingSet::with_witness(ZkStorage::new(), witness);
         test_value_setter_helper(zk_context, &config, &mut zk_working_set);
     }
@@ -77,7 +78,8 @@ fn test_err_on_sender_is_not_admin() {
         let config = ValueSetterConfig {
             admin: sender_not_admin,
         };
-        let context = DefaultContext::new(sender, sequencer, 1);
+        let context =
+            DefaultContext::new(sender, sequencer, 1, sov_modules_api::SpecId::Genesis, 0);
         test_err_on_sender_is_not_admin_helper(context, &config, &mut prover_working_set);
     }
     let (_, witness) = prover_working_set.checkpoint().freeze();
@@ -88,7 +90,8 @@ fn test_err_on_sender_is_not_admin() {
             admin: sender_not_admin,
         };
         let zk_backing_store = ZkStorage::new();
-        let zk_context = ZkDefaultContext::new(sender, sequencer, 1);
+        let zk_context =
+            ZkDefaultContext::new(sender, sequencer, 1, sov_modules_api::SpecId::Genesis, 0);
         let zk_working_set = &mut WorkingSet::with_witness(zk_backing_store, witness);
         test_err_on_sender_is_not_admin_helper(zk_context, &config, zk_working_set);
     }

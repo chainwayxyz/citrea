@@ -1,26 +1,24 @@
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::sync::Mutex;
 
+use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     native_debug, native_error, Context, DaSpec, DispatchCall, Signature, StateCheckpoint,
     UnsignedSoftConfirmationBatch, WorkingSet,
 };
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
-use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
 };
-use sov_state::Storage;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
-use std::sync::Mutex;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
-use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
-use crate::{RawTx, Runtime, RuntimeTxHook, SlashingReason, TxEffect};
+use crate::{Runtime, RuntimeTxHook, TxEffect};
 
 use lru::LruCache;
 
@@ -90,33 +88,38 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn apply_sov_txs_inner(
         &self,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
-        current_spec: SpecId,
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        let txs = self.verify_txs_stateless_soft(&txs);
-
-        let messages = self
-            .decode_txs(&txs)
-            .expect("Decoding transactions from the sequencer failed");
-
-        // Sanity check after pre processing
-        assert_eq!(
-            txs.len(),
-            messages.len(),
-            "Error in preprocessing batch, there should be same number of txs and messages"
-        );
-        // Dispatching transactions
         let mut tx_receipts = Vec::with_capacity(txs.len());
-        for (TransactionAndRawHash { tx, raw_tx_hash }, msg) in
-            txs.into_iter().zip(messages.into_iter())
-        {
+        for raw_tx in txs {
+            let raw_tx_hash = <C as Spec>::Hasher::digest(&raw_tx).into();
+            // Stateless verification of transaction, such as signature check
+            // TODO: https://github.com/chainwayxyz/citrea/issues/1061
+            let tx = Transaction::<C>::deserialize_reader(&mut &*raw_tx)
+                .expect("Sequencer must not include non-deserializable transaction.");
+            tx.verify()
+                .expect("Sequencer must include correctly signed transaction.");
+            // Checks that runtime message can be decoded from transaction.
+            // If a single message cannot be decoded, sequencer is slashed
+            let msg = match RT::decode_call(tx.runtime_msg()) {
+                Ok(msg) => msg,
+                Err(e) => {
+                    native_error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
+                    panic!("Decoding transactions from the sequencer failed");
+                }
+            };
+
+            // Dispatching transactions
+
             // Pre dispatch hook
             // TODO set the sequencer pubkey
             let hook = RuntimeTxHook {
-                height: 1,
+                height: soft_confirmation_info.l2_height(),
                 sequencer: tx.pub_key().clone(),
-                current_spec,
+                current_spec: soft_confirmation_info.current_spec(),
+                l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
             };
             let ctx = match self
                 .runtime
@@ -141,9 +144,7 @@ where
             // Commit changes after pre_dispatch_tx_hook
             sc_workspace = sc_workspace.checkpoint().to_revertable();
 
-            let tx_result = self
-                .runtime
-                .dispatch_call(msg, &mut sc_workspace, current_spec, &ctx);
+            let tx_result = self.runtime.dispatch_call(msg, &mut sc_workspace, &ctx);
 
             let events = sc_workspace.take_events();
             let tx_effect = match tx_result {
@@ -190,25 +191,19 @@ where
     pub fn begin_soft_confirmation_inner(
         &self,
         mut batch_workspace: WorkingSet<C>,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
-        pre_state_root: &<C::Storage as Storage>::Root,
-        current_spec: SpecId,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!(
-            "Beginning soft confirmation 0x{} from sequencer: 0x{}",
-            hex::encode(soft_confirmation.hash()),
-            hex::encode(soft_confirmation.sequencer_pub_key())
+            "Beginning soft confirmation #{} from sequencer: 0x{}",
+            soft_confirmation_info.l2_height(),
+            hex::encode(soft_confirmation_info.sequencer_pub_key())
         );
 
         // ApplySoftConfirmationHook: begin
-        if let Err(e) = self.runtime.begin_soft_confirmation_hook(
-            &mut HookSoftConfirmationInfo::new(
-                soft_confirmation.clone(),
-                pre_state_root.as_ref().to_vec(),
-                current_spec,
-            ),
-            &mut batch_workspace,
-        ) {
+        if let Err(e) = self
+            .runtime
+            .begin_soft_confirmation_hook(soft_confirmation_info, &mut batch_workspace)
+        {
             native_error!(
                 "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {:?}",
                 e
@@ -232,13 +227,18 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
         &self,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
+        current_spec: SpecId,
+        pre_state_root: Vec<u8>,
+        soft_confirmation: &mut SignedSoftConfirmation,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
+        let hook_soft_confirmation_info =
+            HookSoftConfirmationInfo::new(soft_confirmation.clone(), pre_state_root, current_spec);
+
         if let Err(e) = self
             .runtime
-            .end_soft_confirmation_hook(&mut batch_workspace)
+            .end_soft_confirmation_hook(hook_soft_confirmation_info, &mut batch_workspace)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             native_error!("Failed on `end_soft_confirmation_hook`: {:?}", e);
@@ -248,13 +248,14 @@ where
 
         (
             Ok(SoftConfirmationReceipt {
+                l2_height: soft_confirmation.l2_height(),
                 hash: soft_confirmation.hash(),
                 prev_hash: soft_confirmation.prev_hash(),
                 tx_receipts,
                 da_slot_height: soft_confirmation.da_slot_height(),
                 da_slot_hash: soft_confirmation.da_slot_hash().into(),
                 da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
-                soft_confirmation_signature: soft_confirmation.signature().to_vec(),
+                soft_confirmation_signature: soft_confirmation.signature(),
                 pub_key: soft_confirmation.sequencer_pub_key().to_vec(),
                 deposit_data: soft_confirmation.deposit_data().clone(),
                 l1_fee_rate: soft_confirmation.l1_fee_rate(),
@@ -262,66 +263,6 @@ where
             }),
             batch_workspace.checkpoint(),
         )
-    }
-
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    pub(crate) fn _apply_soft_confirmation_inner(
-        &self,
-        checkpoint: StateCheckpoint<C>,
-        soft_confirmation: &mut SignedSoftConfirmationBatch,
-        pre_state_root: &<C::Storage as Storage>::Root,
-        current_spec: SpecId,
-    ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
-        let batch_workspace = checkpoint.to_revertable();
-
-        match self.begin_soft_confirmation_inner(
-            batch_workspace,
-            soft_confirmation,
-            pre_state_root,
-            current_spec,
-        ) {
-            (Ok(()), batch_workspace) => {
-                // TODO: wait for txs here, apply_sov_txs can be called multiple times
-                let (batch_workspace, tx_receipts) = self.apply_sov_txs_inner(
-                    soft_confirmation.txs(),
-                    current_spec,
-                    batch_workspace,
-                );
-
-                self.end_soft_confirmation_inner(soft_confirmation, tx_receipts, batch_workspace)
-            }
-            (Err(err), batch_workspace) => (Err(err), batch_workspace.revert()),
-        }
-    }
-
-    // Stateless verification of transaction, such as signature check
-    // Single malformed transaction results in sequencer slashing.
-    fn verify_txs_stateless_soft(&self, txs: &[Vec<u8>]) -> Vec<TransactionAndRawHash<C>> {
-        verify_txs_stateless(
-            txs.iter()
-                .map(|tx| RawTx { data: tx.clone() })
-                .collect::<Vec<_>>(),
-        )
-        .expect("Sequencer must not include non-deserializable transaction.")
-    }
-
-    // Checks that runtime message can be decoded from transaction.
-    // If a single message cannot be decoded, sequencer is slashed
-    fn decode_txs(
-        &self,
-        txs: &[TransactionAndRawHash<C>],
-    ) -> Result<Vec<<RT as DispatchCall>::Decodable>, SlashingReason> {
-        let mut decoded_messages = Vec::with_capacity(txs.len());
-        for TransactionAndRawHash { tx, raw_tx_hash } in txs {
-            match RT::decode_call(tx.runtime_msg()) {
-                Ok(msg) => decoded_messages.push(msg),
-                Err(e) => {
-                    native_error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
-                    return Err(SlashingReason::InvalidTransactionEncoding);
-                }
-            }
-        }
-        Ok(decoded_messages)
     }
 
     /// Verify and cache soft confirmation signature.

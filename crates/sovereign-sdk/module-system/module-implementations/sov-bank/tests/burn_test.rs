@@ -4,7 +4,7 @@ use sov_bank::{
     TotalSupplyResponse,
 };
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -24,9 +24,9 @@ fn burn_deployed_tokens() {
 
     let sender_address = generate_address("just_sender");
     let sequencer_address = generate_address("sequencer");
-    let sender_context = C::new(sender_address, sequencer_address, 1);
+    let sender_context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
     let minter_address = generate_address("minter");
-    let minter_context = C::new(minter_address, sequencer_address, 1);
+    let minter_context = C::new(minter_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -214,7 +214,7 @@ fn burn_initial_tokens() {
         },
     };
 
-    let context = C::new(sender_address, sequencer_address, 1);
+    let context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
     bank.call(burn_message, &context, &mut working_set)
         .expect("Failed to burn token");
     assert!(working_set.events().is_empty());

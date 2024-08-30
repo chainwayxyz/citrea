@@ -17,7 +17,7 @@ use crate::Evm;
 
 #[test]
 fn call_contract_without_value() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -65,26 +65,25 @@ fn call_contract_without_value() {
 
 #[test]
 fn test_state_change() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, l2_height) = init_evm();
 
     let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
 
     let random_address = Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 1,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let call_result = evm.get_call(
         TransactionRequest {
@@ -103,7 +102,7 @@ fn test_state_change() {
 
     assert_eq!(call_result.unwrap(), Bytes::from_str("0x").unwrap());
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let balance_2 = evm.get_balance(signer.address(), None, &mut working_set);
@@ -112,7 +111,7 @@ fn test_state_change() {
 
 #[test]
 fn call_contract_with_value_transfer() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -138,7 +137,7 @@ fn call_contract_with_value_transfer() {
 
 #[test]
 fn call_contract_with_invalid_nonce() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -188,7 +187,7 @@ fn call_contract_with_invalid_nonce() {
 
 #[test]
 fn call_to_nonexistent_contract() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
@@ -216,7 +215,7 @@ fn call_to_nonexistent_contract() {
 
 #[test]
 fn call_with_high_gas_price() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -246,7 +245,7 @@ fn call_with_high_gas_price() {
 
 #[test]
 fn test_eip1559_fields_call() {
-    let (evm, mut working_set, signer) = init_evm();
+    let (evm, mut working_set, signer, _) = init_evm();
 
     let default_result = eth_call_eip1559(
         &evm,

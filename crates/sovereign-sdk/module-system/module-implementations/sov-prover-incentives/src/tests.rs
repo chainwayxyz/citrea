@@ -3,7 +3,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkvm};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Context, Module, Spec, WorkingSet};
+use sov_modules_api::{Address, Context, Module, Spec, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 
 use crate::ProverIncentives;
@@ -92,7 +92,7 @@ fn test_burn_on_invalid_proof() {
 
     // Process an invalid proof
     {
-        let context = DefaultContext::new(prover_address, sequencer, 1);
+        let context = DefaultContext::new(prover_address, sequencer, 1, SpecId::Genesis, 0);
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: false,
@@ -128,7 +128,7 @@ fn test_valid_proof() {
 
     // Process a valid proof
     {
-        let context = DefaultContext::new(prover_address, sequencer, 1);
+        let context = DefaultContext::new(prover_address, sequencer, 1, SpecId::Genesis, 0);
         let proof = MockProof {
             program_id: MOCK_CODE_COMMITMENT,
             is_valid: true,
@@ -153,7 +153,7 @@ fn test_unbonding() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (module, prover_address, sequencer) = setup(&mut working_set);
-    let context = DefaultContext::new(prover_address, sequencer, 1);
+    let context = DefaultContext::new(prover_address, sequencer, 1, SpecId::Genesis, 0);
     let token_address = module
         .bonding_token_address
         .get(&mut working_set)
@@ -204,7 +204,7 @@ fn test_prover_not_bonded() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let (module, prover_address, sequencer) = setup(&mut working_set);
-    let context = DefaultContext::new(prover_address, sequencer, 1);
+    let context = DefaultContext::new(prover_address, sequencer, 1, SpecId::Genesis, 0);
 
     // Unbond the prover
     module

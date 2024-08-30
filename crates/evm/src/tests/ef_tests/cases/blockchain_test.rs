@@ -59,32 +59,39 @@ impl BlockchainTestCase {
         mut working_set: WorkingSet<DefaultContext>,
         storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
         root: &[u8; 32],
+        l2_height: u64,
     ) -> (
         WorkingSet<DefaultContext>,
         ProverStorage<DefaultStorageSpec, SnapshotManager>,
     ) {
+        let l1_fee_rate = 0;
         // Call begin_soft_confirmation_hook
-        evm.begin_soft_confirmation_hook(
-            &HookSoftConfirmationInfo {
-                da_slot_hash: [0u8; 32],
-                da_slot_height: 0,
-                da_slot_txs_commitment: [0u8; 32],
-                pre_state_root: root.to_vec(),
-                current_spec: SovSpecId::Genesis,
-                pub_key: vec![],
-                deposit_data: vec![],
-                l1_fee_rate: 0,
-                timestamp: 0,
-            },
-            &mut working_set,
-        );
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
+            da_slot_hash: [0u8; 32],
+            da_slot_height: 0,
+            da_slot_txs_commitment: [0u8; 32],
+            pre_state_root: root.to_vec(),
+            current_spec: SovSpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        };
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
         let dummy_address = generate_address::<DefaultContext>("dummy");
         let sequencer_address = generate_address::<DefaultContext>("sequencer");
-        let context = DefaultContext::new(dummy_address, sequencer_address, 1);
+        let context = DefaultContext::new(
+            dummy_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
         let _ = evm.execute_call(txs, &context, &mut working_set);
 
-        evm.end_soft_confirmation_hook(&mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         let root = commit(working_set, storage.clone());
         let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
         evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
@@ -176,6 +183,7 @@ impl Case for BlockchainTestCase {
                 }
 
                 let (mut evm, _, mut storage) = get_evm_with_storage(&evm_config);
+                let mut l2_height = 2;
 
                 let mut working_set = WorkingSet::new(storage.clone());
                 evm.cfg.set(
@@ -217,8 +225,16 @@ impl Case for BlockchainTestCase {
                         })
                         .collect();
 
-                    (working_set, storage) =
-                        self.execute_transactions(&mut evm, txs, working_set, storage, &root);
+                    (working_set, storage) = self.execute_transactions(
+                        &mut evm,
+                        txs,
+                        working_set,
+                        storage,
+                        &root,
+                        l2_height,
+                    );
+
+                    l2_height += 1;
                 }
 
                 // Validate the post-state for the test case.
