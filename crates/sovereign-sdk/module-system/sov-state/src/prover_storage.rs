@@ -146,7 +146,10 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
-                println!("Compute state update hex key: {}", key);
+                println!(
+                    "Compute state update hex key: {}",
+                    hex::encode(key.key.as_ref())
+                );
                 println!("Compute state update hex value: {:?}", value);
                 let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
 
