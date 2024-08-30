@@ -12,7 +12,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
-    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
+    Genesis, Spec, StateCheckpoint, UnsignedSoftConfirmationBatch, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -279,12 +279,13 @@ where
         }
 
         // verify signature
-        if verify_soft_confirmation_signature::<C>(
-            unsigned,
-            soft_confirmation.signature().as_slice(),
-            sequencer_public_key,
-        )
-        .is_err()
+        if self
+            .verify_soft_confirmation_signature(
+                unsigned,
+                soft_confirmation.signature().as_slice(),
+                sequencer_public_key,
+            )
+            .is_err()
         {
             return (
                 Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
@@ -751,23 +752,4 @@ where
             fork_manager.active_fork().spec_id,
         )
     }
-}
-
-fn verify_soft_confirmation_signature<C: Context>(
-    unsigned_soft_confirmation: UnsignedSoftConfirmationBatch,
-    signature: &[u8],
-    sequencer_public_key: &[u8],
-) -> Result<(), anyhow::Error> {
-    let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
-
-    let signature = C::Signature::try_from(signature)?;
-
-    // TODO: if verify function is modified to take the claimed hash in signed soft confirmation
-    // we wouldn't need to hash the thing twice
-    signature.verify(
-        &C::PublicKey::try_from(sequencer_public_key)?,
-        message.as_slice(),
-    )?;
-
-    Ok(())
 }

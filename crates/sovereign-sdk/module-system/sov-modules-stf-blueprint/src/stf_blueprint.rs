@@ -1,8 +1,11 @@
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{
-    native_debug, native_error, Context, DaSpec, DispatchCall, StateCheckpoint, WorkingSet,
+    native_debug, native_error, Context, DaSpec, DispatchCall, Signature, StateCheckpoint,
+    UnsignedSoftConfirmationBatch, WorkingSet,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
 use sov_rollup_interface::spec::SpecId;
@@ -12,11 +15,32 @@ use sov_rollup_interface::stf::{
 use sov_state::Storage;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
+use std::sync::Mutex;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
 use crate::tx_verifier::{verify_txs_stateless, TransactionAndRawHash};
 use crate::{RawTx, Runtime, RuntimeTxHook, SlashingReason, TxEffect};
+
+use lru::LruCache;
+
+pub struct SignatureVerificationCache {
+    pub cache: Arc<Mutex<LruCache<(Vec<u8>, Vec<u8>), anyhow::Result<()>>>>,
+}
+
+impl SignatureVerificationCache {
+    pub fn new(capacity: NonZeroUsize) -> Self {
+        Self {
+            cache: Arc::new(Mutex::new(LruCache::new(capacity))),
+        }
+    }
+}
+
+impl Default for SignatureVerificationCache {
+    fn default() -> Self {
+        Self::new(NonZeroUsize::new(10_000).unwrap())
+    }
+}
 
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
@@ -28,6 +52,7 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>> {
     phantom_context: PhantomData<C>,
     phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
+    signature_cache: SignatureVerificationCache,
 }
 
 type ApplySoftConfirmationResult<Da> =
@@ -57,6 +82,7 @@ where
             phantom_context: PhantomData,
             phantom_vm: PhantomData,
             phantom_da: PhantomData,
+            signature_cache: SignatureVerificationCache::default(),
         }
     }
 
@@ -296,5 +322,35 @@ where
             }
         }
         Ok(decoded_messages)
+    }
+
+    /// Verify and cache soft confirmation signature.
+    pub fn verify_soft_confirmation_signature(
+        &self,
+        unsigned_soft_confirmation: UnsignedSoftConfirmationBatch,
+        signature: &[u8],
+        sequencer_public_key: &[u8],
+    ) -> Result<(), anyhow::Error> {
+        let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
+
+        let signature = C::Signature::try_from(signature)?;
+
+        // TODO: if verify function is modified to take the claimed hash in signed soft confirmation
+        // we wouldn't need to hash the thing twice
+        let mut cache = self.signature_cache.cache.lock().unwrap();
+        let verification = cache
+            .get_or_insert((sequencer_public_key.to_vec(), message.clone()), || {
+                Ok(signature.verify(
+                    &C::PublicKey::try_from(sequencer_public_key)?,
+                    message.as_slice(),
+                )?)
+            })
+            .is_ok();
+
+        if verification {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Signature verification failed"))
+        }
     }
 }

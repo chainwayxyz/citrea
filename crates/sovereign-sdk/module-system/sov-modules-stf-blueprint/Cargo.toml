@@ -22,6 +22,7 @@ rs_merkle = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
+lru = { workspace = true }
 
 # Risc0 deps
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }

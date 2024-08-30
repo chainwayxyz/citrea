@@ -7477,6 +7477,7 @@ dependencies = [
  "itertools 0.13.0",
  "jmt",
  "jsonrpsee",
+ "lru",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "rs_merkle",
