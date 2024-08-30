@@ -70,7 +70,7 @@ where
         for raw_tx in txs {
             let raw_tx_hash = <C as Spec>::Hasher::digest(&raw_tx).into();
             // Stateless verification of transaction, such as signature check
-            // Single malformed transaction results in sequencer slashing.
+            // TODO: https://github.com/chainwayxyz/citrea/issues/1061
             let tx = Transaction::<C>::deserialize_reader(&mut &*raw_tx)
                 .expect("Sequencer must not include non-deserializable transaction.");
             tx.verify()

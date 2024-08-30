@@ -112,6 +112,7 @@ pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     ) -> Self;
 
     /// TODO: remove
+    /// https://github.com/chainwayxyz/citrea/issues/1060
     fn sequencer(&self) -> &Self::Address;
 
     /// Returns the height of the current slot as reported by the kernel. This value is
