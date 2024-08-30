@@ -35,6 +35,24 @@ const DB_ACCOUNT_KEY_SIZE: usize = 25;
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
 pub const L1_FEE_OVERHEAD: usize = 4;
 
+/// These ratios are calculated because we want to charge the user for the amount of data they write to the state
+/// But in order to calculate that we need to know the size of the state diff which is not possible to calculate in a single transaction
+/// So we calculate these ratios to estimate the total diff size that would end up in a batch
+/*
+Let's consider a batch of 1 block with the following transactions:
+
+    Block 1:
+        Transaction 1: Account A transfers balance to Account C
+        Transaction 2: Account B transfers balance to Account C
+
+    In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
+    So A and B should share that cost thus we have the ratios below
+*/
+const BALANCE_RATIO: u8 = 32;
+const NONCE_RATIO: u8 = 55;
+const STORAGE_RATIO: u8 = 66;
+const ACCOUNT_RATIO: u8 = 29;
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
     pub l1_diff_size: u64,
@@ -464,7 +482,7 @@ fn calc_diff_size<EXT, DB: Database>(
         "Total accounts for diff size"
     );
 
-    let slot_size = 2 * size_of::<U256>(); // key + value;
+    let slot_size = 2 * size_of::<U256>() * STORAGE_RATIO as usize / 100; // key + value;
     let mut diff_size = 0usize;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
@@ -476,7 +494,7 @@ fn calc_diff_size<EXT, DB: Database>(
 
     for (addr, account) in account_changes {
         // Apply size of address of changed account
-        diff_size += size_of::<Address>();
+        diff_size += size_of::<Address>() * ACCOUNT_RATIO as usize / 100;
 
         if account.destroyed {
             let account = &state[addr];
@@ -498,13 +516,11 @@ fn calc_diff_size<EXT, DB: Database>(
             continue;
         }
 
-        // dev signer address 0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773
         // we don't check `code_changed` bc account_info is changed always for code_changed
-        if account.account_info_changed || account.code_changed {
+        if account.account_info_changed {
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size += DB_ACCOUNT_SIZE;
-            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
+            diff_size += (DB_ACCOUNT_SIZE + DB_ACCOUNT_KEY_SIZE) * NONCE_RATIO as usize / 100;
         }
 
         // Apply size of changed slots
@@ -512,6 +528,7 @@ fn calc_diff_size<EXT, DB: Database>(
 
         // Apply size of changed codes
         if account.code_changed {
+            diff_size += DB_ACCOUNT_KEY_SIZE + DB_ACCOUNT_KEY_SIZE;
             let account = &state[addr];
 
             if let Some(code) = account.info.code.as_ref() {
