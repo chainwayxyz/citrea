@@ -1,6 +1,5 @@
 use core::panic;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,16 +17,16 @@ use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
-use sov_db::ledger_db::{ProverLedgerOps, SlotCommit};
+use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
-use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmationBatch, SlotData, StateDiff};
+use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmation, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
@@ -41,7 +40,7 @@ type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
 type CommitmentStateTransitionData<Stf, Vm, Da> = (
     VecDeque<Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>>,
-    VecDeque<Vec<SignedSoftConfirmationBatch>>,
+    VecDeque<Vec<SignedSoftConfirmation>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
@@ -341,13 +340,11 @@ where
             bail!("Previous hash mismatch at height: {}", l2_height);
         }
 
-        let mut data_to_commit = SlotCommit::new(current_l1_block.clone());
-
         let pre_state = self
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let slot_result = self.stf.apply_soft_confirmation(
+        let soft_confirmation_result = self.stf.apply_soft_confirmation(
             self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
@@ -357,9 +354,11 @@ where
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
             &mut soft_confirmation.clone().into(),
-        );
+        )?;
 
-        let next_state_root = slot_result.state_root;
+        let receipt = soft_confirmation_result.soft_confirmation_receipt;
+
+        let next_state_root = soft_confirmation_result.state_root;
         // Check if post state root is the same as the one in the soft confirmation
         if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)
@@ -367,44 +366,18 @@ where
 
         // Save state diff to ledger DB
         self.ledger_db
-            .set_l2_state_diff(BatchNumber(l2_height), slot_result.state_diff)?;
+            .set_l2_state_diff(BatchNumber(l2_height), soft_confirmation_result.state_diff)?;
         // Save witness data to ledger db
         self.ledger_db
-            .set_l2_witness(l2_height, &slot_result.witness)?;
-
-        for receipt in slot_result.batch_receipts {
-            data_to_commit.add_batch(receipt);
-        }
+            .set_l2_witness(l2_height, &soft_confirmation_result.witness)?;
 
         self.storage_manager
-            .save_change_set_l2(l2_height, slot_result.change_set)?;
+            .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
 
         self.storage_manager.finalize_l2(l2_height)?;
 
-        let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-        let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
-            state_root: next_state_root.as_ref().to_vec(),
-            phantom_data: PhantomData::<u64>,
-            hash: soft_confirmation.hash,
-            prev_hash: soft_confirmation.prev_hash,
-            da_slot_hash: current_l1_block.header().hash(),
-            da_slot_height: current_l1_block.header().height(),
-            da_slot_txs_commitment: current_l1_block.header().txs_commitment(),
-            tx_receipts: batch_receipt.tx_receipts,
-            soft_confirmation_signature: soft_confirmation.soft_confirmation_signature,
-            pub_key: soft_confirmation.pub_key,
-            deposit_data: soft_confirmation
-                .deposit_data
-                .into_iter()
-                .map(|x| x.tx)
-                .collect(),
-            l1_fee_rate: soft_confirmation.l1_fee_rate,
-            timestamp: soft_confirmation.timestamp,
-        };
-
         self.ledger_db
-            .commit_soft_confirmation(soft_confirmation_receipt, true)?;
+            .commit_soft_confirmation(next_state_root.as_ref(), receipt, true)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
@@ -675,7 +648,7 @@ where
         let mut state_transition_witnesses: VecDeque<
             Vec<<Stf as StateTransitionFunction<Vm, <Da as DaService>::Spec>>::Witness>,
         > = VecDeque::new();
-        let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmationBatch>> = VecDeque::new();
+        let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
         let mut da_block_headers_of_soft_confirmations: VecDeque<
             Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
         > = VecDeque::new();
@@ -722,7 +695,7 @@ where
                     };
                     da_block_headers_to_push.push(filtered_block.header().clone());
                 }
-                let signed_soft_confirmation: SignedSoftConfirmationBatch =
+                let signed_soft_confirmation: SignedSoftConfirmation =
                     soft_confirmation.clone().into();
                 commitment_soft_confirmations.push(signed_soft_confirmation.clone());
             }

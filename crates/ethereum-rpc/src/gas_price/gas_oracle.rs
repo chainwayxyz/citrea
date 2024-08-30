@@ -5,13 +5,13 @@
 
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use parking_lot::Mutex;
 use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{BlockNumberOrTag, B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::{BlockTransactions, FeeHistory};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::WorkingSet;
-use tokio::sync::Mutex;
 use tracing::warn;
 
 use super::cache::BlockCache;
@@ -137,7 +137,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     }
 
     /// Reports the fee history
-    pub async fn fee_history(
+    pub fn fee_history(
         &self,
         mut block_count: u64,
         newest_block: BlockNumberOrTag,
@@ -193,7 +193,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let mut rewards: Vec<Vec<u128>> = Vec::new();
 
         let (fee_entries, resolution) = {
-            let mut fee_history_cache = self.fee_history_cache.lock().await;
+            let mut fee_history_cache = self.fee_history_cache.lock();
 
             (
                 fee_history_cache.get_history(start_block, end_block, working_set),
@@ -239,7 +239,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     }
 
     /// Suggests a gas price estimate based on recent blocks, using the configured percentile.
-    pub async fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C>) -> EthResult<u128> {
+    pub fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C>) -> EthResult<u128> {
         let header = &self
             .provider
             .get_block_by_number(None, None, working_set)
@@ -247,7 +247,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             .unwrap()
             .header;
 
-        let mut last_price = self.last_price.lock().await;
+        let mut last_price = self.last_price.lock();
 
         // if we have stored a last price, then we check whether or not it was for the same head
         if last_price.block_hash == header.hash.unwrap() {
@@ -274,8 +274,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         for _ in 0..max_blocks {
             let (parent_hash, block_values) = self
-                .get_block_values(current_hash, SAMPLE_NUMBER as usize, working_set)
-                .await?
+                .get_block_values(current_hash, SAMPLE_NUMBER as usize, working_set)?
                 .ok_or(EthApiError::UnknownBlockNumber)?;
 
             if block_values.is_empty() {
@@ -324,7 +323,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     /// If the block cannot be found, then this will return `None`.
     ///
     /// This method also returns the parent hash for the given block.
-    async fn get_block_values(
+    fn get_block_values(
         &self,
         block_hash: B256,
         limit: usize,
@@ -332,7 +331,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     ) -> EthResult<Option<(B256, Vec<u128>)>> {
         // check the cache (this will hit the disk if the block is not cached)
         let block_hit = {
-            let mut cache = self.fee_history_cache.lock().await;
+            let mut cache = self.fee_history_cache.lock();
             cache.block_cache.get_block(block_hash, working_set)?
         };
         let block = match block_hit {

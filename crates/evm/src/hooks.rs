@@ -95,11 +95,13 @@ where
         };
 
         self.block_env.set(&new_pending_env, working_set);
-        self.l1_fee_rate
-            .set(&soft_confirmation_info.l1_fee_rate, working_set);
 
         if !system_events.is_empty() {
-            self.execute_system_events(system_events, working_set);
+            self.execute_system_events(
+                system_events,
+                soft_confirmation_info.l1_fee_rate(),
+                working_set,
+            );
         }
 
         // if height > 256, start removing the oldest block
@@ -119,7 +121,11 @@ where
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
-    pub fn end_soft_confirmation_hook(&self, working_set: &mut WorkingSet<C>) {
+    pub fn end_soft_confirmation_hook(
+        &self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        working_set: &mut WorkingSet<C>,
+    ) {
         let cfg = self
             .cfg
             .get(working_set)
@@ -130,15 +136,7 @@ where
             .get(working_set)
             .expect("Pending block should always be set");
 
-        let l1_fee_rate = self
-            .l1_fee_rate
-            .get(working_set)
-            .expect("L1 fee rate must be set");
-
-        let l1_hash = self
-            .last_l1_hash
-            .get(working_set)
-            .expect("Last L1 hash must be set");
+        let l1_hash = soft_confirmation_info.da_slot_hash;
 
         let parent_block = self
             .head
@@ -216,8 +214,8 @@ where
 
         let block = Block {
             header,
-            l1_fee_rate,
-            l1_hash,
+            l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
+            l1_hash: l1_hash.into(),
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 

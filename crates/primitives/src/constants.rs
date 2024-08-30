@@ -1,5 +1,3 @@
-pub const ROLLUP_NAME: &str = "citrea-devnet";
-
 /// Prefix for the reveal transaction ids - batch proof namespace.
 pub const REVEAL_BATCH_PROOF_PREFIX: &[u8] = [1, 1].as_slice();
 

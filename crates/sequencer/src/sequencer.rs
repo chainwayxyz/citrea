@@ -1,12 +1,10 @@
 use std::collections::HashSet;
-use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
@@ -21,32 +19,32 @@ use futures::StreamExt;
 use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
+use parking_lot::Mutex;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
     PoolTransaction, ValidPoolTransaction,
 };
-use soft_confirmation_rule_enforcer::SoftConfirmationRuleEnforcer;
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::{SequencerLedgerOps, SlotCommit};
+use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmationBatch, SlotData,
-    StateDiff, UnsignedSoftConfirmationBatch, WorkingSet,
+    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
+    UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Instant};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -91,7 +89,6 @@ where
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
-    soft_confirmation_rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
     last_state_diff: StateDiff,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -162,9 +159,6 @@ where
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
-        let soft_confirmation_rule_enforcer =
-            SoftConfirmationRuleEnforcer::<C, <Da as DaService>::Spec>::default();
-
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
@@ -185,7 +179,6 @@ where
             batch_hash: prev_batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             rpc_config,
-            soft_confirmation_rule_enforcer,
             last_state_diff,
             fork_manager,
             soft_confirmation_tx,
@@ -267,18 +260,15 @@ where
         pub_key: &[u8],
         prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
-        mut signed_batch: SignedSoftConfirmationBatch,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        let active_fork_spec = self.fork_manager.active_fork().spec_id;
         match self.stf.begin_soft_confirmation(
-            active_fork_spec,
             pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             &da_block_header,
-            &mut signed_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), mut working_set_to_discard) => {
                 let block_gas_limit = self.db_provider.cfg().block_gas_limit;
@@ -309,13 +299,13 @@ where
 
                             let txs = vec![signed_blob.clone()];
 
-                            let (batch_workspace, _) = self.stf.apply_soft_confirmation_txs(
-                                active_fork_spec,
+                            let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
+                                soft_confirmation_info.clone(),
                                 txs.clone(),
                                 working_set_to_discard,
                             );
 
-                            working_set_to_discard = batch_workspace;
+                            working_set_to_discard = sc_workspace;
 
                             let last_tx =
                                 evm.get_last_pending_transaction(&mut working_set_to_discard);
@@ -362,7 +352,6 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
-        last_used_l1_height: u64,
     ) -> anyhow::Result<(u64, bool)> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
@@ -371,7 +360,7 @@ where
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
         {
             Some((l2_height, sb)) => (l2_height.0 + 1, sb.da_slot_height),
-            None => (0, da_height),
+            None => (1, da_height),
         };
         anyhow::ensure!(
             l1_height == da_height || l1_height + 1 == da_height,
@@ -385,24 +374,22 @@ where
         let deposit_data = self
             .deposit_mempool
             .lock()
-            .await
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
-        let batch_info = HookSoftConfirmationInfo {
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
             da_slot_height: da_block.header().height(),
             da_slot_hash: da_block.header().hash().into(),
             da_slot_txs_commitment: da_block.header().txs_commitment().into(),
             pre_state_root: self.state_root.clone().as_ref().to_vec(),
             deposit_data: deposit_data.clone(),
             current_spec: active_fork_spec,
-            pub_key,
+            pub_key: pub_key.clone(),
             l1_fee_rate,
             timestamp,
         };
-        // initially create sc info and call begin soft confirmation hook with it
-        let mut signed_batch: SignedSoftConfirmationBatch = batch_info.clone().into();
 
         let prestate = self
             .storage_manager
@@ -412,8 +399,6 @@ where
             "Applying soft confirmation on DA block: {}",
             hex::encode(da_block.header().hash().into())
         );
-
-        let pub_key = signed_batch.pub_key().clone();
 
         let evm_txs = self.get_best_transactions()?;
 
@@ -426,7 +411,7 @@ where
                 &pub_key,
                 prestate.clone(),
                 da_block.header().clone(),
-                signed_batch.clone(),
+                soft_confirmation_info.clone(),
                 l2_block_mode,
             )
             .await?;
@@ -438,13 +423,11 @@ where
 
         // Execute the selected transactions
         match self.stf.begin_soft_confirmation(
-            active_fork_spec,
             &pub_key,
-            &self.state_root,
             prestate.clone(),
             Default::default(),
             da_block.header(),
-            &mut signed_batch,
+            &soft_confirmation_info,
         ) {
             (Ok(()), mut batch_workspace) => {
                 let mut txs = vec![];
@@ -461,14 +444,15 @@ where
                     txs.push(signed_blob);
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                        active_fork_spec,
+                        soft_confirmation_info,
                         txs.clone(),
                         batch_workspace,
                     );
                 }
 
                 // create the unsigned batch with the txs then sign th sc
-                let unsigned_batch = UnsignedSoftConfirmationBatch::new(
+                let unsigned_batch = UnsignedSoftConfirmation::new(
+                    l2_height,
                     da_block.header().height(),
                     da_block.header().hash().into(),
                     da_block.header().txs_commitment().into(),
@@ -481,67 +465,41 @@ where
                 let mut signed_soft_confirmation =
                     self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
 
-                let (batch_receipt, checkpoint) = self.stf.end_soft_confirmation(
+                let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     active_fork_spec,
+                    self.state_root.as_ref().to_vec(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
                     tx_receipts,
                     batch_workspace,
                 );
 
+                let soft_confirmation_receipt = soft_confirmation_receipt?;
+
                 // Finalize soft confirmation
-                let slot_result = self.stf.finalize_soft_confirmation(
+                let soft_confirmation_result = self.stf.finalize_soft_confirmation(
                     active_fork_spec,
-                    batch_receipt,
+                    soft_confirmation_receipt,
                     checkpoint,
                     prestate,
                     &mut signed_soft_confirmation,
                 );
 
-                if slot_result.state_root.as_ref() == self.state_root.as_ref() {
-                    debug!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
-                    // TODO: Check if below is legit
-                    self.storage_manager
-                        .save_change_set_l2(l2_height, slot_result.change_set)?;
+                let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
-                    tracing::debug!("Finalizing l2 height: {:?}", l2_height);
-                    self.storage_manager.finalize_l2(l2_height)?;
-                    return Ok((last_used_l1_height, false));
+                if soft_confirmation_result.state_root.as_ref() == self.state_root.as_ref() {
+                    bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
                 }
 
                 trace!(
                     "State root after applying slot: {:?}",
-                    slot_result.state_root
+                    soft_confirmation_result.state_root
                 );
 
-                let mut data_to_commit = SlotCommit::new(da_block.clone());
-                for receipt in slot_result.batch_receipts {
-                    data_to_commit.add_batch(receipt);
-                }
-
-                // TODO: This will be a single receipt once we have apply_soft_confirmation.
-                let batch_receipt = data_to_commit.batch_receipts()[0].clone();
-
-                let next_state_root = slot_result.state_root;
-
-                let soft_confirmation_receipt = SoftConfirmationReceipt::<_, _, Da::Spec> {
-                    state_root: next_state_root.as_ref().to_vec(),
-                    phantom_data: PhantomData::<u64>,
-                    hash: signed_soft_confirmation.hash(),
-                    prev_hash: signed_soft_confirmation.prev_hash(),
-                    da_slot_hash: da_block.header().hash(),
-                    da_slot_height: da_block.header().height(),
-                    da_slot_txs_commitment: da_block.header().txs_commitment(),
-                    tx_receipts: batch_receipt.tx_receipts,
-                    soft_confirmation_signature: signed_soft_confirmation.signature().to_vec(),
-                    pub_key: signed_soft_confirmation.pub_key().to_vec(),
-                    deposit_data,
-                    l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
-                    timestamp: signed_soft_confirmation.timestamp(),
-                };
+                let next_state_root = soft_confirmation_result.state_root;
 
                 self.storage_manager
-                    .save_change_set_l2(l2_height, slot_result.change_set)?;
+                    .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
 
                 // TODO: this will only work for mock da
                 // when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218
@@ -550,7 +508,7 @@ where
                 self.storage_manager.finalize_l2(l2_height)?;
 
                 self.ledger_db
-                    .commit_soft_confirmation(soft_confirmation_receipt, true)?;
+                    .commit_soft_confirmation(next_state_root.as_ref(), receipt, true)?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
@@ -583,15 +541,18 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
-                let merged_state_diff =
-                    merge_state_diffs(self.last_state_diff.clone(), slot_result.state_diff.clone());
+                let merged_state_diff = merge_state_diffs(
+                    self.last_state_diff.clone(),
+                    soft_confirmation_result.state_diff.clone(),
+                );
 
                 // Serialize the state diff to check size later.
                 let serialized_state_diff = borsh::to_vec(&merged_state_diff)?;
                 let state_diff_threshold_reached =
                     serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
                 if state_diff_threshold_reached {
-                    self.last_state_diff.clone_from(&slot_result.state_diff);
+                    self.last_state_diff
+                        .clone_from(&soft_confirmation_result.state_diff);
                     self.ledger_db
                         .set_state_diff(self.last_state_diff.clone())?;
                 } else {
@@ -857,12 +818,7 @@ where
             }
         }
 
-        // Initialize our knowledge of the state of the DA-layer
-        let fee_rate_range = get_l1_fee_rate_range::<C, Da>(
-            self.storage.clone(),
-            self.soft_confirmation_rule_enforcer.clone(),
-        )?;
-        let (mut last_finalized_block, l1_fee_rate) =
+        let (mut last_finalized_block, mut l1_fee_rate) =
             match get_da_block_data(self.da_service.clone()).await {
                 Ok(l1_data) => l1_data,
                 Err(e) => {
@@ -870,7 +826,6 @@ where
                     return Err(e);
                 }
             };
-        let mut l1_fee_rate = l1_fee_rate.clamp(*fee_rate_range.start(), *fee_rate_range.end());
         let mut last_finalized_height = last_finalized_block.header().height();
 
         let mut last_used_l1_height = match self.ledger_db.get_head_soft_confirmation() {
@@ -956,23 +911,14 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
                         missed_da_blocks_count = 0;
                     }
 
-                    let l1_fee_rate_range =
-                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
-                            Ok(fee_rate_range) => fee_rate_range,
-                            Err(e) => {
-                                error!("Could not fetch L1 fee rate range: {}", e);
-                                continue;
-                            }
-                        };
-                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
-                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
+                    match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             last_used_l1_height = l1_block_number;
 
@@ -1004,25 +950,16 @@ where
                                 .map_err(|e| anyhow!(e))?;
 
                             debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty, last_used_l1_height).await {
+                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty).await {
                                 error!("Sequencer error: {}", e);
                             }
                         }
                         missed_da_blocks_count = 0;
                     }
 
-                    let l1_fee_rate_range =
-                        match get_l1_fee_rate_range::<C, Da>(self.storage.clone(), self.soft_confirmation_rule_enforcer.clone()) {
-                            Ok(fee_rate_range) => fee_rate_range,
-                            Err(e) => {
-                                error!("Could not fetch L1 fee rate range: {}", e);
-                                continue;
-                            }
-                        };
-                    let l1_fee_rate = l1_fee_rate.clamp(*l1_fee_rate_range.start(), *l1_fee_rate_range.end());
 
                     let instant = Instant::now();
-                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty, last_used_l1_height).await {
+                    match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
                             // Set the next iteration's wait time to produce a block based on the
                             // previous block's execution time.
@@ -1094,16 +1031,17 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch(
         &mut self,
-        soft_confirmation: UnsignedSoftConfirmationBatch,
+        soft_confirmation: UnsignedSoftConfirmation,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmationBatch> {
+    ) -> anyhow::Result<SignedSoftConfirmation> {
         let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
-        Ok(SignedSoftConfirmationBatch::new(
+        Ok(SignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
             hash,
             prev_soft_confirmation_hash,
             soft_confirmation.da_slot_height(),
@@ -1197,21 +1135,6 @@ where
 
         Ok(updates)
     }
-}
-
-fn get_l1_fee_rate_range<C, Da>(
-    storage: C::Storage,
-    rule_enforcer: SoftConfirmationRuleEnforcer<C, Da::Spec>,
-) -> Result<RangeInclusive<u128>, anyhow::Error>
-where
-    C: Context,
-    Da: DaService,
-{
-    let mut working_set = WorkingSet::<C>::new(storage);
-
-    rule_enforcer
-        .get_next_min_max_l1_fee_rate(&mut working_set)
-        .map_err(|e| anyhow::anyhow!("Error reading min max l1 fee rate: {}", e))
 }
 
 async fn da_block_monitor<Da>(

@@ -92,6 +92,7 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde
 lazy_static = { version = "1.5.0" }
 log-panics = { version = "2", features = ["with-backtrace"] }
 once_cell = { version = "1.19.0", default-features = false, features = ["alloc"] }
+parking_lot = { version = "0.12.3" }
 prometheus = { version = "0.13.3", default-features = false }
 proptest = { version = "1.3.1", default-features = false, features = ["alloc"] }
 proptest-derive = "0.4.0"
@@ -113,7 +114,7 @@ toml = "0.8.0"
 jsonrpsee = { version = "0.24.2", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.39", features = ["full"] }
 num_cpus = "1.0"
 
 # Risc0 dependencies
@@ -127,22 +128,22 @@ bonsai-sdk = { version = "0.9.0" }
 # EVM dependencies
 
 revm-inspectors = { version = "=0.5.5", default-features = false }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false, features = ["jsonrpsee-types"] }
-reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
-reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.4", default-features = false }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-errors = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false, features = ["jsonrpsee-types"] }
+reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
 
 revm = { version = "12.1", features = ["serde"], default-features = false }
 # forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts

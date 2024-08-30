@@ -52,28 +52,35 @@ fn call_multiple_test() {
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
     let l1_fee_rate = 0;
+    let l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
 
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -90,10 +97,16 @@ fn call_multiple_test() {
         .unwrap();
     }
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+
+    // Make sure the db account size is 256 bytes
+    let db_account_len = bcs::to_bytes(&db_account)
+        .expect("Failed to serialize value")
+        .len();
+    assert_eq!(db_account_len, 256);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -115,7 +128,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 565,
+                l1_diff_size: 1023,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -126,7 +139,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -137,7 +150,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -148,7 +161,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             }
         ]
     )
@@ -165,32 +178,34 @@ fn call_test() {
     println!("\nEvm Genesis Initialized\n");
     std::thread::sleep(std::time::Duration::from_secs(3));
     let l1_fee_rate = 0;
-    // 6369747265615f65766d2f45766d2f6163636f756e74732f
+    let l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-        // 2000000000000000000000000000000000000000000000000000000000000003e7
-        // 6369747265615f65766d2f45766d2f6163636f756e74732f819c5497b157177315e1204f52e588b393771719 20 0000000000000000000000000000000000000000000000000000000000000000
-        // 20 00000000000000000000000000000000000000000000000000000000000003e7
-    );
-    println!("dev signer address: {:?}", dev_signer.address());
-    // dev signer address 0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -203,7 +218,7 @@ fn call_test() {
 
         evm.call(call_message, &context, &mut working_set).unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     println!("\nCommit called\n");
     let root = commit(working_set, storage.clone());
@@ -244,7 +259,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 565,
+                l1_diff_size: 1023,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -255,7 +270,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             }
         ]
     )
@@ -267,25 +282,32 @@ fn failed_transaction_test() {
     let (evm, mut working_set) = get_evm(&EvmConfig::default());
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
+    let l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -302,7 +324,7 @@ fn failed_transaction_test() {
     let pending_txs = evm.pending_transactions.iter(working_set);
     assert_eq!(pending_txs.len(), 0);
 
-    evm.end_soft_confirmation_hook(working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, working_set);
 
     // assert no pending transaction
     let pending_txs = evm.pending_transactions.iter(working_set);
@@ -325,25 +347,32 @@ fn self_destruct_test() {
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
+    let mut l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy selfdestruct contract
         // send some money to the selfdestruct contract
@@ -363,8 +392,11 @@ fn self_destruct_test() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
+
     let db_contract = evm
         .accounts
         .get(&contract_addr, &mut working_set)
@@ -386,24 +418,30 @@ fn self_destruct_test() {
     // assert_eq!(db_contract.keys.len(&mut working_set), 1);
     let l1_fee_rate = 0;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 2,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [99u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 2,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [99u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
         // selfdestruct
         evm.call(
             CallMessage {
@@ -419,7 +457,7 @@ fn self_destruct_test() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_contract = evm
@@ -469,25 +507,32 @@ fn test_block_hash_in_evm() {
 
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
+    let mut l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -500,28 +545,31 @@ fn test_block_hash_in_evm() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
 
     for _i in 0..514 {
         // generate 514 more blocks
         let l1_fee_rate = 0;
-        evm.begin_soft_confirmation_hook(
-            &HookSoftConfirmationInfo {
-                da_slot_hash: [5u8; 32],
-                da_slot_height: 1,
-                da_slot_txs_commitment: [42u8; 32],
-                pre_state_root: [99u8; 32].to_vec(),
-                current_spec: SovSpecId::Genesis,
-                pub_key: vec![],
-                deposit_data: vec![],
-                l1_fee_rate,
-                timestamp: 0,
-            },
-            &mut working_set,
-        );
-        evm.end_soft_confirmation_hook(&mut working_set);
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        };
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+        l2_height += 1;
     }
 
     let _last_block_number = evm
@@ -582,25 +630,32 @@ fn test_block_gas_limit() {
 
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
+    let l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -627,7 +682,7 @@ fn test_block_gas_limit() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let block = evm
@@ -899,24 +954,30 @@ fn test_l1_fee_success() {
 
         let (evm, mut working_set) = get_evm(&config);
 
-        evm.begin_soft_confirmation_hook(
-            &HookSoftConfirmationInfo {
-                da_slot_hash: [5u8; 32],
-                da_slot_height: 1,
-                da_slot_txs_commitment: [42u8; 32],
-                pre_state_root: [10u8; 32].to_vec(),
-                current_spec: SovSpecId::Genesis,
-                pub_key: vec![],
-                deposit_data: vec![],
-                l1_fee_rate,
-                timestamp: 0,
-            },
-            &mut working_set,
-        );
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height: 2,
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [10u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        };
+
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         {
             let sender_address = generate_address::<C>("sender");
             let sequencer_address = generate_address::<C>("sequencer");
-            let context = C::new(sender_address, sequencer_address, 1);
+            let context = C::new(
+                sender_address,
+                sequencer_address,
+                2,
+                SovSpecId::Genesis,
+                l1_fee_rate,
+            );
 
             let deploy_message = create_contract_message_with_priority_fee(
                 &dev_signer,
@@ -935,7 +996,7 @@ fn test_l1_fee_success() {
             )
             .unwrap();
         }
-        evm.end_soft_confirmation_hook(&mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
         let db_account = evm
@@ -970,7 +1031,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 477,
+                l1_diff_size: 935,
             },]
         )
     }
@@ -987,11 +1048,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 477),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 935),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(477),
+        U256::from(935),
     );
 }
 
@@ -1003,24 +1064,32 @@ fn test_l1_fee_not_enough_funds() {
     let l1_fee_rate = 10000;
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let deploy_message =
             create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
@@ -1039,7 +1108,7 @@ fn test_l1_fee_not_enough_funds() {
         assert!(block.transactions.is_empty());
     }
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = evm
@@ -1061,27 +1130,34 @@ fn test_l1_fee_halt() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (evm, mut working_set) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
+    let l2_height = 2;
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -1112,7 +1188,7 @@ fn test_l1_fee_halt() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     assert_eq!(
@@ -1129,7 +1205,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 445,
+                l1_diff_size: 903,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1140,7 +1216,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 52,
+                l1_diff_size: 353,
             },
         ]
     );
@@ -1151,8 +1227,8 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        445  + // l1 contract deploy fee
-        52; // l1 contract call fee
+        903  + // l1 contract deploy fee
+        353; // l1 contract call fee
     assert_eq!(
         db_account.info.balance,
         U256::from(
@@ -1168,5 +1244,5 @@ fn test_l1_fee_halt() {
         base_fee_valut.info.balance,
         U256::from(1106947_u64 * 10000000)
     );
-    assert_eq!(l1_fee_valut.info.balance, U256::from(445 + 52));
+    assert_eq!(l1_fee_valut.info.balance, U256::from(903 + 353));
 }

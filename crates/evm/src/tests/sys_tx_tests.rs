@@ -50,7 +50,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 50751,
                 log_index_start: 0,
-                l1_diff_size: 136,
+                l1_diff_size: 437,
             },
             Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
@@ -69,7 +69,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 80720,
                 log_index_start: 0,
-                l1_diff_size: 264,
+                l1_diff_size: 565,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -95,12 +95,13 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 261215,
                 log_index_start: 1,
-                l1_diff_size: 712,
+                l1_diff_size: 1013,
             }
         ]
     );
 
     let l1_fee_rate = 1;
+    let l2_height = 2;
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
@@ -138,25 +139,31 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(hash.as_ref(), &[1u8; 32]);
     assert_eq!(merkle_root.as_ref(), &[2u8; 32]);
 
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [2u8; 32],
+        da_slot_height: 2,
+        da_slot_txs_commitment: [3u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 42,
+    };
+
     // New L1 block №2
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [2u8; 32],
-            da_slot_height: 2,
-            da_slot_txs_commitment: [3u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 42,
-        },
-        &mut working_set,
-    );
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
         let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(sender_address, sequencer_address, 1);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -174,7 +181,7 @@ fn test_sys_bitcoin_light_client() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
@@ -208,7 +215,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 80720,
                 log_index_start: 0,
-                l1_diff_size: 264,
+                l1_diff_size: 565,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -219,7 +226,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 114235,
                 log_index_start: 1,
-                l1_diff_size: 477,
+                l1_diff_size: 935,
             },
         ]
     );
@@ -230,7 +237,7 @@ fn test_sys_bitcoin_light_client() {
         base_fee_vault.info.balance,
         U256::from(114235u64 * 10000000)
     );
-    assert_eq!(l1_fee_vault.info.balance, U256::from(477));
+    assert_eq!(l1_fee_vault.info.balance, U256::from(935));
 
     let hash = evm
         .get_call(
@@ -278,25 +285,32 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     let (evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
+    let mut l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
-
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
     );
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 1,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         // deploy logs contract
         evm.call(
@@ -312,25 +326,32 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [10u8; 32],
-            da_slot_height: 2,
-            da_slot_txs_commitment: [43u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
+    l2_height += 1;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [10u8; 32],
+        da_slot_height: 2,
+        da_slot_txs_commitment: [43u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, sequencer_address, 2);
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SpecId::Genesis,
+            l1_fee_rate,
+        );
 
         let sys_tx_gas_usage = evm.get_pending_txs_cumulative_gas_used(&mut working_set);
         assert_eq!(sys_tx_gas_usage, 80720);
@@ -362,7 +383,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         )
         .unwrap();
     }
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let block = evm
@@ -389,85 +410,85 @@ fn test_bridge() {
 
     let (evm, mut working_set) = get_evm(&config);
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_height: 2,
-            da_slot_hash: [2u8; 32],
-            da_slot_txs_commitment: [
-                136, 147, 225, 201, 35, 145, 64, 167, 182, 140, 185, 55, 22, 224, 150, 42, 51, 86,
-                214, 251, 181, 122, 169, 246, 188, 29, 186, 32, 227, 33, 199, 38,
-            ],
-            pre_state_root: [1u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![[
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 32, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 128, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 4, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 42, 1, 196, 196, 205, 156,
-                93, 62, 54, 134, 133, 188, 6, 17, 153, 42, 62, 155, 138, 8, 111, 222, 48, 192, 86,
-                41, 210, 202, 111, 100, 49, 6, 36, 123, 0, 0, 0, 0, 0, 253, 255, 255, 255, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 87, 2, 197, 63,
-                15, 0, 0, 0, 0, 0, 34, 81, 32, 225, 85, 228, 181, 8, 114, 26, 130, 4, 159, 125,
-                249, 18, 119, 121, 134, 147, 142, 99, 173, 85, 230, 58, 42, 39, 210, 102, 158, 156,
-                54, 47, 183, 74, 1, 0, 0, 0, 0, 0, 0, 34, 0, 32, 74, 232, 21, 114, 240, 110, 27,
-                136, 253, 92, 237, 122, 26, 0, 9, 69, 67, 46, 131, 225, 85, 30, 111, 114, 30, 233,
-                192, 11, 140, 195, 50, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 91, 7, 64, 85, 100,
-                226, 121, 160, 231, 130, 160, 201, 56, 39, 35, 161, 143, 216, 21, 211, 206, 127,
-                229, 78, 29, 6, 86, 241, 85, 191, 62, 174, 148, 71, 7, 97, 25, 170, 78, 173, 238,
-                251, 184, 7, 3, 139, 103, 184, 9, 84, 28, 37, 39, 39, 91, 248, 166, 240, 149, 245,
-                51, 48, 45, 10, 151, 90, 134, 64, 58, 4, 251, 18, 243, 51, 241, 78, 218, 137, 248,
-                84, 193, 73, 6, 249, 29, 144, 62, 120, 43, 235, 170, 173, 3, 241, 236, 171, 253,
-                71, 17, 237, 81, 214, 38, 47, 206, 119, 2, 116, 56, 203, 107, 84, 255, 102, 133,
-                42, 245, 35, 173, 250, 41, 110, 193, 18, 121, 214, 157, 81, 81, 115, 91, 237, 64,
-                21, 17, 223, 104, 155, 182, 45, 200, 209, 237, 114, 78, 88, 157, 251, 106, 70, 76,
-                150, 27, 223, 254, 87, 62, 121, 250, 18, 141, 166, 53, 181, 63, 41, 28, 81, 51, 20,
-                84, 115, 122, 154, 139, 187, 182, 208, 212, 16, 122, 183, 103, 149, 223, 86, 216,
-                191, 246, 117, 102, 59, 111, 120, 22, 223, 62, 64, 253, 145, 239, 196, 249, 255,
-                135, 5, 208, 64, 144, 150, 213, 166, 66, 98, 4, 23, 151, 165, 220, 201, 209, 179,
-                201, 162, 185, 98, 0, 228, 44, 29, 230, 117, 232, 11, 123, 162, 71, 201, 73, 125,
-                209, 236, 189, 139, 56, 160, 205, 48, 238, 29, 185, 43, 229, 103, 117, 247, 252,
-                85, 166, 29, 59, 232, 64, 189, 1, 191, 87, 25, 32, 77, 193, 98, 33, 84, 159, 168,
-                209, 181, 157, 80, 130, 164, 59, 101, 196, 190, 247, 124, 131, 53, 156, 111, 105,
-                196, 18, 8, 177, 1, 118, 217, 178, 150, 165, 172, 205, 126, 106, 54, 246, 54, 95,
-                47, 16, 155, 156, 123, 135, 135, 4, 44, 241, 144, 188, 76, 181, 157, 173, 210, 32,
-                93, 175, 87, 112, 72, 197, 229, 169, 167, 93, 10, 146, 78, 208, 62, 34, 108, 51, 4,
-                244, 162, 240, 28, 101, 202, 29, 171, 115, 82, 46, 107, 139, 173, 32, 98, 40, 235,
-                166, 83, 207, 24, 25, 188, 252, 27, 200, 88, 99, 14, 90, 227, 115, 238, 193, 169,
-                146, 67, 34, 165, 254, 132, 69, 197, 231, 96, 39, 173, 32, 21, 33, 214, 95, 100,
-                190, 63, 113, 183, 28, 164, 98, 34, 15, 19, 199, 123, 37, 16, 39, 246, 202, 68, 58,
-                72, 51, 83, 169, 111, 188, 226, 34, 173, 32, 15, 171, 238, 210, 105, 105, 78, 232,
-                61, 155, 51, 67, 165, 113, 32, 46, 104, 175, 101, 208, 95, 237, 166, 29, 190, 208,
-                196, 189, 178, 86, 166, 234, 173, 32, 0, 50, 109, 111, 114, 28, 3, 220, 95, 29,
-                136, 23, 216, 248, 238, 137, 10, 149, 162, 238, 218, 13, 77, 154, 1, 177, 204, 155,
-                123, 27, 114, 77, 172, 0, 99, 6, 99, 105, 116, 114, 101, 97, 20, 1, 1, 1, 1, 1, 1,
-                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 0, 0, 0, 0, 0, 15, 66, 64, 104, 65,
-                193, 147, 199, 55, 141, 150, 81, 138, 117, 68, 136, 33, 196, 247, 200, 244, 186,
-                231, 206, 96, 248, 4, 208, 61, 31, 6, 40, 221, 93, 208, 245, 222, 81, 15, 41, 81,
-                255, 251, 84, 130, 89, 213, 171, 185, 243, 81, 190, 143, 148, 3, 28, 156, 232, 140,
-                232, 56, 180, 13, 124, 236, 124, 96, 110, 12, 122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0,
-            ]
-            .to_vec()],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
-    evm.end_soft_confirmation_hook(&mut working_set);
+    let l1_fee_rate = 1;
+    let l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_height: 2,
+        da_slot_hash: [2u8; 32],
+        da_slot_txs_commitment: [
+            136, 147, 225, 201, 35, 145, 64, 167, 182, 140, 185, 55, 22, 224, 150, 42, 51, 86, 214,
+            251, 181, 122, 169, 246, 188, 29, 186, 32, 227, 33, 199, 38,
+        ],
+        pre_state_root: [1u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 32, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 128, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 42, 1, 196, 196, 205, 156, 93, 62, 54, 134, 133, 188, 6, 17, 153, 42,
+            62, 155, 138, 8, 111, 222, 48, 192, 86, 41, 210, 202, 111, 100, 49, 6, 36, 123, 0, 0,
+            0, 0, 0, 253, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 87, 2, 197, 63, 15, 0, 0, 0, 0, 0, 34, 81, 32, 225, 85, 228, 181, 8,
+            114, 26, 130, 4, 159, 125, 249, 18, 119, 121, 134, 147, 142, 99, 173, 85, 230, 58, 42,
+            39, 210, 102, 158, 156, 54, 47, 183, 74, 1, 0, 0, 0, 0, 0, 0, 34, 0, 32, 74, 232, 21,
+            114, 240, 110, 27, 136, 253, 92, 237, 122, 26, 0, 9, 69, 67, 46, 131, 225, 85, 30, 111,
+            114, 30, 233, 192, 11, 140, 195, 50, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 91, 7, 64,
+            85, 100, 226, 121, 160, 231, 130, 160, 201, 56, 39, 35, 161, 143, 216, 21, 211, 206,
+            127, 229, 78, 29, 6, 86, 241, 85, 191, 62, 174, 148, 71, 7, 97, 25, 170, 78, 173, 238,
+            251, 184, 7, 3, 139, 103, 184, 9, 84, 28, 37, 39, 39, 91, 248, 166, 240, 149, 245, 51,
+            48, 45, 10, 151, 90, 134, 64, 58, 4, 251, 18, 243, 51, 241, 78, 218, 137, 248, 84, 193,
+            73, 6, 249, 29, 144, 62, 120, 43, 235, 170, 173, 3, 241, 236, 171, 253, 71, 17, 237,
+            81, 214, 38, 47, 206, 119, 2, 116, 56, 203, 107, 84, 255, 102, 133, 42, 245, 35, 173,
+            250, 41, 110, 193, 18, 121, 214, 157, 81, 81, 115, 91, 237, 64, 21, 17, 223, 104, 155,
+            182, 45, 200, 209, 237, 114, 78, 88, 157, 251, 106, 70, 76, 150, 27, 223, 254, 87, 62,
+            121, 250, 18, 141, 166, 53, 181, 63, 41, 28, 81, 51, 20, 84, 115, 122, 154, 139, 187,
+            182, 208, 212, 16, 122, 183, 103, 149, 223, 86, 216, 191, 246, 117, 102, 59, 111, 120,
+            22, 223, 62, 64, 253, 145, 239, 196, 249, 255, 135, 5, 208, 64, 144, 150, 213, 166, 66,
+            98, 4, 23, 151, 165, 220, 201, 209, 179, 201, 162, 185, 98, 0, 228, 44, 29, 230, 117,
+            232, 11, 123, 162, 71, 201, 73, 125, 209, 236, 189, 139, 56, 160, 205, 48, 238, 29,
+            185, 43, 229, 103, 117, 247, 252, 85, 166, 29, 59, 232, 64, 189, 1, 191, 87, 25, 32,
+            77, 193, 98, 33, 84, 159, 168, 209, 181, 157, 80, 130, 164, 59, 101, 196, 190, 247,
+            124, 131, 53, 156, 111, 105, 196, 18, 8, 177, 1, 118, 217, 178, 150, 165, 172, 205,
+            126, 106, 54, 246, 54, 95, 47, 16, 155, 156, 123, 135, 135, 4, 44, 241, 144, 188, 76,
+            181, 157, 173, 210, 32, 93, 175, 87, 112, 72, 197, 229, 169, 167, 93, 10, 146, 78, 208,
+            62, 34, 108, 51, 4, 244, 162, 240, 28, 101, 202, 29, 171, 115, 82, 46, 107, 139, 173,
+            32, 98, 40, 235, 166, 83, 207, 24, 25, 188, 252, 27, 200, 88, 99, 14, 90, 227, 115,
+            238, 193, 169, 146, 67, 34, 165, 254, 132, 69, 197, 231, 96, 39, 173, 32, 21, 33, 214,
+            95, 100, 190, 63, 113, 183, 28, 164, 98, 34, 15, 19, 199, 123, 37, 16, 39, 246, 202,
+            68, 58, 72, 51, 83, 169, 111, 188, 226, 34, 173, 32, 15, 171, 238, 210, 105, 105, 78,
+            232, 61, 155, 51, 67, 165, 113, 32, 46, 104, 175, 101, 208, 95, 237, 166, 29, 190, 208,
+            196, 189, 178, 86, 166, 234, 173, 32, 0, 50, 109, 111, 114, 28, 3, 220, 95, 29, 136,
+            23, 216, 248, 238, 137, 10, 149, 162, 238, 218, 13, 77, 154, 1, 177, 204, 155, 123, 27,
+            114, 77, 172, 0, 99, 6, 99, 105, 116, 114, 101, 97, 20, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 8, 0, 0, 0, 0, 0, 15, 66, 64, 104, 65, 193, 147, 199, 55,
+            141, 150, 81, 138, 117, 68, 136, 33, 196, 247, 200, 244, 186, 231, 206, 96, 248, 4,
+            208, 61, 31, 6, 40, 221, 93, 208, 245, 222, 81, 15, 41, 81, 255, 251, 84, 130, 89, 213,
+            171, 185, 243, 81, 190, 143, 148, 3, 28, 156, 232, 140, 232, 56, 180, 13, 124, 236,
+            124, 96, 110, 12, 122, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ]
+        .to_vec()],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let recipient_address = address!("0101010101010101010101010101010101010101");
@@ -523,24 +544,33 @@ fn test_upgrade_light_client() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let l2_height = 2;
+
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
-
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
     );
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let upgrade_tx = contract_owner
         .sign_default_transaction(
@@ -563,7 +593,7 @@ fn test_upgrade_light_client() {
     )
     .unwrap();
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let hash = evm
@@ -648,24 +678,32 @@ fn test_change_upgrade_owner() {
 
     let (evm, mut working_set) = get_evm(&config);
 
+    let l1_fee_rate = 1;
+    let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
     let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1);
-
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
     );
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let change_owner_tx = contract_owner
         .sign_default_transaction(
@@ -685,23 +723,31 @@ fn test_change_upgrade_owner() {
     )
     .unwrap();
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [5u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [42u8; 32],
-            pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 1,
-            timestamp: 0,
-        },
-        &mut working_set,
+    l2_height += 1;
+    let context = C::new(
+        sender_address,
+        sequencer_address,
+        l2_height,
+        SpecId::Genesis,
+        l1_fee_rate,
     );
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // New owner should be able to upgrade the contract
 
@@ -727,7 +773,7 @@ fn test_change_upgrade_owner() {
     )
     .unwrap();
 
-    evm.end_soft_confirmation_hook(&mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let provided_new_owner = evm

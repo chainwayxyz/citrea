@@ -109,10 +109,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
-    /// L1 fee rate.
-    #[state]
-    pub(crate) l1_fee_rate: sov_modules_api::StateValue<u128, BcsCodec>,
-
     /// Transaction's hash that failed to pay the L1 fee.
     /// Used to prevent DOS attacks.
     /// The vector is cleared in `finalize_hook`.

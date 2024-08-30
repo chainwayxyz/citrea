@@ -43,7 +43,6 @@ pub(crate) fn get_evm_with_storage(
     );
     (evm, working_set, prover_storage)
 }
-
 pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
@@ -56,21 +55,22 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
-    evm.begin_soft_confirmation_hook(
-        &HookSoftConfirmationInfo {
-            da_slot_hash: [1u8; 32],
-            da_slot_height: 1,
-            da_slot_txs_commitment: [2u8; 32],
-            pre_state_root: root.to_vec(),
-            current_spec: SpecId::Genesis,
-            pub_key: vec![],
-            deposit_data: vec![],
-            l1_fee_rate: 0,
-            timestamp: 0,
-        },
-        &mut working_set,
-    );
-    evm.end_soft_confirmation_hook(&mut working_set);
+    let hook_info = HookSoftConfirmationInfo {
+        l2_height: 1,
+        da_slot_hash: [1u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [2u8; 32],
+        pre_state_root: root.to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 0,
+        timestamp: 0,
+    };
+
+    // Pass the same struct to both hooks
+    evm.begin_soft_confirmation_hook(&hook_info, &mut working_set);
+    evm.end_soft_confirmation_hook(&hook_info, &mut working_set);
 
     let root = commit(working_set, storage.clone());
     let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
@@ -103,6 +103,7 @@ pub(crate) fn get_evm_with_storage_2(
 
     evm.begin_soft_confirmation_hook(
         &HookSoftConfirmationInfo {
+            l2_height: 1,
             da_slot_hash: [1u8; 32],
             da_slot_height: 1,
             da_slot_txs_commitment: [2u8; 32],
@@ -115,7 +116,19 @@ pub(crate) fn get_evm_with_storage_2(
         },
         &mut working_set,
     );
-    evm.end_soft_confirmation_hook(&mut working_set);
+    let hook_info = HookSoftConfirmationInfo {
+        l2_height: 1,
+        da_slot_hash: [1u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [2u8; 32],
+        pre_state_root: root.to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 0,
+        timestamp: 0,
+    };
+    evm.end_soft_confirmation_hook(&hook_info, &mut working_set);
 
     let root = commit(working_set, storage.clone());
     let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());

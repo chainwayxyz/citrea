@@ -41,7 +41,8 @@ fn test_vec_setter_calls() {
     vec_setter.genesis(&config, &mut working_set).unwrap();
 
     for (sender, sequencer, call, expected_contents) in test_cases().iter().cloned() {
-        let context = DefaultContext::new(sender, sequencer, 1);
+        let context =
+            DefaultContext::new(sender, sequencer, 1, sov_modules_api::SpecId::Genesis, 0);
 
         let call_result = vec_setter.call(call, &context, &mut working_set);
 

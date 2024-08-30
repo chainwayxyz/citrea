@@ -153,10 +153,10 @@ impl From<Vec<u8>> for HexTx {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SoftConfirmationResponse {
-    /// The DA height of the soft confirmation.
-    pub da_slot_height: u64,
     /// The L2 height of the soft confirmation.
     pub l2_height: u64,
+    /// The DA height of the soft confirmation.
+    pub da_slot_height: u64,
     /// The DA slothash of the soft confirmation.
     // TODO: find a way to hex serialize this and then
     // deserialize in `SequencerClient`

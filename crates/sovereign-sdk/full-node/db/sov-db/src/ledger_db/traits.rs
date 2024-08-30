@@ -40,9 +40,10 @@ pub trait SharedLedgerOps {
     ) -> Result<()>;
 
     /// Commits a soft confirmation to the database by inserting its transactions and batches before
-    fn commit_soft_confirmation<B: Serialize, T: Serialize, DS: DaSpec>(
+    fn commit_soft_confirmation<T: Serialize, DS: DaSpec>(
         &self,
-        batch_receipt: SoftConfirmationReceipt<B, T, DS>,
+        state_root: &[u8],
+        sc_receipt: SoftConfirmationReceipt<T, DS>,
         include_tx_body: bool,
     ) -> Result<()>;
 

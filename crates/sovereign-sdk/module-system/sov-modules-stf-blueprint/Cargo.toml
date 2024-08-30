@@ -43,6 +43,7 @@ default = []
 native = [
   "sov-state/native",
   "sov-modules-api/native",
+  "sov-rollup-interface/native",
   "dep:tracing",
   "jsonrpsee",
 ]
