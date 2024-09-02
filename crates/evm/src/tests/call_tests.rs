@@ -12,6 +12,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
+use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
     SimpleStorageContract, TestContract,
@@ -987,11 +988,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 935),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 935 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(935),
+        U256::from(935 + L1_FEE_OVERHEAD as u64),
     );
 }
 
@@ -1167,7 +1168,8 @@ fn test_l1_fee_halt() {
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
         903  + // l1 contract deploy fee
-        353; // l1 contract call fee
+        353  + // l1 contract call fee
+        2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.info.balance,
         U256::from(
@@ -1183,5 +1185,8 @@ fn test_l1_fee_halt() {
         base_fee_valut.info.balance,
         U256::from(1106947_u64 * 10000000)
     );
-    assert_eq!(l1_fee_valut.info.balance, U256::from(903 + 353));
+    assert_eq!(
+        l1_fee_valut.info.balance,
+        U256::from(903 + 353 + 2 * L1_FEE_OVERHEAD as u64)
+    );
 }

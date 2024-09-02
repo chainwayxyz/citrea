@@ -1,9 +1,9 @@
 //! Runtime state machine definitions.
 
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::{fmt, mem};
 
-use hashbrown::HashMap;
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
 use sov_rollup_interface::stf::Event;
 
@@ -204,7 +204,7 @@ impl<S: Storage> StateReaderAndWriter for Delta<S> {
 
 #[derive(Default)]
 struct RevertableWrites {
-    pub cache: HashMap<CacheKey, Option<CacheValue>>,
+    pub cache: BTreeMap<CacheKey, Option<CacheValue>>,
     pub version: Option<u64>,
 }
 
@@ -229,14 +229,17 @@ impl<S: Storage> AccessoryDelta<S> {
     }
 
     fn freeze(&mut self) -> OrderedReadsAndWrites {
-        let mut reads_and_writes = OrderedReadsAndWrites::default();
         let writes = mem::take(&mut self.writes);
+        let ordered_writes = writes
+            .cache
+            .into_iter()
+            .map(|write| (write.0, write.1))
+            .collect();
 
-        for write in writes.cache {
-            reads_and_writes.ordered_writes.push((write.0, write.1));
+        OrderedReadsAndWrites {
+            ordered_writes,
+            ..Default::default()
         }
-
-        reads_and_writes
     }
 }
 
@@ -693,7 +696,7 @@ pub mod kernel_state {
 
 struct RevertableWriter<T> {
     inner: T,
-    writes: HashMap<CacheKey, Option<CacheValue>>,
+    writes: BTreeMap<CacheKey, Option<CacheValue>>,
     version: Option<u64>,
 }
 

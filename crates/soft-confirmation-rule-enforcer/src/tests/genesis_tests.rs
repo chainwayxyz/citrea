@@ -30,9 +30,10 @@ fn genesis_data() {
 
     assert_eq!(
         soft_confirmation_rule_enforcer
-            .max_l2_blocks_per_l1
+            .data
             .get(&mut working_set)
-            .unwrap(),
+            .unwrap()
+            .max_l2_blocks_per_l1,
         *max_l2_blocks_per_l1
     );
     assert_eq!(

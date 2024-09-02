@@ -48,7 +48,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
 
-    let test_client = make_test_client(port).await;
+    let test_client = make_test_client(port).await?;
 
     // ss is short for simple storage in this context
     let (caller_contract_address, caller_contract, ss_contract_address, _ss_contract) = {

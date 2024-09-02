@@ -3,12 +3,12 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ProverGuestRunConfig;
 
 /// Runner configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RunnerConfig {
     /// Sequencer client configuration.
     pub sequencer_client_url: String,
@@ -19,7 +19,7 @@ pub struct RunnerConfig {
 }
 
 /// RPC configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
     /// RPC host.
     pub bind_host: String,
@@ -82,14 +82,14 @@ const fn default_max_subscriptions_per_connection() -> u32 {
 }
 
 /// Simple storage configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
 }
 
 /// Important public keys for the rollup
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RollupPublicKeys {
     /// Soft confirmation signing public key of the Sequencer
     #[serde(with = "hex::serde")]
@@ -105,7 +105,7 @@ pub struct RollupPublicKeys {
 }
 
 /// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct FullNodeConfig<BitcoinServiceConfig> {
     /// RPC configuration
     pub rpc: RpcConfig,
@@ -123,7 +123,7 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
 }
 
 /// Prover configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ProverConfig {
     /// Prover run mode
     pub proving_mode: ProverGuestRunConfig,
