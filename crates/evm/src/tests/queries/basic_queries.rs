@@ -453,7 +453,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x161",
+        "l1DiffSize": "0xd3",
         "contractAddress": null,
         "logs": [
             {
@@ -504,7 +504,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x161",
+        "l1DiffSize": "0xd3",
         "contractAddress": null,
         "logs": [
             {
@@ -555,7 +555,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x161",
+        "l1DiffSize": "0xd3",
         "contractAddress": null,
         "logs": [
             {
@@ -606,7 +606,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "to": "0x819c5497b157177315e1204f52e588b393771719",
         "l1FeeRate": "0x1",
-        "l1DiffSize": "0x161",
+        "l1DiffSize": "0xd3",
         "contractAddress": null,
         "logs": [
             {
