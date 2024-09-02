@@ -29,7 +29,7 @@ use crate::test_helpers::{
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
+    TEST_DATA_GENESIS_PATH,
 };
 
 struct TestConfig {
@@ -84,7 +84,7 @@ async fn test_all_flow() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let test_client = make_test_client(seq_port).await.unwrap();
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
@@ -113,7 +113,7 @@ async fn test_all_flow() {
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
-    let prover_node_test_client = make_test_client(prover_node_port).await;
+    let prover_node_test_client = make_test_client(prover_node_port).await.unwrap();
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -139,7 +139,7 @@ async fn test_all_flow() {
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92265").unwrap();
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
     da_service.publish_test_block().await.unwrap();
     wait_for_l1_block(&da_service, 2, None).await;
@@ -173,12 +173,7 @@ async fn test_all_flow() {
     wait_for_l1_block(&da_service, 3, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        4,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    wait_for_prover_l1_height(&prover_node_test_client, 4, None).await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(3)
@@ -289,12 +284,7 @@ async fn test_all_flow() {
     wait_for_l1_block(&da_service, 5, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        5,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    wait_for_prover_l1_height(&prover_node_test_client, 5, None).await;
 
     let commitments = prover_node_test_client
         .ledger_get_sequencer_commitments_on_slot_by_number(5)
@@ -473,7 +463,7 @@ async fn initialize_test(
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await.unwrap();
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -497,7 +487,7 @@ async fn initialize_test(
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
     (
         seq_test_client,

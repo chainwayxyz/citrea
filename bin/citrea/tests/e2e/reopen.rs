@@ -19,7 +19,7 @@ use crate::test_helpers::{
 };
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    DEFAULT_PROOF_WAIT_DURATION, TEST_DATA_GENESIS_PATH,
+    TEST_DATA_GENESIS_PATH,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -158,7 +158,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let full_node_port = full_node_port_rx.await.unwrap();
 
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await?;
 
     wait_for_l2_block(&seq_test_client, 110, None).await;
     wait_for_l2_block(&full_node_test_client, 110, None).await;
@@ -264,7 +264,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     let seq_port = seq_port_rx.await.unwrap();
 
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
 
     let seq_last_block = seq_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -330,7 +330,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
     let (thread_kill_sender, thread_kill_receiver) = std::sync::mpsc::channel();
@@ -363,7 +363,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await;
+    let prover_node_test_client = make_test_client(prover_node_port).await?;
 
     // prover should not have any blocks saved
     assert_eq!(prover_node_test_client.eth_block_number().await, 0);
@@ -385,12 +385,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        5,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    wait_for_prover_l1_height(&prover_node_test_client, 5, None).await;
     // Contains the proof
     wait_for_l1_block(&da_service, 5, None).await;
 
@@ -438,7 +433,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await;
+    let prover_node_test_client = make_test_client(prover_node_port).await?;
 
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 6, None).await;
@@ -491,7 +486,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     });
 
     let prover_node_port = prover_node_port_rx.await.unwrap();
-    let prover_node_test_client = make_test_client(prover_node_port).await;
+    let prover_node_test_client = make_test_client(prover_node_port).await?;
     sleep(Duration::from_secs(2)).await;
     // Publish a DA to force prover to process new blocks
     da_service.publish_test_block().await.unwrap();
@@ -510,12 +505,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Commitment is sent
     wait_for_l1_block(&da_service, 8, None).await;
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(
-        &prover_node_test_client,
-        9,
-        Some(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)),
-    )
-    .await;
+    wait_for_prover_l1_height(&prover_node_test_client, 9, None).await;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra soft confirmation due to the prover publishing a proof. This causes

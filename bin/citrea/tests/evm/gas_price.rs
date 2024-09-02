@@ -114,7 +114,7 @@ async fn execute(
     // send 15 transactions from each wallet
     for wallet in wallets {
         let address = wallet.address();
-        let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await;
+        let wallet_client = TestClient::new(client.chain_id, wallet, address, port).await?;
         for i in 0..tx_count_from_single_address {
             let _pending = wallet_client
                 .contract_transaction(contract_address, contract.set_call_data(i), None)

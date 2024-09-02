@@ -43,7 +43,7 @@ async fn too_many_l2_block_per_l1_block() {
         .await;
     });
     let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let test_client = make_test_client(seq_port).await.unwrap();
     let max_l2_blocks_per_l1 = test_client.get_max_l2_blocks_per_l1().await;
 
     let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);

@@ -1,10 +1,9 @@
 //! Cache key/value definitions
 
+use alloc::collections::btree_map::{BTreeMap, Entry};
 use alloc::vec::Vec;
 use core::fmt;
 
-use hashbrown::hash_map::Entry;
-use hashbrown::HashMap;
 use sov_rollup_interface::RefCount;
 
 use crate::common::{MergeError, ReadError};
@@ -227,15 +226,13 @@ pub enum ValueExists {
 /// changed temporarily and then reset to its original value
 #[derive(Default)]
 pub struct CacheLog {
-    log: HashMap<CacheKey, Access>,
+    log: BTreeMap<CacheKey, Access>,
 }
 
 impl CacheLog {
     /// Creates a cache log with the provided map capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            log: HashMap::with_capacity(capacity),
-        }
+    pub fn with_capacity(_capacity: usize) -> Self {
+        Default::default()
     }
 }
 
@@ -462,9 +459,9 @@ pub struct OrderedReadsAndWrites {
 
 impl From<StorageInternalCache> for OrderedReadsAndWrites {
     fn from(val: StorageInternalCache) -> Self {
-        let mut writes = val.tx_cache.take_writes();
-        // TODO: Make this more efficient
-        writes.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        // Because BTreeMap is used there is no need to sort writes by key. It is already sorted.
+        let writes = val.tx_cache.take_writes();
+
         Self {
             ordered_reads: val.ordered_db_reads,
             ordered_writes: writes,
