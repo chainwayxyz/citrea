@@ -84,7 +84,7 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
 
         let validator = TransactionValidationTaskExecutor::eth_builder(Arc::new(chain_spec))
             .no_cancun()
-            // .no_eip4844() cannot use since underlying impl. disables eip1559
+            .no_eip4844()
             .set_shanghai(true)
             .with_additional_tasks(0)
             .build_with_tasks(client, TokioTaskExecutor::default(), blob_store);
