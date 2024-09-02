@@ -515,7 +515,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
     // sys tx use L1BlockHash(50751 + 80720) + Bridge(169150) = 300621 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
