@@ -69,7 +69,7 @@ describe("RpcTests", function() {
         const contractAddress = '0x3100000000000000000000000000000000000002';
         const contract = new ethers.Contract(contractAddress, abi, wallet);
         const txId = ethers.encodeBytes32String('0x1234');
-        const outputId = ethers.encodeBytes32String('0x01');
+        const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x01'), 4);
 
         let gasEstimate = await contract.withdraw.estimateGas([txId, outputId], {value: ethers.parseEther('10')});
         expect(gasEstimate > 0n).to.be.true;
@@ -223,7 +223,7 @@ describe("RpcTests", function() {
         let wallet = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         const contract = new ethers.Contract(contractAddress, abi, wallet);
         const txId = ethers.encodeBytes32String('0x1234');
-        const outputId = ethers.encodeBytes32String('0x01');
+        const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x01'), 4);
     
         let tx = {
             to: contractAddress,
@@ -315,7 +315,7 @@ const generateTransaction = async (ether_value) => {
     const contractAddress = '0x3100000000000000000000000000000000000002';
     const contract = new ethers.Contract(contractAddress, abi, wallet);
     const txId = ethers.encodeBytes32String('0x1234');
-    const outputId = ethers.encodeBytes32String('0x01');
+    const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x01'), 4);
 
     let tx = {
         to: contractAddress,
