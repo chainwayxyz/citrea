@@ -58,12 +58,9 @@ fn get_size(
         version: bitcoin::transaction::Version(2),
     };
 
+    // TODO: adjust size of sig. for different types of addresses
     for i in 0..tx.input.len() {
-        tx.input[i].witness.push(
-            Signature::from_slice(&[0; SCHNORR_SIGNATURE_SIZE])
-                .unwrap()
-                .as_ref(),
-        );
+        tx.input[i].witness.push(&vec![0; 71]);
     }
 
     #[allow(clippy::unnecessary_unwrap)]
@@ -331,7 +328,7 @@ pub fn create_zkproof_transactions(
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
-    recipient: Address,
+    change_address: Address,
     reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
@@ -344,7 +341,7 @@ pub fn create_zkproof_transactions(
             da_private_key,
             prev_utxo,
             utxos,
-            recipient,
+            change_address,
             reveal_value,
             commit_fee_rate,
             reveal_fee_rate,
@@ -357,7 +354,7 @@ pub fn create_zkproof_transactions(
             da_private_key,
             prev_utxo,
             utxos,
-            recipient,
+            change_address,
             reveal_value,
             commit_fee_rate,
             reveal_fee_rate,
@@ -377,7 +374,7 @@ pub fn create_seqcommitment_transactions(
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
-    recipient: Address,
+    change_address: Address,
     reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
@@ -389,7 +386,7 @@ pub fn create_seqcommitment_transactions(
         da_private_key,
         prev_utxo,
         utxos,
-        recipient,
+        change_address,
         reveal_value,
         commit_fee_rate,
         reveal_fee_rate,
@@ -450,7 +447,7 @@ pub fn create_inscription_type_0(
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
-    recipient: Address,
+    change_address: Address,
     reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
@@ -500,7 +497,7 @@ pub fn create_inscription_type_0(
             }
         }
         let utxos = utxos.clone();
-        let recipient = recipient.clone();
+        let change_address = change_address.clone();
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
@@ -544,7 +541,7 @@ pub fn create_inscription_type_0(
                 sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
             }],
             &[TxOut {
-                script_pubkey: recipient.clone().script_pubkey(),
+                script_pubkey: change_address.clone().script_pubkey(),
                 value: Amount::from_sat(reveal_value),
             }],
             Some(&reveal_script),
@@ -559,7 +556,7 @@ pub fn create_inscription_type_0(
             prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
-            recipient.clone(),
+            change_address.clone(),
             commit_value,
             commit_fee_rate,
         )?;
@@ -570,7 +567,7 @@ pub fn create_inscription_type_0(
             output_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
-            recipient,
+            change_address,
             reveal_value,
             reveal_fee_rate,
             &reveal_script,
@@ -643,7 +640,7 @@ pub fn create_inscription_type_1(
     da_private_key: &SecretKey,
     mut prev_utxo: Option<UTXO>,
     mut utxos: Vec<UTXO>,
-    recipient: Address,
+    change_address: Address,
     reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
@@ -709,7 +706,7 @@ pub fn create_inscription_type_1(
                 sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
             }],
             &[TxOut {
-                script_pubkey: recipient.clone().script_pubkey(),
+                script_pubkey: change_address.clone().script_pubkey(),
                 value: Amount::from_sat(reveal_value),
             }],
             Some(&reveal_script),
@@ -723,7 +720,7 @@ pub fn create_inscription_type_1(
             prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
-            recipient.clone(),
+            change_address.clone(),
             commit_value,
             commit_fee_rate,
         )?;
@@ -750,7 +747,7 @@ pub fn create_inscription_type_1(
             output_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
-            recipient.clone(),
+            change_address.clone(),
             reveal_value,
             reveal_fee_rate,
             &reveal_script,
@@ -861,7 +858,7 @@ pub fn create_inscription_type_1(
             }
         }
         let utxos = utxos.clone();
-        let recipient = recipient.clone();
+        let change_address = change_address.clone();
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
@@ -905,7 +902,7 @@ pub fn create_inscription_type_1(
                 sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
             }],
             &[TxOut {
-                script_pubkey: recipient.clone().script_pubkey(),
+                script_pubkey: change_address.clone().script_pubkey(),
                 value: Amount::from_sat(reveal_value),
             }],
             Some(&reveal_script),
@@ -919,7 +916,7 @@ pub fn create_inscription_type_1(
             prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
-            recipient.clone(),
+            change_address.clone(),
             commit_value,
             commit_fee_rate,
         )?;
@@ -930,7 +927,7 @@ pub fn create_inscription_type_1(
             output_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
-            recipient,
+            change_address,
             reveal_value,
             reveal_fee_rate,
             &reveal_script,
@@ -1004,7 +1001,7 @@ pub fn create_batchproof_type_0(
     da_private_key: &SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
-    recipient: Address,
+    change_address: Address,
     reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
@@ -1052,7 +1049,7 @@ pub fn create_batchproof_type_0(
             }
         }
         let utxos = utxos.clone();
-        let recipient = recipient.clone();
+        let change_address = change_address.clone();
         // ownerships are moved to the loop
         let mut reveal_script_builder = reveal_script_builder.clone();
 
@@ -1096,7 +1093,7 @@ pub fn create_batchproof_type_0(
                 sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
             }],
             &[TxOut {
-                script_pubkey: recipient.clone().script_pubkey(),
+                script_pubkey: commit_tx_address.clone().script_pubkey(),
                 value: Amount::from_sat(reveal_value),
             }],
             Some(&reveal_script),
@@ -1111,7 +1108,7 @@ pub fn create_batchproof_type_0(
             prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
-            recipient.clone(),
+            change_address.clone(),
             commit_value,
             commit_fee_rate,
         )?;
@@ -1122,7 +1119,7 @@ pub fn create_batchproof_type_0(
             output_to_reveal.clone(),
             unsigned_commit_tx.compute_txid(),
             0,
-            recipient,
+            change_address,
             reveal_value,
             reveal_fee_rate,
             &reveal_script,
