@@ -8,7 +8,7 @@ describe("RpcTests", function() {
     //Makes an initial tx to test for later, used to prevent waiting for a block to mine in each such test
     before(async function() {
         this.timeout(0);
-        let tx = await generateTransaction('0.01');
+        let tx = await generateTransaction('10');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -49,23 +49,29 @@ describe("RpcTests", function() {
                 "name": "withdraw",
                 "inputs": [
                   {
-                    "name": "bitcoin_address",
+                    "name": "txId",
                     "type": "bytes32",
                     "internalType": "bytes32"
+                  },
+                  {
+                    "name": "outputId",
+                    "type": "bytes4",
+                    "internalType": "bytes4"
                   }
                 ],
                 "outputs": [],
                 "stateMutability": "payable"
-              },
+              }
         ];
 
         const privateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
         const wallet = new ethers.Wallet(privateKey, provider);
         const contractAddress = '0x3100000000000000000000000000000000000002';
         const contract = new ethers.Contract(contractAddress, abi, wallet);
-        const bitcoinAddress = ethers.encodeBytes32String('bc1qa0a0a0a0a0a0a0a0a0a0a0a0');
+        const txId = ethers.encodeBytes32String('0x1234');
+        const outputId = ethers.encodeBytes4('0x01');
 
-        let gasEstimate = await contract.withdraw.estimateGas(bitcoinAddress, {value: ethers.parseEther('0.01')});
+        let gasEstimate = await contract.withdraw.estimateGas([txId, outputId], {value: ethers.parseEther('10')});
         expect(gasEstimate > 0n).to.be.true;
     });
 
@@ -101,7 +107,7 @@ describe("RpcTests", function() {
 
     it("broadcastTransaction publishes a txn and it gets mined", async function() {
         this.timeout(0);
-        let tx = await generateTransaction('0.01');
+        let tx = await generateTransaction('10');
         let signer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         tx = await signer.signTransaction(tx);
         let tx_response = await provider.broadcastTransaction(tx);
@@ -197,26 +203,32 @@ describe("RpcTests", function() {
                 "type": "function",
                 "name": "withdraw",
                 "inputs": [
-                    {
-                        "name": "bitcoin_address",
-                        "type": "bytes32",
-                        "internalType": "bytes32"
-                    }
+                  {
+                    "name": "txId",
+                    "type": "bytes32",
+                    "internalType": "bytes32"
+                  },
+                  {
+                    "name": "outputId",
+                    "type": "bytes4",
+                    "internalType": "bytes4"
+                  }
                 ],
                 "outputs": [],
                 "stateMutability": "payable"
-            },
+              }
         ];
     
         const contractAddress = '0x3100000000000000000000000000000000000002';
         let wallet = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider);
         const contract = new ethers.Contract(contractAddress, abi, wallet);
-        const bitcoinAddress = ethers.encodeBytes32String('bc1qa0a0a0a0a0a0a0a0a0a0a0a0');
+        const txId = ethers.encodeBytes32String('0x1234');
+        const outputId = ethers.encodeBytes4('0x01');
     
         let tx = {
             to: contractAddress,
-            value: ethers.parseEther('0.9'),
-            data: contract.interface.encodeFunctionData('withdraw', [bitcoinAddress]),
+            value: ethers.parseEther('9'),
+            data: contract.interface.encodeFunctionData('withdraw', [txId, outputId]),
             from: wallet.address
         };
 
@@ -282,27 +294,33 @@ const generateTransaction = async (ether_value) => {
             "type": "function",
             "name": "withdraw",
             "inputs": [
-                {
-                    "name": "bitcoin_address",
-                    "type": "bytes32",
-                    "internalType": "bytes32"
-                }
+              {
+                "name": "txId",
+                "type": "bytes32",
+                "internalType": "bytes32"
+              },
+              {
+                "name": "outputId",
+                "type": "bytes4",
+                "internalType": "bytes4"
+              }
             ],
             "outputs": [],
             "stateMutability": "payable"
-        },
+          }
     ];
 
     const privateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
     const wallet = new ethers.Wallet(privateKey, provider);
     const contractAddress = '0x3100000000000000000000000000000000000002';
     const contract = new ethers.Contract(contractAddress, abi, wallet);
-    const bitcoinAddress = ethers.encodeBytes32String('bc1qa0a0a0a0a0a0a0a0a0a0a0a0');
+    const txId = ethers.encodeBytes32String('0x1234');
+    const outputId = ethers.encodeBytes4('0x01');
 
     let tx = {
         to: contractAddress,
         value: ethers.parseEther(ether_value),
-        data: contract.interface.encodeFunctionData('withdraw', [bitcoinAddress]),
+        data: contract.interface.encodeFunctionData('withdraw', [txId, outputId]),
         from: wallet.address,
         chainId: 5655,
         gasLimit: 1000000,

@@ -107,7 +107,7 @@ class TestWeb3(unittest.TestCase):
             'value': self.web3.to_wei(0.01, 'ether'),  
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
-            'data': "0x8e19899e0000000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32), param is 0x0
+            'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
             'nonce': self.web3.eth.get_transaction_count("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
             'chainId': 5655
         }
@@ -186,7 +186,7 @@ class TestWeb3(unittest.TestCase):
             'value': self.web3.to_wei(0.9, 'ether'),  
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
-            'data': "0x8e19899e0000000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32), param is 0x0
+            'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
             'nonce': self.web3.eth.get_transaction_count("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
             'chainId': 5655
         }
@@ -202,7 +202,7 @@ class TestWeb3(unittest.TestCase):
             'value': self.web3.to_wei(0.9, 'ether'),  
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
-            'data': "0x8e19899e0000000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32), param is 0x0
+            'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
             'nonce': self.web3.eth.get_transaction_count("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
             'chainId': 5655
         }
