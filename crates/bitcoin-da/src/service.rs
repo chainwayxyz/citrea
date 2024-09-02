@@ -583,9 +583,8 @@ impl DaService for BitcoinService {
             "Extracting relevant txs from block {:?}",
             block.header.block_hash()
         );
-
-        let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
+        let txs: Vec<&Transaction> = block.txdata.iter().map(|tx| tx.inner()).collect(); // get a list of references to the transactions
+        get_relevant_blobs_from_txs(&txs[..], &self.reveal_batch_prover_prefix)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -746,12 +745,13 @@ impl DaService for BitcoinService {
         &self,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let pending_txs = self.get_pending_transactions().await.unwrap();
-        get_relevant_blobs_from_txs(pending_txs, &self.reveal_batch_prover_prefix)
+        let pending_txs: Vec<&Transaction> = pending_txs.iter().map(|tx| tx).collect(); // get a list of references to the transactions
+        get_relevant_blobs_from_txs(&pending_txs[..], &self.reveal_batch_prover_prefix)
     }
 }
 
 fn get_relevant_blobs_from_txs(
-    txs: Vec<Transaction>,
+    txs: &[&Transaction],
     reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {
     let mut relevant_txs = Vec::new();
