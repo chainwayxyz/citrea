@@ -41,9 +41,10 @@ const STORAGE_VALUE_SIZE: usize = 33;
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
 pub const L1_FEE_OVERHEAD: usize = 4;
 
-/// These ratios are calculated because we want to charge the user for the amount of data they write to the state
-/// But in order to calculate that we need to know the size of the state diff which is not possible to calculate in a single transaction
-/// So we calculate these ratios to estimate the total diff size that would end up in a batch
+/// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
+/// So we calculate the state diff created by a single transaction and use that to charge user
+/// However at the time of the batch proof some state diffs will be merged and some users will be overcharged.
+/// To tackle this we calculated statistics on the ratio between the merged state diff and unique changes vs total changes
 /*
 Let's consider a batch of 1 block with the following transactions:
 
@@ -52,8 +53,12 @@ Let's consider a batch of 1 block with the following transactions:
         Transaction 2: Account B transfers balance to Account C
 
     In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
-    So A and B should share that cost thus we have the ratios below
+    So A and B should share that cost
+    So the ratio would be something like this in this simple scenario:
+    3 unique balance slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
+    If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
 */
+/// Nonce and balance are stored together so we use single constant
 const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
 const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
@@ -522,7 +527,7 @@ fn calc_diff_size<EXT, DB: Database>(
         }
 
         // we don't check `code_changed` bc account_info is changed always for code_changed
-        if account.account_info_changed {
+        if account.account_info_changed || account.code_changed {
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
             diff_size +=
@@ -534,7 +539,6 @@ fn calc_diff_size<EXT, DB: Database>(
 
         // Apply size of changed codes
         if account.code_changed {
-            diff_size += DB_ACCOUNT_KEY_SIZE + DB_ACCOUNT_KEY_SIZE;
             let account = &state[addr];
 
             if let Some(code) = account.info.code.as_ref() {
