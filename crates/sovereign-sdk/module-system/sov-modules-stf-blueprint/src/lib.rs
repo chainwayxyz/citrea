@@ -278,7 +278,7 @@ where
         // verify signature
         if verify_soft_confirmation_signature::<C>(
             unsigned,
-            soft_confirmation.signature().as_slice(),
+            soft_confirmation.signature_as_ref(),
             sequencer_public_key,
         )
         .is_err()
