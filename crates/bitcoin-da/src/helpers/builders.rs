@@ -144,7 +144,7 @@ fn build_commit_transaction(
     recipient: Address,
     change_address: Address,
     output_value: u64,
-    fee_rate: f64,
+    fee_rate: u64,
 ) -> Result<(Transaction, Vec<UTXO>), anyhow::Error> {
     // get single input single output transaction size
     let size = get_size(
@@ -182,7 +182,7 @@ fn build_commit_transaction(
                 warn!("Too many iterations choosing UTXOs");
             }
         }
-        let fee = ((last_size as f64) * fee_rate).ceil() as u64;
+        let fee = (last_size as u64) * fee_rate;
 
         let input_total = output_value + fee;
 
@@ -262,7 +262,7 @@ fn build_reveal_transaction(
     input_vout: u32,
     recipient: Address,
     output_value: u64,
-    fee_rate: f64,
+    fee_rate: u64,
     reveal_script: &ScriptBuf,
     control_block: &ControlBlock,
 ) -> Result<Transaction, anyhow::Error> {
@@ -283,7 +283,7 @@ fn build_reveal_transaction(
 
     let size = get_size(&inputs, &outputs, Some(reveal_script), Some(control_block));
 
-    let fee = ((size as f64) * fee_rate).ceil() as u64;
+    let fee = (size as u64) * fee_rate;
 
     let input_total = output_value + fee;
 
@@ -333,8 +333,8 @@ pub fn create_zkproof_transactions(
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
-    commit_fee_rate: f64,
-    reveal_fee_rate: f64,
+    commit_fee_rate: u64,
+    reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
@@ -379,8 +379,8 @@ pub fn create_seqcommitment_transactions(
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
-    commit_fee_rate: f64,
-    reveal_fee_rate: f64,
+    commit_fee_rate: u64,
+    reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<BatchProvingTxs, anyhow::Error> {
@@ -452,8 +452,8 @@ pub fn create_inscription_type_0(
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
-    commit_fee_rate: f64,
-    reveal_fee_rate: f64,
+    commit_fee_rate: u64,
+    reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
@@ -533,7 +533,7 @@ pub fn create_inscription_type_0(
             network,
         );
 
-        let commit_value = (get_size(
+        let commit_value = get_size(
             &[TxIn {
                 previous_output: OutPoint {
                     txid: Txid::from_byte_array([0; 32]),
@@ -549,10 +549,9 @@ pub fn create_inscription_type_0(
             }],
             Some(&reveal_script),
             Some(&control_block),
-        ) as f64
+        ) as u64
             * reveal_fee_rate
-            + reveal_value as f64)
-            .ceil() as u64;
+            + reveal_value;
 
         // build commit tx
         // we don't need leftover_utxos because they will be requested from bitcoind next call
@@ -646,8 +645,8 @@ pub fn create_inscription_type_1(
     mut utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
-    commit_fee_rate: f64,
-    reveal_fee_rate: f64,
+    commit_fee_rate: u64,
+    reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
@@ -699,7 +698,7 @@ pub fn create_inscription_type_1(
             network,
         );
 
-        let commit_value = (get_size(
+        let commit_value = get_size(
             &[TxIn {
                 previous_output: OutPoint {
                     txid: Txid::from_byte_array([0; 32]),
@@ -715,10 +714,9 @@ pub fn create_inscription_type_1(
             }],
             Some(&reveal_script),
             Some(&control_block),
-        ) as f64
+        ) as u64
             * reveal_fee_rate
-            + reveal_value as f64)
-            .ceil() as u64;
+            + reveal_value;
 
         // build commit tx
         let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
@@ -896,7 +894,7 @@ pub fn create_inscription_type_1(
             network,
         );
 
-        let commit_value = (get_size(
+        let commit_value = get_size(
             &[TxIn {
                 previous_output: OutPoint {
                     txid: Txid::from_byte_array([0; 32]),
@@ -912,10 +910,9 @@ pub fn create_inscription_type_1(
             }],
             Some(&reveal_script),
             Some(&control_block),
-        ) as f64
+        ) as u64
             * reveal_fee_rate
-            + reveal_value as f64)
-            .ceil() as u64;
+            + reveal_value;
 
         // build commit tx
         let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
@@ -1009,8 +1006,8 @@ pub fn create_batchproof_type_0(
     utxos: Vec<UTXO>,
     recipient: Address,
     reveal_value: u64,
-    commit_fee_rate: f64,
-    reveal_fee_rate: f64,
+    commit_fee_rate: u64,
+    reveal_fee_rate: u64,
     network: Network,
     reveal_tx_prefix: &[u8],
 ) -> Result<BatchProvingTxs, anyhow::Error> {
@@ -1088,7 +1085,7 @@ pub fn create_batchproof_type_0(
             network,
         );
 
-        let commit_value = (get_size(
+        let commit_value = get_size(
             &[TxIn {
                 previous_output: OutPoint {
                     txid: Txid::from_byte_array([0; 32]),
@@ -1104,10 +1101,9 @@ pub fn create_batchproof_type_0(
             }],
             Some(&reveal_script),
             Some(&control_block),
-        ) as f64
+        ) as u64
             * reveal_fee_rate
-            + reveal_value as f64)
-            .ceil() as u64;
+            + reveal_value;
 
         // build commit tx
         // we don't need leftover_utxos because they will be requested from bitcoind next call
@@ -1366,7 +1362,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             5_000,
-            8.0,
+            8,
         )
         .unwrap();
         assert_eq!(leftover_utxos.len(), 2);
@@ -1395,7 +1391,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             5_000,
-            45.0,
+            45,
         )
         .unwrap();
         assert_eq!(leftover_utxos.len(), 2);
@@ -1422,7 +1418,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             5_000,
-            32.0,
+            32,
         )
         .unwrap();
         assert_eq!(leftover_utxos.len(), 2);
@@ -1454,7 +1450,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             1_050_000,
-            5.0,
+            5,
         )
         .unwrap();
         assert_eq!(leftover_utxos.len(), 1);
@@ -1499,7 +1495,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             100_000_000_000,
-            32.0,
+            32,
         );
 
         assert!(tx.is_err());
@@ -1538,7 +1534,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             50000,
-            32.0,
+            32,
         )
         .unwrap();
         assert_eq!(leftover_utxos.len(), 4);
@@ -1552,7 +1548,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             100_000_000_000,
-            32.0,
+            32,
         );
 
         assert!(tx.is_err());
@@ -1581,7 +1577,7 @@ mod tests {
             recipient.clone(),
             address.clone(),
             100_000_000_000,
-            32.0,
+            32,
         );
 
         assert!(tx.is_err());
@@ -1609,7 +1605,7 @@ mod tests {
             utxo.vout,
             address.clone(),
             REVEAL_OUTPUT_AMOUNT,
-            8.0,
+            8,
             &script,
             &control_block,
         )
@@ -1638,7 +1634,7 @@ mod tests {
             utxo.vout,
             address.clone(),
             REVEAL_OUTPUT_AMOUNT,
-            75.0,
+            75,
             &script,
             &control_block,
         );
@@ -1657,7 +1653,7 @@ mod tests {
             utxo.vout,
             address.clone(),
             9999,
-            1.0,
+            1,
             &script,
             &control_block,
         );
@@ -1684,8 +1680,8 @@ mod tests {
             utxos.clone(),
             address.clone(),
             546,
-            12.0,
-            10.0,
+            12,
+            10,
             bitcoin::Network::Bitcoin,
             tx_prefix,
         )
