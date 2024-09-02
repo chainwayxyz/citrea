@@ -2,7 +2,7 @@ use helpers::C;
 use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -20,7 +20,7 @@ fn mint_token() {
 
     let minter_address = generate_address::<C>("minter");
     let sequencer_address = generate_address::<C>("sequencer");
-    let minter_context = C::new(minter_address, sequencer_address, 1);
+    let minter_context = C::new(minter_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -88,7 +88,13 @@ fn mint_token() {
     // Mint with an un-authorized user
     let unauthorized_address = generate_address::<C>("unauthorized_address");
     let sequencer_address = generate_address::<C>("sequencer");
-    let unauthorized_context = C::new(unauthorized_address, sequencer_address, 1);
+    let unauthorized_context = C::new(
+        unauthorized_address,
+        sequencer_address,
+        1,
+        SpecId::Genesis,
+        0,
+    );
     let unauthorized_mint = bank.call(mint_message, &unauthorized_context, &mut working_set);
 
     assert!(unauthorized_mint.is_err());
@@ -172,7 +178,13 @@ fn mint_token() {
         message_2
     );
     // Try to mint new token with authorized sender 2
-    let authorized_minter_2_context = C::new(authorized_minter_address_2, sequencer_address, 1);
+    let authorized_minter_2_context = C::new(
+        authorized_minter_address_2,
+        sequencer_address,
+        1,
+        SpecId::Genesis,
+        0,
+    );
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,
@@ -189,7 +201,13 @@ fn mint_token() {
     assert_eq!(Some(110), supply);
 
     // Try to mint new token with authorized sender 1
-    let authorized_minter_1_context = C::new(authorized_minter_address_1, sequencer_address, 1);
+    let authorized_minter_1_context = C::new(
+        authorized_minter_address_1,
+        sequencer_address,
+        1,
+        SpecId::Genesis,
+        0,
+    );
     let mint_message = CallMessage::Mint {
         coins: Coins {
             amount: mint_amount,

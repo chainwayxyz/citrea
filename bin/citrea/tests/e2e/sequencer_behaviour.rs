@@ -264,7 +264,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         random_wallet_address,
         seq_test_client.rpc_addr,
     )
-    .await;
+    .await?;
 
     let tx = random_test_client
         .send_eth_with_gas(
@@ -374,7 +374,7 @@ async fn test_gas_limit_too_high() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await.unwrap();
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -398,7 +398,7 @@ async fn test_gas_limit_too_high() {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
     let mut tx_hashes = vec![];
     // Loop until tx_count.
@@ -515,7 +515,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
     // sys tx use L1BlockHash(50751 + 80720) + Bridge(261215) = 392686 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 

@@ -1,10 +1,10 @@
-use sov_modules_api::hooks::{ApplySoftConfirmationError, HookSoftConfirmationInfo};
-use sov_modules_api::{Context, DaSpec, StateMapAccessor, StateValueAccessor, WorkingSet};
+use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
+use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
 use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
-use crate::SoftConfirmationRuleEnforcer;
+use crate::{RuleEnforcerData, SoftConfirmationRuleEnforcer};
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
 where
@@ -18,81 +18,27 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_block_count_rule(
         &self,
-        soft_confirmation_info: &mut HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        max_l2_blocks_per_l1: u32,
+        last_da_root_hash: &mut [u8; 32],
+        counter: &mut u32,
+    ) -> Result<(), SoftConfirmationError> {
         let da_root_hash = soft_confirmation_info.da_slot_hash();
-        let l2_block_count = self
-            .da_root_hash_to_number
-            .get(&da_root_hash, working_set)
-            .unwrap_or(0);
-        let max_l2_blocks_per_l1 = self
-            .max_l2_blocks_per_l1
-            .get(working_set)
-            .expect("max L2 blocks per L1 must be set");
 
-        // Adding one more l2 block will exceed the max L2 blocks per L1
-        if l2_block_count + 1 > max_l2_blocks_per_l1 {
-            // block count per l1 block should not be more than max L2 blocks per L1
-            return Err(
-                ApplySoftConfirmationError::TooManySoftConfirmationsOnDaSlot {
-                    hash: da_root_hash,
-                    sequencer_pub_key: soft_confirmation_info.sequencer_pub_key().to_vec(),
-                    max_l2_blocks_per_l1,
-                },
-            );
+        if da_root_hash == *last_da_root_hash {
+            *counter += 1;
+
+            // Adding one more l2 block will exceed the max L2 blocks per L1
+            if *counter > max_l2_blocks_per_l1 {
+                // block count per l1 block should not be more than max L2 blocks per L1
+                return Err(SoftConfirmationError::Other(
+                    "Too many soft confirmations on DA slot".to_string(),
+                ));
+            }
+        } else {
+            *counter = 1;
+            *last_da_root_hash = da_root_hash;
         }
-
-        // increment the block count
-        self.da_root_hash_to_number
-            .set(&da_root_hash, &(l2_block_count + 1), working_set);
-
-        Ok(())
-    }
-
-    /// Checks the L1 fee rate rule.
-    /// The L1 fee rate should not change more than the allowed percentage.
-    /// If the L1 fee rate changes more than the allowed percentage, the soft confirmation should fail and not be accepted by full nodes.
-    /// This ensures the sequencer cannot change the fee rate more than the allowed percentage.
-    /// Thus blocks the ability of the sequencer to raise the L1 fee rates arbitrarily and charging a transaction maliciously.
-    /// An ideal solution would have the L1 fee trustlessly determined by the L2 users, but that is not possible currently.
-    #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
-    fn apply_fee_rate_rule(
-        &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
-        let l1_fee_rate = soft_confirmation.l1_fee_rate();
-        let last_l1_fee_rate = self.last_l1_fee_rate.get(working_set).unwrap_or(0);
-
-        // if we are in the block right after genesis, we don't have a last fee rate
-        // so just accept the given fee rate
-        if last_l1_fee_rate == 0 {
-            // early return so don't forget to set
-            self.last_l1_fee_rate
-                .set(&soft_confirmation.l1_fee_rate, working_set);
-            return Ok(());
-        }
-
-        let l1_fee_rate_change_percentage = self
-            .l1_fee_rate_change_percentage
-            .get(working_set)
-            .expect("L1 fee rate change should be set");
-
-        // check last fee * (100 - change percentage) / 100 <= current fee <= last fee * (100 + change percentage) / 100
-        if l1_fee_rate * 100 < last_l1_fee_rate * (100 - l1_fee_rate_change_percentage)
-            || l1_fee_rate * 100 > last_l1_fee_rate * (100 + l1_fee_rate_change_percentage)
-        {
-            return Err(
-                ApplySoftConfirmationError::L1FeeRateChangeMoreThanAllowedPercentage {
-                    l1_fee_rate,
-                    l1_fee_rate_change_percentage,
-                },
-            );
-        }
-
-        self.last_l1_fee_rate
-            .set(&soft_confirmation.l1_fee_rate, working_set);
 
         Ok(())
     }
@@ -102,22 +48,18 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn apply_timestamp_rule(
         &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
+        soft_confirmation: &HookSoftConfirmationInfo,
+        last_timestamp: &mut u64,
+    ) -> Result<(), SoftConfirmationError> {
         let current_timestamp = soft_confirmation.timestamp();
-        let last_timestamp = self.last_timestamp.get(working_set).unwrap_or(0);
 
-        if current_timestamp < last_timestamp {
-            return Err(
-                ApplySoftConfirmationError::CurrentTimestampIsNotGreaterThanPrev {
-                    current: current_timestamp,
-                    prev: last_timestamp,
-                },
-            );
+        if current_timestamp < *last_timestamp {
+            return Err(SoftConfirmationError::Other(
+                "Timestamp should be greater than last timestamp".to_string(),
+            ));
         }
 
-        self.last_timestamp.set(&current_timestamp, working_set);
+        *last_timestamp = current_timestamp;
 
         Ok(())
     }
@@ -130,14 +72,37 @@ where
     )]
     pub fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), ApplySoftConfirmationError> {
-        self.apply_block_count_rule(soft_confirmation, working_set)?;
+    ) -> Result<(), SoftConfirmationError> {
+        let RuleEnforcerData {
+            max_l2_blocks_per_l1,
+            mut last_da_root_hash,
+            mut counter,
+            mut last_timestamp,
+        } = self
+            .data
+            .get(working_set)
+            .expect("should be set in genesis");
 
-        self.apply_fee_rate_rule(soft_confirmation, working_set)?;
+        self.apply_block_count_rule(
+            soft_confirmation_info,
+            max_l2_blocks_per_l1,
+            &mut last_da_root_hash,
+            &mut counter,
+        )?;
 
-        self.apply_timestamp_rule(soft_confirmation, working_set)?;
+        self.apply_timestamp_rule(soft_confirmation_info, &mut last_timestamp)?;
+
+        self.data.set(
+            &RuleEnforcerData {
+                max_l2_blocks_per_l1,
+                last_da_root_hash,
+                counter,
+                last_timestamp,
+            },
+            working_set,
+        );
 
         Ok(())
     }

@@ -3,7 +3,7 @@
 use sov_accessory_state::{AccessorySetter, CallMessage};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Context, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::Storage;
 
@@ -20,7 +20,7 @@ fn test_accessory_value_setter() {
 
     let admin = Address::from([1; 32]);
     let sequencer = Address::from([2; 32]);
-    let context = DefaultContext::new(admin, sequencer, 1);
+    let context = DefaultContext::new(admin, sequencer, 1, SpecId::Genesis, 0);
 
     let module = AccessorySetter::<DefaultContext>::default();
 

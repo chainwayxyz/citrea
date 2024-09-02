@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
 
-use crate::SoftConfirmationRuleEnforcer;
+use crate::{RuleEnforcerData, SoftConfirmationRuleEnforcer};
 
 /// Config for the SoftConfirmationRuleEnforcer module.
 /// Sets max L2 blocks per L1 and authority.
@@ -11,10 +11,7 @@ pub struct SoftConfirmationRuleEnforcerConfig<C: Context> {
     /// This address is allowed to modify the max L2 blocks per L1.
     pub(crate) authority: C::Address,
     ///  Maximum number of L2 blocks per L1 slot.
-    pub(crate) max_l2_blocks_per_l1: u64,
-    /// L1 fee rate change percentage
-    /// Out of 100.
-    pub(crate) l1_fee_rate_change_percentage: u128,
+    pub(crate) max_l2_blocks_per_l1: u32,
 }
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
@@ -24,10 +21,17 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         working_set: &mut WorkingSet<C>,
     ) -> anyhow::Result<()> {
         self.authority.set(&config.authority, working_set);
-        self.max_l2_blocks_per_l1
-            .set(&config.max_l2_blocks_per_l1, working_set);
-        self.l1_fee_rate_change_percentage
-            .set(&config.l1_fee_rate_change_percentage, working_set);
+
+        self.data.set(
+            &RuleEnforcerData {
+                counter: 0,
+                max_l2_blocks_per_l1: config.max_l2_blocks_per_l1,
+                last_timestamp: 0,
+                last_da_root_hash: [0; 32],
+            },
+            working_set,
+        );
+
         Ok(())
     }
 }

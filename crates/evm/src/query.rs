@@ -613,7 +613,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Handler for: `eth_call`
     //https://github.com/paradigmxyz/reth/blob/f577e147807a783438a3f16aad968b4396274483/crates/rpc/rpc/src/eth/api/transactions.rs#L502
     //https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/call.rs#L7
-    #[rpc_method(name = "eth_call")]
+    #[rpc_method(name = "eth_call", blocking)]
     pub fn get_call(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -712,7 +712,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for `eth_createAccessList`
-    #[rpc_method(name = "eth_createAccessList")]
+    #[rpc_method(name = "eth_createAccessList", blocking)]
     pub fn create_access_list(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -723,35 +723,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut request = request.clone();
 
-        let (l1_fee_rate, mut block_env) = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                let block_env = self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                });
-                (l1_fee_rate, block_env)
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
+        let (l1_fee_rate, mut block_env, block_num) = {
+            let block = match self.get_sealed_block_by_number(block_number, working_set)? {
+                Some(block) => block,
+                None => return Err(EthApiError::UnknownBlockNumber.into()),
+            };
+            let l1_fee_rate = block.l1_fee_rate;
+            let block_env = BlockEnv::from(&block);
 
-                set_state_to_end_of_evm_block(block.header.number, working_set);
-                let l1_fee_rate = block.l1_fee_rate;
-                let block_env = BlockEnv::from(&block);
-                (l1_fee_rate, block_env)
+            (l1_fee_rate, block_env, block.header.number)
+        };
+
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => {
+                set_state_to_end_of_evm_block(block_num, working_set);
             }
         };
 
@@ -846,35 +832,21 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let (l1_fee_rate, block_env) = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // so we don't unnecessarily set archival version
-                // if no block was produced yet, the l1 fee rate can unwrap to 0, we don't care, else just return the latest
-                let l1_fee_rate = self.l1_fee_rate.get(working_set).unwrap_or_default();
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                let block_env = self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                });
-                (l1_fee_rate, block_env)
-            }
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
+        let (l1_fee_rate, block_env, block_num) = {
+            let block = match self.get_sealed_block_by_number(block_number, working_set)? {
+                Some(block) => block,
+                None => return Err(EthApiError::UnknownBlockNumber.into()),
+            };
+            let l1_fee_rate = block.l1_fee_rate;
+            let block_env = BlockEnv::from(&block);
 
-                set_state_to_end_of_evm_block(block.header.number, working_set);
-                let l1_fee_rate = block.l1_fee_rate;
-                let block_env = BlockEnv::from(&block);
-                (l1_fee_rate, block_env)
+            (l1_fee_rate, block_env, block.header.number)
+        };
+
+        match block_number {
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+            _ => {
+                set_state_to_end_of_evm_block(block_num, working_set);
             }
         };
 
@@ -902,7 +874,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Handler for: `eth_estimateGas`
     // https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/api/call.rs#L172
-    #[rpc_method(name = "eth_estimateGas")]
+    #[rpc_method(name = "eth_estimateGas", blocking)]
     pub fn eth_estimate_gas(
         &self,
         request: reth_rpc_types::TransactionRequest,
@@ -916,7 +888,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Handler for: `eth_estimateDiffSize`
-    #[rpc_method(name = "eth_estimateDiffSize")]
+    #[rpc_method(name = "eth_estimateDiffSize", blocking)]
     pub fn eth_estimate_diff_size(
         &self,
         request: reth_rpc_types::TransactionRequest,

@@ -55,6 +55,7 @@ arbitrary = [
     "dep:proptest",
     "dep:proptest-derive",
     "native",
+    "sov-rollup-interface/arbitrary",
     "proptest/default",
     "sov-state/arbitrary",
 ]

@@ -1383,6 +1383,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "bollard"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d41711ad46fda47cd701f6908e59d1bd6b9a2b7464c0d0aeab95c6d37096ff8a"
+dependencies = [
+ "base64 0.22.1",
+ "bollard-stubs",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "hex",
+ "http 1.1.0",
+ "http-body-util",
+ "hyper 1.4.1",
+ "hyper-named-pipe",
+ "hyper-util",
+ "hyperlocal",
+ "log",
+ "pin-project-lite",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_repr",
+ "serde_urlencoded",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tower-service",
+ "url",
+ "winapi",
+]
+
+[[package]]
+name = "bollard-stubs"
+version = "1.45.0-rc.26.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d7c5415e3a6bc6d3e99eff6268e488fd4ee25e7b28c10f08fa6760bd9de16e4"
+dependencies = [
+ "serde",
+ "serde_repr",
+ "serde_with",
+]
+
+[[package]]
 name = "bonsai-sdk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1643,7 +1687,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
+ "bitcoin",
  "bitcoin-da",
+ "bitcoincore-rpc",
+ "bollard",
  "borsh",
  "citrea-evm",
  "citrea-fullnode",
@@ -1654,11 +1701,13 @@ dependencies = [
  "citrea-stf",
  "clap",
  "ethereum-rpc",
+ "futures",
  "hex",
  "jsonrpsee",
  "log",
  "log-panics",
  "proptest",
+ "rand 0.8.5",
  "regex",
  "reqwest 0.12.5",
  "reth-primitives",
@@ -1686,6 +1735,7 @@ dependencies = [
  "sov-stf-runner",
  "tempfile",
  "tokio",
+ "toml",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]
@@ -1859,6 +1909,7 @@ dependencies = [
  "hex",
  "hyper 1.4.1",
  "jsonrpsee",
+ "parking_lot",
  "reth-chainspec",
  "reth-db",
  "reth-primitives",
@@ -2676,6 +2727,7 @@ dependencies = [
  "citrea-evm",
  "citrea-primitives",
  "jsonrpsee",
+ "parking_lot",
  "proptest",
  "reth-primitives",
  "reth-rpc-eth-types",
@@ -3301,6 +3353,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-named-pipe"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73b7d8abf35697b81a825e386fc151e0d503e8cb5fcb93cc8669c376dfd6f278"
+dependencies = [
+ "hex",
+ "hyper 1.4.1",
+ "hyper-util",
+ "pin-project-lite",
+ "tokio",
+ "tower-service",
+ "winapi",
+]
+
+[[package]]
 name = "hyper-rustls"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3351,6 +3418,21 @@ dependencies = [
  "tower",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "hyperlocal"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "986c5ce3b994526b3cd75578e62554abd09f0899d6206de48b3e96ab34ccc8c7"
+dependencies = [
+ "hex",
+ "http-body-util",
+ "hyper 1.4.1",
+ "hyper-util",
+ "pin-project-lite",
+ "tokio",
+ "tower-service",
 ]
 
 [[package]]
@@ -6958,6 +7040,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_repr"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c64451ba24fc7a6a2d60fc75dd9c83c90903b19028d4eff35e88fc1e86564e9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "serde_spanned"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7403,7 +7496,6 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest 0.10.7",
- "hashbrown 0.14.5",
  "hex",
  "jmt",
  "proptest",
@@ -7567,6 +7659,7 @@ name = "sov-rollup-interface"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "borsh",
  "bytes",

@@ -2,46 +2,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmationBatch;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
-use thiserror::Error;
+pub use sov_rollup_interface::stf::SoftConfirmationError;
 
 use crate::transaction::Transaction;
-
-/// Soft confirmation error
-#[derive(Debug, Error)]
-pub enum ApplySoftConfirmationError {
-    /// Checks count of soft confirmations on the slot
-    #[error(
-        "Too many soft confirmations on the slot {:?} by sequencer {:?} with max L2 blocks per L1 {}",
-        hash,
-        sequencer_pub_key,
-        max_l2_blocks_per_l1
-    )]
-    TooManySoftConfirmationsOnDaSlot {
-        /// Hash of the slot
-        hash: [u8; 32],
-        /// Sequencer public key
-        sequencer_pub_key: Vec<u8>,
-        /// max L2 blocks per L1
-        max_l2_blocks_per_l1: u64,
-    },
-    #[error(
-        "L1 fee rate {} changed more than allowed limit %{}",
-        l1_fee_rate,
-        l1_fee_rate_change_percentage
-    )]
-    L1FeeRateChangeMoreThanAllowedPercentage {
-        l1_fee_rate: u128,
-        l1_fee_rate_change_percentage: u128,
-    },
-    #[error(
-        "Current block's timestamp {} is not greater than the previous block's one {}",
-        current,
-        prev
-    )]
-    CurrentTimestampIsNotGreaterThanPrev { current: u64, prev: u64 },
-}
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -100,22 +65,25 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
         &self,
-        soft_confirmation: &mut HookSoftConfirmationInfo,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ApplySoftConfirmationError>;
+    ) -> Result<(), SoftConfirmationError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
     fn end_soft_confirmation_hook(
         &self,
+        soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ApplySoftConfirmationError>;
+    ) -> Result<(), SoftConfirmationError>;
 }
 
 /// Information about the soft confirmation block
 /// Does not include txs because txs can be appended by the sequencer
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
 pub struct HookSoftConfirmationInfo {
+    /// L2 block height
+    pub l2_height: u64,
     /// DA block this soft confirmation was given for
     pub da_slot_height: u64,
     /// DA block hash
@@ -126,7 +94,7 @@ pub struct HookSoftConfirmationInfo {
     pub pre_state_root: Vec<u8>,
     /// The current spec
     pub current_spec: SpecId,
-    /// Public key of signer
+    /// Public key of the sequencer
     pub pub_key: Vec<u8>,
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<Vec<u8>>,
@@ -138,11 +106,12 @@ pub struct HookSoftConfirmationInfo {
 
 impl HookSoftConfirmationInfo {
     pub fn new(
-        signed_soft_confirmation: SignedSoftConfirmationBatch,
+        signed_soft_confirmation: SignedSoftConfirmation,
         pre_state_root: Vec<u8>,
         current_spec: SpecId,
     ) -> Self {
         HookSoftConfirmationInfo {
+            l2_height: signed_soft_confirmation.l2_height(),
             da_slot_height: signed_soft_confirmation.da_slot_height(),
             da_slot_hash: signed_soft_confirmation.da_slot_hash(),
             da_slot_txs_commitment: signed_soft_confirmation.da_slot_txs_commitment(),
@@ -156,25 +125,12 @@ impl HookSoftConfirmationInfo {
     }
 }
 
-impl From<HookSoftConfirmationInfo> for SignedSoftConfirmationBatch {
-    fn from(val: HookSoftConfirmationInfo) -> Self {
-        SignedSoftConfirmationBatch::new(
-            [0u8; 32],
-            [0u8; 32],
-            val.da_slot_height,
-            val.da_slot_hash(),
-            val.da_slot_txs_commitment(),
-            val.l1_fee_rate,
-            vec![],
-            val.deposit_data,
-            vec![],
-            val.pub_key.clone(),
-            val.timestamp,
-        )
-    }
-}
-
 impl HookSoftConfirmationInfo {
+    /// L2 block height
+    pub fn l2_height(&self) -> u64 {
+        self.l2_height
+    }
+
     /// DA block to build on
     pub fn da_slot_hash(&self) -> [u8; 32] {
         self.da_slot_hash
@@ -188,6 +144,11 @@ impl HookSoftConfirmationInfo {
     /// Previous batch's pre state root
     pub fn pre_state_root(&self) -> Vec<u8> {
         self.pre_state_root.clone()
+    }
+
+    /// Active spec
+    pub fn current_spec(&self) -> SpecId {
+        self.current_spec
     }
 
     /// Public key of signer

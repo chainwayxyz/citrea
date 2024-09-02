@@ -8,6 +8,8 @@ pub mod default_signature;
 pub mod hooks;
 mod pub_key_hex;
 
+pub use sov_rollup_interface::spec::SpecId;
+
 #[cfg(feature = "macros")]
 mod reexport_macros;
 #[cfg(feature = "macros")]
@@ -190,7 +192,7 @@ pub use sov_modules_core::{
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmationBatch, UnsignedSoftConfirmationBatch,
+    SignedSoftConfirmation, UnsignedSoftConfirmation,
 };
 pub use sov_rollup_interface::stf::{Event, StateDiff};
 pub use sov_rollup_interface::zk::{

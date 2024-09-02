@@ -55,7 +55,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
     // Wait for rollup task to start:
     let port = port_rx.await.unwrap();
 
-    let test_client = make_test_client(port).await;
+    let test_client = make_test_client(port).await?;
 
     let arch = std::env::consts::ARCH;
 
@@ -188,7 +188,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await?;
     // call the contract with address 0x3100000000000000000000000000000000000001
     let contract_address = Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
 
@@ -536,7 +536,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
 #[allow(clippy::borrowed_box)]
 pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
-    let test_client = make_test_client(rpc_address).await;
+    let test_client = make_test_client(rpc_address).await.unwrap();
 
     let etc_accounts = test_client.eth_accounts().await;
     assert_eq!(
@@ -559,7 +559,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
 }
 
 #[allow(clippy::borrowed_box)]
-pub async fn make_test_client(rpc_address: SocketAddr) -> Box<TestClient> {
+pub async fn make_test_client(rpc_address: SocketAddr) -> anyhow::Result<Box<TestClient>> {
     let chain_id: u64 = 5655;
     let key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         .parse::<PrivateKeySigner>()
@@ -568,5 +568,7 @@ pub async fn make_test_client(rpc_address: SocketAddr) -> Box<TestClient> {
 
     let from_addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    Box::new(TestClient::new(chain_id, key, from_addr, rpc_address).await)
+    Ok(Box::new(
+        TestClient::new(chain_id, key, from_addr, rpc_address).await?,
+    ))
 }

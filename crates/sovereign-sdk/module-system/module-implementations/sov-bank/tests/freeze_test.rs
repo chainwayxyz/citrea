@@ -2,7 +2,7 @@ use helpers::C;
 use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, WorkingSet};
+use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -20,7 +20,7 @@ fn freeze_token() {
 
     let minter_address = generate_address::<DefaultContext>("minter");
     let sequencer_address = generate_address::<DefaultContext>("sequencer");
-    let minter_context = C::new(minter_address, sequencer_address, 1);
+    let minter_context = C::new(minter_address, sequencer_address, 1, SpecId::Genesis, 0);
 
     let salt = 0;
     let token_name = "Token1".to_owned();
@@ -94,7 +94,13 @@ fn freeze_token() {
     // Try to freeze with a non authorized minter
     let unauthorized_address = generate_address::<C>("unauthorized_address");
     let sequencer_address = generate_address::<C>("sequencer");
-    let unauthorized_context = C::new(unauthorized_address, sequencer_address, 1);
+    let unauthorized_context = C::new(
+        unauthorized_address,
+        sequencer_address,
+        1,
+        SpecId::Genesis,
+        0,
+    );
     let freeze_message = CallMessage::Freeze {
         token_address: token_address_2,
     };

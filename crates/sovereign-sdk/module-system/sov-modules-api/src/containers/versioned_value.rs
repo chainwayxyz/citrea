@@ -287,6 +287,7 @@ mod tests {
     use sov_modules_core::capabilities::mocks::MockKernel;
     use sov_modules_core::{Address, Context, KernelWorkingSet, Prefix, WorkingSet};
     use sov_prover_storage_manager::new_orphan_storage;
+    use sov_rollup_interface::spec::SpecId;
 
     use crate::default_context::DefaultContext;
     use crate::VersionedStateValue;
@@ -313,14 +314,24 @@ mod tests {
 
         {
             {
-                let mut versioned_state =
-                    working_set.versioned_state(&DefaultContext::new(signer, sequencer, 1));
+                let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
+                    signer,
+                    sequencer,
+                    1,
+                    sov_rollup_interface::spec::SpecId::Genesis,
+                    0,
+                ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(value.get_current(&mut versioned_state), None);
             }
             // Try to read the value from user space with the slot number set to 4. Should succeed.
-            let mut versioned_state =
-                working_set.versioned_state(&DefaultContext::new(signer, sequencer, 4));
+            let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
+                signer,
+                sequencer,
+                4,
+                sov_rollup_interface::spec::SpecId::Genesis,
+                0,
+            ));
             // Try to read the value from user space with the slot number set to 1. Should fail.
             assert_eq!(value.get_current(&mut versioned_state), Some(100));
         }
@@ -350,22 +361,37 @@ mod tests {
 
         {
             {
-                let mut versioned_state =
-                    working_set.versioned_state(&DefaultContext::new(signer, sequencer, 1));
+                let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
+                    signer,
+                    sequencer,
+                    1,
+                    SpecId::Genesis,
+                    0,
+                ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(value.get_current(&mut versioned_state), None);
             }
             {
                 // Try to read the value from user space with the slot number set to 2. Should succeed.
-                let mut versioned_state =
-                    working_set.versioned_state(&DefaultContext::new(signer, sequencer, 2));
+                let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
+                    signer,
+                    sequencer,
+                    2,
+                    SpecId::Genesis,
+                    0,
+                ));
 
                 assert_eq!(value.get_current(&mut versioned_state), Some(100));
             }
 
             // Try to read the value from user space with the slot number set to 4. Should succeed.
-            let mut versioned_state =
-                working_set.versioned_state(&DefaultContext::new(signer, sequencer, 4));
+            let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
+                signer,
+                sequencer,
+                4,
+                SpecId::Genesis,
+                0,
+            ));
             assert_eq!(value.get_current(&mut versioned_state), Some(17));
         }
     }

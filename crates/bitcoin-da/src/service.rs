@@ -73,12 +73,9 @@ pub struct BitcoinServiceConfig {
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
-
-    // number of last paid fee rates to average if estimation fails
-    pub fee_rates_to_avg: Option<usize>,
 }
 
-const FINALITY_DEPTH: u64 = 4; // blocks
+pub const FINALITY_DEPTH: u64 = 4; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
@@ -555,7 +552,7 @@ impl DaService for BitcoinService {
 
         let finalized_blockhash = self
             .client
-            .get_block_hash(block_count - FINALITY_DEPTH)
+            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH))
             .await?;
 
         let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;
@@ -940,7 +937,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
-            fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
@@ -971,7 +967,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
-            fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1003,7 +998,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
             ),
-            fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1256,7 +1250,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
-            fee_rates_to_avg: Some(2), // small to speed up tests
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();

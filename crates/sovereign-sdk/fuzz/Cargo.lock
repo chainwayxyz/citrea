@@ -3223,7 +3223,6 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest 0.10.7",
- "hashbrown 0.14.5",
  "hex",
  "jmt",
  "proptest",
@@ -3265,6 +3264,7 @@ name = "sov-rollup-interface"
 version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "borsh",
  "bytes",
