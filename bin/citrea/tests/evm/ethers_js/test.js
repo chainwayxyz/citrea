@@ -71,7 +71,7 @@ describe("RpcTests", function() {
         const txId = ethers.encodeBytes32String('0x1234');
         const outputId = ethers.zeroPadBytes(ethers.toUtf8Bytes('0x01'), 4);
 
-        let gasEstimate = await contract.withdraw.estimateGas([txId, outputId], {value: ethers.parseEther('10')});
+        let gasEstimate = await contract.withdraw.estimateGas(txId, outputId, {value: ethers.parseEther('10')});
         expect(gasEstimate > 0n).to.be.true;
     });
 
@@ -236,7 +236,7 @@ describe("RpcTests", function() {
             await provider.call(tx);
             expect.fail('Expected an error to be thrown');
         } catch (error) {
-            expect(error.message).to.equal('execution reverted: "Invalid withdraw amount" (action="call", data="0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000017496e76616c696420776974686472617720616d6f756e74000000000000000000", reason="Invalid withdraw amount", transaction={ "data": "0x8e19899e6263317161306130613061306130613061306130613061306130613000000000", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "to": "0x3100000000000000000000000000000000000002" }, invocation=null, revert={ "args": [ "Invalid withdraw amount" ], "name": "Error", "signature": "Error(string)" }, code=CALL_EXCEPTION, version=6.12.1)');
+            expect(error.message).to.equal('execution reverted: "Invalid withdraw amount" (action="call", data="0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000017496e76616c696420776974686472617720616d6f756e74000000000000000000", reason="Invalid withdraw amount", transaction={ "data": "0x8786dba730783132333400000000000000000000000000000000000000000000000000003078303100000000000000000000000000000000000000000000000000000000", "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "to": "0x3100000000000000000000000000000000000002" }, invocation=null, revert={ "args": [ "Invalid withdraw amount" ], "name": "Error", "signature": "Error(string)" }, code=CALL_EXCEPTION, version=6.12.1)');
         }
     });
 
