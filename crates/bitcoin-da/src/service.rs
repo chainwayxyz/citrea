@@ -43,7 +43,7 @@ use crate::spec::transaction::TransactionWrapper;
 use crate::spec::utxo::UTXO;
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
-use crate::{round, REVEAL_OUTPUT_AMOUNT};
+use crate::REVEAL_OUTPUT_AMOUNT;
 
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
@@ -449,7 +449,7 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate(&self) -> Result<u64, anyhow::Error> {
-        match self.get_fee_rate_as_sat_vb_ceiled().await {
+        match self.get_fee_rate_as_sat_vb().await {
             Ok(fee) => Ok(fee),
             Err(e) => {
                 if self.network == bitcoin::Network::Regtest
@@ -464,10 +464,10 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb_ceiled(&self) -> Result<u64, anyhow::Error> {
+    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         let smart_fee = self.client.estimate_smart_fee(1, None).await?;
-        let btc_vkb = smart_fee.fee_rate.map_or(0.00001f64, |rate| rate.to_btc());
-        Ok(round(btc_vkb * 100_000_000.0 / 1000.0, 8) as u64)
+        let sat_vkb = smart_fee.fee_rate.map_or(1000, |rate| rate.to_sat());
+        Ok(sat_vkb / 1000)
     }
 }
 
@@ -705,7 +705,7 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        let sat_vb_ceil = self.get_fee_rate_as_sat_vb_ceiled().await? as u128;
+        let sat_vb_ceil = self.get_fee_rate_as_sat_vb().await? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
