@@ -248,7 +248,6 @@ contract Bridge is Ownable2StepUpgradeable {
         return (wtxId, nIns);
     }
 
-    // TODO: Consider using bytes lib `toAddress`
     function extractRecipientAddress(bytes memory _script) internal view returns (address) {
         uint256 offset = scriptPrefix.length;
         bytes20 _addr = bytes20(_script.slice(offset, 20));

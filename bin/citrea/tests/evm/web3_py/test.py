@@ -104,7 +104,7 @@ class TestWeb3(unittest.TestCase):
         tx = {
             'from': "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
             'to': "0x3100000000000000000000000000000000000002",
-            'value': self.web3.to_wei(0.01, 'ether'),  
+            'value': self.web3.to_wei(10, 'ether'),  
             'gas': 200000,
             'gasPrice': self.web3.to_wei(1, 'gwei'),
             'data': "0x8786dba712340000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000", # withdraw(bytes32, bytes4), param is 0x1234, 0x01
