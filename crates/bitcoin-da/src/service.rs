@@ -25,8 +25,8 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
 
 use crate::helpers::builders::{
-    create_seqcommitment_transactions, create_zkproof_transactions, write_inscription_txs,
-    BatchProvingTxs, LightClientTxs, TxWithId,
+    create_seqcommitment_transactions, create_zkproof_transactions, BatchProvingTxs,
+    LightClientTxs, TxListWithReveal, TxWithId,
 };
 use crate::helpers::compression::compress_blob;
 use crate::helpers::merkle_tree;
@@ -332,7 +332,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                write_inscription_txs(&inscription_txs);
+                inscription_txs.write_to_file().unwrap();
 
                 match inscription_txs {
                     LightClientTxs::Complete { commit, reveal } => {
@@ -419,7 +419,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                write_inscription_txs(&inscription_txs);
+                inscription_txs.write_to_file().unwrap();
 
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
                 // sign inscribe transactions

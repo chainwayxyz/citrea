@@ -9,6 +9,7 @@ use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
+use bitcoin::consensus::encode::serialize;
 use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
@@ -423,6 +424,7 @@ pub(crate) struct BatchProvingTxs {
 // To dump raw da txs into file to recover from a sequencer crash
 pub(crate) trait TxListWithReveal: Serialize {
     fn reveal_id(&self) -> Txid;
+    fn write_to_file(&self) -> Result<(), anyhow::Error>;
 }
 
 impl TxListWithReveal for LightClientTxs {
@@ -432,11 +434,59 @@ impl TxListWithReveal for LightClientTxs {
             Self::Chunked { reveal, .. } => reveal.id,
         }
     }
+
+    fn write_to_file(&self) -> Result<(), anyhow::Error> {
+        match self {
+            Self::Complete { commit, reveal } => {
+                let file = File::create(format!(
+                    "complete_light_client_inscription_with_reveal_id_{}.txs",
+                    reveal.id
+                ))?;
+                let mut writer: BufWriter<&File> = BufWriter::new(&file);
+                writer.write_all(&serialize(commit))?;
+                writer.write_all(&serialize(&reveal.tx))?;
+                writer.flush()?;
+                Ok(())
+            }
+            Self::Chunked {
+                commit_chunks,
+                reveal_chunks,
+                commit,
+                reveal,
+            } => {
+                let file = File::create(format!(
+                    "chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    reveal.id
+                ))?;
+                let mut writer = BufWriter::new(&file);
+                for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {
+                    writer.write_all(&serialize(commit_chunk))?;
+                    writer.write_all(&serialize(reveal_chunk))?;
+                }
+                writer.write_all(&serialize(commit))?;
+                writer.write_all(&serialize(&reveal.tx))?;
+                writer.flush()?;
+                Ok(())
+            }
+        }
+    }
 }
 
 impl TxListWithReveal for BatchProvingTxs {
     fn reveal_id(&self) -> Txid {
         self.reveal.id
+    }
+
+    fn write_to_file(&self) -> Result<(), anyhow::Error> {
+        let file = File::create(format!(
+            "batch_proof_inscription_with_reveal_id_{}.txs",
+            self.reveal.id
+        ))?;
+        let mut writer = BufWriter::new(&file);
+        writer.write_all(&serialize(&self.commit))?;
+        writer.write_all(&serialize(&self.reveal.tx))?;
+        writer.flush()?;
+        Ok(())
     }
 }
 
@@ -1188,13 +1238,6 @@ pub fn create_batchproof_type_0(
 
         nonce += 1;
     }
-}
-
-pub(crate) fn write_inscription_txs<Txs: TxListWithReveal + Serialize>(txs: &Txs) {
-    let reveal_tx_file = File::create(format!("reveal_{}.tx", txs.reveal_id())).unwrap();
-    let j = serde_json::to_string(&txs).unwrap();
-    let mut reveal_tx_writer = BufWriter::new(reveal_tx_file);
-    reveal_tx_writer.write_all(j.as_bytes()).unwrap();
 }
 
 #[cfg(test)]
