@@ -109,6 +109,7 @@ contract Bridge is Ownable2StepUpgradeable {
     }
 
     /// @notice Checks if the deposit amount is sent to the bridge multisig on Bitcoin, and if so, sends the deposit amount to the receiver
+    /// @param moveTp Transaction parameters of the move transaction on Bitcoin
     function deposit(
         TransactionParams calldata moveTp 
     ) external onlyOperator {
