@@ -181,6 +181,11 @@ impl SignedSoftConfirmation {
         self.signature.clone()
     }
 
+    /// Signature of the sequencer as ref
+    pub fn signature_as_ref(&self) -> &[u8] {
+        self.signature.as_ref()
+    }
+
     /// Borsh serialized data
     pub fn full_data(&mut self) -> Vec<u8> {
         borsh::to_vec(self).unwrap()
