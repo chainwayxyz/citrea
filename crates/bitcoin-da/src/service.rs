@@ -745,7 +745,7 @@ impl DaService for BitcoinService {
         &self,
     ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
         let pending_txs = self.get_pending_transactions().await.unwrap();
-        let pending_txs: Vec<&Transaction> = pending_txs.iter().map(|tx| tx).collect(); // get a list of references to the transactions
+        let pending_txs: Vec<&Transaction> = pending_txs.iter().collect(); // get a list of references to the transactions
         get_relevant_blobs_from_txs(&pending_txs[..], &self.reveal_batch_prover_prefix)
     }
 }
@@ -766,7 +766,7 @@ fn get_relevant_blobs_from_txs(
             continue;
         }
 
-        if let Ok(tx) = parse_batch_proof_transaction(&tx) {
+        if let Ok(tx) = parse_batch_proof_transaction(tx) {
             match tx {
                 ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
                     if let Some(hash) = seq_comm.get_sig_verified_hash() {
