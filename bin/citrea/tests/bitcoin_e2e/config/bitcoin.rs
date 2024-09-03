@@ -45,6 +45,7 @@ impl BitcoinConfig {
             "-server".to_string(),
             "-daemon".to_string(),
             "-txindex".to_string(),
+            "-addresstype=bech32m".to_string(),
         ]
     }
 }
