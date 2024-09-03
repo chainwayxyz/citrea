@@ -1,4 +1,5 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
+use std::thread;
 use std::time::Duration;
 
 use anyhow::anyhow;
@@ -102,15 +103,22 @@ impl<'a> Risc0BonsaiHost<'a> {
         // handle error
         let client = if !api_url.is_empty() && !api_key.is_empty() {
             tracing::debug!("Uploading image with id: {}", image_id);
+            let image_id = image_id.clone();
+            let elf = elf.clone().to_vec();
+            thread::spawn(move || {
+                let client = Client::from_parts(api_url, api_key, risc0_zkvm::VERSION)
+                    .expect("Failed to create Bonsai client; qed");
 
-            let client = Client::from_parts(api_url, api_key, risc0_zkvm::VERSION)
-                .expect("Failed to create Bonsai client; qed");
+                client
+                    .upload_img(hex::encode(image_id).as_str(), elf)
+                    .expect("Failed to upload image; qed");
 
-            client
-                .upload_img(hex::encode(image_id).as_str(), elf.to_vec())
-                .expect("Failed to upload image; qed");
+                tracing::debug!("Image uploaded");
 
-            Some(client)
+                Some(client)
+            })
+            .join()
+            .unwrap()
         } else {
             None
         };
@@ -126,13 +134,16 @@ impl<'a> Risc0BonsaiHost<'a> {
     }
 
     fn upload_to_bonsai(&mut self, buf: Vec<u8>) {
-        // handle error
-        let input_id = retry_backoff_bonsai!(self
+        let client = self
             .client
-            .as_ref()
-            .expect("Bonsai client is not initialized")
-            .upload_input(buf.clone()))
-        .expect("Failed to upload input; qed");
+            .clone()
+            .expect("Bonsai client is not initialized");
+        // handle error
+        let input_id =
+            thread::spawn(move || retry_backoff_bonsai!(client.upload_input(buf.clone())))
+                .join()
+                .unwrap()
+                .expect("Failed to upload input; qed");
         tracing::info!("Uploaded input with id: {}", input_id);
         self.last_input_id = Some(input_id);
     }
@@ -141,8 +152,14 @@ impl<'a> Risc0BonsaiHost<'a> {
         let session = bonsai_sdk::blocking::SessionId::new(session.to_owned());
         loop {
             // handle error
-            let res =
-                retry_backoff_bonsai!(session.status(client)).expect("Failed to fetch status; qed");
+            let session = session.clone();
+            let client_clone = client.clone();
+            let res = thread::spawn(move || {
+                retry_backoff_bonsai!(session.status(&client_clone))
+                    .expect("Failed to fetch status; qed")
+            })
+            .join()
+            .unwrap();
 
             if res.status == "RUNNING" {
                 tracing::info!(
@@ -160,9 +177,13 @@ impl<'a> Risc0BonsaiHost<'a> {
                     .expect("API error, missing receipt on completed session");
 
                 tracing::info!("Receipt URL: {}", receipt_url);
-
-                let receipt_buf = retry_backoff_bonsai!(client.download(receipt_url.as_str()))
-                    .expect("Failed to download receipt; qed");
+                let client_clone = client.clone();
+                let receipt_buf = thread::spawn(move || {
+                    retry_backoff_bonsai!(client_clone.download(receipt_url.as_str()))
+                })
+                .join()
+                .unwrap()
+                .expect("Failed to download receipt; qed");
                 break Ok(receipt_buf);
             } else {
                 return Err(anyhow!(
@@ -190,10 +211,14 @@ impl<'a> Risc0BonsaiHost<'a> {
         let snark_session = match snark_session {
             Some(snark_session) => bonsai_sdk::blocking::SnarkId::new(snark_session.to_string()),
             None => {
-                let client = self.client.as_ref().unwrap();
+                let client = self.client.clone().unwrap();
                 let session = bonsai_sdk::blocking::SessionId::new(stark_session.to_string());
-                retry_backoff_bonsai!(client.create_snark(session.uuid.clone()))
-                    .expect("Failed to create snark session; qed")
+                thread::spawn(move || {
+                    retry_backoff_bonsai!(client.create_snark(session.uuid.clone()))
+                        .expect("Failed to create snark session; qed")
+                })
+                .join()
+                .unwrap()
             }
         };
 
@@ -210,8 +235,14 @@ impl<'a> Risc0BonsaiHost<'a> {
         let client = self.client.as_ref().unwrap();
         let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
         loop {
-            let res = retry_backoff_bonsai!(snark_session.status(client))
-                .expect("Failed to fetch status; qed");
+            let snark_session = snark_session.clone();
+            let client_clone = client.clone();
+            let res = thread::spawn(move || {
+                retry_backoff_bonsai!(snark_session.status(&client_clone))
+                    .expect("Failed to fetch status; qed")
+            })
+            .join()
+            .unwrap();
             match res.status.as_str() {
                 "RUNNING" => {
                     tracing::info!("Current status: {} - continue polling...", res.status,);
@@ -316,13 +347,55 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             // Start a session running the prover
             // execute only is set to false because we run bonsai only when proving
-            let session = retry_backoff_bonsai!(client.create_session(
-                hex::encode(self.image_id),
-                input_id.clone(),
-                vec![],
-                false
-            ))
-            .expect("Failed to create session; qed");
+            let client_clone = client.clone();
+            let image_id = hex::encode(self.image_id);
+            let input_id = input_id.clone();
+            let session = thread::spawn(move || {
+                retry_backoff(
+                    ExponentialBackoffBuilder::<SystemClock>::new()
+                        .with_initial_interval(Duration::from_secs(5))
+                        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+                        .build(),
+                    || {
+                        let image_id = image_id.clone();
+                        let input_id = input_id.clone();
+                        let response =
+                            (client_clone.create_session(image_id, input_id, vec![], false));
+                        match response {
+                            Ok(r) => Ok(r),
+                            Err(e) => {
+                                use ::bonsai_sdk::SdkErr::*;
+                                match e {
+                                    InternalServerErr(s) => {
+                                        let err = format!("Got HHTP 500 from Bonsai: {}", s);
+                                        warn!(err);
+                                        Err(backoff::Error::transient(err))
+                                    }
+                                    HttpErr(e) => {
+                                        let err = format!("Reconnecting to Bonsai: {}", e);
+                                        error!(err);
+                                        Err(backoff::Error::transient(err))
+                                    }
+                                    HttpHeaderErr(e) => {
+                                        let err = format!("Reconnecting to Bonsai: {}", e);
+                                        error!(err);
+                                        Err(backoff::Error::transient(err))
+                                    }
+                                    e => {
+                                        let err =
+                                            format!("Got unrecoverable error from Bonsai: {}", e);
+                                        error!(err);
+                                        Err(backoff::Error::permanent(err))
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
+                .expect("Failed to create session; qed")
+            })
+            .join()
+            .unwrap();
             let stark_session = RecoveredBonsaiSession {
                 id: 0,
                 session: BonsaiSession::StarkSession(session.uuid.clone()),
@@ -338,8 +411,52 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
             tracing::info!("Creating the SNARK");
 
-            let snark_session = retry_backoff_bonsai!(client.create_snark(session.uuid.clone()))
-                .expect("Failed to create snark session; qed");
+            let client_clone = client.clone();
+            let uuid = session.uuid.clone();
+            let snark_session = thread::spawn(move || {
+                retry_backoff(
+                    ExponentialBackoffBuilder::<SystemClock>::new()
+                        .with_initial_interval(Duration::from_secs(5))
+                        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
+                        .build(),
+                    || {
+                        let uuid = uuid.clone();
+                        let response = (client_clone.create_snark(uuid));
+                        match response {
+                            Ok(r) => Ok(r),
+                            Err(e) => {
+                                use ::bonsai_sdk::SdkErr::*;
+                                match e {
+                                    InternalServerErr(s) => {
+                                        let err = format!("Got HHTP 500 from Bonsai: {}", s);
+                                        warn!(err);
+                                        Err(backoff::Error::transient(err))
+                                    }
+                                    HttpErr(e) => {
+                                        let err = format!("Reconnecting to Bonsai: {}", e);
+                                        error!(err);
+                                        Err(backoff::Error::transient(err))
+                                    }
+                                    HttpHeaderErr(e) => {
+                                        let err = format!("Reconnecting to Bonsai: {}", e);
+                                        error!(err);
+                                        Err(backoff::Error::transient(err))
+                                    }
+                                    e => {
+                                        let err =
+                                            format!("Got unrecoverable error from Bonsai: {}", e);
+                                        error!(err);
+                                        Err(backoff::Error::permanent(err))
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
+                .expect("Failed to create snark session; qed")
+            })
+            .join()
+            .unwrap();
 
             // Remove the stark session as it is finished
             self.ledger_db
@@ -374,10 +491,13 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
         let sessions = self.ledger_db.get_pending_proving_sessions()?;
+        tracing::info!("Recovering {} bonsai sessions", sessions.len());
         let mut proofs = Vec::new();
         for session in sessions {
             let bonsai_session: RecoveredBonsaiSession = BorshDeserialize::try_from_slice(&session)
                 .expect("Bonsai host should be able to recover bonsai sessions");
+
+            tracing::info!("Recovering bonsai session: {:?}", bonsai_session);
             match bonsai_session.session {
                 BonsaiSession::StarkSession(stark_session) => {
                     let receipt = self.wait_for_receipt(&stark_session)?;

@@ -19,7 +19,7 @@ use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, TEST_DATA_GENESIS_PATH};
 /// Check if the verified proof can be queried from the full node.
 #[tokio::test(flavor = "multi_thread")]
 async fn full_node_verify_proof_and_store() {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
