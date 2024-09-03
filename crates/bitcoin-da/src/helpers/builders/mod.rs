@@ -232,8 +232,7 @@ fn get_size_commit(inputs: &[TxIn], outputs: &[TxOut]) -> usize {
 
     // TODO: adjust size of sig. for different types of addresses
     for i in 0..tx.input.len() {
-        tx.input[i].witness.push(&vec![0; MAX_SIGNATURE_SIZE]);
-        tx.input[i].witness.push(&vec![0; PUBLIC_KEY_SIZE]);
+        tx.input[i].witness.push(&vec![0; SCHNORR_SIGNATURE_SIZE]);
     }
 
     tx.vsize()

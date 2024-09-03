@@ -20,6 +20,7 @@ impl From<&BitcoinConfig> for DockerConfig {
             "-server".to_string(),
             "-rpcallowip=0.0.0.0/0".to_string(),
             "-rpcbind=0.0.0.0".to_string(),
+            "-addresstype=bech32m".to_string(),
         ];
         println!("Running bitcoind with args : {args:?}");
 

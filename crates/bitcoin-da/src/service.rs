@@ -436,7 +436,6 @@ impl BitcoinService {
                     .sign_raw_transaction_with_wallet(&commit, None, None)
                     .await?;
 
-                tracing::info!("final commit len: {}", signed_raw_commit_tx.hex.len() / 2);
                 // send inscribe transactions
                 client
                     .send_raw_transaction(&signed_raw_commit_tx.hex)
@@ -444,8 +443,6 @@ impl BitcoinService {
 
                 // serialize reveal tx
                 let serialized_reveal_tx = &encode::serialize(&reveal.tx);
-
-                tracing::info!("final reveal size: {}", serialized_reveal_tx.len(),);
 
                 // send reveal tx
                 let reveal_tx_hash = client.send_raw_transaction(serialized_reveal_tx).await?;
