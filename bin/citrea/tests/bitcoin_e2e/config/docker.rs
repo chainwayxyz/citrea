@@ -17,6 +17,7 @@ impl From<&BitcoinConfig> for DockerConfig {
             "-datadir=/bitcoin/data".to_string(),
             "-rpcallowip=0.0.0.0/0".to_string(),
             "-rpcbind=0.0.0.0".to_string(),
+            "-daemon=0".to_string(),
         ]);
 
         args.extend(v.extra_args.iter().cloned());
