@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoin_da::spec::BitcoinSpec;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
@@ -52,7 +53,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         da.wait_mempool_len(1, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH + 1, None).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -128,7 +129,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         da.wait_mempool_len(1, None).await?;
 
         // Generate enough block to finalize
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH + 1, None).await?;
 
         full_node
             .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT + 1, None)
@@ -190,7 +191,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT - 1, None)
             .await;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH + 1, None).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -214,7 +215,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.wait_mempool_len(1, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH + 1, None).await?;
 
         let start_l2_block = 1;
         let end_l2_block = 4;
@@ -232,7 +233,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
         // Include commitment in block and finalize it
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH + 1, None).await?;
 
         let start_l2_block = end_l2_block + 1;
         let end_l2_block = start_l2_block + 4;
