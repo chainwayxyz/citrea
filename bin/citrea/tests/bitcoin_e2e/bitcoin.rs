@@ -45,7 +45,7 @@ impl BitcoinNode {
         .await
         .context("Failed to create RPC client")?;
 
-        wait_for_rpc_ready(&client, Duration::from_secs(30)).await?;
+        wait_for_rpc_ready(&client, Duration::from_secs(60)).await?;
         println!("bitcoin RPC is ready");
 
         client
