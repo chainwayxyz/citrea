@@ -4,12 +4,14 @@ use sha2::{Digest, Sha256};
 
 #[cfg(feature = "native")]
 pub mod builders;
+#[cfg(feature = "native")]
 pub mod compression;
 pub mod merkle_tree;
 pub mod parsers;
 #[cfg(test)]
 pub mod test_utils;
 
+#[cfg(feature = "native")]
 /// Type represents a typed enum for LightClient kind
 #[repr(u16)]
 enum TransactionKindLightClient {
@@ -22,6 +24,7 @@ enum TransactionKindLightClient {
     Unknown(NonZeroU16),
 }
 
+#[cfg(feature = "native")]
 impl TransactionKindLightClient {
     fn to_bytes(&self) -> Vec<u8> {
         match self {
@@ -59,6 +62,7 @@ enum TransactionKindBatchProof {
 }
 
 impl TransactionKindBatchProof {
+    #[cfg(feature = "native")]
     fn to_bytes(&self) -> Vec<u8> {
         match self {
             TransactionKindBatchProof::SequencerCommitment => 0u16.to_le_bytes().to_vec(),

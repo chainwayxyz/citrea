@@ -126,7 +126,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 1023,
+                l1_diff_size: 739,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -137,7 +137,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 437,
+                l1_diff_size: 288,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -148,7 +148,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 437,
+                l1_diff_size: 288,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -159,7 +159,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 437,
+                l1_diff_size: 288,
             }
         ]
     )
@@ -236,7 +236,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 1023,
+                l1_diff_size: 739,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -247,7 +247,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 437,
+                l1_diff_size: 288,
             }
         ]
     )
@@ -971,7 +971,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 935,
+                l1_diff_size: 651,
             },]
         )
     }
@@ -988,11 +988,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 935 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 651 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(935 + L1_FEE_OVERHEAD as u64),
+        U256::from(651 + L1_FEE_OVERHEAD as u64),
     );
 }
 
@@ -1145,7 +1145,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 903,
+                l1_diff_size: 619,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1156,7 +1156,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 353,
+                l1_diff_size: 211,
             },
         ]
     );
@@ -1167,8 +1167,8 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        903  + // l1 contract deploy fee
-        353  + // l1 contract call fee
+        619  + // l1 contract deploy fee
+        211  + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.info.balance,
@@ -1187,6 +1187,6 @@ fn test_l1_fee_halt() {
     );
     assert_eq!(
         l1_fee_valut.info.balance,
-        U256::from(903 + 353 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(619 + 211 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
