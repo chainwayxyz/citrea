@@ -4,10 +4,10 @@ use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
 
-use super::DbAccount;
+use super::{AccountInfo, DbAccount};
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
-    pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
+    pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
     pub(crate) code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
     pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
     pub(crate) working_set: &'a mut WorkingSet<C>,
@@ -15,7 +15,7 @@ pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
 
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn new(
-        accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
+        accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
         code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
         last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
         working_set: &'a mut WorkingSet<C>,
@@ -51,7 +51,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
         let db_account = self.accounts.get(&address, self.working_set);
-        Ok(db_account.map(|acc| acc.info.into()))
+        Ok(db_account.map(Into::into))
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
@@ -63,8 +63,11 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let storage_value: U256 = if let Some(acc) = self.accounts.get(&address, self.working_set) {
-            acc.storage
+        let storage_value: U256 = if self.accounts.get(&address, self.working_set).is_some() {
+            let parent_prefix = self.accounts.prefix();
+            let db_account = DbAccount::new(parent_prefix, address);
+            db_account
+                .storage
                 .get(&index, self.working_set)
                 .unwrap_or_default()
         } else {

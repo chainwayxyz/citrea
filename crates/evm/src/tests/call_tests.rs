@@ -12,6 +12,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
+use crate::evm::DbAccount;
 use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
@@ -98,13 +99,14 @@ fn call_multiple_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+    let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
 
-    // Make sure the db account size is 256 bytes
-    let db_account_len = bcs::to_bytes(&db_account)
+    // Make sure the db account size is 74 bytes
+    let db_account_len = bcs::to_bytes(&account_info)
         .expect("Failed to serialize value")
         .len();
-    assert_eq!(db_account_len, 256);
+    assert_eq!(db_account_len, 74);
+    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -215,7 +217,7 @@ fn call_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -374,13 +376,15 @@ fn self_destruct_test() {
 
     l2_height += 1;
 
-    let db_contract = evm
+    let contract_info = evm
         .accounts
         .get(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to ocntract
-    assert_eq!(db_contract.info.balance, U256::from(contract_balance));
+    assert_eq!(contract_info.balance, U256::from(contract_balance));
+
+    let db_contract = DbAccount::new(evm.accounts.prefix(), contract_addr);
 
     // Test if we managed to set the variable in the contract
     assert_eq!(
@@ -436,12 +440,12 @@ fn self_destruct_test() {
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
-    let db_contract = evm
+    let contract_info = evm
         .accounts
         .get(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
-    let db_account = evm
+    let die_to_acc = evm
         .accounts
         .get(&die_to_address, &mut working_set)
         .expect("die to address should exist");
@@ -455,25 +459,27 @@ fn self_destruct_test() {
     assert!(receipts[0].receipt.success);
 
     // after self destruct, contract balance should be 0,
-    assert_eq!(db_contract.info.balance, U256::from(0));
+    assert_eq!(contract_info.balance, U256::from(0));
 
     // the to address balance should be equal to contract balance
-    assert_eq!(db_account.info.balance, U256::from(contract_balance));
+    assert_eq!(die_to_acc.balance, U256::from(contract_balance));
 
     // the codehash should be 0
-    assert_eq!(db_contract.info.code_hash, KECCAK_EMPTY);
+    assert_eq!(contract_info.code_hash, KECCAK_EMPTY);
 
     // the nonce should be 0
-    assert_eq!(db_contract.info.nonce, 0);
+    assert_eq!(contract_info.nonce, 0);
+
+    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
 
     // the storage should be empty
     assert_eq!(
-        db_contract.storage.get(&U256::from(0), &mut working_set),
+        db_account.storage.get(&U256::from(0), &mut working_set),
         None
     );
 
     // the keys should be empty
-    assert_eq!(db_contract.keys.len(&mut working_set), 0);
+    assert_eq!(db_account.keys.len(&mut working_set), 0);
 }
 
 #[test]
@@ -953,10 +959,10 @@ fn test_l1_fee_success() {
             .unwrap();
         assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
-        assert_eq!(db_account.info.balance, expected_balance);
-        assert_eq!(base_fee_valut.info.balance, expected_base_fee_vault_balance);
-        assert_eq!(coinbase_account.info.balance, expected_coinbase_balance);
-        assert_eq!(l1_fee_valut.info.balance, expected_l1_fee_vault_balance);
+        assert_eq!(db_account.balance, expected_balance);
+        assert_eq!(base_fee_valut.balance, expected_base_fee_vault_balance);
+        assert_eq!(coinbase_account.balance, expected_coinbase_balance);
+        assert_eq!(l1_fee_valut.balance, expected_l1_fee_vault_balance);
 
         assert_eq!(
             evm.receipts
@@ -1057,8 +1063,8 @@ fn test_l1_fee_not_enough_funds() {
         .unwrap();
 
     // The account balance is unchanged
-    assert_eq!(db_account.info.balance, U256::from(1000000));
-    assert_eq!(db_account.info.nonce, 0);
+    assert_eq!(db_account.balance, U256::from(1000000));
+    assert_eq!(db_account.nonce, 0);
 
     // The coinbase was not created
     let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
@@ -1171,7 +1177,7 @@ fn test_l1_fee_halt() {
         211  + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
-        db_account.info.balance,
+        db_account.balance,
         U256::from(
             20000000000000_u64 - // initial balance
             expenses
@@ -1181,12 +1187,9 @@ fn test_l1_fee_halt() {
     let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
     let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
+    assert_eq!(base_fee_valut.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
-        base_fee_valut.info.balance,
-        U256::from(1106947_u64 * 10000000)
-    );
-    assert_eq!(
-        l1_fee_valut.info.balance,
+        l1_fee_valut.balance,
         U256::from(619 + 211 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
