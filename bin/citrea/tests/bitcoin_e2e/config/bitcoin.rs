@@ -32,3 +32,19 @@ impl Default for BitcoinConfig {
         }
     }
 }
+
+impl BitcoinConfig {
+    pub fn base_args(&self) -> Vec<String> {
+        vec![
+            "-regtest".to_string(),
+            format!("-datadir={}", self.data_dir.display()),
+            format!("-port={}", self.p2p_port),
+            format!("-rpcport={}", self.rpc_port),
+            format!("-rpcuser={}", self.rpc_user),
+            format!("-rpcpassword={}", self.rpc_password),
+            "-server".to_string(),
+            "-daemon".to_string(),
+            "-txindex".to_string(),
+        ]
+    }
+}
