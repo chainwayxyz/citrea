@@ -136,6 +136,7 @@ impl Node for BitcoinNode {
             format!("-rpcport={}", config.rpc_port),
             format!("-rpcuser={}", config.rpc_user),
             format!("-rpcpassword={}", config.rpc_password),
+            "-addresstype=bech32m".to_string(),
             "-server".to_string(),
             "-daemon".to_string(),
         ];

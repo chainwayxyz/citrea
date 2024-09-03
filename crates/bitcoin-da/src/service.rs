@@ -27,10 +27,13 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
 
-use crate::helpers::builders::{
-    create_seqcommitment_transactions, create_zkproof_transactions, write_inscription_txs,
-    BatchProvingTxs, LightClientTxs, TxWithId,
+use crate::helpers::builders::batch_proof_namespace::{
+    create_seqcommitment_transactions, BatchProvingTxs,
 };
+use crate::helpers::builders::light_client_proof_namespace::{
+    create_zkproof_transactions, LightClientTxs,
+};
+use crate::helpers::builders::{write_inscription_txs, TxWithId};
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
@@ -298,7 +301,7 @@ impl BitcoinService {
         &self,
         prev_utxo: Option<UTXO>,
         da_data: DaData,
-        fee_sat_per_vbyte: f64,
+        fee_sat_per_vbyte: u64,
     ) -> Result<TxWithId, anyhow::Error> {
         let client = &self.client;
         let network = self.network;
@@ -451,20 +454,28 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
-        if self.network == bitcoin::Network::Regtest {
-            // sometimes local mempool is empty, node cannot estimate
-            return Ok(2.0);
+    pub async fn get_fee_rate(&self) -> Result<u64, anyhow::Error> {
+        match self.get_fee_rate_as_sat_vb().await {
+            Ok(fee) => Ok(fee),
+            Err(e) => {
+                if self.network == bitcoin::Network::Regtest
+                    || self.network == bitcoin::Network::Testnet
+                {
+                    Ok(1)
+                } else {
+                    Err(e)
+                }
+            }
         }
-
-        self.get_fee_rate_as_sat_vb_ceiled().await
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb_ceiled(&self) -> Result<f64, anyhow::Error> {
+    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         let smart_fee = self.client.estimate_smart_fee(1, None).await?;
-        let btc_vkb = smart_fee.fee_rate.map_or(0.00001f64, |rate| rate.to_btc());
-        Ok((btc_vkb * 100_000_000.0 / 1000.0).ceil())
+        let sat_vkb = smart_fee.fee_rate.map_or(1000, |rate| rate.to_sat());
+
+        tracing::info!("Fee rate: {} sat/vb", sat_vkb / 1000);
+        Ok(sat_vkb / 1000)
     }
 }
 
@@ -821,9 +832,9 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        let sat_vb_ceil = self.get_fee_rate_as_sat_vb_ceiled().await? as u128;
+        let sat_vb_ceil = self.get_fee_rate_as_sat_vb().await? as u128;
 
-        // multiply with 10^10/4 = 25*10^8 = 2_500_000_000
+        // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
         Ok(multiplied_fee)
     }
