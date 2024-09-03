@@ -34,7 +34,7 @@ impl Default for BitcoinConfig {
 }
 
 impl BitcoinConfig {
-    pub fn base_args(&self) -> Vec<String> {
+    fn base_args(&self) -> Vec<String> {
         vec![
             "-regtest".to_string(),
             format!("-datadir={}", self.data_dir.display()),
@@ -47,5 +47,9 @@ impl BitcoinConfig {
             "-txindex".to_string(),
             "-addresstype=bech32m".to_string(),
         ]
+    }
+
+    pub fn args(&self) -> Vec<String> {
+        [self.base_args(), self.extra_args.clone()].concat()
     }
 }

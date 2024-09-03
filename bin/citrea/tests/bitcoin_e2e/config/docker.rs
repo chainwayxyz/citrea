@@ -10,17 +10,15 @@ pub struct DockerConfig {
 
 impl From<&BitcoinConfig> for DockerConfig {
     fn from(v: &BitcoinConfig) -> Self {
-        let mut args = v.base_args();
+        let mut args = v.args();
 
-        // Docker specific  args
+        // Docker specific args
         args.extend([
             "-datadir=/bitcoin/data".to_string(),
             "-rpcallowip=0.0.0.0/0".to_string(),
             "-rpcbind=0.0.0.0".to_string(),
             "-daemon=0".to_string(),
         ]);
-
-        args.extend(v.extra_args.iter().cloned());
 
         println!("Running bitcoind with args : {args:?}");
         Self {

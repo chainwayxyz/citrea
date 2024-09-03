@@ -146,8 +146,7 @@ impl Node for BitcoinNode {
     type Client = Client;
 
     async fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
-        let mut args = config.base_args();
-        args.extend(config.extra_args.iter().cloned());
+        let args = config.args();
         println!("Running bitcoind with args : {args:?}");
 
         Command::new("bitcoind")
