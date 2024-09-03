@@ -750,7 +750,7 @@ impl DaService for BitcoinService {
     }
 }
 
-fn get_relevant_blobs_from_txs(
+pub fn get_relevant_blobs_from_txs(
     txs: Vec<Transaction>,
     reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {

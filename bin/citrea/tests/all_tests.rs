@@ -6,7 +6,6 @@ mod bitcoin_e2e;
 
 mod evm;
 mod mempool;
-mod sequencer_commitments;
 mod soft_confirmation_rule_enforcer;
 mod test_client;
 mod test_helpers;
