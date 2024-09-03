@@ -53,12 +53,6 @@ impl<T: TestCase> TestCaseRunner<T> {
                 .await?;
         }
 
-        if f.full_node.is_some() {
-            bitcoin_node
-                .fund_wallet(NodeKind::FullNode.to_string(), blocks_to_fund)
-                .await?;
-        }
-
         bitcoin_node.generate(blocks_to_confirm, None).await?;
 
         f.initial_da_height = bitcoin_node.get_block_count().await?;
@@ -208,7 +202,11 @@ impl<T: TestCase> TestCaseRunner<T> {
             let node_kind = NodeKind::FullNode.to_string();
             RollupConfig {
                 da: BitcoinServiceConfig {
-                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    node_url: format!(
+                        "{}/wallet/{}",
+                        da_config.node_url,
+                        NodeKind::Bitcoin.to_string() // Use default wallet
+                    ),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {

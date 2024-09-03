@@ -55,9 +55,6 @@ impl BitcoinNode {
             .create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)
             .await?;
         client
-            .create_wallet(&NodeKind::FullNode.to_string(), None, None, None, None)
-            .await?;
-        client
             .create_wallet(&NodeKind::Bitcoin.to_string(), None, None, None, None)
             .await?;
 
