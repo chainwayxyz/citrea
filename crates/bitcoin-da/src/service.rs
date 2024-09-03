@@ -1273,18 +1273,4 @@ mod tests {
             "Publickey recovered incorrectly!"
         );
     }
-
-    #[test]
-    fn anan() {
-        let secret_key = bitcoin::secp256k1::SecretKey::from_str(
-            "ce08ef85ace20529099609c97ee2bd3108ac27255772685b8319ba9eba00670c",
-        )
-        .unwrap();
-
-        let secp = bitcoin::secp256k1::Secp256k1::new();
-
-        let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
-
-        println!("{}", hex::encode(public_key.serialize().to_vec()));
-    }
 }

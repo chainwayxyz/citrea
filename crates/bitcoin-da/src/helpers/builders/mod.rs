@@ -14,6 +14,7 @@ use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::Hash;
+use bitcoin::key::constants::{MAX_SIGNATURE_SIZE, PUBLIC_KEY_SIZE, SCHNORR_SIGNATURE_SIZE};
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey};
 use bitcoin::taproot::ControlBlock;
 use bitcoin::{
@@ -60,7 +61,7 @@ fn build_commit_transaction(
     fee_rate: u64,
 ) -> Result<(Transaction, Vec<UTXO>), anyhow::Error> {
     // get single input single output transaction size
-    let size = get_size(
+    let size = get_size_commit(
         &[TxIn {
             previous_output: OutPoint {
                 txid: Txid::from_byte_array([0; 32]),
@@ -74,8 +75,6 @@ fn build_commit_transaction(
             script_pubkey: recipient.clone().script_pubkey(),
             value: Amount::from_sat(output_value),
         }],
-        None,
-        None,
     );
 
     if let Some(req_utxo) = &prev_utxo {
@@ -147,7 +146,7 @@ fn build_commit_transaction(
             );
         }
 
-        let size = get_size(&inputs, &outputs, None, None);
+        let size = get_size_commit(&inputs, &outputs);
 
         if size == last_size {
             break (
@@ -194,7 +193,14 @@ fn build_reveal_transaction(
         sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
     }];
 
-    let size = get_size(&inputs, &outputs, Some(reveal_script), Some(control_block));
+    // sanity check
+    // the reveal input should already hvae calculated the reveal output size + reveal fee
+    let size = get_size_reveal(
+        recipient.script_pubkey(),
+        output_value,
+        reveal_script,
+        control_block,
+    );
 
     let fee = (size as u64) * fee_rate;
 
@@ -216,29 +222,57 @@ fn build_reveal_transaction(
     Ok(tx)
 }
 
-fn get_size(
-    inputs: &[TxIn],
-    outputs: &[TxOut],
-    script: Option<&ScriptBuf>,
-    control_block: Option<&ControlBlock>,
-) -> usize {
+fn get_size_commit(inputs: &[TxIn], outputs: &[TxOut]) -> usize {
     let mut tx = Transaction {
-        input: inputs.to_owned(),
-        output: outputs.to_owned(),
+        input: inputs.to_vec(),
+        output: outputs.to_vec(),
         lock_time: LockTime::ZERO,
         version: bitcoin::transaction::Version(2),
     };
 
     // TODO: adjust size of sig. for different types of addresses
     for i in 0..tx.input.len() {
-        tx.input[i].witness.push(&vec![0; 71]);
+        tx.input[i].witness.push(&vec![0; MAX_SIGNATURE_SIZE]);
+        tx.input[i].witness.push(&vec![0; PUBLIC_KEY_SIZE]);
     }
 
-    #[allow(clippy::unnecessary_unwrap)]
-    if tx.input.len() == 1 && script.is_some() && control_block.is_some() {
-        tx.input[0].witness.push(script.unwrap());
-        tx.input[0].witness.push(control_block.unwrap().serialize());
-    }
+    tx.vsize()
+}
+
+/// Assumes one input one output inscription transaction
+fn get_size_reveal(
+    recipient: ScriptBuf,
+    output_amount: u64,
+    script: &ScriptBuf,
+    control_block: &ControlBlock,
+) -> usize {
+    let mut witness = Witness::new();
+
+    witness.push(vec![0; SCHNORR_SIGNATURE_SIZE]);
+    witness.push(script);
+    witness.push(control_block.serialize());
+
+    let inputs = vec![TxIn {
+        previous_output: OutPoint {
+            txid: Txid::from_byte_array([0; 32]),
+            vout: 0,
+        },
+        script_sig: script::Builder::new().into_script(),
+        witness,
+        sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+    }];
+
+    let outputs = vec![TxOut {
+        value: Amount::from_sat(output_amount),
+        script_pubkey: recipient,
+    }];
+
+    let tx = Transaction {
+        input: inputs.to_owned(),
+        output: outputs.to_owned(),
+        lock_time: LockTime::ZERO,
+        version: bitcoin::transaction::Version(2),
+    };
 
     tx.vsize()
 }

@@ -10,15 +10,13 @@ use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
-use bitcoin::{
-    Address, Amount, Network, OutPoint, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
-};
+use bitcoin::{Address, Network, Transaction, Txid};
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
 use super::{TransactionKindBatchProof, TxListWithReveal, TxWithId};
 use crate::helpers::builders::{
-    build_commit_transaction, build_reveal_transaction, get_size, sign_blob_with_private_key,
+    build_commit_transaction, build_reveal_transaction, get_size_reveal, sign_blob_with_private_key,
 };
 use crate::spec::utxo::UTXO;
 
@@ -155,22 +153,11 @@ pub fn create_batchproof_type_0(
             network,
         );
 
-        let commit_value = get_size(
-            &[TxIn {
-                previous_output: OutPoint {
-                    txid: Txid::from_byte_array([0; 32]),
-                    vout: 0,
-                },
-                script_sig: script::Builder::new().into_script(),
-                witness: Witness::new(),
-                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-            }],
-            &[TxOut {
-                script_pubkey: commit_tx_address.clone().script_pubkey(),
-                value: Amount::from_sat(reveal_value),
-            }],
-            Some(&reveal_script),
-            Some(&control_block),
+        let reveal_input_value = get_size_reveal(
+            change_address.script_pubkey(),
+            reveal_value,
+            &reveal_script,
+            &control_block,
         ) as u64
             * reveal_fee_rate
             + reveal_value;
@@ -182,7 +169,7 @@ pub fn create_batchproof_type_0(
             utxos,
             commit_tx_address.clone(),
             change_address.clone(),
-            commit_value,
+            reveal_input_value,
             commit_fee_rate,
         )?;
 
