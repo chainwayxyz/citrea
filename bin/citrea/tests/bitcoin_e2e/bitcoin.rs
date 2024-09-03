@@ -118,7 +118,7 @@ impl BitcoinNode {
 
         Ok(get_relevant_blobs_from_txs(
             block.txdata,
-            &REVEAL_BATCH_PROOF_PREFIX,
+            REVEAL_BATCH_PROOF_PREFIX,
         ))
     }
 }

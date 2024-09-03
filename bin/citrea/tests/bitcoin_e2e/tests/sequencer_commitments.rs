@@ -1,24 +1,20 @@
-use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoin_da::spec::BitcoinSpec;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_modules_api::{BlobReaderTrait, DaSpec};
+use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::DaData;
-use tokio::time::sleep;
 
 use crate::bitcoin_e2e::bitcoin::BitcoinNode;
-use crate::bitcoin_e2e::config::{ProverConfig, SequencerConfig, TestCaseConfig};
+use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::L2Node;
 use crate::bitcoin_e2e::sequencer::Sequencer;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
-use crate::test_helpers::wait_for_l2_block;
 
 struct LedgerGetCommitmentsProverTest;
 
@@ -44,8 +40,6 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let prover = f.prover.as_ref().unwrap();
-
-        let initial_height = f.initial_da_height;
 
         for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT {
             sequencer.client.send_publish_batch_request().await;
@@ -121,8 +115,6 @@ impl TestCase for LedgerGetCommitmentsTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
-
-        let initial_height = f.initial_da_height;
 
         for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT {
             sequencer.client.send_publish_batch_request().await;
@@ -229,7 +221,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         let start_l2_block = 1;
         let end_l2_block = 4;
 
-        self.check_sequencer_commitment(&sequencer, &da, start_l2_block, end_l2_block)
+        self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
 
         for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT {
@@ -247,7 +239,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         let start_l2_block = end_l2_block + 1;
         let end_l2_block = start_l2_block + 4;
 
-        self.check_sequencer_commitment(&sequencer, &da, start_l2_block, end_l2_block)
+        self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
 
         Ok(())

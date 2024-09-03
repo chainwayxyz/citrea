@@ -14,7 +14,7 @@ impl From<&BitcoinConfig> for DockerConfig {
 
         // Docker specific  args
         args.extend([
-            format!("-datadir=/bitcoin/data"),
+            "-datadir=/bitcoin/data".to_string(),
             "-rpcallowip=0.0.0.0/0".to_string(),
             "-rpcbind=0.0.0.0".to_string(),
         ]);

@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{bail, Context};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};

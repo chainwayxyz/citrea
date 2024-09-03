@@ -4,7 +4,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoin_e2e::config::{ProverConfig, SequencerConfig, TestCaseConfig};
+use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
