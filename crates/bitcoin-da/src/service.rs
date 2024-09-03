@@ -615,7 +615,7 @@ impl DaService for BitcoinService {
                 let tx_id = tx.compute_txid();
                 match parsed {
                     ParsedLightClientTransaction::Complete(complete) => {
-                        if complete.public_key() != prover_pk
+                        if complete.public_key() == prover_pk
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
@@ -623,7 +623,7 @@ impl DaService for BitcoinService {
                         }
                     }
                     ParsedLightClientTransaction::Aggregate(aggregate) => {
-                        if aggregate.public_key() != prover_pk
+                        if aggregate.public_key() == prover_pk
                             && aggregate.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
