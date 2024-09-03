@@ -1,6 +1,7 @@
 mod commitment_controller;
 mod config;
 mod db_provider;
+mod debug;
 mod deposit_data_mempool;
 mod mempool;
 mod rpc;

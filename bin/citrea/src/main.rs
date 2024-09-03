@@ -16,8 +16,15 @@ use tracing::{error, instrument};
 #[cfg(test)]
 mod test_rpc;
 
-/// Main runner. Initializes a DA service, and starts a node using the provided arguments.
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
+#[allow(non_upper_case_globals)]
+#[export_name = "malloc_conf"]
+pub static malloc_conf: &[u8] = b"prof:true,prof_active:false,lg_prof_sample:19\0";
+
+/// Main runner. Initializes a DA service, and starts a node using the provided arguments.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {

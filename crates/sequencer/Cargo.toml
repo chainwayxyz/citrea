@@ -16,12 +16,14 @@ resolver = "2"
 alloy-rlp = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
+axum = "0.7.2"
 borsh = { workspace = true }
 chrono = { workspace = true }
 digest = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
+jemalloc_pprof = { git = "https://github.com/polarsignals/rust-jemalloc-pprof.git" }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
@@ -68,3 +70,4 @@ tokio = { workspace = true }
 [features]
 default = []
 local = []
+profiling = []
