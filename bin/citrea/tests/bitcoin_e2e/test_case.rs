@@ -205,7 +205,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                     node_url: format!(
                         "{}/wallet/{}",
                         da_config.node_url,
-                        NodeKind::Bitcoin.to_string() // Use default wallet
+                        NodeKind::Bitcoin // Use default wallet
                     ),
                     ..da_config.clone()
                 },
