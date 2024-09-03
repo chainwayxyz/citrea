@@ -24,10 +24,13 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
 
-use crate::helpers::builders::{
-    create_seqcommitment_transactions, create_zkproof_transactions, write_inscription_txs,
-    BatchProvingTxs, LightClientTxs, TxWithId,
+use crate::helpers::builders::batch_proof_namespace::{
+    create_seqcommitment_transactions, BatchProvingTxs,
 };
+use crate::helpers::builders::light_client_proof_namespace::{
+    create_zkproof_transactions, LightClientTxs,
+};
+use crate::helpers::builders::{write_inscription_txs, TxWithId};
 use crate::helpers::compression::compress_blob;
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
@@ -430,6 +433,7 @@ impl BitcoinService {
                     .sign_raw_transaction_with_wallet(&commit, None, None)
                     .await?;
 
+                tracing::info!("final commit len: {}", signed_raw_commit_tx.hex.len() / 2);
                 // send inscribe transactions
                 client
                     .send_raw_transaction(&signed_raw_commit_tx.hex)
@@ -437,6 +441,8 @@ impl BitcoinService {
 
                 // serialize reveal tx
                 let serialized_reveal_tx = &encode::serialize(&reveal.tx);
+
+                tracing::info!("final reveal size: {}", serialized_reveal_tx.len(),);
 
                 // send reveal tx
                 let reveal_tx_hash = client.send_raw_transaction(serialized_reveal_tx).await?;
@@ -467,6 +473,8 @@ impl BitcoinService {
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         let smart_fee = self.client.estimate_smart_fee(1, None).await?;
         let sat_vkb = smart_fee.fee_rate.map_or(1000, |rate| rate.to_sat());
+
+        tracing::info!("Fee rate: {} sat/vb", sat_vkb / 1000);
         Ok(sat_vkb / 1000)
     }
 }
@@ -797,7 +805,7 @@ mod tests {
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
-    use bitcoin::secp256k1::Keypair;
+    use bitcoin::secp256k1::{self, Keypair};
     use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -1264,5 +1272,19 @@ mod tests {
             da_pubkey,
             "Publickey recovered incorrectly!"
         );
+    }
+
+    #[test]
+    fn anan() {
+        let secret_key = bitcoin::secp256k1::SecretKey::from_str(
+            "ce08ef85ace20529099609c97ee2bd3108ac27255772685b8319ba9eba00670c",
+        )
+        .unwrap();
+
+        let secp = bitcoin::secp256k1::Secp256k1::new();
+
+        let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
+
+        println!("{}", hex::encode(public_key.serialize().to_vec()));
     }
 }
