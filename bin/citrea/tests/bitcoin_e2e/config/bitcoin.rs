@@ -28,7 +28,7 @@ impl Default for BitcoinConfig {
                 .into_path(),
             extra_args: vec![],
             network: Network::Regtest,
-            docker_image: Some("ruimarinho/bitcoin-core:latest".to_string()),
+            docker_image: Some("bitcoin/bitcoin:latest".to_string()),
         }
     }
 }

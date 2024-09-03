@@ -27,7 +27,7 @@ impl From<&BitcoinConfig> for DockerConfig {
             image: v
                 .docker_image
                 .clone()
-                .unwrap_or_else(|| "ruimarinho/bitcoin-core:latest".to_string()),
+                .unwrap_or_else(|| "bitcoin/bitcoin:latest".to_string()),
             cmd: args,
             dir: format!("{}:/bitcoin/data", v.data_dir.display()),
         }
