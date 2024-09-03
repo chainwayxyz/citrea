@@ -336,8 +336,8 @@ where
 
     async fn process_sequencer_commitment(
         &self,
-        l1_block: Da::FilteredBlock,
-        sequencer_commitment: SequencerCommitment,
+        l1_block: &Da::FilteredBlock,
+        sequencer_commitment: &SequencerCommitment,
     ) -> Result<(), SyncError> {
         let start_l2_height = sequencer_commitment.l2_start_block_number;
         let end_l2_height = sequencer_commitment.l2_end_block_number;
@@ -385,21 +385,20 @@ where
                 hex::encode(sequencer_commitment.merkle_root)
             )
             .into());
-        } else {
-            self.ledger_db.update_commitments_on_da_slot(
-                l1_block.header().height(),
-                sequencer_commitment.clone(),
-            )?;
-
-            for i in start_l2_height..=end_l2_height {
-                self.ledger_db.put_soft_confirmation_status(
-                    BatchNumber(i),
-                    SoftConfirmationStatus::Finalized,
-                )?;
-            }
-            self.ledger_db
-                .set_last_commitment_l2_height(BatchNumber(end_l2_height))?;
         }
+
+        self.ledger_db.update_commitments_on_da_slot(
+            l1_block.header().height(),
+            sequencer_commitment.clone(),
+        )?;
+
+        for i in start_l2_height..=end_l2_height {
+            self.ledger_db
+                .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Finalized)?;
+        }
+        self.ledger_db
+            .set_last_commitment_l2_height(BatchNumber(end_l2_height))?;
+
         Ok(())
     }
 
@@ -566,7 +565,7 @@ where
 
             for sequencer_commitment in sequencer_commitments.clone().iter() {
                 if let Err(e) = self
-                    .process_sequencer_commitment(l1_block.clone(), sequencer_commitment.clone())
+                    .process_sequencer_commitment(l1_block, sequencer_commitment)
                     .await
                 {
                     match e {
