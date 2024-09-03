@@ -271,10 +271,10 @@ impl SequencerSendCommitmentsToDaTest {
             panic!("Expected SequencerCommitment, got {:?}", commitment);
         };
 
-        let mut batch_receipts = Vec::new();
+        let mut soft_confirmations = Vec::new();
 
         for i in start_l2_block..=end_l2_block {
-            batch_receipts.push(
+            soft_confirmations.push(
                 sequencer
                     .client
                     .ledger_get_soft_confirmation_by_number::<BitcoinSpec>(i)
@@ -284,7 +284,7 @@ impl SequencerSendCommitmentsToDaTest {
         }
 
         let merkle_tree = MerkleTree::<Sha256>::from_leaves(
-            batch_receipts
+            soft_confirmations
                 .iter()
                 .map(|x| x.hash)
                 .collect::<Vec<_>>()
