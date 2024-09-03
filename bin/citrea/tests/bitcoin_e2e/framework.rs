@@ -22,7 +22,6 @@ pub struct TestFramework {
     pub prover: Option<Prover>,
     pub full_node: Option<FullNode>,
     show_logs: bool,
-    #[allow(unused)]
     pub initial_da_height: u64,
 }
 
