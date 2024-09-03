@@ -10,7 +10,7 @@ use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
@@ -387,7 +387,6 @@ impl SharedLedgerOps for LedgerDB {
         // get commitments
         let commitments = self.db.get::<CommitmentsByNumber>(&SlotNumber(height))?;
 
-        debug!("update_commitments_on_da_slot {height}");
         match commitments {
             // If there were other commitments, upsert
             Some(mut commitments) => {
