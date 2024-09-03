@@ -48,12 +48,12 @@ impl TestCase for LedgerGetCommitmentsProverTest {
             .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT, None)
             .await;
 
-        da.generate(10, None).await?;
-
-        // wait for tx
+        // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
 
+        // Include commitment in block and finalize it
         da.generate(5, None).await?;
+
         let finalized_height = da.get_finalized_height().await?;
 
         // wait here until we see from prover's rpc that it finished proving
@@ -120,11 +120,9 @@ impl TestCase for LedgerGetCommitmentsTest {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(5, None).await?;
+        da.generate(1, None).await?;
 
         sequencer.client.send_publish_batch_request().await;
-
-        da.generate(5, None).await?;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
