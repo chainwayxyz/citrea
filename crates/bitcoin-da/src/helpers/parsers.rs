@@ -1,16 +1,18 @@
 use core::num::NonZeroU16;
 
 use bitcoin::blockdata::script::Instruction;
-use bitcoin::hashes::Hash;
 use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
-use bitcoin::{secp256k1, Opcode, Script, Transaction, Txid};
+#[cfg(feature = "native")]
+use bitcoin::Txid;
+use bitcoin::{secp256k1, Opcode, Script, Transaction};
 use thiserror::Error;
 
-use super::{calculate_sha256, TransactionKindBatchProof, TransactionKindLightClient};
+use super::calculate_sha256;
 
+#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub enum ParsedLightClientTransaction {
     /// Kind 0
@@ -29,6 +31,7 @@ pub enum ParsedBatchProofTransaction {
     // ForcedTransaction(ForcedTransaction),
 }
 
+#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedComplete {
     pub body: Vec<u8>,
@@ -36,6 +39,7 @@ pub struct ParsedComplete {
     pub public_key: Vec<u8>,
 }
 
+#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedAggregate {
     pub body: Vec<u8>,
@@ -43,6 +47,15 @@ pub struct ParsedAggregate {
     pub public_key: Vec<u8>,
 }
 
+#[cfg(feature = "native")]
+impl ParsedAggregate {
+    pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
+        use bitcoin::hashes::Hash;
+        self.body.chunks_exact(32).map(Txid::from_slice).collect()
+    }
+}
+
+#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
     pub body: Vec<u8>,
@@ -83,6 +96,7 @@ pub(crate) trait VerifyParsed {
     }
 }
 
+#[cfg(feature = "native")]
 impl VerifyParsed for ParsedComplete {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -95,6 +109,7 @@ impl VerifyParsed for ParsedComplete {
     }
 }
 
+#[cfg(feature = "native")]
 impl VerifyParsed for ParsedAggregate {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -119,16 +134,8 @@ impl VerifyParsed for ParsedSequencerCommitment {
     }
 }
 
-impl ParsedAggregate {
-    pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
-        self.body.chunks_exact(32).map(Txid::from_slice).collect()
-    }
-}
-
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParserError {
-    #[error("Invalid rollup name")]
-    InvalidRollupName,
     #[error("Invalid header length")]
     InvalidHeaderLength,
     #[error("Invalid header type {0}")]
@@ -149,6 +156,7 @@ impl From<ScriptError> for ParserError {
     }
 }
 
+#[cfg(feature = "native")]
 pub fn parse_light_client_transaction(
     tx: &Transaction,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
@@ -179,9 +187,12 @@ fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
         .ok_or(ParserError::NonTapscriptWitness)
 }
 
+#[cfg(feature = "native")]
 fn parse_relevant_lightclient(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
+    use super::TransactionKindLightClient;
+
     // PushBytes(XOnlyPublicKey)
     let _public_key = read_push_bytes(instructions)?;
     if OP_CHECKSIGVERIFY != read_opcode(instructions)? {
@@ -210,6 +221,8 @@ fn parse_relevant_lightclient(
 fn parse_relevant_batchproof(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedBatchProofTransaction, ParserError> {
+    use super::TransactionKindBatchProof;
+
     // PushBytes(XOnlyPublicKey)
     let _public_key = read_push_bytes(instructions)?;
     if OP_CHECKSIGVERIFY != read_opcode(instructions)? {
@@ -261,6 +274,7 @@ fn read_opcode(
     Ok(op)
 }
 
+#[cfg(feature = "native")]
 mod light_client {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
@@ -479,7 +493,7 @@ mod batch_proof {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(all(test, feature = "native"))]
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {
@@ -493,6 +507,7 @@ pub fn parse_hex_transaction(
         ))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use bitcoin::key::XOnlyPublicKey;
@@ -503,8 +518,9 @@ mod tests {
 
     use super::{
         parse_light_client_transaction, parse_relevant_lightclient, ParsedLightClientTransaction,
-        ParserError, TransactionKindLightClient,
+        ParserError,
     };
+    use crate::helpers::TransactionKindLightClient;
 
     #[test]
     fn correct() {

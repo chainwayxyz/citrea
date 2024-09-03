@@ -1,0 +1,30 @@
+services:
+  citrea-bitcoin-regtest:
+    image: bitcoin/bitcoin::28.0rc1
+    container_name: bitcoin-regtest
+    environment:
+      - BITCOIN_DATA=/var/lib/bitcoin
+    volumes:
+      - ./resources/dbs/citrea-bitcoin-regtest-data:/var/lib/bitcoin
+    ports:
+      - "18443:18443"
+      - "18444:18444"
+    networks:
+      - citrea-local-network
+    command:
+      -printtoconsole
+      -regtest=1
+      -rest
+      -rpcbind=0.0.0.0
+      -rpcallowip=0.0.0.0/0
+      -rpcport=18443
+      -rpcuser=citrea
+      -rpcpassword=citrea
+      -server
+
+volumes:
+  citrea-bitcoin-regtest-data:
+
+networks:
+  citrea-local-network:
+    driver: bridge
