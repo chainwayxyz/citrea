@@ -14,7 +14,7 @@ use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::Hash;
-use bitcoin::key::constants::{MAX_SIGNATURE_SIZE, PUBLIC_KEY_SIZE, SCHNORR_SIGNATURE_SIZE};
+use bitcoin::key::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey};
 use bitcoin::taproot::ControlBlock;
 use bitcoin::{
