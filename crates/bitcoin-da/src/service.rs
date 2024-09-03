@@ -927,7 +927,7 @@ mod tests {
     use bitcoin::block::{Header, Version};
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
-    use bitcoin::secp256k1::{self, Keypair};
+    use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
     use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
