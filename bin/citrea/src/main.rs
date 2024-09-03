@@ -16,9 +16,7 @@ use tracing::{error, instrument};
 #[cfg(test)]
 mod test_rpc;
 
-/// Main demo runner. Initializes a DA chain, and starts a demo-rollup using the provided.
-/// If you're trying to sign or submit transactions to the rollup, the `sov-cli` binary
-/// is the one you want. You can run it `cargo run --bin sov-cli`.
+/// Main runner. Initializes a DA service, and starts a node using the provided arguments.
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
