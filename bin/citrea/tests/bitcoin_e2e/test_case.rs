@@ -39,7 +39,7 @@ impl<T: TestCase> TestCaseRunner<T> {
 
     pub async fn setup(&self, f: &mut TestFramework) -> Result<()> {
         let bitcoin_node = f.bitcoin_nodes.get(0).unwrap();
-        let blocks_to_confirm = 100;
+        let blocks_to_mature = 100;
         let blocks_to_fund = 25;
         if f.sequencer.is_some() {
             bitcoin_node
@@ -53,7 +53,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 .await?;
         }
 
-        bitcoin_node.generate(blocks_to_confirm, None).await?;
+        bitcoin_node.generate(blocks_to_mature, None).await?;
 
         f.initial_da_height = bitcoin_node.get_block_count().await?;
         Ok(())
