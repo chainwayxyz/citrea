@@ -2880,6 +2880,7 @@ dependencies = [
  "serde",
  "sha2",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
