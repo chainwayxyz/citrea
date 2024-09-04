@@ -13,11 +13,35 @@ pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff 
     new_diff_map.into_iter().collect()
 }
 
-/// Remove proven commitments using the end block number of the L2 range.
+/// Remove finalized commitments using the end block number of the L2 range.
 /// This is basically filtering out finalized soft confirmations.
+pub fn filter_out_finalized_commitments<DB: SharedLedgerOps>(
+    ledger_db: &DB,
+    sequencer_commitments: &[SequencerCommitment],
+) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
+    filter_out_commitments_by_status(
+        ledger_db,
+        sequencer_commitments,
+        SoftConfirmationStatus::Finalized,
+    )
+}
+/// Remove proven commitments using the end block number of the L2 range.
+/// This is basically filtering out proven soft confirmations.
 pub fn filter_out_proven_commitments<DB: SharedLedgerOps>(
     ledger_db: &DB,
     sequencer_commitments: &[SequencerCommitment],
+) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
+    filter_out_commitments_by_status(
+        ledger_db,
+        sequencer_commitments,
+        SoftConfirmationStatus::Proven,
+    )
+}
+
+pub fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
+    ledger_db: &DB,
+    sequencer_commitments: &[SequencerCommitment],
+    exclude_status: SoftConfirmationStatus,
 ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
     let mut preproven_commitments = vec![];
     let mut filtered = vec![];
@@ -41,7 +65,7 @@ pub fn filter_out_proven_commitments<DB: SharedLedgerOps>(
             continue;
         };
 
-        if status != SoftConfirmationStatus::Finalized {
+        if status != exclude_status {
             filtered.push(sequencer_commitment.clone());
         } else {
             preproven_commitments.push(index);
