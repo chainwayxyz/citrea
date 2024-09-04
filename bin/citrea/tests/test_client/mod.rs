@@ -530,7 +530,7 @@ impl TestClient {
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_number(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<SequencerCommitmentResponse>>, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<Option<Vec<SequencerCommitmentResponse>>> {
         self.http_client
             .request(
                 "ledger_getSequencerCommitmentsOnSlotByNumber",

@@ -2,10 +2,9 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoin_e2e::config::{ProverConfig, SequencerConfig, TestCaseConfig};
+use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
@@ -21,13 +20,6 @@ impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_prover: true,
-            ..Default::default()
-        }
-    }
-
-    fn prover_config() -> ProverConfig {
-        ProverConfig {
-            proof_sampling_number: 0,
             ..Default::default()
         }
     }
@@ -69,9 +61,9 @@ impl TestCase for BasicProverTest {
         da.wait_mempool_len(1, None).await?;
 
         da.generate(5, None).await?;
-        let height = da.get_block_count().await?;
+        let finalized_height = da.get_finalized_height().await?;
         prover
-            .wait_for_l1_height(height - FINALITY_DEPTH, Some(Duration::from_secs(600)))
+            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(600)))
             .await;
 
         Ok(())

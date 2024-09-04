@@ -10,27 +10,23 @@ pub struct DockerConfig {
 
 impl From<&BitcoinConfig> for DockerConfig {
     fn from(v: &BitcoinConfig) -> Self {
-        let mut args = vec![
-            "-regtest".to_string(),
-            format!("-datadir=/bitcoin/data"),
-            format!("-port={}", v.p2p_port),
-            format!("-rpcport={}", v.rpc_port),
-            format!("-rpcuser={}", v.rpc_user),
-            format!("-rpcpassword={}", v.rpc_password),
-            "-server".to_string(),
+        let mut args = v.args();
+
+        // Docker specific args
+        args.extend([
+            "-datadir=/bitcoin/data".to_string(),
             "-rpcallowip=0.0.0.0/0".to_string(),
             "-rpcbind=0.0.0.0".to_string(),
-            "-addresstype=bech32m".to_string(),
-        ];
-        println!("Running bitcoind with args : {args:?}");
+            "-daemon=0".to_string(),
+        ]);
 
-        args.extend(v.extra_args.iter().cloned());
+        println!("Running bitcoind with args : {args:?}");
         Self {
             ports: vec![v.rpc_port, v.p2p_port],
             image: v
                 .docker_image
                 .clone()
-                .unwrap_or_else(|| "ruimarinho/bitcoin-core:latest".to_string()),
+                .unwrap_or_else(|| "bitcoin/bitcoin:latest".to_string()),
             cmd: args,
             dir: format!("{}:/bitcoin/data", v.data_dir.display()),
         }

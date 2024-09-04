@@ -27,8 +27,8 @@ impl Default for SequencerConfig {
             min_soft_confirmations_per_commitment: 10,
             test_mode: true,
             deposit_mempool_fetch_limit: 10,
-            block_production_interval_ms: 1000,
-            da_update_interval_ms: 2000,
+            block_production_interval_ms: 100,
+            da_update_interval_ms: 100,
             mempool_conf: Default::default(),
         }
     }

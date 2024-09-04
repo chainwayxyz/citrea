@@ -6,9 +6,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context};
+use anyhow::{bail, Context};
 use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
+use bitcoincore_rpc::RpcApi;
 use citrea_sequencer::SequencerConfig;
 use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::task;
@@ -36,19 +37,25 @@ impl<T: TestCase> TestCaseRunner<T> {
         Self(Arc::new(test_case))
     }
 
-    pub async fn setup(&self, f: &TestFramework) -> Result<()> {
+    pub async fn setup(&self, f: &mut TestFramework) -> Result<()> {
         let bitcoin_node = f.bitcoin_nodes.get(0).unwrap();
+        let blocks_to_mature = 100;
+        let blocks_to_fund = 25;
         if f.sequencer.is_some() {
             bitcoin_node
-                .fund_wallet(NodeKind::Sequencer.to_string())
+                .fund_wallet(NodeKind::Sequencer.to_string(), blocks_to_fund)
                 .await?;
         }
 
         if f.prover.is_some() {
             bitcoin_node
-                .fund_wallet(NodeKind::Prover.to_string())
+                .fund_wallet(NodeKind::Prover.to_string(), blocks_to_fund)
                 .await?;
         }
+
+        bitcoin_node.generate(blocks_to_mature, None).await?;
+
+        f.initial_da_height = bitcoin_node.get_block_count().await?;
         Ok(())
     }
 
@@ -73,7 +80,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
                 futures::executor::block_on(async {
                     framework = Some(TestFramework::new(Self::generate_test_config()?).await?);
-                    self.setup(framework.as_ref().unwrap()).await?;
+                    self.setup(framework.as_mut().unwrap()).await?;
                     self.run_test_case(framework.as_mut().unwrap()).await
                 })
             }));
@@ -95,7 +102,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                     .downcast_ref::<String>()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "Unknown panic".to_string());
-                Err(anyhow!("Test panicked: {}", panic_msg))
+                bail!(panic_msg)
             }
         }
     }
@@ -163,7 +170,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port
             ),
             include_tx_body: true,
-            accept_public_input_as_proven: None,
+            accept_public_input_as_proven: Some(true),
         });
 
         let prover_rollup = {
@@ -194,7 +201,14 @@ impl<T: TestCase> TestCaseRunner<T> {
             let bind_port = get_available_port()?;
             let node_kind = NodeKind::FullNode.to_string();
             RollupConfig {
-                da: da_config.clone(),
+                da: BitcoinServiceConfig {
+                    node_url: format!(
+                        "{}/wallet/{}",
+                        da_config.node_url,
+                        NodeKind::Bitcoin // Use default wallet
+                    ),
+                    ..da_config.clone()
+                },
                 storage: StorageConfig {
                     path: dbs_dir.join(format!("{}-db", node_kind)),
                 },
