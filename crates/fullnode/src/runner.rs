@@ -7,7 +7,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::filter_out_proven_commitments;
+use citrea_primitives::utils::{filter_out_finalized_commitments, filter_out_proven_commitments};
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -577,8 +577,12 @@ where
             // Make sure all sequencer commitments are stored in ascending order.
             sequencer_commitments.sort_unstable();
 
-            let (sequencer_commitments, preproven_commitments) =
-                filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
+            let Ok((sequencer_commitments, _)) =
+                filter_out_finalized_commitments(&self.ledger_db, &sequencer_commitments)
+            else {
+                warn!("Could not filter out finalized commitments");
+                return;
+            };
 
             for sequencer_commitment in sequencer_commitments.clone().iter() {
                 if let Err(e) = self

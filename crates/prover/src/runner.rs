@@ -9,7 +9,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::{filter_out_proven_commitments, merge_state_diffs};
+use citrea_primitives::utils::{filter_out_finalized_commitments, merge_state_diffs};
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -474,7 +474,7 @@ where
             sequencer_commitments.sort_unstable();
 
             let (sequencer_commitments, preproven_commitments) =
-                filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
+                filter_out_finalized_commitments(&self.ledger_db, &sequencer_commitments)?;
 
             let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
                 l1_block.header().clone();
