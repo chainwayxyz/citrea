@@ -33,8 +33,7 @@ use crate::helpers::builders::batch_proof_namespace::{
 use crate::helpers::builders::light_client_proof_namespace::{
     create_zkproof_transactions, LightClientTxs,
 };
-use crate::helpers::builders::TxListWithReveal;
-use crate::helpers::builders::TxWithId;
+use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
