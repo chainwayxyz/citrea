@@ -2,10 +2,9 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoin_e2e::config::{ProverConfig, SequencerConfig, TestCaseConfig};
+use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
 use crate::bitcoin_e2e::Result;
@@ -21,13 +20,7 @@ impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_prover: true,
-            ..Default::default()
-        }
-    }
-
-    fn prover_config() -> ProverConfig {
-        ProverConfig {
-            proof_sampling_number: 0,
+            with_full_node: true,
             ..Default::default()
         }
     }
@@ -47,6 +40,10 @@ impl TestCase for BasicProverTest {
 
         let Some(prover) = &f.prover else {
             bail!("Prover not running. Set TestCaseConfig with_prover to true")
+        };
+
+        let Some(full_node) = &f.full_node else {
+            bail!("FullNode not running. Set TestCaseConfig with_full_node to true")
         };
 
         let Some(da) = f.bitcoin_nodes.get(0) else {
@@ -69,10 +66,33 @@ impl TestCase for BasicProverTest {
         da.wait_mempool_len(1, None).await?;
 
         da.generate(5, None).await?;
-        let height = da.get_block_count().await?;
+        let finalized_height = da.get_finalized_height().await?;
         prover
-            .wait_for_l1_height(height - FINALITY_DEPTH, Some(Duration::from_secs(600)))
+            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await;
+
+        da.generate(5, None).await?;
+        let proofs = full_node
+            .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
+            .await
+            .unwrap();
+
+        {
+            // print some debug info about state diff
+            let state_diff = &proofs[0].state_transition.state_diff;
+            let state_diff_size: usize = state_diff
+                .iter()
+                .map(|(k, v)| k.len() + v.as_ref().map(|v| v.len()).unwrap_or_default())
+                .sum();
+            let borshed_state_diff = borsh::to_vec(state_diff).unwrap();
+            let compressed_state_diff =
+                bitcoin_da::helpers::compression::compress_blob(&borshed_state_diff);
+            println!(
+                "StateDiff: size {}, compressed {}",
+                state_diff_size,
+                compressed_state_diff.len()
+            );
+        }
 
         Ok(())
     }

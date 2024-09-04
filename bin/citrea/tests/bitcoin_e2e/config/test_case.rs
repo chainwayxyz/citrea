@@ -30,7 +30,7 @@ impl Default for TestCaseConfig {
             dir: TempDir::new()
                 .expect("Failed to create temporary directory")
                 .into_path(),
-            docker: true,
+            docker: std::env::var("USE_DOCKER").map_or(false, |v| v.parse().unwrap_or(false)),
             genesis_dir: None,
         }
     }

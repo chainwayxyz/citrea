@@ -11,7 +11,7 @@ use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::{AccountInfo, DbAccount, EvmChainConfig};
+use crate::evm::{AccountInfo, EvmChainConfig};
 use crate::tests::utils::{get_evm, GENESIS_HASH, GENESIS_STATE_ROOT};
 use crate::{AccountData, EvmConfig};
 
@@ -100,32 +100,22 @@ fn genesis_data() {
         )
         .unwrap();
 
-    let evm_db = evm.get_db(&mut working_set);
-
     assert_eq!(
         db_account,
-        DbAccount::new_with_info(
-            evm_db.accounts.prefix(),
-            TEST_CONFIG.data[0].address,
-            AccountInfo {
-                balance: account.balance,
-                code_hash: account.code_hash,
-                nonce: account.nonce,
-            }
-        ),
+        AccountInfo {
+            balance: account.balance,
+            code_hash: account.code_hash,
+            nonce: account.nonce,
+        }
     );
 
     assert_eq!(
         contract_account,
-        DbAccount::new_with_info(
-            evm_db.accounts.prefix(),
-            contract.address,
-            AccountInfo {
-                balance: contract.balance,
-                code_hash: contract.code_hash,
-                nonce: contract.nonce,
-            }
-        ),
+        AccountInfo {
+            balance: contract.balance,
+            code_hash: contract.code_hash,
+            nonce: contract.nonce,
+        }
     );
 
     assert_eq!(

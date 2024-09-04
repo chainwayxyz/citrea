@@ -1,6 +1,5 @@
 use std::io::Write;
 
-#[cfg(feature = "native")]
 pub fn compress_blob(blob: &[u8]) -> Vec<u8> {
     use brotli::CompressorWriter;
     let mut writer = CompressorWriter::new(Vec::new(), 4096, 11, 22);

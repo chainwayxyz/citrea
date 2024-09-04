@@ -63,29 +63,14 @@ impl Default for AccountInfo {
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct DbAccount {
-    pub(crate) info: AccountInfo,
     pub(crate) storage: StateMap<U256, U256, BcsCodec>,
     pub(crate) keys: StateVec<U256, BcsCodec>,
 }
 
 impl DbAccount {
-    fn new(parent_prefix: &Prefix, address: Address) -> Self {
+    pub fn new(parent_prefix: &Prefix, address: Address) -> Self {
         let prefix = Self::create_storage_prefix(parent_prefix, address);
         Self {
-            info: Default::default(),
-            storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
-            keys: StateVec::with_codec(prefix, BcsCodec {}),
-        }
-    }
-
-    pub(crate) fn new_with_info(
-        parent_prefix: &Prefix,
-        address: Address,
-        info: AccountInfo,
-    ) -> Self {
-        let prefix = Self::create_storage_prefix(parent_prefix, address);
-        Self {
-            info,
             storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
             keys: StateVec::with_codec(prefix, BcsCodec {}),
         }

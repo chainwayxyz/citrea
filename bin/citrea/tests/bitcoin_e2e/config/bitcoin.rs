@@ -28,7 +28,28 @@ impl Default for BitcoinConfig {
                 .into_path(),
             extra_args: vec![],
             network: Network::Regtest,
-            docker_image: Some("ruimarinho/bitcoin-core:latest".to_string()),
+            docker_image: Some("bitcoin/bitcoin:latest".to_string()),
         }
+    }
+}
+
+impl BitcoinConfig {
+    fn base_args(&self) -> Vec<String> {
+        vec![
+            "-regtest".to_string(),
+            format!("-datadir={}", self.data_dir.display()),
+            format!("-port={}", self.p2p_port),
+            format!("-rpcport={}", self.rpc_port),
+            format!("-rpcuser={}", self.rpc_user),
+            format!("-rpcpassword={}", self.rpc_password),
+            "-server".to_string(),
+            "-daemon".to_string(),
+            "-txindex".to_string(),
+            "-addresstype=bech32m".to_string(),
+        ]
+    }
+
+    pub fn args(&self) -> Vec<String> {
+        [self.base_args(), self.extra_args.clone()].concat()
     }
 }

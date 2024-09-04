@@ -9,7 +9,7 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaData, DaSpec, DaVerifier};
+use crate::da::{DaData, DaDataLightClient, DaSpec, DaVerifier};
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
@@ -91,6 +91,13 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
+
+    /// Extract the relevant proofs from a block.
+    async fn extract_relevant_proofs(
+        &self,
+        block: &Self::FilteredBlock,
+        prover_pk: &[u8],
+    ) -> anyhow::Result<Vec<DaDataLightClient>>;
 
     /// Generate a proof that the relevant blob transactions have been extracted correctly from the DA layer
     /// block.
