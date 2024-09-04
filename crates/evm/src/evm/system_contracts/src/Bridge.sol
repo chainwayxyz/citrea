@@ -217,12 +217,13 @@ contract Bridge is Ownable2StepUpgradeable {
         bytes32 moveTxId = bytesToBytes32(opReturnData.slice(0, 32));
         uint256 operatorId = uint256(bytesToBytes32(opReturnData.slice(32, opReturnData.length - 32)));
         uint256 depositId = txIdToDepositId[moveTxId];
+        require(depositId != 0, "Deposit do not exist");
         bytes memory witness0 = WitnessUtils.extractWitnessAtIndex(slashOrTakeTp.witness, 0);
         bytes memory script = WitnessUtils.extractItemFromWitness(witness0, 1); // skip musig
         uint256 len = slashOrTakeScript.length;
         bytes memory _slashOrTakeScript = script.slice(0, len);
         require(isBytesEqual(_slashOrTakeScript, slashOrTakeScript), "Invalid slashOrTake script");
-        uint256 fillerOperatorId = withdrawFillers[depositId];
+        uint256 fillerOperatorId = withdrawFillers[depositId - 1]; // depositId is 1-indexed while withdrawFillers is 0-indexed
         bool isMalicious = fillerOperatorId == 0 || fillerOperatorId != getInternalOperatorId(operatorId);
         require(isMalicious, "Operator is not malicious");
         isOperatorMalicious[operatorId] = true;
