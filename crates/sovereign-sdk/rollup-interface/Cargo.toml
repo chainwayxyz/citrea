@@ -39,7 +39,7 @@ serde_json = { workspace = true }
 
 [features]
 default = ["std"]
-native = ["std", "tokio", "futures"]
+native = ["std", "tokio", "futures", "tracing"]
 fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
 testing = ["native"]
 arbitrary = ["dep:arbitrary"]
@@ -54,5 +54,4 @@ std = [
   "serde/default",
   "sha2?/default",
   "thiserror",
-  "tracing",
 ]
