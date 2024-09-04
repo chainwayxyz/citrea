@@ -548,7 +548,7 @@ where
                 )
                 .unwrap();
 
-            let (sequencer_commitments, zk_proofs) =
+            let (mut sequencer_commitments, zk_proofs) =
                 match self.extract_relevant_l1_data(l1_block.clone()).await {
                     Ok(r) => r,
                     Err(e) => {
