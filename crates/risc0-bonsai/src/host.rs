@@ -103,7 +103,6 @@ impl<'a> Risc0BonsaiHost<'a> {
         // handle error
         let client = if !api_url.is_empty() && !api_key.is_empty() {
             tracing::debug!("Uploading image with id: {}", image_id);
-            let image_id = image_id;
             let elf = elf.to_vec();
             thread::spawn(move || {
                 let client = Client::from_parts(api_url, api_key, risc0_zkvm::VERSION)
