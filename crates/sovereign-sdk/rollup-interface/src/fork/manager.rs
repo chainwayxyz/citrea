@@ -1,6 +1,4 @@
-use sov_rollup_interface::fork::Fork;
-
-use super::ForkMigration;
+use super::{Fork, ForkMigration};
 
 pub struct ForkManager {
     forks: Vec<Fork>,

@@ -1,11 +1,10 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use citrea_primitives::fork::ForkMigration;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::fork::Fork;
+use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;

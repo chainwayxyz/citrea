@@ -7279,7 +7279,6 @@ dependencies = [
  "bincode",
  "borsh",
  "byteorder",
- "citrea-primitives",
  "criterion",
  "hex",
  "jmt",
@@ -7582,6 +7581,7 @@ dependencies = [
  "sha2",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
