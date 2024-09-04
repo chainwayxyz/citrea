@@ -13,7 +13,7 @@ use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
-use bitcoin::{Address, Network, Transaction, Txid};
+use bitcoin::{Address, Network, Transaction};
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -32,10 +32,11 @@ pub(crate) struct BatchProvingTxs {
 
 impl TxListWithReveal for BatchProvingTxs {
     fn write_to_file(&self) -> Result<(), anyhow::Error> {
+        let bitcoin_da_path = std::env!("CARGO_MANIFEST_DIR");
         let file = File::create(format!(
-            "batch_proof_inscription_with_reveal_id_{}.txs",
-            self.reveal.id
-        ))?;
+                    "{}/../../resources/bitcoin/inscription_txs/chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    bitcoin_da_path, self.reveal.id
+                ))?;
         let mut writer = BufWriter::new(&file);
         writer.write_all(&serialize(&self.commit))?;
         writer.write_all(&serialize(&self.reveal.tx))?;

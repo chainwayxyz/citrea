@@ -13,7 +13,7 @@ use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
-use bitcoin::{Address, Network, Transaction, Txid};
+use bitcoin::{Address, Network, Transaction};
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -41,11 +41,12 @@ pub(crate) enum LightClientTxs {
 
 impl TxListWithReveal for LightClientTxs {
     fn write_to_file(&self) -> Result<(), anyhow::Error> {
+        let bitcoin_da_path = std::env!("CARGO_MANIFEST_DIR");
         match self {
             Self::Complete { commit, reveal } => {
                 let file = File::create(format!(
-                    "complete_light_client_inscription_with_reveal_id_{}.txs",
-                    reveal.id
+                    "{}/../../resources/bitcoin/inscription_txs/complete_light_client_inscription_with_reveal_id_{}.txs",
+                    bitcoin_da_path,reveal.id
                 ))?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
                 writer.write_all(&serialize(commit))?;
@@ -60,8 +61,8 @@ impl TxListWithReveal for LightClientTxs {
                 reveal,
             } => {
                 let file = File::create(format!(
-                    "chunked_light_client_inscription_with_reveal_id_{}.txs",
-                    reveal.id
+                    "{}/../../resources/bitcoin/inscription_txs/chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    bitcoin_da_path, reveal.id
                 ))?;
                 let mut writer = BufWriter::new(&file);
                 for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {

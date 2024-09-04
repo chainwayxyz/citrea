@@ -15,6 +15,7 @@ resources/dbs/da-db/
 resources/dbs/sequencer-db/
 resources/dbs/full-node-db/
 resources/dbs/prover-db/
+resources/bitcoin/inscription_txs/
 /.vscode/*
 
 /docker/credentials/*
