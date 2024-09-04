@@ -1,10 +1,12 @@
 #![allow(missing_docs)]
 
+#[cfg(feature = "native")]
 mod manager;
 mod migration;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "native")]
 pub use manager::*;
 pub use migration::*;
 
