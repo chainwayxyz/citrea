@@ -43,7 +43,7 @@ pub fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
     sequencer_commitments: &[SequencerCommitment],
     exclude_status: SoftConfirmationStatus,
 ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
-    let mut preproven_commitments = vec![];
+    let mut skipped_commitments = vec![];
     let mut filtered = vec![];
     let mut visited_l2_ranges = HashSet::new();
     for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
@@ -68,9 +68,9 @@ pub fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
         if status != exclude_status {
             filtered.push(sequencer_commitment.clone());
         } else {
-            preproven_commitments.push(index);
+            skipped_commitments.push(index);
         }
     }
 
-    Ok((filtered, preproven_commitments))
+    Ok((filtered, skipped_commitments))
 }
