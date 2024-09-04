@@ -7,6 +7,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::filter_out_proven_commitments;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -300,6 +301,9 @@ where
             }
         };
 
+        let (proven_commitments, _) =
+            filter_out_proven_commitments(&self.ledger_db, &proven_commitments)?;
+
         let l2_height = proven_commitments[0].l2_start_block_number;
         // Fetch the block prior to the one at l2_height so compare state roots
         let prior_soft_confirmation = self
@@ -569,6 +573,12 @@ where
                     }
                 }
             }
+
+            // Make sure all sequencer commitments are stored in ascending order.
+            sequencer_commitments.sort_unstable();
+
+            let (sequencer_commitments, preproven_commitments) =
+                filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
 
             for sequencer_commitment in sequencer_commitments.clone().iter() {
                 if let Err(e) = self
