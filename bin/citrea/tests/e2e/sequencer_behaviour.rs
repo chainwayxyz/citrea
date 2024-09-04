@@ -133,7 +133,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
 /// Check if the sequencer triggers a commitment after a certain state diff size since it's last commitment.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_commitment_threshold() {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -147,7 +147,7 @@ async fn test_sequencer_commitment_threshold() {
         create_default_sequencer_config(min_soft_confirmations_per_commitment, Some(true), 10);
 
     sequencer_config.mempool_conf = SequencerMempoolConfig {
-        max_account_slots: 1000,
+        max_account_slots: 4000,
         ..Default::default()
     };
 
@@ -178,8 +178,8 @@ async fn test_sequencer_commitment_threshold() {
 
     seq_test_client.send_publish_batch_request().await;
 
-    for _ in 0..10 {
-        for _ in 0..100 {
+    for i in 1..11 {
+        for _ in 0..300 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -187,16 +187,17 @@ async fn test_sequencer_commitment_threshold() {
                 .unwrap();
         }
         seq_test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&seq_test_client, i, Some(Duration::from_secs(10))).await;
     }
 
     wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
 
-    // At block 725, the state diff should be large enough to trigger a commitment.
+    // After block 9/10, the state diff should be large enough to trigger a commitment.
     let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
-    for _ in 0..10 {
-        for _ in 0..100 {
+    for i in 12..22 {
+        for _ in 0..300 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -204,12 +205,13 @@ async fn test_sequencer_commitment_threshold() {
                 .unwrap();
         }
         seq_test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&seq_test_client, i, Some(Duration::from_secs(10))).await;
     }
 
     wait_for_l2_block(&seq_test_client, 21, Some(Duration::from_secs(60))).await;
 
-    // At block 1450, the state diff should be large enough to trigger a commitment.
-    // But the 50 remaining blocks state diff should NOT trigger a third.
+    // After block 17/18, the state diff should be large enough to trigger a commitment.
+    // But the remaining blocks state diff should NOT trigger a third.
     let commitments = wait_for_commitment(&da_service, 3, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
