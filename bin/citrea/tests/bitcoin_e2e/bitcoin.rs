@@ -58,7 +58,10 @@ impl BitcoinNode {
             .create_wallet(&NodeKind::Bitcoin.to_string(), None, None, None, None)
             .await?;
 
-        let gen_addr = client.get_new_address(None, None).await?.assume_checked();
+        let gen_addr = client
+            .get_new_address(None, Some(bitcoincore_rpc::json::AddressType::Bech32m))
+            .await?
+            .assume_checked();
         Ok(Self {
             spawn_output,
             config: config.clone(),
@@ -100,7 +103,10 @@ impl BitcoinNode {
         .await
         .context("Failed to create RPC client")?;
 
-        let gen_addr = client.get_new_address(None, None).await?.assume_checked();
+        let gen_addr = client
+            .get_new_address(None, Some(bitcoincore_rpc::json::AddressType::Bech32m))
+            .await?
+            .assume_checked();
         client.generate_to_address(blocks, &gen_addr).await?;
         Ok(())
     }
