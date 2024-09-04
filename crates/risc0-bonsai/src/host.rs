@@ -103,8 +103,8 @@ impl<'a> Risc0BonsaiHost<'a> {
         // handle error
         let client = if !api_url.is_empty() && !api_key.is_empty() {
             tracing::debug!("Uploading image with id: {}", image_id);
-            let image_id = image_id.clone();
-            let elf = elf.clone().to_vec();
+            let image_id = image_id;
+            let elf = elf.to_vec();
             thread::spawn(move || {
                 let client = Client::from_parts(api_url, api_key, risc0_zkvm::VERSION)
                     .expect("Failed to create Bonsai client; qed");
@@ -360,7 +360,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         let image_id = image_id.clone();
                         let input_id = input_id.clone();
                         let response =
-                            (client_clone.create_session(image_id, input_id, vec![], false));
+                            client_clone.create_session(image_id, input_id, vec![], false);
                         match response {
                             Ok(r) => Ok(r),
                             Err(e) => {
@@ -421,7 +421,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .build(),
                     || {
                         let uuid = uuid.clone();
-                        let response = (client_clone.create_snark(uuid));
+                        let response = client_clone.create_snark(uuid);
                         match response {
                             Ok(r) => Ok(r),
                             Err(e) => {
