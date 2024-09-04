@@ -54,5 +54,5 @@ std = [
   "serde/default",
   "sha2?/default",
   "thiserror",
-  "dep:tracing",
+  "tracing",
 ]
