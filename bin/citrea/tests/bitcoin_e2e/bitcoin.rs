@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context};
 use async_trait::async_trait;
 use bitcoin::Address;
+use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
+use bitcoin_da::spec::blob::BlobWithSender;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
 use tokio::process::Command;
 use tokio::time::sleep;
 
@@ -42,7 +45,7 @@ impl BitcoinNode {
         .await
         .context("Failed to create RPC client")?;
 
-        wait_for_rpc_ready(&client, Duration::from_secs(30)).await?;
+        wait_for_rpc_ready(&client, Duration::from_secs(60)).await?;
         println!("bitcoin RPC is ready");
 
         client
@@ -73,7 +76,7 @@ impl BitcoinNode {
         target_len: usize,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        let timeout = timeout.unwrap_or(Duration::from_secs(120));
+        let timeout = timeout.unwrap_or(Duration::from_secs(180));
         let start = Instant::now();
         while start.elapsed() < timeout {
             let mempool_len = self.get_raw_mempool().await?.len();
@@ -85,7 +88,7 @@ impl BitcoinNode {
         bail!("Timeout waiting for mempool to reach length {}", target_len)
     }
 
-    pub async fn fund_wallet(&self, name: String) -> Result<()> {
+    pub async fn fund_wallet(&self, name: String, blocks: u64) -> Result<()> {
         let rpc_url = format!("http://127.0.0.1:{}/wallet/{}", self.config.rpc_port, name);
         let client = Client::new(
             &rpc_url,
@@ -98,8 +101,22 @@ impl BitcoinNode {
         .context("Failed to create RPC client")?;
 
         let gen_addr = client.get_new_address(None, None).await?.assume_checked();
-        client.generate_to_address(25, &gen_addr).await?;
+        client.generate_to_address(blocks, &gen_addr).await?;
         Ok(())
+    }
+
+    pub async fn get_finalized_height(&self) -> Result<u64> {
+        Ok(self.get_block_count().await? - FINALITY_DEPTH)
+    }
+
+    pub async fn get_relevant_blobs_from_block(&self, height: u64) -> Result<Vec<BlobWithSender>> {
+        let hash = self.get_block_hash(height).await?;
+        let block = self.get_block(&hash).await?;
+
+        Ok(get_relevant_blobs_from_txs(
+            block.txdata,
+            REVEAL_BATCH_PROOF_PREFIX,
+        ))
     }
 }
 
@@ -129,19 +146,9 @@ impl Node for BitcoinNode {
     type Client = Client;
 
     async fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
-        let mut args = vec![
-            "-regtest".to_string(),
-            format!("-datadir={}", config.data_dir.display()),
-            format!("-port={}", config.p2p_port),
-            format!("-rpcport={}", config.rpc_port),
-            format!("-rpcuser={}", config.rpc_user),
-            format!("-rpcpassword={}", config.rpc_password),
-            "-server".to_string(),
-            "-daemon".to_string(),
-        ];
+        let args = config.args();
         println!("Running bitcoind with args : {args:?}");
 
-        args.extend(config.extra_args.iter().cloned());
         Command::new("bitcoind")
             .args(&args)
             .kill_on_drop(true)
@@ -191,6 +198,7 @@ impl BitcoinNodeCluster {
 
     pub async fn stop_all(&mut self) -> Result<()> {
         for node in &mut self.inner {
+            RpcApi::stop(node).await?;
             node.stop().await?;
         }
         Ok(())

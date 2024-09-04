@@ -10,6 +10,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 // use std::sync::Arc;
 use async_trait::async_trait;
+use backoff::future::retry as retry_backoff;
+use backoff::ExponentialBackoff;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
@@ -17,22 +19,28 @@ use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
+use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaData, DaSpec};
+use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tracing::{debug, error, info, instrument, trace};
 
-use crate::helpers::builders::{
-    create_seqcommitment_transactions, create_zkproof_transactions, BatchProvingTxs,
-    LightClientTxs, TxListWithReveal, TxWithId,
+use crate::helpers::builders::batch_proof_namespace::{
+    create_seqcommitment_transactions, BatchProvingTxs,
 };
-use crate::helpers::compression::compress_blob;
+use crate::helpers::builders::light_client_proof_namespace::{
+    create_zkproof_transactions, LightClientTxs,
+};
+use crate::helpers::builders::TxListWithReveal;
+use crate::helpers::builders::TxWithId;
+use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
-    parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
+    parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
+    ParsedLightClientTransaction, VerifyParsed,
 };
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -150,7 +158,7 @@ impl BitcoinService {
                         match self
                             .send_transaction_with_fee_rate(
                                 prev.clone(),
-                                &request.da_data,
+                                request.da_data.clone(),
                                 fee_sat_per_vbyte,
                             )
                             .await
@@ -293,15 +301,13 @@ impl BitcoinService {
     pub async fn send_transaction_with_fee_rate(
         &self,
         prev_utxo: Option<UTXO>,
-        da_data: &DaData,
-        fee_sat_per_vbyte: f64,
+        da_data: DaData,
+        fee_sat_per_vbyte: u64,
     ) -> Result<TxWithId, anyhow::Error> {
         let client = &self.client;
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
-
-        let blob = borsh::to_vec(da_data).expect("DaData serialize must not fail");
 
         // get all available utxos
         let utxos = self.get_utxos().await?;
@@ -315,7 +321,9 @@ impl BitcoinService {
             .context("Invalid network for address")?;
 
         match da_data {
-            DaData::ZKProof(_) => {
+            DaData::ZKProof(zkproof) => {
+                let data = DaDataLightClient::ZKProof(zkproof);
+                let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
                 let blob = compress_blob(&blob);
                 // create inscribe transactions
                 let inscription_txs = create_zkproof_transactions(
@@ -403,7 +411,9 @@ impl BitcoinService {
                     }
                 }
             }
-            DaData::SequencerCommitment(_) => {
+            DaData::SequencerCommitment(comm) => {
+                let data = DaDataBatchProof::SequencerCommitment(comm);
+                let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
                 // create inscribe transactions
                 let inscription_txs = create_seqcommitment_transactions(
                     blob,
@@ -445,20 +455,28 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate(&self) -> Result<f64, anyhow::Error> {
-        if self.network == bitcoin::Network::Regtest {
-            // sometimes local mempool is empty, node cannot estimate
-            return Ok(2.0);
+    pub async fn get_fee_rate(&self) -> Result<u64, anyhow::Error> {
+        match self.get_fee_rate_as_sat_vb().await {
+            Ok(fee) => Ok(fee),
+            Err(e) => {
+                if self.network == bitcoin::Network::Regtest
+                    || self.network == bitcoin::Network::Testnet
+                {
+                    Ok(1)
+                } else {
+                    Err(e)
+                }
+            }
         }
-
-        self.get_fee_rate_as_sat_vb_ceiled().await
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb_ceiled(&self) -> Result<f64, anyhow::Error> {
+    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         let smart_fee = self.client.estimate_smart_fee(1, None).await?;
-        let btc_vkb = smart_fee.fee_rate.map_or(0.00001f64, |rate| rate.to_btc());
-        Ok((btc_vkb * 100_000_000.0 / 1000.0).ceil())
+        let sat_vkb = smart_fee.fee_rate.map_or(1000, |rate| rate.to_sat());
+
+        tracing::info!("Fee rate: {} sat/vb", sat_vkb / 1000);
+        Ok(sat_vkb / 1000)
     }
 }
 
@@ -585,6 +603,125 @@ impl DaService for BitcoinService {
         get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
     }
 
+    /// Return a list of LightClient transactions
+    #[instrument(level = "trace", skip_all)]
+    async fn extract_relevant_proofs(
+        &self,
+        block: &Self::FilteredBlock,
+        prover_pk: &[u8],
+    ) -> anyhow::Result<Vec<DaDataLightClient>> {
+        let mut completes = Vec::new();
+        let mut aggregate_idxs = Vec::new();
+
+        for (i, tx) in block.txdata.iter().enumerate() {
+            if !tx
+                .compute_wtxid()
+                .to_byte_array()
+                .as_slice()
+                .starts_with(&self.reveal_light_client_prefix)
+            {
+                continue;
+            }
+
+            if let Ok(parsed) = parse_light_client_transaction(tx) {
+                let tx_id = tx.compute_txid();
+                match parsed {
+                    ParsedLightClientTransaction::Complete(complete) => {
+                        if complete.public_key() == prover_pk
+                            && complete.get_sig_verified_hash().is_some()
+                        {
+                            // push only when signature is correct
+                            completes.push((i, tx_id, complete.body));
+                        }
+                    }
+                    ParsedLightClientTransaction::Aggregate(aggregate) => {
+                        if aggregate.public_key() == prover_pk
+                            && aggregate.get_sig_verified_hash().is_some()
+                        {
+                            // push only when signature is correct
+                            // collect tx ids
+                            aggregate_idxs.push((i, tx_id, aggregate));
+                        }
+                    }
+                    ParsedLightClientTransaction::Chunk(_chunk) => {
+                        // we ignore them for now
+                    }
+                }
+            }
+        }
+
+        // collect aggregated txs from chunks
+        let mut aggregates = Vec::new();
+        'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
+            let mut body = Vec::new();
+            let Ok(chunk_ids) = aggregate.txids() else {
+                error!("{}: Failed to get txids from aggregate", tx_id);
+                continue;
+            };
+            if chunk_ids.is_empty() {
+                error!("{}: Empty aggregate tx list", tx_id);
+                continue;
+            }
+            for chunk_id in chunk_ids {
+                let tx_raw = {
+                    let exponential_backoff = ExponentialBackoff::default();
+                    let res = retry_backoff(exponential_backoff, || async move {
+                        self.client
+                            .get_raw_transaction(&chunk_id, None)
+                            .await
+                            .map_err(|e| {
+                                use bitcoincore_rpc::Error;
+                                match e {
+                                    Error::Io(_) => backoff::Error::transient(e),
+                                    _ => backoff::Error::permanent(e),
+                                }
+                            })
+                    })
+                    .await;
+                    match res {
+                        Ok(r) => r,
+                        Err(e) => {
+                            error!("{}:{}: Failed to request chunk: {e}", tx_id, chunk_id);
+                            continue 'aggregate;
+                        }
+                    }
+                };
+                let wrapped: TransactionWrapper = tx_raw.into();
+                let parsed = match parse_light_client_transaction(&wrapped) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("{}:{}: Failed parse chunk: {e}", tx_id, chunk_id);
+                        continue 'aggregate;
+                    }
+                };
+                match parsed {
+                    ParsedLightClientTransaction::Chunk(part) => {
+                        body.extend(part.body);
+                    }
+                    ParsedLightClientTransaction::Complete(_)
+                    | ParsedLightClientTransaction::Aggregate(_) => {
+                        error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
+                        continue 'aggregate;
+                    }
+                }
+            }
+            aggregates.push((i, tx_id, body));
+        }
+
+        let mut bodies: Vec<_> = completes.into_iter().chain(aggregates).collect();
+        // restore the order of tx they appear in the block
+        bodies.sort_by_key(|b| b.0);
+
+        let mut result = Vec::new();
+        for (_i, tx_id, blob) in bodies {
+            let body = decompress_blob(&blob);
+            let data = DaDataLightClient::try_from_slice(&body)
+                .map_err(|e| anyhow::anyhow!("{}: Failed to parse body: {e}", tx_id))?;
+            result.push(data);
+        }
+        Ok(result)
+    }
+
     #[instrument(level = "trace", skip_all)]
     async fn get_extraction_proof(
         &self,
@@ -696,9 +833,9 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        let sat_vb_ceil = self.get_fee_rate_as_sat_vb_ceiled().await? as u128;
+        let sat_vb_ceil = self.get_fee_rate_as_sat_vb().await? as u128;
 
-        // multiply with 10^10/4 = 25*10^8 = 2_500_000_000
+        // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
         Ok(multiplied_fee)
     }
@@ -747,7 +884,7 @@ impl DaService for BitcoinService {
     }
 }
 
-fn get_relevant_blobs_from_txs(
+pub fn get_relevant_blobs_from_txs(
     txs: Vec<Transaction>,
     reveal_wtxid_prefix: &[u8],
 ) -> Vec<BlobWithSender> {

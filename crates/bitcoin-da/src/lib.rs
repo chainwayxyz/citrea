@@ -1,5 +1,3 @@
-#![allow(dead_code)] // FIXME
-
 mod helpers;
 pub mod spec;
 

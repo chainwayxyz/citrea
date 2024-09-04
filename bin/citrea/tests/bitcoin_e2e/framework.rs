@@ -22,6 +22,7 @@ pub struct TestFramework {
     pub prover: Option<Prover>,
     pub full_node: Option<FullNode>,
     show_logs: bool,
+    pub initial_da_height: u64,
 }
 
 async fn create_optional<T>(pred: bool, f: impl Future<Output = Result<T>>) -> Result<Option<T>> {
@@ -57,42 +58,21 @@ impl TestFramework {
             create_optional(ctx.config.test_case.with_full_node, FullNode::new(&ctx)),
         )?;
 
-        Ok(Self {
+        let f = Self {
             bitcoin_nodes,
             sequencer,
             prover,
             full_node,
             ctx,
             show_logs: true,
-        })
+            initial_da_height: 0,
+        };
+
+        f.show_logs();
+        Ok(f)
     }
 
-    pub async fn stop(&mut self) -> Result<()> {
-        println!("Stopping framework...");
-
-        if let Some(docker) = &self.ctx.docker {
-            let _ = docker.cleanup().await;
-            println!("Successfully cleaned docker");
-        }
-
-        if let Some(sequencer) = &mut self.sequencer {
-            let _ = sequencer.stop().await;
-            println!("Successfully stopped sequencer");
-        }
-
-        if let Some(prover) = &mut self.prover {
-            let _ = prover.stop().await;
-            println!("Successfully stopped prover");
-        }
-
-        if let Some(full_node) = &mut self.full_node {
-            let _ = full_node.stop().await;
-            println!("Successfully stopped full_node");
-        }
-
-        let _ = self.bitcoin_nodes.stop_all().await;
-        println!("Successfully stopped bitcoin nodes");
-
+    pub fn show_logs(&self) {
         if self.show_logs {
             println!(
                 "Logs available at {}",
@@ -126,6 +106,33 @@ impl TestFramework {
                     get_stdout_path(&prover.dir).display()
                 );
             }
+        }
+    }
+
+    pub async fn stop(&mut self) -> Result<()> {
+        println!("Stopping framework...");
+
+        if let Some(sequencer) = &mut self.sequencer {
+            let _ = sequencer.stop().await;
+            println!("Successfully stopped sequencer");
+        }
+
+        if let Some(prover) = &mut self.prover {
+            let _ = prover.stop().await;
+            println!("Successfully stopped prover");
+        }
+
+        if let Some(full_node) = &mut self.full_node {
+            let _ = full_node.stop().await;
+            println!("Successfully stopped full_node");
+        }
+
+        let _ = self.bitcoin_nodes.stop_all().await;
+        println!("Successfully stopped bitcoin nodes");
+
+        if let Some(docker) = &self.ctx.docker {
+            let _ = docker.cleanup().await;
+            println!("Successfully cleaned docker");
         }
 
         Ok(())

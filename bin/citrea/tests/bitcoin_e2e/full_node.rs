@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{bail, Context};
+use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
@@ -53,6 +54,31 @@ impl FullNode {
             dir,
             client,
         })
+    }
+
+    pub async fn wait_for_sequencer_commitments(
+        &self,
+        height: u64,
+        timeout: Option<Duration>,
+    ) -> Result<Vec<SequencerCommitmentResponse>> {
+        let start = Instant::now();
+        let timeout = timeout.unwrap_or(Duration::from_secs(30));
+
+        loop {
+            if start.elapsed() >= timeout {
+                bail!("FullNode failed to get sequencer commitments within the specified timeout");
+            }
+
+            match self
+                .client
+                .ledger_get_sequencer_commitments_on_slot_by_number(height)
+                .await
+            {
+                Ok(Some(commitments)) => return Ok(commitments),
+                Ok(None) => sleep(Duration::from_millis(500)).await,
+                Err(e) => bail!("Error fetching sequencer commitments: {}", e),
+            }
+        }
     }
 }
 
