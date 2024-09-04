@@ -106,7 +106,7 @@ fn call_multiple_test() {
         .expect("Failed to serialize value")
         .len();
     assert_eq!(db_account_len, 74);
-    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -217,7 +217,7 @@ fn call_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -384,7 +384,7 @@ fn self_destruct_test() {
     // Test if we managed to send money to ocntract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
-    let db_contract = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_contract = DbAccount::new(contract_addr);
 
     // Test if we managed to set the variable in the contract
     assert_eq!(
@@ -470,7 +470,7 @@ fn self_destruct_test() {
     // the nonce should be 0
     assert_eq!(contract_info.nonce, 0);
 
-    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_account = DbAccount::new(contract_addr);
 
     // the storage should be empty
     assert_eq!(

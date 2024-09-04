@@ -376,7 +376,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         let storage_slot = if self.accounts.get(&address, working_set).is_some() {
-            let db_account = DbAccount::new(self.accounts.prefix(), address);
+            let db_account = DbAccount::new(address);
             db_account
                 .storage
                 .get(&index, working_set)

@@ -1,5 +1,6 @@
 use alloy_eips::eip1559::BaseFeeParams;
 use reth_primitives::{address, Address, B256, KECCAK_EMPTY, U256};
+use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
@@ -42,6 +43,9 @@ pub const L1_FEE_VAULT: Address = address!("310000000000000000000000000000000000
 /// Priority fee vault address
 pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
 
+/// asd
+pub const STORAGE_DBACCOUNT_PREFIX: [u8; 8] = *b"Evm/stg/";
+
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct AccountInfo {
@@ -68,18 +72,19 @@ pub(crate) struct DbAccount {
 }
 
 impl DbAccount {
-    pub fn new(parent_prefix: &Prefix, address: Address) -> Self {
-        let prefix = Self::create_storage_prefix(parent_prefix, address);
+    pub fn new(address: Address) -> Self {
+        let prefix = Self::create_storage_prefix(address);
         Self {
             storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
             keys: StateVec::with_codec(prefix, BcsCodec {}),
         }
     }
 
-    fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
-        let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
-        prefix.extend_from_slice(address.as_ref());
-        Prefix::new(prefix)
+    fn create_storage_prefix(address: Address) -> Prefix {
+        let mut prefix = [0u8; 28];
+        prefix[0..8].copy_from_slice(&STORAGE_DBACCOUNT_PREFIX);
+        prefix[8..].copy_from_slice(address.as_raw_slice());
+        Prefix::new(prefix.to_vec())
     }
 }
 

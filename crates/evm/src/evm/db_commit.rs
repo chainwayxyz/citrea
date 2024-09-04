@@ -26,8 +26,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                     new_account_flag = true;
                     DbAccountInfo::default()
                 });
-            let parent_prefix = self.accounts.prefix();
-            let db_account = DbAccount::new(parent_prefix, address);
+            let db_account = DbAccount::new(address);
 
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {

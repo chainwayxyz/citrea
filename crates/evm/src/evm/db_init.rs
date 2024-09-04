@@ -28,8 +28,7 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
             .accounts
             .get(&address, self.working_set)
             .expect("Account should already be inserted");
-        let parent_prefix = self.accounts.prefix();
-        let db_account = DbAccount::new(parent_prefix, address);
+        let db_account = DbAccount::new(address);
         db_account.storage.set(&index, &value, self.working_set);
     }
 }
