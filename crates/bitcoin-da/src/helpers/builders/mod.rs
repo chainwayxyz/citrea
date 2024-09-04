@@ -337,20 +337,18 @@ fn choose_utxos(
     Ok((chosen_utxos, sum, leftovers))
 }
 
-// Signs a message with a private key
-pub fn sign_blob_with_private_key(
-    blob: &[u8],
-    private_key: &SecretKey,
-) -> Result<(Vec<u8>, Vec<u8>), ()> {
+/// Signs a message with a private key
+/// Returns (signature, public_key)
+pub fn sign_blob_with_private_key(blob: &[u8], private_key: &SecretKey) -> (Vec<u8>, Vec<u8>) {
     let message = calculate_sha256(blob);
     let secp = Secp256k1::new();
     let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
-    let msg = secp256k1::Message::from_digest_slice(&message).unwrap();
+    let msg = secp256k1::Message::from_digest(message);
     let sig = secp.sign_ecdsa(&msg, private_key);
-    Ok((
+    (
         sig.serialize_compact().to_vec(),
         public_key.serialize().to_vec(),
-    ))
+    )
 }
 
 pub(crate) fn write_inscription_txs<Txs: TxListWithReveal + Serialize>(txs: &Txs) {

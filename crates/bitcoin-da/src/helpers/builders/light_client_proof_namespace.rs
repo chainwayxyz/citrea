@@ -117,8 +117,7 @@ pub fn create_inscription_type_0(
     let kind_bytes = kind.to_bytes();
 
     // sign the body for authentication of the sequencer
-    let (signature, signer_public_key) =
-        sign_blob_with_private_key(&body, da_private_key).expect("Sequencer sign the body");
+    let (signature, signer_public_key) = sign_blob_with_private_key(&body, da_private_key);
 
     // start creating inscription content
     let mut reveal_script_builder = script::Builder::new()
@@ -454,8 +453,7 @@ pub fn create_inscription_type_1(
     // To sign the list of tx ids we assume they form a contigious list of bytes
     let reveal_body: Vec<u8> = reveal_tx_ids.iter().copied().flatten().collect();
     // sign the body for authentication of the sequencer
-    let (signature, signer_public_key) =
-        sign_blob_with_private_key(&reveal_body, da_private_key).expect("Sequencer sign the body");
+    let (signature, signer_public_key) = sign_blob_with_private_key(&reveal_body, da_private_key);
 
     let kind = TransactionKindLightClient::Chunked;
     let kind_bytes = kind.to_bytes();

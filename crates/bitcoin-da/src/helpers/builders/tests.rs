@@ -459,8 +459,7 @@ fn create_inscription_transactions() {
     let da_private_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
     // sign the body for authentication of the sequencer
-    let (signature, signer_public_key) =
-        sign_blob_with_private_key(&body, &da_private_key).expect("Sequencer sign the body");
+    let (signature, signer_public_key) = sign_blob_with_private_key(&body, &da_private_key);
 
     let tx_prefix = &[0u8];
     let LightClientTxs::Complete { commit, reveal } =
