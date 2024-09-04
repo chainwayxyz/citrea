@@ -87,7 +87,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
@@ -124,7 +124,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
@@ -162,7 +162,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
@@ -198,7 +198,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
@@ -243,7 +243,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@v3
@@ -282,7 +282,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
@@ -350,7 +350,7 @@ jobs:
         with:
           tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; ~/.risc0/bin/rzup -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
