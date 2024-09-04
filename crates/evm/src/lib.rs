@@ -32,7 +32,6 @@ pub mod smart_contracts;
 mod tests;
 
 use evm::db::EvmDb;
-use evm::DbAccount;
 use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
@@ -74,7 +73,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account address to account state.
     #[state]
-    pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
+    pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]

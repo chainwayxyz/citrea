@@ -62,7 +62,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let system_nonce = self
             .accounts
             .get(&SYSTEM_SIGNER, working_set)
-            .map(|acc| acc.info.nonce)
+            .map(|info| info.nonce)
             .unwrap_or(0);
 
         let db: EvmDb<'_, C> = self.get_db(working_set);

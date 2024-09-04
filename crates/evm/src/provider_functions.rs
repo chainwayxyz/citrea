@@ -1,7 +1,7 @@
 use reth_primitives::{Account, Address, SealedHeader};
 use sov_modules_api::{StateMapAccessor, StateVecAccessor, WorkingSet};
 
-use crate::{DbAccount, Evm};
+use crate::Evm;
 
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the account at the given address.
@@ -13,12 +13,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         Some(
             self.accounts
                 .get(address, working_set)
-                .unwrap_or(DbAccount::new_with_info(
-                    self.accounts.prefix(),
-                    *address,
-                    Default::default(),
-                ))
-                .info
+                .unwrap_or_default()
                 .into(),
         )
     }
