@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +9,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::merge_state_diffs;
+use citrea_primitives::utils::{filter_out_proven_commitments, merge_state_diffs};
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -474,7 +474,7 @@ where
             sequencer_commitments.sort_unstable();
 
             let (sequencer_commitments, preproven_commitments) =
-                self.filter_out_proven_commitments(&sequencer_commitments)?;
+                filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
 
             let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
                 l1_block.header().clone();
@@ -897,45 +897,6 @@ where
         }
 
         Ok(result)
-    }
-
-    /// Remove proven commitments using the end block number of the L2 range.
-    /// This is basically filtering out finalized soft confirmations.
-    fn filter_out_proven_commitments(
-        &self,
-        sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
-        let mut preproven_commitments = vec![];
-        let mut filtered = vec![];
-        let mut visited_l2_ranges = HashSet::new();
-        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
-            // Handle commitments which have the same L2 range
-            let current_range = (
-                sequencer_commitment.l2_start_block_number,
-                sequencer_commitment.l2_end_block_number,
-            );
-            if visited_l2_ranges.contains(&current_range) {
-                continue;
-            }
-            visited_l2_ranges.insert(current_range);
-
-            // Check if the commitment was previously finalized.
-            let Some(status) = self.ledger_db.get_soft_confirmation_status(BatchNumber(
-                sequencer_commitment.l2_end_block_number,
-            ))?
-            else {
-                filtered.push(sequencer_commitment.clone());
-                continue;
-            };
-
-            if status != SoftConfirmationStatus::Finalized {
-                filtered.push(sequencer_commitment.clone());
-            } else {
-                preproven_commitments.push(index);
-            }
-        }
-
-        Ok((filtered, preproven_commitments))
     }
 }
 

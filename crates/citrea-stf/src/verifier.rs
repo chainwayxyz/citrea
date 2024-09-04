@@ -62,7 +62,7 @@ where
                 data.da_block_headers_of_soft_confirmations,
                 &validity_condition,
                 data.soft_confirmations,
-                data.preproven_commitments,
+                data.preproven_commitments.clone(),
                 FORKS.to_vec(),
             );
 

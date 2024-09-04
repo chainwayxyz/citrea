@@ -1830,6 +1830,7 @@ dependencies = [
  "lru",
  "reth-primitives",
  "serde",
+ "sov-db",
  "sov-rollup-interface",
  "tokio",
  "tracing",
