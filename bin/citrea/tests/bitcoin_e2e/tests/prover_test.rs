@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::secp256k1::generate_keypair;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
@@ -198,19 +198,25 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .await;
 
         da.generate(5, None).await?;
-        let _proofs = full_node
+        let proofs = full_node
             .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
             .await
             .unwrap();
 
+        assert!(proofs
+            .first()
+            .unwrap()
+            .state_transition
+            .preproven_commitments
+            .is_empty());
+
         // Fetch the commitment created from the previous L1 range
-        let commitments = sequencer
+        let commitments: Vec<SequencerCommitment> = sequencer
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_number(11)
+            .ledger_get_sequencer_commitments_on_slot_by_number(15)
             .await
             .unwrap()
-            .unwrap();
-        let commitments: Vec<SequencerCommitment> = commitments
+            .unwrap()
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
@@ -231,6 +237,20 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         da.generate(5, None).await?;
 
+        prover
+            .wait_for_l1_height(FINALITY_DEPTH + 1, Some(Duration::from_secs(300)))
+            .await;
+
+        assert_eq!(
+            proofs
+                .first()
+                .unwrap()
+                .state_transition
+                .preproven_commitments
+                .len(),
+            1
+        );
+
         Ok(())
     }
 }
@@ -241,7 +261,7 @@ async fn basic_prover_test() -> Result<()> {
 }
 
 #[tokio::test]
-async fn prover_skips_preprovem_commitments_test() -> Result<()> {
+async fn prover_skips_preproven_commitments_test() -> Result<()> {
     TestCaseRunner::new(SkipPreprovenCommitmentsTest)
         .run()
         .await
