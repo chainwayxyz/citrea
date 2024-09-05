@@ -255,6 +255,8 @@ where
             .get_last_scanned_l1_height()
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
 
+        self.check_and_recover_ongoing_proving_sessions().await?;
+
         let start_l1_height = match last_scanned_l1_height {
             Some(height) => height.0,
             None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
@@ -408,7 +410,6 @@ where
         skip_submission_until_l1: u64,
         prover_config: &ProverConfig,
     ) -> Result<(), anyhow::Error> {
-        let mut proving_session_exists = self.check_and_recover_ongoing_proving_sessions().await?;
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
                 .front()
@@ -481,9 +482,14 @@ where
 
             let hash = da_block_header_of_commitments.hash();
 
-            if !proving_session_exists && should_prove {
+            if should_prove {
                 let sequencer_commitments_groups =
                     self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
+
+                let submitted_proofs = self
+                    .ledger_db
+                    .get_proofs_by_l1_height(l1_height)?
+                    .unwrap_or(vec![]);
 
                 for sequencer_commitments in sequencer_commitments_groups {
                     // There is no ongoing bonsai session to recover
@@ -501,14 +507,16 @@ where
                         )
                         .await?;
 
-                    self.prove_state_transition(
-                        transition_data,
-                        skip_submission_until_l1,
-                        l1_height,
-                        hash.clone(),
-                    )
-                    .await?;
-                    proving_session_exists = false;
+                    // check if transition data is already proven by crash recovery
+                    if !self.state_transition_already_proven(&transition_data, &submitted_proofs) {
+                        self.prove_state_transition(
+                            transition_data,
+                            skip_submission_until_l1,
+                            l1_height,
+                            hash.clone(),
+                        )
+                        .await?;
+                    }
 
                     self.save_commitments(sequencer_commitments, l1_height);
                 }
@@ -938,6 +946,23 @@ where
         }
 
         Ok((filtered, preproven_commitments))
+    }
+
+    fn state_transition_already_proven(
+        &self,
+        state_transition: &StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+        proofs: &Vec<StoredProof>,
+    ) -> bool {
+        for proof in proofs {
+            if proof.state_transition.initial_state_root == state_transition.initial_state_root
+                && proof.state_transition.final_state_root == state_transition.final_state_root
+                && proof.state_transition.sequencer_commitments_range
+                    == state_transition.sequencer_commitments_range
+            {
+                return true;
+            }
+        }
+        false
     }
 }
 
