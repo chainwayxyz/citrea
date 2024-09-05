@@ -15,7 +15,7 @@ use tokio::time::sleep;
 use super::config::BitcoinConfig;
 use super::docker::DockerEnv;
 use super::framework::TestContext;
-use super::node::{Node, SpawnOutput};
+use super::node::{LogProvider, Node, SpawnOutput};
 use super::Result;
 use crate::bitcoin_e2e::node::NodeKind;
 
@@ -30,7 +30,7 @@ impl BitcoinNode {
     pub async fn new(config: &BitcoinConfig, docker: &Option<DockerEnv>) -> Result<Self> {
         let spawn_output = match docker {
             Some(docker) => docker.spawn(config.into()).await?,
-            None => Self::spawn(config, &PathBuf::default()).await?,
+            None => Self::spawn(config, &PathBuf::default())?,
         };
 
         let rpc_url = format!(
@@ -70,16 +70,12 @@ impl BitcoinNode {
         })
     }
 
-    pub fn get_log_path(&self) -> PathBuf {
-        self.config.data_dir.join("regtest").join("debug.log")
-    }
-
     pub async fn wait_mempool_len(
         &self,
         target_len: usize,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        let timeout = timeout.unwrap_or(Duration::from_secs(180));
+        let timeout = timeout.unwrap_or(Duration::from_secs(300));
         let start = Instant::now();
         while start.elapsed() < timeout {
             let mempool_len = self.get_raw_mempool().await?.len();
@@ -151,7 +147,7 @@ impl Node for BitcoinNode {
     type Config = BitcoinConfig;
     type Client = Client;
 
-    async fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
         let args = config.args();
         println!("Running bitcoind with args : {args:?}");
 
@@ -181,6 +177,16 @@ impl Node for BitcoinNode {
 
     fn client(&self) -> &Self::Client {
         &self.client
+    }
+}
+
+impl LogProvider for BitcoinNode {
+    fn kind(&self) -> NodeKind {
+        NodeKind::Bitcoin
+    }
+
+    fn log_path(&self) -> PathBuf {
+        self.config.data_dir.join("regtest").join("debug.log")
     }
 }
 

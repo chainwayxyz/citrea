@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, FullSequencerConfig, TestConfig};
 use super::framework::TestContext;
-use super::node::{L2Node, Node, SpawnOutput};
+use super::node::{L2Node, LogProvider, Node, NodeKind, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::utils::get_genesis_path;
@@ -29,7 +29,7 @@ impl Sequencer {
             sequencer: config, ..
         } = &ctx.config;
 
-        let spawn_output = Self::spawn(config, &config.dir).await?;
+        let spawn_output = Self::spawn(config, &config.dir)?;
 
         let socket_addr = SocketAddr::new(
             config
@@ -59,7 +59,7 @@ impl Node for Sequencer {
     type Config = FullSequencerConfig;
     type Client = TestClient;
 
-    async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
 
         let stdout_file =
@@ -117,3 +117,13 @@ impl Node for Sequencer {
 }
 
 impl L2Node for Sequencer {}
+
+impl LogProvider for Sequencer {
+    fn kind(&self) -> NodeKind {
+        NodeKind::Sequencer
+    }
+
+    fn log_path(&self) -> PathBuf {
+        get_stdout_path(self.dir())
+    }
+}
