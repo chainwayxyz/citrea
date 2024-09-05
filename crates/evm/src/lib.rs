@@ -108,6 +108,12 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
+    /// Native pending transactions. Used to store transactions that are not yet included in the block.
+    /// We use this in the sequencer to see which txs did not fail
+    #[state]
+    pub(crate) native_pending_transactions:
+        sov_modules_api::AccessoryStateVec<PendingTransaction, BcsCodec>,
+
     /// Transaction's hash that failed to pay the L1 fee.
     /// Used to prevent DOS attacks.
     /// The vector is cleared in `finalize_hook`.
@@ -189,10 +195,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the list of pending EVM transactions
     pub fn get_last_pending_transaction(
         &self,
-        _accessory_working_set: &mut WorkingSet<C>,
+        accessory_working_set: &mut WorkingSet<C>,
     ) -> Option<PendingTransaction> {
-        self.pending_transactions
-            .last()
+        self.native_pending_transactions
+            .last(&mut accessory_working_set.accessory_state())
             .clone()
             .map(|tx| tx.clone())
     }

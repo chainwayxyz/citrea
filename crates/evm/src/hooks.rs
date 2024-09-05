@@ -26,6 +26,12 @@ where
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
+        // just to be sure, we clear the pending transactions
+        // do not ever think about removing this line
+        // it has implications way beyond our understanding
+        // a holy line
+        self.pending_transactions.clear();
+
         let mut parent_block = self
             .head
             .get(working_set)
@@ -221,28 +227,33 @@ where
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
 
-        let mut accessory_state = working_set.accessory_state();
-        self.pending_head.set(&block, &mut accessory_state);
-
-        let mut tx_index = start_tx_index;
-        for PendingTransaction {
-            transaction,
-            receipt,
-        } in pending_transactions
-        {
-            self.transactions.push(transaction, &mut accessory_state);
-            self.receipts.push(receipt, &mut accessory_state);
-
-            self.transaction_hashes.set(
-                &transaction.signed_transaction.hash,
-                &tx_index,
-                &mut accessory_state,
-            );
-
-            tx_index += 1
-        }
         #[cfg(feature = "native")]
-        self.pending_transactions.clear();
+        {
+            let mut accessory_state = working_set.accessory_state();
+            self.pending_head.set(&block, &mut accessory_state);
+
+            let mut tx_index = start_tx_index;
+            for PendingTransaction {
+                transaction,
+                receipt,
+            } in pending_transactions
+            {
+                self.transactions.push(transaction, &mut accessory_state);
+                self.receipts.push(receipt, &mut accessory_state);
+
+                self.transaction_hashes.set(
+                    &transaction.signed_transaction.hash,
+                    &tx_index,
+                    &mut accessory_state,
+                );
+
+                tx_index += 1
+            }
+            self.pending_transactions.clear();
+
+            self.native_pending_transactions
+                .clear(&mut working_set.accessory_state());
+        }
     }
 
     /// This logic is executed after calculating the root hash.

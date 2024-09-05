@@ -117,6 +117,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
                 receipt,
             };
+            #[cfg(feature = "native")]
+            {
+                self.native_pending_transactions
+                    .push(&pending_transaction, &mut working_set.accessory_state());
+            }
+
             self.pending_transactions.push(pending_transaction);
         }
     }
@@ -206,6 +212,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         },
                         receipt,
                     };
+
+                    #[cfg(feature = "native")]
+                    {
+                        self.native_pending_transactions
+                            .push(&pending_transaction, &mut working_set.accessory_state());
+                    }
 
                     self.pending_transactions.push(pending_transaction);
                 }
