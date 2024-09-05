@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::Context;
@@ -48,7 +48,7 @@ pub(crate) trait Node {
     type Client;
 
     /// Spawn a new node with specific config and return its child
-    async fn spawn(test_config: &Self::Config, node_dir: &Path) -> Result<SpawnOutput>;
+    fn spawn(test_config: &Self::Config, node_dir: &Path) -> Result<SpawnOutput>;
     fn spawn_output(&mut self) -> &mut SpawnOutput;
 
     /// Stops the running node
@@ -88,4 +88,9 @@ pub trait L2Node: Node<Client = TestClient> {
     async fn wait_for_l2_height(&self, height: u64, timeout: Option<Duration>) {
         wait_for_l2_block(self.client(), height, timeout).await
     }
+}
+
+pub trait LogProvider {
+    fn kind(&self) -> NodeKind;
+    fn log_path(&self) -> PathBuf;
 }
