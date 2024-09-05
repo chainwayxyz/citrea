@@ -145,19 +145,19 @@ impl TestCase for LedgerGetCommitmentsTest {
         assert_eq!(commitments.len(), 1);
 
         assert_eq!(commitments[0].l2_start_block_number, 1);
-        assert_eq!(commitments[0].l2_end_block_number, 4);
+        assert_eq!(commitments[0].l2_end_block_number, 5);
 
         assert_eq!(commitments[0].found_in_l1, finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 
-        let commitments_hash = full_node
+        let commitments_node = full_node
             .client
             .ledger_get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(commitments_hash, commitments);
+        assert_eq!(commitments_node, commitments);
         Ok(())
     }
 }

@@ -187,7 +187,7 @@ async fn test_sequencer_commitment_threshold() {
                 .unwrap();
         }
         seq_test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&seq_test_client, i, Some(Duration::from_secs(10))).await;
+        wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
     wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
@@ -205,7 +205,7 @@ async fn test_sequencer_commitment_threshold() {
                 .unwrap();
         }
         seq_test_client.send_publish_batch_request().await;
-        wait_for_l2_block(&seq_test_client, i, Some(Duration::from_secs(10))).await;
+        wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
     wait_for_l2_block(&seq_test_client, 21, Some(Duration::from_secs(60))).await;
