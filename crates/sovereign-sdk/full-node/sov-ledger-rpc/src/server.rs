@@ -118,7 +118,7 @@ where
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 
-    rpc.register_blocking_method("ledger_getProofBySlotHash", move |params, ledger, _| {
+    rpc.register_blocking_method("ledger_getProofsBySlotHash", move |params, ledger, _| {
         // Returns proof on DA slot with given height
         let hash: [u8; 32] = params.one()?;
         let height = ledger
