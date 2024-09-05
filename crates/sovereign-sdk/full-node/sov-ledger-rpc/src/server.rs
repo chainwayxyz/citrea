@@ -110,7 +110,7 @@ where
         },
     )?;
 
-    rpc.register_blocking_method("ledger_getProofBySlotHeight", move |params, ledger, _| {
+    rpc.register_blocking_method("ledger_getProofsBySlotHeight", move |params, ledger, _| {
         // Returns proof on DA slot with given height
         let height: u64 = params.one()?;
         ledger

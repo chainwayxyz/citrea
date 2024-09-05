@@ -808,10 +808,12 @@ where
             .get_l1_height_of_l1_hash(slot_hash)?
             .expect("l1 height should exist");
 
-        if let Err(e) =
-            self.ledger_db
-                .put_proof_data(l1_height, tx_id_u8, proof, stored_state_transition)
-        {
+        if let Err(e) = self.ledger_db.insert_proof_data_by_l1_height(
+            l1_height,
+            tx_id_u8,
+            proof,
+            stored_state_transition,
+        ) {
             panic!("Failed to put proof data in the ledger db: {}", e);
         }
         Ok(())

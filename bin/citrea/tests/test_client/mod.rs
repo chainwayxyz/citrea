@@ -540,9 +540,9 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_proof_by_slot_height(&self, height: u64) -> ProofResponse {
+    pub(crate) async fn ledger_get_proof_by_slot_height(&self, height: u64) -> Vec<ProofResponse> {
         self.http_client
-            .request("ledger_getProofBySlotHeight", rpc_params![height])
+            .request("ledger_getProofsBySlotHeight", rpc_params![height])
             .await
             .unwrap()
     }
