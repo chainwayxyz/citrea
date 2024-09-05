@@ -243,7 +243,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 768641461;
+    let second_block_base_fee = 767970154;
 
     let _pending = seq_test_client
         .send_eth(
@@ -340,7 +340,7 @@ async fn test_gas_limit_too_high() {
 
     let target_gas_limit: u64 = 30_000_000;
     let transfer_gas_limit = 21_000;
-    let system_txs_gas_used = 390434;
+    let system_txs_gas_used = 300621;
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -518,28 +518,28 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let seq_port = seq_port_rx.await.unwrap();
     let seq_test_client = make_test_client(seq_port).await?;
-    // sys tx use L1BlockHash(50751 + 80720) + Bridge(261215) = 392686 gas
+    // sys tx use L1BlockHash(50751 + 80720) + Bridge(169150) = 300621 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
-    // 1500000 - 392686 = 1107314 gas left in block
-    // 1107314 / 21000 = 52,72... so 52 ether transfer transactions can be included in the block
+    // 1500000 - 300621 = 1177464 gas left in block
+    // 1107314 / 21000 = 57.13... so 57 ether transfer transactions can be included in the block
 
-    // send 52 ether transfer transactions
+    // send 57 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..51 {
+    for _ in 0..56 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 52th tx should be the last tx in the soft confirmation
+    // 57th tx should be the last tx in the soft confirmation
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 53th tx should not be in soft confirmation
+    // 58th tx should not be in soft confirmation
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
