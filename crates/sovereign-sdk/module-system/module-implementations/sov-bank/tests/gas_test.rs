@@ -60,7 +60,7 @@ impl BankGasTestCase {
         );
 
         // create a bank instance
-        let bank = Bank::default();
+        let mut bank = Bank::default();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
         let mut ws = WorkingSet::new(storage);
         bank.genesis(&bank_config, &mut ws).unwrap();
@@ -105,7 +105,7 @@ impl BankGasTestCase {
     pub fn execute(self) -> anyhow::Result<u64> {
         let Self {
             mut ws,
-            bank,
+            mut bank,
             ctx,
             message,
             tmpdir,

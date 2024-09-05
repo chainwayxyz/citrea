@@ -48,7 +48,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner, u64) {
         ..Default::default()
     };
 
-    let (evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 1;
@@ -235,7 +235,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
         ..Default::default()
     };
 
-    let (evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
 
     // let contract_addr: Address = Address::from_slice(
     //     hex::decode("819c5497b157177315e1204f52e588b393771719")
@@ -307,7 +307,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner, u6
         ..Default::default()
     };
 
-    let (evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
+    let (mut evm, mut working_set, prover_storage) = get_evm_with_storage(&config);
 
     let contract_addr: Address = Address::from_slice(
         hex::decode("819c5497b157177315e1204f52e588b393771719")

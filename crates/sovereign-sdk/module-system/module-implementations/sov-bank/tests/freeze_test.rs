@@ -1,4 +1,4 @@
-use helpers::C;
+use helpers::{query_total_supply, query_user_balance, C};
 use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
@@ -12,7 +12,7 @@ pub type Storage = ProverStorage<DefaultStorageSpec, SnapshotManager>;
 
 #[test]
 fn freeze_token() {
-    let bank = Bank::<C>::default();
+    let mut bank = Bank::<C>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let empty_bank_config = BankConfig::<C> { tokens: vec![] };
@@ -138,13 +138,6 @@ fn freeze_token() {
         minter_address: new_holder,
     };
 
-    let query_total_supply = |token_address: Address,
-                              working_set: &mut WorkingSet<DefaultContext>|
-     -> Option<u64> {
-        let total_supply: TotalSupplyResponse = bank.supply_of(token_address, working_set).unwrap();
-        total_supply.amount
-    };
-
     let minted = bank.call(mint_message, &minter_context, &mut working_set);
     assert!(minted.is_err());
 
@@ -181,15 +174,10 @@ fn freeze_token() {
         .expect("Failed to mint token");
     assert!(working_set.events().is_empty());
 
-    let total_supply = query_total_supply(token_address_2, &mut working_set);
+    let total_supply = query_total_supply(&bank, token_address_2, &mut working_set);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
 
-    let query_user_balance =
-        |token_address: Address,
-         user_address: Address,
-         working_set: &mut WorkingSet<DefaultContext>|
-         -> Option<u64> { bank.get_balance_of(user_address, token_address, working_set) };
-    let bal = query_user_balance(token_address_2, minter_address, &mut working_set);
+    let bal = query_user_balance(&bank, minter_address, token_address_2, &mut working_set);
 
     assert_eq!(Some(110), bal);
 }

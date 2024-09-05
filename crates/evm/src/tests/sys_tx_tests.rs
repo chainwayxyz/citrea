@@ -35,7 +35,7 @@ fn test_sys_bitcoin_light_client() {
 
     config_push_contracts(&mut config);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     assert_eq!(
         evm.receipts
@@ -281,7 +281,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
 
     config_push_contracts(&mut config);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -406,7 +406,7 @@ fn test_bridge() {
 
     config_push_contracts(&mut config);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let l2_height = 2;
@@ -540,7 +540,7 @@ fn test_upgrade_light_client() {
         storage: Default::default(),
     });
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let l2_height = 2;
@@ -674,7 +674,7 @@ fn test_change_upgrade_owner() {
         HashMap::new()
     ));
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 2;

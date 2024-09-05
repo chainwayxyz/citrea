@@ -47,7 +47,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
-    let evm = Evm::<C>::default();
+    let mut evm = Evm::<C>::default();
     evm.genesis(config, &mut working_set).unwrap();
 
     let root = commit(working_set, storage.clone());

@@ -43,7 +43,7 @@ pub mod first_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<C>,
@@ -93,7 +93,7 @@ pub mod second_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<Ctx>,
@@ -148,7 +148,7 @@ pub mod third_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<Ctx>,

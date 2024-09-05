@@ -14,7 +14,7 @@ type C = DefaultContext;
 
 #[test]
 fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
-    let (soft_confirmation_rule_enforcer, mut working_set) =
+    let (mut soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
     let call_message = CallMessage::ModifyMaxL2BlocksPerL1 {
@@ -49,7 +49,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
 
 #[test]
 fn begin_soft_confirmation_hook_checks_timestamp() {
-    let (soft_confirmation_rule_enforcer, mut working_set) =
+    let (mut soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
     let original_timestamp = chrono::Local::now().timestamp() as u64;

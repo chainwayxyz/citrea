@@ -15,7 +15,7 @@ fn transfer_initial_token() {
     let tmpdir = tempfile::tempdir().unwrap();
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(prover_storage.clone());
-    let bank = Bank::default();
+    let mut bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
     let token_address = get_genesis_token_address::<C>(
@@ -40,7 +40,7 @@ fn transfer_initial_token() {
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
     transfer(
-        &bank,
+        &mut bank,
         token_address,
         sender_address,
         sequencer_address,
@@ -62,7 +62,7 @@ fn transfer_initial_token() {
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
     transfer(
-        &bank,
+        &mut bank,
         token_address,
         sender_address,
         sequencer_address,
@@ -97,7 +97,7 @@ fn transfer_initial_token() {
 
     // modify in archival
     transfer(
-        &bank,
+        &mut bank,
         token_address,
         sender_address,
         sequencer_address,
@@ -128,7 +128,7 @@ fn transfer_initial_token() {
     assert_eq!((sender_balance, receiver_balance), (100, 100));
 
     transfer(
-        &bank,
+        &mut bank,
         token_address,
         sender_address,
         sequencer_address,
@@ -159,7 +159,7 @@ fn transfer_initial_token() {
     // Accessory tests
 
     transfer(
-        &bank,
+        &mut bank,
         token_address,
         sender_address,
         sequencer_address,
@@ -187,7 +187,7 @@ fn transfer_initial_token() {
 
     let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
     transfer(
-        &bank,
+        &mut bank,
         token_address,
         sender_address,
         sequencer_address,
@@ -248,7 +248,7 @@ fn query_sender_receiver_balances(
 }
 
 fn transfer(
-    bank: &Bank<DefaultContext>,
+    bank: &mut Bank<DefaultContext>,
     token_address: Address,
     sender_address: Address,
     sequencer_address: Address,
