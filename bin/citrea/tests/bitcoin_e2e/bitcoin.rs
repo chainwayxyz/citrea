@@ -75,7 +75,7 @@ impl BitcoinNode {
         target_len: usize,
         timeout: Option<Duration>,
     ) -> Result<()> {
-        let timeout = timeout.unwrap_or(Duration::from_secs(180));
+        let timeout = timeout.unwrap_or(Duration::from_secs(300));
         let start = Instant::now();
         while start.elapsed() < timeout {
             let mempool_len = self.get_raw_mempool().await?.len();
