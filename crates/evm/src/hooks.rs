@@ -22,7 +22,7 @@ where
         instrument(level = "trace", skip(self, working_set), ret)
     )]
     pub fn begin_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
@@ -122,7 +122,7 @@ where
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
     pub fn end_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
@@ -151,10 +151,7 @@ where
             expected_block_number, block_env.number
         );
 
-        let pending_transactions: Vec<PendingTransaction> =
-            self.pending_transactions.iter(working_set).collect();
-
-        self.pending_transactions.clear(working_set);
+        let pending_transactions = &mut self.pending_transactions;
 
         let start_tx_index = parent_block.transactions.end;
 
@@ -221,6 +218,9 @@ where
 
         self.head.set(&block, working_set);
 
+        #[cfg(not(feature = "native"))]
+        pending_transactions.clear();
+
         let mut accessory_state = working_set.accessory_state();
         self.pending_head.set(&block, &mut accessory_state);
 
@@ -228,7 +228,7 @@ where
         for PendingTransaction {
             transaction,
             receipt,
-        } in &pending_transactions
+        } in pending_transactions
         {
             self.transactions.push(transaction, &mut accessory_state);
             self.receipts.push(receipt, &mut accessory_state);
@@ -241,6 +241,8 @@ where
 
             tx_index += 1
         }
+        #[cfg(feature = "native")]
+        self.pending_transactions.clear();
     }
 
     /// This logic is executed after calculating the root hash.

@@ -1603,7 +1603,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Used to calculate how much gas system transactions use at the beginning of the block
     pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u128 {
         self.pending_transactions
-            .iter(working_set)
+            .iter()
             .map(|tx| tx.receipt.gas_used)
             .sum::<u128>()
     }

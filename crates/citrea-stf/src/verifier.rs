@@ -34,7 +34,7 @@ where
 
     /// Verify the next block
     pub fn run_sequencer_commitments_in_da_slot(
-        &self,
+        &mut self,
         zkvm: Zk,
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {

@@ -231,10 +231,13 @@ where
 {
     match config.deref() {
         ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
-        ProofGenConfig::Simulate(verifier) => verifier
-            .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
-            .map(|_| Proof::PublicInput(Vec::default()))
-            .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
+        ProofGenConfig::Simulate(verifier) => {
+            unimplemented!("Simulate is not implemented yet");
+            //verifier
+            // .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
+            // .map(|_| Proof::PublicInput(Vec::default()))
+            // .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
+        }
         ProofGenConfig::Execute => vm.run(false),
         ProofGenConfig::Prover => vm.run(true),
     }

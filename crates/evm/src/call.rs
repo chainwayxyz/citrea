@@ -31,7 +31,7 @@ pub struct CallMessage {
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Executes system events for the current block and push tx to pending_transactions.
     pub(crate) fn execute_system_events(
-        &self,
+        &mut self,
         system_events: Vec<SystemEvent>,
         l1_fee_rate: u128,
         working_set: &mut WorkingSet<C>,
@@ -80,7 +80,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
-        if let Some(tx) = self.pending_transactions.last(working_set) {
+
+        if !self.pending_transactions.is_empty() {
+            let tx = self.pending_transactions.last().unwrap();
             cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
@@ -115,14 +117,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
                 receipt,
             };
-            self.pending_transactions
-                .push(&pending_transaction, working_set);
+            self.pending_transactions.push(pending_transaction);
         }
     }
 
     /// Executes a call message.
     pub(crate) fn execute_call(
-        &self,
+        &mut self,
         txs: Vec<RlpEvmTransaction>,
         context: &C,
         working_set: &mut WorkingSet<C>,
@@ -149,7 +150,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = block_env.number;
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
-        if let Some(tx) = self.pending_transactions.last(working_set) {
+
+        if !self.pending_transactions.is_empty() {
+            let tx = self.pending_transactions.last().unwrap();
             cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
@@ -204,8 +207,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         receipt,
                     };
 
-                    self.pending_transactions
-                        .push(&pending_transaction, working_set);
+                    self.pending_transactions.push(pending_transaction);
                 }
                 // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
                 Err(err) => match err {

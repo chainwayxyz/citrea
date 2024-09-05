@@ -89,9 +89,9 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) block_env: sov_modules_api::StateValue<BlockEnv, BcsCodec>,
 
     /// Transactions that will be added to the current block.
-    /// A valid transaction is added to the vec on every call message.
-    #[state]
-    pub(crate) pending_transactions: sov_modules_api::StateVec<PendingTransaction, BcsCodec>,
+    /// Valid transactions are added to the vec on every call message.
+    #[memory]
+    pub(crate) pending_transactions: Vec<PendingTransaction>,
 
     /// Head of the chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
     /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
@@ -159,7 +159,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,
@@ -189,8 +189,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the list of pending EVM transactions
     pub fn get_last_pending_transaction(
         &self,
-        accessory_working_set: &mut WorkingSet<C>,
+        _accessory_working_set: &mut WorkingSet<C>,
     ) -> Option<PendingTransaction> {
-        self.pending_transactions.iter(accessory_working_set).last()
+        self.pending_transactions
+            .last()
+            .clone()
+            .map(|tx| tx.clone())
     }
 }
