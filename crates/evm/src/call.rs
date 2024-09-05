@@ -34,14 +34,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         system_events: Vec<SystemEvent>,
         l1_fee_rate: u128,
+        cfg: EvmChainConfig,
+        block_env: BlockEnv,
         working_set: &mut WorkingSet<C>,
     ) {
-        let block_env = self
-            .block_env
-            .get(working_set)
-            .expect("Pending block must be set");
-
-        let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
         let l1_block_hash_exists = self
@@ -80,10 +76,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
-        if let Some(tx) = self.pending_transactions.last(working_set) {
-            cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
-            log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
-        }
+
+        assert!(self.pending_transactions.len(working_set) == 0);
 
         for (tx, result) in system_txs.into_iter().zip(tx_results.into_iter()) {
             let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
