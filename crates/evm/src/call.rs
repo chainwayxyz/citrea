@@ -147,8 +147,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
 
-        if !self.pending_transactions.is_empty() {
-            let tx = self.pending_transactions.last().unwrap();
+        if let Some(tx) = self.pending_transactions.last() {
             cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
