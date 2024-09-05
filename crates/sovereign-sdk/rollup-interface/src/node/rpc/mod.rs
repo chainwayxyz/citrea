@@ -273,14 +273,14 @@ pub struct StateTransitionRpcResponse {
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
-
     /// Sequencer public key.
     #[serde(with = "hex::serde")]
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
     #[serde(with = "hex::serde")]
     pub sequencer_da_public_key: Vec<u8>,
-
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
     /// An additional validity condition for the state transition which needs
     /// to be checked outside of the zkVM circuit. This typically corresponds to
     /// some claim about the DA layer history, such as (X) is a valid block on the DA layer

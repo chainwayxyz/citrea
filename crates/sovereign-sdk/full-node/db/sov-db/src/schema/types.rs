@@ -149,6 +149,7 @@ impl From<StoredStateTransition> for StateTransitionRpcResponse {
             sequencer_public_key: value.sequencer_public_key,
             validity_condition: value.validity_condition,
             sequencer_commitments_range: value.sequencer_commitments_range,
+            preproven_commitments: value.preproven_commitments,
         }
     }
 }
