@@ -1,8 +1,7 @@
 use core::num::NonZeroU16;
+use std::path::PathBuf;
 
 use sha2::{Digest, Sha256};
-
-use std::path::PathBuf;
 
 #[cfg(feature = "native")]
 pub mod builders;
