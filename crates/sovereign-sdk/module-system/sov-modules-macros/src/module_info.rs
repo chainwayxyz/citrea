@@ -108,6 +108,10 @@ fn impl_module_info(
             ModuleFieldAttribute::Gas => {
                 impl_self_body.push(&field.ident);
             }
+            ModuleFieldAttribute::Memory => {
+                impl_self_init.push(make_init_memory(field)?);
+                impl_self_body.push(&field.ident);
+            }
         };
     }
 
@@ -281,6 +285,18 @@ fn make_init_address(
     })
 }
 
+// function for initializing memory fields
+// calls default on the memory field
+fn make_init_memory(field: &ModuleField) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let ident = &field.ident;
+
+    // Generate the token stream that initializes the memory field with Default::default()
+    let tokens = quote::quote! {
+        let #ident = Default::default();
+    };
+
+    Ok(tokens)
+}
 /// Internal `proc macro` parsing utilities.
 pub mod parsing {
     use super::*;
@@ -336,6 +352,7 @@ pub mod parsing {
         State { codec_builder: Option<syn::Path> },
         Address,
         Gas,
+        Memory,
     }
 
     impl ModuleFieldAttribute {
@@ -379,6 +396,16 @@ pub mod parsing {
                         Err(syn::Error::new_spanned(
                             attr,
                             "The `#[gas]` attribute does not accept any arguments.",
+                        ))
+                    }
+                }
+                "memory" => {
+                    if attr.tokens.is_empty() {
+                        Ok(Self::Memory)
+                    } else {
+                        Err(syn::Error::new_spanned(
+                            attr,
+                            "The `#[memory]` attribute does not accept any arguments.",
                         ))
                     }
                 }
@@ -506,9 +533,9 @@ pub mod parsing {
         let mut attr = None;
         for a in field.attrs.iter() {
             match a.path.segments[0].ident.to_string().as_str() {
-                "state" | "module" | "address" | "gas" | "kernel_module" => {
+                "state" | "module" | "address" | "gas" | "kernel_module" | "memory" => {
                     if attr.is_some() {
-                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, and #[gas] is allowed per field."));
+                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, `#[memory]`, and #[gas] is allowed per field."));
                     } else {
                         attr = Some(a);
                     }
@@ -522,7 +549,7 @@ pub mod parsing {
         } else {
             Err(syn::Error::new_spanned(
                 ident,
-                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, or #[gas].", ident),
+                format!("The field `{}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[address]`, `#[memory]`, or #[gas].", ident),
             ))
         }
     }
