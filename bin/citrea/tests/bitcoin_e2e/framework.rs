@@ -4,10 +4,9 @@ use super::bitcoin::BitcoinNodeCluster;
 use super::config::TestConfig;
 use super::docker::DockerEnv;
 use super::full_node::FullNode;
-use super::node::Node;
+use super::node::{LogProvider, LogProviderErased, Node};
 use super::sequencer::Sequencer;
 use super::Result;
-use crate::bitcoin_e2e::node::LogProvider;
 use crate::bitcoin_e2e::prover::Prover;
 use crate::bitcoin_e2e::utils::tail_file;
 
@@ -73,12 +72,12 @@ impl TestFramework {
         Ok(f)
     }
 
-    fn get_nodes_as_log_provider(&self) -> Vec<&dyn LogProvider> {
+    fn get_nodes_as_log_provider(&self) -> Vec<&dyn LogProviderErased> {
         vec![
-            self.bitcoin_nodes.get(0).map(|n| n as &dyn LogProvider),
-            self.sequencer.as_ref().map(|s| s as &dyn LogProvider),
-            self.full_node.as_ref().map(|n| n as &dyn LogProvider),
-            self.prover.as_ref().map(|p| p as &dyn LogProvider),
+            self.bitcoin_nodes.get(0).map(LogProvider::as_erased),
+            self.sequencer.as_ref().map(LogProvider::as_erased),
+            self.full_node.as_ref().map(LogProvider::as_erased),
+            self.prover.as_ref().map(LogProvider::as_erased),
         ]
         .into_iter()
         .flatten()

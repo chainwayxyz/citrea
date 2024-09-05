@@ -90,7 +90,28 @@ pub trait L2Node: Node<Client = TestClient> {
     }
 }
 
-pub trait LogProvider {
+pub trait LogProvider: Node {
     fn kind(&self) -> NodeKind;
     fn log_path(&self) -> PathBuf;
+    fn as_erased(&self) -> &dyn LogProviderErased
+    where
+        Self: Sized,
+    {
+        self
+    }
+}
+
+pub trait LogProviderErased {
+    fn kind(&self) -> NodeKind;
+    fn log_path(&self) -> PathBuf;
+}
+
+impl<T: LogProvider> LogProviderErased for T {
+    fn kind(&self) -> NodeKind {
+        LogProvider::kind(self)
+    }
+
+    fn log_path(&self) -> PathBuf {
+        LogProvider::log_path(self)
+    }
 }
