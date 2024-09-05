@@ -75,7 +75,7 @@ fn impl_module_info(
 
     for field in fields.iter() {
         match &field.attr {
-            ModuleFieldAttribute::State { codec_builder } => {
+            ModuleFieldAttribute::State { codec_builder, .. } => {
                 impl_self_init.push(make_init_state(
                     field,
                     &codec_builder
@@ -150,8 +150,16 @@ fn make_prefix_func(
     field: &ModuleField,
     module_ident: &proc_macro2::Ident,
 ) -> proc_macro2::TokenStream {
+    let ModuleFieldAttribute::State { rename, .. } = &field.attr else {
+        unreachable!("Prefix is implemented for state only");
+    };
     let field_ident = &field.ident;
     let prefix_func_ident = prefix_func_ident(field_ident);
+    let field_name = if let Some(name) = rename {
+        quote::quote! { #name }
+    } else {
+        quote::quote! { stringify!(#field_ident) }
+    };
 
     // generates prefix functions:
     //   fn _prefix_field_ident() -> sov_modules_api::ModulePrefix {
@@ -161,7 +169,7 @@ fn make_prefix_func(
     quote::quote! {
         fn #prefix_func_ident() -> sov_modules_api::ModulePrefix {
             let module_path = module_path!();
-            sov_modules_api::ModulePrefix::new_storage(module_path, stringify!(#module_ident), stringify!(#field_ident))
+            sov_modules_api::ModulePrefix::new_storage(module_path, stringify!(#module_ident), #field_name)
         }
     }
 }
@@ -349,7 +357,10 @@ pub mod parsing {
     pub enum ModuleFieldAttribute {
         Module,
         KernelModule,
-        State { codec_builder: Option<syn::Path> },
+        State {
+            codec_builder: Option<syn::Path>,
+            rename: Option<syn::LitStr>,
+        },
         Address,
         Gas,
         Memory,
@@ -421,6 +432,7 @@ pub mod parsing {
         let meta = if attr.tokens.is_empty() {
             return Ok(ModuleFieldAttribute::State {
                 codec_builder: None,
+                rename: None,
             });
         } else {
             attr.parse_meta()?
@@ -430,21 +442,37 @@ pub mod parsing {
             syn::Meta::List(l) if !l.nested.is_empty() => l,
             _ => return Err(syntax_err),
         };
-        let name_value = match &meta_list.nested[0] {
-            syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) => nv,
-            _ => return Err(syntax_err),
-        };
-
-        if name_value.path.get_ident().map(Ident::to_string).as_deref() != Some("codec_builder") {
-            return Err(syntax_err);
+        let mut codec_builder = None;
+        let mut rename = None;
+        for nested in meta_list.nested {
+            let nv = match nested {
+                syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) => nv,
+                _ => return Err(syntax_err),
+            };
+            let Some(ident) = nv.path.get_ident() else {
+                return Err(syntax_err);
+            };
+            match ident.to_string().as_str() {
+                "codec_builder" => {
+                    let path = match &nv.lit {
+                        syn::Lit::Str(lit) => lit.parse_with(syn::Path::parse_mod_style)?,
+                        _ => return Err(syntax_err),
+                    };
+                    codec_builder = Some(path)
+                }
+                "rename" => {
+                    let name = match &nv.lit {
+                        syn::Lit::Str(lit) => lit.to_owned(),
+                        _ => return Err(syntax_err),
+                    };
+                    rename = Some(name)
+                }
+                _ => return Err(syntax_err),
+            }
         }
-
-        let codec_builder_path = match &name_value.lit {
-            syn::Lit::Str(lit) => lit.parse_with(syn::Path::parse_mod_style)?,
-            _ => return Err(syntax_err),
-        };
         Ok(ModuleFieldAttribute::State {
-            codec_builder: Some(codec_builder_path),
+            codec_builder,
+            rename,
         })
     }
 

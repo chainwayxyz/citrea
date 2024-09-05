@@ -72,7 +72,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) address: C::Address,
 
     /// Mapping from account address to account state.
-    #[state]
+    #[state(rename = "a")]
     pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
@@ -99,13 +99,13 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) head: sov_modules_api::StateValue<Block, BcsCodec>,
 
     /// Last seen L1 block hash.
-    #[state]
+    #[state(rename = "l")]
     pub(crate) last_l1_hash: sov_modules_api::StateValue<B256, BcsCodec>,
 
     /// Last 256 block hashes. Latest blockhash is populated in `begin_slot_hook`.
     /// Removes the oldest blockhash in `finalize_hook`
     /// Used by the EVM to calculate the `blockhash` opcode.
-    #[state]
+    #[state(rename = "h")]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
     /// Native pending transactions. Used to store transactions that are not yet included in the block.

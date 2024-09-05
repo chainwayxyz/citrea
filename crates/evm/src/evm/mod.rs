@@ -44,7 +44,7 @@ pub const L1_FEE_VAULT: Address = address!("310000000000000000000000000000000000
 pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
 
 /// asd
-pub const STORAGE_DBACCOUNT_PREFIX: [u8; 8] = *b"Evm/stg/";
+pub const STORAGE_DBACCOUNT_PREFIX: [u8; 6] = *b"Evm/s/";
 
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -81,9 +81,9 @@ impl DbAccount {
     }
 
     fn create_storage_prefix(address: Address) -> Prefix {
-        let mut prefix = [0u8; 28];
-        prefix[0..8].copy_from_slice(&STORAGE_DBACCOUNT_PREFIX);
-        prefix[8..].copy_from_slice(address.as_raw_slice());
+        let mut prefix = [0u8; 26];
+        prefix[0..6].copy_from_slice(&STORAGE_DBACCOUNT_PREFIX);
+        prefix[6..].copy_from_slice(address.as_raw_slice());
         Prefix::new(prefix.to_vec())
     }
 }
