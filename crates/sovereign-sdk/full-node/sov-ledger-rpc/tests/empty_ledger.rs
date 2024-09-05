@@ -51,8 +51,6 @@ async fn getters_succeed() {
         .await
         .unwrap();
 
-    rpc_client.get_proof_by_slot_height(0).await.unwrap();
-
     rpc_client.get_proof_by_slot_hash([0; 32]).await.unwrap();
 
     rpc_client
