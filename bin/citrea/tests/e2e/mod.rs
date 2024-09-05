@@ -198,7 +198,8 @@ async fn test_all_flow() {
 
     let prover_proof = prover_node_test_client
         .ledger_get_proof_by_slot_height(3)
-        .await;
+        .await[0]
+        .clone();
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
     // For full node to see the proof, we publish another l2 block and now it will check #4 l1 block
@@ -295,7 +296,8 @@ async fn test_all_flow() {
 
     let prover_proof_data = prover_node_test_client
         .ledger_get_proof_by_slot_height(5)
-        .await;
+        .await[0]
+        .clone();
 
     wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client

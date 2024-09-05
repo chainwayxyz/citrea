@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, RollupConfig, TestConfig};
 use super::framework::TestContext;
-use super::node::{L2Node, Node, SpawnOutput};
+use super::node::{L2Node, LogProvider, Node, NodeKind, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::config::ProverConfig;
@@ -38,8 +38,7 @@ impl Prover {
 
         let dir = test_case.dir.join("prover");
 
-        let spawn_output =
-            Self::spawn(&(prover_config.clone(), rollup_config.clone()), &dir).await?;
+        let spawn_output = Self::spawn(&(prover_config.clone(), rollup_config.clone()), &dir)?;
 
         let socket_addr = SocketAddr::new(
             rollup_config
@@ -69,7 +68,7 @@ impl Node for Prover {
     type Config = (ProverConfig, RollupConfig);
     type Client = TestClient;
 
-    async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
 
         let stdout_file =
@@ -129,3 +128,13 @@ impl Node for Prover {
 }
 
 impl L2Node for Prover {}
+
+impl LogProvider for Prover {
+    fn kind(&self) -> NodeKind {
+        NodeKind::Prover
+    }
+
+    fn log_path(&self) -> PathBuf {
+        get_stdout_path(&self.dir)
+    }
+}

@@ -6,7 +6,7 @@ use sov_rollup_interface::rpc::{
 };
 
 use crate::schema::tables::{
-    CommitmentsByNumber, ProofBySlotNumber, SlotByHash, SoftConfirmationByHash,
+    CommitmentsByNumber, ProofsBySlotNumber, SlotByHash, SoftConfirmationByHash,
     SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber,
 };
 use crate::schema::types::{BatchNumber, SlotNumber};
@@ -144,9 +144,11 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<ProofResponse>, anyhow::Error> {
-        match self.db.get::<ProofBySlotNumber>(&SlotNumber(height))? {
-            Some(stored_proof) => Ok(Some(ProofResponse::from(stored_proof))),
+    ) -> Result<Option<Vec<ProofResponse>>, anyhow::Error> {
+        match self.db.get::<ProofsBySlotNumber>(&SlotNumber(height))? {
+            Some(stored_proofs) => Ok(Some(
+                stored_proofs.into_iter().map(ProofResponse::from).collect(),
+            )),
             None => Ok(None),
         }
     }

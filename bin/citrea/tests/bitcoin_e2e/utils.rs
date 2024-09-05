@@ -1,4 +1,6 @@
+use std::fs::File;
 use std::future::Future;
+use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -115,4 +117,24 @@ where
             Err(elapsed) => bail!("Timeout expired {elapsed}"),
         }
     }
+}
+
+pub fn tail_file(path: &Path, lines: usize) -> Result<()> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let mut last_lines = Vec::with_capacity(lines);
+
+    for line in reader.lines() {
+        let line = line?;
+        if last_lines.len() >= lines {
+            last_lines.remove(0);
+        }
+        last_lines.push(line);
+    }
+
+    for line in last_lines {
+        println!("{}", line);
+    }
+
+    Ok(())
 }
