@@ -15,7 +15,7 @@ use crate::rocks_db_config::gen_rocksdb_options;
 use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofBySlotNumber,
+    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
     ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
     SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
     VerifiedProofsBySlotNumber, LEDGER_TABLES,
@@ -529,7 +529,7 @@ impl ProverLedgerOps for LedgerDB {
 
     /// Stores proof related data on disk, accessible via l1 slot height
     #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
-    fn put_proof_data(
+    fn insert_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
@@ -541,8 +541,17 @@ impl ProverLedgerOps for LedgerDB {
             proof,
             state_transition,
         };
-        self.db
-            .put::<ProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+        let proofs = self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))?;
+        match proofs {
+            Some(mut proofs) => {
+                proofs.push(data_to_store);
+                self.db
+                    .put::<ProofsBySlotNumber>(&SlotNumber(l1_height), &proofs)
+            }
+            None => self
+                .db
+                .put::<ProofsBySlotNumber>(&SlotNumber(l1_height), &vec![data_to_store]),
+        }
     }
 
     /// Set the witness by L2 height

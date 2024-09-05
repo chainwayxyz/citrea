@@ -457,7 +457,7 @@ pub trait LedgerRpcProvider {
     fn get_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<ProofResponse>, anyhow::Error>;
+    ) -> Result<Option<Vec<ProofResponse>>, anyhow::Error>;
 
     /// Get verified proof by l1 height
     fn get_verified_proof_data_by_l1_height(

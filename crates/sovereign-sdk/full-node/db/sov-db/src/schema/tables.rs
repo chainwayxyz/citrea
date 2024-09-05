@@ -69,7 +69,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     EventByKey::table_name(),
     EventByNumber::table_name(),
     CommitmentsByNumber::table_name(),
-    ProofBySlotNumber::table_name(),
+    ProofsBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
     MempoolTxs::table_name(),
     PendingProvingSessions::table_name(),
@@ -319,7 +319,7 @@ define_table_without_codec!(
 
 define_table_with_default_codec!(
     /// Proof data on L1 slot
-    (ProofBySlotNumber) SlotNumber => StoredProof
+    (ProofsBySlotNumber) SlotNumber => Vec<StoredProof>
 );
 
 define_table_with_default_codec!(

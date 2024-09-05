@@ -168,7 +168,7 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
 
     /// Stores proof related data on disk, accessible via l1 slot height
-    fn put_proof_data(
+    fn insert_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
