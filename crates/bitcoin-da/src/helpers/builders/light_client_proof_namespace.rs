@@ -21,6 +21,7 @@ use super::{
     build_commit_transaction, build_reveal_transaction, get_size_reveal,
     sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal, TxWithId,
 };
+use crate::helpers::get_workspace_root;
 use crate::spec::utxo::UTXO;
 use crate::MAX_TXBODY_SIZE;
 
@@ -41,12 +42,18 @@ pub(crate) enum LightClientTxs {
 
 impl TxListWithReveal for LightClientTxs {
     fn write_to_file(&self) -> Result<(), anyhow::Error> {
-        let bitcoin_da_path = std::env!("CARGO_MANIFEST_DIR");
+        let ws_root = get_workspace_root();
+        let mut resources_path = ws_root.to_path_buf();
+        resources_path.push("resources");
+        resources_path.push("bitcoin");
+        resources_path.push("inscription_txs");
+        let resources_path = resources_path.to_str().unwrap();
+
         match self {
             Self::Complete { commit, reveal } => {
                 let file = File::create(format!(
-                    "{}/../../resources/bitcoin/inscription_txs/complete_light_client_inscription_with_reveal_id_{}.txs",
-                    bitcoin_da_path,reveal.id
+                    "{}/complete_light_client_inscription_with_reveal_id_{}.txs",
+                    resources_path, reveal.id
                 ))?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
                 writer.write_all(&serialize(commit))?;
@@ -61,8 +68,8 @@ impl TxListWithReveal for LightClientTxs {
                 reveal,
             } => {
                 let file = File::create(format!(
-                    "{}/../../resources/bitcoin/inscription_txs/chunked_light_client_inscription_with_reveal_id_{}.txs",
-                    bitcoin_da_path, reveal.id
+                    "{}/chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    resources_path, reveal.id
                 ))?;
                 let mut writer = BufWriter::new(&file);
                 for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {
