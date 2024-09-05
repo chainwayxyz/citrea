@@ -85,8 +85,8 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
-    #[state]
-    pub(crate) block_env: sov_modules_api::StateValue<BlockEnv, BcsCodec>,
+    #[memory]
+    pub(crate) block_env: BlockEnv,
 
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.

@@ -631,17 +631,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut block_env = match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
                 // if no block is produced yet, should default to genesis block env, else just return the lates
-                self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                })
+                BlockEnv::from(
+                    &self
+                        .get_sealed_block_by_number(Some(BlockNumberOrTag::Earliest), working_set)
+                        .unwrap()
+                        .expect("Genesis block must be set"),
+                )
             }
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set)? {

@@ -40,7 +40,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         timestamp: 54,
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    let pending_block = evm.block_env.get(&mut working_set).unwrap();
+    let pending_block = evm.block_env;
     assert_eq!(
         pending_block,
         BlockEnv {
