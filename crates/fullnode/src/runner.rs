@@ -7,7 +7,6 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::{filter_out_finalized_commitments, filter_out_proven_commitments};
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -290,39 +289,73 @@ where
             }
         };
 
-        let proven_commitments = match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
-            Some(commitments) => commitments,
-            None => {
-                return Err(anyhow!(
+        let mut commitments_on_da_slot =
+            match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
+                Some(commitments) => commitments,
+                None => {
+                    return Err(anyhow!(
                     "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
                     l1_height
                 )
-                .into());
-            }
-        };
+                    .into());
+                }
+            };
 
-        let (proven_commitments, _) =
-            filter_out_proven_commitments(&self.ledger_db, &proven_commitments)?;
+        commitments_on_da_slot.sort_unstable();
 
-        let l2_height = proven_commitments[0].l2_start_block_number;
-        // Fetch the block prior to the one at l2_height so compare state roots
-        let prior_soft_confirmation = self
-            .ledger_db
-            .get_soft_confirmation_by_number(&(BatchNumber(l2_height - 1)))?;
-        if let Some(prior_soft_confirmation) = prior_soft_confirmation {
-            if prior_soft_confirmation.state_root.as_slice()
-                != state_transition.initial_state_root.as_ref()
-            {
-                return Err(anyhow!(
-                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_confirmation.state_root),
-                    hex::encode(&state_transition.initial_state_root)
-                ).into());
+        let mut excluded_commitment_indices = state_transition.preproven_commitments.clone();
+
+        // TODO: filter better here
+        // The preproven indicies are sorted by the prover when originally passed.
+        // Therefore, we pass the commitments sequentially to make sure that the current
+        // commitment index is not at the beginning of the list of preproven indicies.
+        let mut filtered_commitments = vec![];
+        for (index, sequencer_commitment) in commitments_on_da_slot.into_iter().enumerate() {
+            if let Some(exclude_index) = excluded_commitment_indices.first() {
+                if index == *exclude_index {
+                    excluded_commitment_indices.remove(0);
+                    continue;
+                }
             }
+            filtered_commitments.push(sequencer_commitment);
         }
 
-        for commitment in proven_commitments {
-            // TODO: put_soft_confirmation_status to use L2 range
+        let l2_height = filtered_commitments
+            [state_transition.sequencer_commitments_range.0 as usize]
+            .l2_start_block_number;
+        // Fetch the block prior to the one at l2_height so compare state roots
+
+        let prior_soft_confirmation_post_state_root = self
+            .ledger_db
+            .get_l2_state_root::<Stf::StateRoot>(l2_height - 1)?
+            .ok_or_else(|| {
+                anyhow!(
+                "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
+                l2_height - 1
+            )
+            })?;
+
+        tracing::info!("out");
+
+        if prior_soft_confirmation_post_state_root.as_ref()
+            != state_transition.initial_state_root.as_ref()
+        {
+            return Err(anyhow!(
+                    "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
+                    hex::encode(&prior_soft_confirmation_post_state_root),
+                    hex::encode(&state_transition.initial_state_root)
+                ).into());
+        }
+
+        for commitment in filtered_commitments
+            .iter()
+            .skip(state_transition.sequencer_commitments_range.0 as usize)
+            .take(
+                (state_transition.sequencer_commitments_range.1
+                    - state_transition.sequencer_commitments_range.0
+                    + 1) as usize,
+            )
+        {
             let l2_start_height = commitment.l2_start_block_number;
             let l2_end_height = commitment.l2_end_block_number;
             for i in l2_start_height..=l2_end_height {
@@ -548,7 +581,7 @@ where
                 )
                 .unwrap();
 
-            let (mut sequencer_commitments, zk_proofs) =
+            let (sequencer_commitments, zk_proofs) =
                 match self.extract_relevant_l1_data(l1_block.clone()).await {
                     Ok(r) => r,
                     Err(e) => {
@@ -573,16 +606,6 @@ where
                     }
                 }
             }
-
-            // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort_unstable();
-
-            let Ok((sequencer_commitments, _)) =
-                filter_out_finalized_commitments(&self.ledger_db, &sequencer_commitments)
-            else {
-                warn!("Could not filter out finalized commitments");
-                return;
-            };
 
             for sequencer_commitment in sequencer_commitments.clone().iter() {
                 if let Err(e) = self

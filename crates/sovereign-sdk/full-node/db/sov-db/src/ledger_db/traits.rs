@@ -99,6 +99,12 @@ pub trait SharedLedgerOps {
         state_root: &StateRoot,
     ) -> anyhow::Result<()>;
 
+    /// Gets the L2 genesis state root
+    fn get_l2_state_root<StateRoot: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<StateRoot>>;
+
     /// Get the most recent committed soft confirmation, if any
     fn get_head_soft_confirmation(&self) -> Result<Option<(BatchNumber, StoredSoftConfirmation)>>;
 
@@ -151,12 +157,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
 /// Prover ledger operations
 pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Get the state root by L2 height
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>>;
-
     /// Get the last scanned slot by the prover
     fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
 
