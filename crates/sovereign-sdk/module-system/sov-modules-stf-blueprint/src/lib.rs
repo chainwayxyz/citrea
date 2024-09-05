@@ -14,7 +14,7 @@ use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
     Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet, Zkvm,
 };
-use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::da::{sort_sequencer_commitments, DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
@@ -546,7 +546,7 @@ where
         }
 
         // Sort commitments just in case
-        sequencer_commitments.sort_unstable();
+        sort_sequencer_commitments(&mut sequencer_commitments);
 
         // The preproven indicies are sorted by the prover when originally passed.
         // Therefore, we pass the commitments sequentially to make sure that the current
