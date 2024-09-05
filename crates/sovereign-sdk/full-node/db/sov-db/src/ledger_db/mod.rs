@@ -554,6 +554,11 @@ impl ProverLedgerOps for LedgerDB {
         }
     }
 
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_proofs_by_l1_height(&self, l1_height: u64) -> anyhow::Result<Option<Vec<StoredProof>>> {
+        self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))
+    }
+
     /// Set the witness by L2 height
     #[instrument(level = "trace", skip_all, err, ret)]
     fn set_l2_witness<Witness: Serialize>(

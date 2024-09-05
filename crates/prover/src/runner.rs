@@ -17,7 +17,7 @@ use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::ProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
+use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmation, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -224,7 +224,7 @@ where
         });
     }
 
-    async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<bool, anyhow::Error> {
+    async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<(), anyhow::Error> {
         let prover_service = self
             .prover_service
             .as_ref()
@@ -232,14 +232,11 @@ where
         let results = prover_service
             .recover_proving_sessions_and_send_to_da(&self.da_service)
             .await?;
-        if results.is_empty() {
-            Ok(false)
-        } else {
-            for (tx_id, proof) in results {
-                self.extract_and_store_proof(tx_id, proof).await?;
-            }
-            Ok(true)
+
+        for (tx_id, proof) in results {
+            self.extract_and_store_proof(tx_id, proof).await?;
         }
+        Ok(())
     }
 
     /// Runs the rollup.
@@ -254,6 +251,8 @@ where
             .ledger_db
             .get_last_scanned_l1_height()
             .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
+
+        self.check_and_recover_ongoing_proving_sessions().await?;
 
         let start_l1_height = match last_scanned_l1_height {
             Some(height) => height.0,
@@ -408,7 +407,6 @@ where
         skip_submission_until_l1: u64,
         prover_config: &ProverConfig,
     ) -> Result<(), anyhow::Error> {
-        let mut proving_session_exists = self.check_and_recover_ongoing_proving_sessions().await?;
         while !pending_l1_blocks.is_empty() {
             let l1_block = pending_l1_blocks
                 .front()
@@ -481,9 +479,14 @@ where
 
             let hash = da_block_header_of_commitments.hash();
 
-            if !proving_session_exists && should_prove {
+            if should_prove {
                 let sequencer_commitments_groups =
                     self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
+
+                let submitted_proofs = self
+                    .ledger_db
+                    .get_proofs_by_l1_height(l1_height)?
+                    .unwrap_or(vec![]);
 
                 for sequencer_commitments in sequencer_commitments_groups {
                     // There is no ongoing bonsai session to recover
@@ -501,14 +504,16 @@ where
                         )
                         .await?;
 
-                    self.prove_state_transition(
-                        transition_data,
-                        skip_submission_until_l1,
-                        l1_height,
-                        hash.clone(),
-                    )
-                    .await?;
-                    proving_session_exists = false;
+                    // check if transition data is already proven by crash recovery
+                    if !self.state_transition_already_proven(&transition_data, &submitted_proofs) {
+                        self.prove_state_transition(
+                            transition_data,
+                            skip_submission_until_l1,
+                            l1_height,
+                            hash.clone(),
+                        )
+                        .await?;
+                    }
 
                     self.save_commitments(sequencer_commitments, l1_height);
                 }
@@ -938,6 +943,25 @@ where
         }
 
         Ok((filtered, preproven_commitments))
+    }
+
+    fn state_transition_already_proven(
+        &self,
+        state_transition: &StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>,
+        proofs: &Vec<StoredProof>,
+    ) -> bool {
+        for proof in proofs {
+            if proof.state_transition.initial_state_root
+                == state_transition.initial_state_root.as_ref()
+                && proof.state_transition.final_state_root
+                    == state_transition.final_state_root.as_ref()
+                && proof.state_transition.sequencer_commitments_range
+                    == state_transition.sequencer_commitments_range
+            {
+                return true;
+            }
+        }
+        false
     }
 }
 
