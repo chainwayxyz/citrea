@@ -271,7 +271,7 @@ where
             sequencer_commitments_range: state_transition.sequencer_commitments_range,
             sequencer_public_key: state_transition.sequencer_public_key,
             sequencer_da_public_key: state_transition.sequencer_da_public_key,
-            preproven_commitments: state_transition.preproven_commitments,
+            preproven_commitments: state_transition.preproven_commitments.clone(),
             validity_condition: borsh::to_vec(&state_transition.validity_condition).unwrap(),
         };
 
@@ -304,22 +304,13 @@ where
 
         commitments_on_da_slot.sort_unstable();
 
-        let mut excluded_commitment_indices = state_transition.preproven_commitments.clone();
-
-        // TODO: filter better here
-        // The preproven indicies are sorted by the prover when originally passed.
-        // Therefore, we pass the commitments sequentially to make sure that the current
-        // commitment index is not at the beginning of the list of preproven indicies.
-        let mut filtered_commitments = vec![];
-        for (index, sequencer_commitment) in commitments_on_da_slot.into_iter().enumerate() {
-            if let Some(exclude_index) = excluded_commitment_indices.first() {
-                if index == *exclude_index {
-                    excluded_commitment_indices.remove(0);
-                    continue;
-                }
-            }
-            filtered_commitments.push(sequencer_commitment);
-        }
+        let excluded_commitment_indices = state_transition.preproven_commitments.clone();
+        let filtered_commitments: Vec<SequencerCommitment> = commitments_on_da_slot
+            .into_iter()
+            .enumerate()
+            .filter(|(index, _)| !excluded_commitment_indices.contains(index))
+            .map(|(_, commitment)| commitment.clone())
+            .collect();
 
         let l2_height = filtered_commitments
             [state_transition.sequencer_commitments_range.0 as usize]
