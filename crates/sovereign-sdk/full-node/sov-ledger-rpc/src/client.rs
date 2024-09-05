@@ -63,12 +63,12 @@ pub trait Rpc {
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
     /// Gets proof by slot height.
-    #[method(name = "getProofBySlotHeight")]
-    async fn get_proof_by_slot_height(&self, height: u64) -> RpcResult<Option<ProofResponse>>;
+    #[method(name = "getProofsBySlotHeight")]
+    async fn get_proofs_by_slot_height(&self, height: u64) -> RpcResult<Option<ProofResponse>>;
 
     /// Gets proof by slot hash.
-    #[method(name = "getProofBySlotHash")]
-    async fn get_proof_by_slot_hash(&self, hash: [u8; 32]) -> RpcResult<Option<ProofResponse>>;
+    #[method(name = "getProofsBySlotHash")]
+    async fn get_proofs_by_slot_hash(&self, hash: [u8; 32]) -> RpcResult<Option<ProofResponse>>;
 
     /// Gets the height pf most recent committed soft confirmation.
     #[method(name = "getHeadSoftConfirmation")]

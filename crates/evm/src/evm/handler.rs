@@ -23,7 +23,7 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
-const DB_ACCOUNT_SIZE: usize = 256;
+const DB_ACCOUNT_SIZE: usize = 74;
 
 /// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
 /// But we already add address size to diff size, so we don't need to add it here

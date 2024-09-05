@@ -1,3 +1,13 @@
+#![allow(missing_docs)]
+
+mod manager;
+mod migration;
+#[cfg(test)]
+mod tests;
+
+pub use manager::*;
+pub use migration::*;
+
 use crate::spec::SpecId;
 
 /// Fork is a wrapper struct that contains spec id and it's activation height

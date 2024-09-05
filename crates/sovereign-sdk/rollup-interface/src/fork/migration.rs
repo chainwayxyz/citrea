@@ -1,4 +1,4 @@
-use sov_rollup_interface::fork::Fork;
+use super::Fork;
 
 /// Defines the interface of a migration
 pub trait ForkMigration {

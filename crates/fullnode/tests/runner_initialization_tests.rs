@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use citrea_fullnode::CitreaFullnode;
-use citrea_primitives::fork::ForkManager;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::fork::Fork;
+use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::spec::SpecId;
 use sov_state::DefaultStorageSpec;
 use sov_stf_runner::{

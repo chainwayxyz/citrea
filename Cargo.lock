@@ -7371,7 +7371,6 @@ dependencies = [
  "bincode",
  "borsh",
  "byteorder",
- "citrea-primitives",
  "criterion",
  "hex",
  "jmt",
@@ -7563,7 +7562,6 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
- "citrea-primitives",
  "hex",
  "itertools 0.13.0",
  "jmt",
@@ -7673,6 +7671,7 @@ dependencies = [
  "sha2",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -7752,12 +7751,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "citrea-primitives",
  "futures",
  "hex",
  "hyper 1.4.1",
  "jsonrpsee",
- "num_cpus",
  "rand 0.8.5",
  "serde",
  "serde_json",
