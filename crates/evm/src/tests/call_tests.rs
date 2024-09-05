@@ -46,7 +46,7 @@ fn call_multiple_test() {
         ..Default::default()
     };
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
@@ -172,7 +172,7 @@ fn call_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -258,7 +258,7 @@ fn call_test() {
 #[test]
 fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
-    let (evm, mut working_set) = get_evm(&EvmConfig::default());
+    let (mut evm, mut working_set) = get_evm(&EvmConfig::default());
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -300,13 +300,13 @@ fn failed_transaction_test() {
     }
 
     // assert no pending transaction
-    let pending_txs = evm.pending_transactions.iter(working_set);
+    let pending_txs = &evm.pending_transactions;
     assert_eq!(pending_txs.len(), 0);
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, working_set);
 
     // assert no pending transaction
-    let pending_txs = evm.pending_transactions.iter(working_set);
+    let pending_txs = &evm.pending_transactions;
     assert_eq!(pending_txs.len(), 0);
 
     // Assert block does not have any transaction
@@ -324,7 +324,7 @@ fn self_destruct_test() {
 
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -487,7 +487,7 @@ fn test_block_hash_in_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -610,7 +610,7 @@ fn test_block_gas_limit() {
         Some(ETHEREUM_BLOCK_GAS_LIMIT),
     );
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -898,7 +898,7 @@ fn test_l1_fee_success() {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-        let (evm, mut working_set) = get_evm(&config);
+        let (mut evm, mut working_set) = get_evm(&config);
 
         let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height: 2,
@@ -1008,7 +1008,7 @@ fn test_l1_fee_not_enough_funds() {
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
     let l1_fee_rate = 10000;
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l2_height = 2;
 
@@ -1076,7 +1076,7 @@ fn test_l1_fee_halt() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
-    let (evm, mut working_set) = get_evm(&config); // l2 height 1
+    let (mut evm, mut working_set) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
     let l2_height = 2;
 

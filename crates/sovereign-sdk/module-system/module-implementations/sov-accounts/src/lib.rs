@@ -62,7 +62,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
     }
 
     fn call(
-        &self,
+        &mut self,
         _msg: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<C>,

@@ -83,7 +83,7 @@ impl<C: sov_modules_api::Context, Da: sov_modules_api::DaSpec> sov_modules_api::
     }
 
     fn call(
-        &self,
+        &mut self,
         message: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,

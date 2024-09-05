@@ -27,7 +27,7 @@ pub mod module_a {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
@@ -73,7 +73,7 @@ pub mod module_b {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
@@ -119,7 +119,7 @@ pub(crate) mod module_c {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,

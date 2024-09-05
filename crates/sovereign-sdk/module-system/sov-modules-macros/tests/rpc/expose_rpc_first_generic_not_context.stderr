@@ -52,7 +52,7 @@ note: required because it appears within the type `Runtime<S, C>`
 note: required by a bound in `sov_modules_api::DispatchCall`
   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/module/dispatch.rs
    |
-   | pub trait DispatchCall: Send + Sync {
+   | pub trait : Send + Sync {
    |                                ^^^^ required by this bound in `DispatchCall`
 help: consider further restricting the associated type
    |

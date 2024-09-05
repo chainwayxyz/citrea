@@ -85,13 +85,13 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
-    #[state]
-    pub(crate) block_env: sov_modules_api::StateValue<BlockEnv, BcsCodec>,
+    #[memory]
+    pub(crate) block_env: BlockEnv,
 
     /// Transactions that will be added to the current block.
-    /// A valid transaction is added to the vec on every call message.
-    #[state]
-    pub(crate) pending_transactions: sov_modules_api::StateVec<PendingTransaction, BcsCodec>,
+    /// Valid transactions are added to the vec on every call message.
+    #[memory]
+    pub(crate) pending_transactions: Vec<PendingTransaction>,
 
     /// Head of the chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
     /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
@@ -107,6 +107,12 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used by the EVM to calculate the `blockhash` opcode.
     #[state]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
+
+    /// Native pending transactions. Used to store transactions that are not yet included in the block.
+    /// We use this in the sequencer to see which txs did not fail
+    #[state]
+    pub(crate) native_pending_transactions:
+        sov_modules_api::AccessoryStateVec<PendingTransaction, BcsCodec>,
 
     /// Transaction's hash that failed to pay the L1 fee.
     /// Used to prevent DOS attacks.
@@ -159,7 +165,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,
@@ -191,6 +197,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         accessory_working_set: &mut WorkingSet<C>,
     ) -> Option<PendingTransaction> {
-        self.pending_transactions.iter(accessory_working_set).last()
+        self.native_pending_transactions
+            .last(&mut accessory_working_set.accessory_state())
+            .clone()
+            .map(|tx| tx.clone())
     }
 }

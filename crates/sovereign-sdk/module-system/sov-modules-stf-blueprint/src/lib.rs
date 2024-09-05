@@ -140,7 +140,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Begin a soft confirmation
     #[allow(clippy::too_many_arguments)]
     fn begin_soft_confirmation(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
@@ -150,7 +150,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
 
     /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
-        &self,
+        &mut self,
         soft_confirmation: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
@@ -158,7 +158,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
 
     /// End a soft confirmation
     fn end_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
@@ -195,7 +195,7 @@ where
     RT: Runtime<C, Da>,
 {
     fn begin_soft_confirmation(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
@@ -232,7 +232,7 @@ where
     }
 
     fn apply_soft_confirmation_txs(
-        &self,
+        &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
@@ -241,7 +241,7 @@ where
     }
 
     fn end_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
@@ -440,7 +440,7 @@ where
     }
 
     fn apply_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
@@ -515,7 +515,7 @@ where
     }
 
     fn apply_soft_confirmations_from_sequencer_commitments(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,

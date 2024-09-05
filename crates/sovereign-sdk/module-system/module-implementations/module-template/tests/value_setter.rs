@@ -37,7 +37,7 @@ fn test_value_setter_helper<C: Context>(
     config: &ExampleModuleConfig,
     working_set: &mut WorkingSet<C>,
 ) {
-    let module = ExampleModule::<C>::default();
+    let mut module = ExampleModule::<C>::default();
     module.genesis(config, working_set).unwrap();
 
     let new_value = 99;

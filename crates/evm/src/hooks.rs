@@ -22,10 +22,16 @@ where
         instrument(level = "trace", skip(self, working_set), ret)
     )]
     pub fn begin_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
+        // just to be sure, we clear the pending transactions
+        // do not ever think about removing this line
+        // it has implications way beyond our understanding
+        // a holy line
+        self.pending_transactions.clear();
+
         let mut parent_block = self
             .head
             .get(working_set)
@@ -94,8 +100,6 @@ where
             gas_limit: cfg.block_gas_limit,
         };
 
-        self.block_env.set(&new_pending_env, working_set);
-
         if !system_events.is_empty() {
             self.execute_system_events(
                 system_events,
@@ -114,6 +118,9 @@ where
             self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
+
+        self.block_env = new_pending_env;
+
         self.last_l1_hash
             .set(&soft_confirmation_info.da_slot_hash.into(), working_set);
     }
@@ -122,7 +129,7 @@ where
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
     pub fn end_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
@@ -130,11 +137,6 @@ where
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
-
-        let block_env = self
-            .block_env
-            .get(working_set)
-            .expect("Pending block should always be set");
 
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
@@ -146,15 +148,12 @@ where
 
         let expected_block_number = parent_block.header.number + 1;
         assert_eq!(
-            block_env.number, expected_block_number,
+            self.block_env.number, expected_block_number,
             "Pending head must be set to block {}, but found block {}",
-            expected_block_number, block_env.number
+            expected_block_number, self.block_env.number
         );
 
-        let pending_transactions: Vec<PendingTransaction> =
-            self.pending_transactions.iter(working_set).collect();
-
-        self.pending_transactions.clear(working_set);
+        let pending_transactions = &mut self.pending_transactions;
 
         let start_tx_index = parent_block.transactions.end;
 
@@ -181,8 +180,8 @@ where
 
         let header = reth_primitives::Header {
             parent_hash: parent_block.header.hash(),
-            timestamp: block_env.timestamp,
-            number: block_env.number,
+            timestamp: self.block_env.timestamp,
+            number: self.block_env.number,
             ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
@@ -196,9 +195,9 @@ where
                 .iter()
                 .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
             difficulty: U256::ZERO,
-            gas_limit: block_env.gas_limit,
+            gas_limit: self.block_env.gas_limit,
             gas_used,
-            mix_hash: block_env.prevrandao,
+            mix_hash: self.block_env.prevrandao,
             nonce: 0,
             base_fee_per_gas,
             extra_data: Bytes::default(),
@@ -221,25 +220,35 @@ where
 
         self.head.set(&block, working_set);
 
-        let mut accessory_state = working_set.accessory_state();
-        self.pending_head.set(&block, &mut accessory_state);
+        #[cfg(not(feature = "native"))]
+        pending_transactions.clear();
 
-        let mut tx_index = start_tx_index;
-        for PendingTransaction {
-            transaction,
-            receipt,
-        } in &pending_transactions
+        #[cfg(feature = "native")]
         {
-            self.transactions.push(transaction, &mut accessory_state);
-            self.receipts.push(receipt, &mut accessory_state);
+            let mut accessory_state = working_set.accessory_state();
+            self.pending_head.set(&block, &mut accessory_state);
 
-            self.transaction_hashes.set(
-                &transaction.signed_transaction.hash,
-                &tx_index,
-                &mut accessory_state,
-            );
+            let mut tx_index = start_tx_index;
+            for PendingTransaction {
+                transaction,
+                receipt,
+            } in pending_transactions
+            {
+                self.transactions.push(transaction, &mut accessory_state);
+                self.receipts.push(receipt, &mut accessory_state);
 
-            tx_index += 1
+                self.transaction_hashes.set(
+                    &transaction.signed_transaction.hash,
+                    &tx_index,
+                    &mut accessory_state,
+                );
+
+                tx_index += 1
+            }
+            self.pending_transactions.clear();
+
+            self.native_pending_transactions
+                .clear(&mut working_set.accessory_state());
         }
     }
 

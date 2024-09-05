@@ -54,7 +54,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for VecSetter<C> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,

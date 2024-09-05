@@ -36,7 +36,7 @@ pub fn main() {
 
     let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>> = StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::new(stf, MockDaVerifier {});
+    let mut stf_verifier = StfVerifier::new(stf, MockDaVerifier {});
 
     stf_verifier
         .run_sequencer_commitments_in_da_slot(guest, storage)

@@ -64,7 +64,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// Runs at the beginning of apply_soft_confirmation.
     /// If this hook returns Err, batch is not applied
     fn begin_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError>;
@@ -72,7 +72,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
     fn end_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError>;

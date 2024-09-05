@@ -3,7 +3,8 @@ use sov_modules_api::cli::JsonStringArg;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{CliWallet, CliWalletArg, DefaultRuntime};
 use sov_modules_api::{
-    CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleInfo, StateValue, WorkingSet
+    CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleInfo,
+    StateValue, WorkingSet,
 };
 
 pub mod first_test_module {
@@ -47,7 +48,7 @@ pub mod first_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             _msg: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<C>,
@@ -98,7 +99,7 @@ pub mod second_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             _msg: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Ctx>,
