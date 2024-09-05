@@ -824,6 +824,7 @@ where
             sequencer_commitments_range: transition_data.sequencer_commitments_range,
             sequencer_public_key: transition_data.sequencer_public_key,
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
+            preproven_commitments: transition_data.preproven_commitments,
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
         };
         let l1_height = self

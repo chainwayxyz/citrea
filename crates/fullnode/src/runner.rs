@@ -271,6 +271,7 @@ where
             sequencer_commitments_range: state_transition.sequencer_commitments_range,
             sequencer_public_key: state_transition.sequencer_public_key,
             sequencer_da_public_key: state_transition.sequencer_da_public_key,
+            preproven_commitments: state_transition.preproven_commitments,
             validity_condition: borsh::to_vec(&state_transition.validity_condition).unwrap(),
         };
 
