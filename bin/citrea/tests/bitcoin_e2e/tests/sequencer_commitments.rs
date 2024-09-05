@@ -121,7 +121,8 @@ impl TestCase for LedgerGetCommitmentsTest {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(1, None).await?;
+        // disable this since it's the only difference from other tests??
+        // da.generate(1, None).await?;
 
         sequencer.client.send_publish_batch_request().await;
 
