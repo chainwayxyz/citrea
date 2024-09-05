@@ -17,7 +17,7 @@ use jsonrpsee::RpcModule;
 use rand::Rng;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::ProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber, StoredStateTransition};
+use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmation, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -951,8 +951,10 @@ where
         proofs: &Vec<StoredProof>,
     ) -> bool {
         for proof in proofs {
-            if proof.state_transition.initial_state_root == state_transition.initial_state_root
-                && proof.state_transition.final_state_root == state_transition.final_state_root
+            if proof.state_transition.initial_state_root
+                == state_transition.initial_state_root.as_ref()
+                && proof.state_transition.final_state_root
+                    == state_transition.final_state_root.as_ref()
                 && proof.state_transition.sequencer_commitments_range
                     == state_transition.sequencer_commitments_range
             {
