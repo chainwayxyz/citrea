@@ -88,7 +88,14 @@ impl<T: TestCase> TestCaseRunner<T> {
             // Always attempt to stop the framework, even if a panic occurred
             if let Some(mut f) = framework {
                 let _ = futures::executor::block_on(f.stop());
+
+                if result.is_err() {
+                    if let Err(e) = f.dump_log() {
+                        eprintln!("{e}")
+                    }
+                }
             }
+
             result
         })
         .await

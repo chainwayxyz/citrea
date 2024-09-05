@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 
 use bitcoin::Network;
-use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BitcoinConfig {
     pub p2p_port: u16,
     pub rpc_port: u16,

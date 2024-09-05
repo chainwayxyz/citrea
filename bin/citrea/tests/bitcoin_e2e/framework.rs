@@ -4,11 +4,11 @@ use super::bitcoin::BitcoinNodeCluster;
 use super::config::TestConfig;
 use super::docker::DockerEnv;
 use super::full_node::FullNode;
-use super::node::Node;
+use super::node::{LogProvider, LogProviderErased, Node};
 use super::sequencer::Sequencer;
 use super::Result;
 use crate::bitcoin_e2e::prover::Prover;
-use crate::bitcoin_e2e::utils::get_stdout_path;
+use crate::bitcoin_e2e::utils::tail_file;
 
 pub struct TestContext {
     pub config: TestConfig,
@@ -68,45 +68,49 @@ impl TestFramework {
             initial_da_height: 0,
         };
 
-        f.show_logs();
+        f.show_log_paths();
         Ok(f)
     }
 
-    pub fn show_logs(&self) {
+    fn get_nodes_as_log_provider(&self) -> Vec<&dyn LogProviderErased> {
+        vec![
+            self.bitcoin_nodes.get(0).map(LogProvider::as_erased),
+            self.sequencer.as_ref().map(LogProvider::as_erased),
+            self.full_node.as_ref().map(LogProvider::as_erased),
+            self.prover.as_ref().map(LogProvider::as_erased),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    pub fn show_log_paths(&self) {
         if self.show_logs {
             println!(
                 "Logs available at {}",
                 self.ctx.config.test_case.dir.display()
             );
 
-            if let Some(bitcoin_node) = self.bitcoin_nodes.get(0) {
+            for node in self.get_nodes_as_log_provider() {
                 println!(
-                    "Bitcoin logs available at : {}",
-                    bitcoin_node.get_log_path().display()
-                );
-            }
-
-            if let Some(sequencer) = &self.sequencer {
-                println!(
-                    "Sequencer logs available at {}",
-                    get_stdout_path(sequencer.dir()).display()
-                );
-            }
-
-            if let Some(full_node) = &self.full_node {
-                println!(
-                    "Full node logs available at {}",
-                    get_stdout_path(&full_node.dir).display()
-                );
-            }
-
-            if let Some(prover) = &self.prover {
-                println!(
-                    "Prover logs available at {}",
-                    get_stdout_path(&prover.dir).display()
+                    "{}  logs available at : {}",
+                    node.kind(),
+                    node.log_path().display()
                 );
             }
         }
+    }
+
+    pub fn dump_log(&self) -> Result<()> {
+        println!("Dumping logs:");
+
+        for node in self.get_nodes_as_log_provider() {
+            println!("{} logs (last 25 lines):", node.kind());
+            if let Err(e) = tail_file(&node.log_path(), 25) {
+                eprint!("{e}");
+            }
+        }
+        Ok(())
     }
 
     pub async fn stop(&mut self) -> Result<()> {
