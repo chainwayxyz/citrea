@@ -339,7 +339,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file().unwrap();
+                inscription_txs.write_to_file()?;
 
                 match inscription_txs {
                     LightClientTxs::Complete { commit, reveal } => {
