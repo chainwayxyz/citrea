@@ -142,8 +142,9 @@ fn transfer_initial_token() {
             ),
             message_1
         );
-        assert!(message_2
-            .starts_with("Value not found for prefix: \"Bank/tokens/\" and: storage key"));
+        assert!(
+            message_2.starts_with("Value not found for prefix: \"Bank/tokens/\" and: storage key")
+        );
     }
 
     // Sender does not exist
