@@ -53,6 +53,10 @@ impl Sequencer {
     pub fn dir(&self) -> &PathBuf {
         &self.config.dir
     }
+
+    pub fn min_soft_confirmations_per_commitment(&self) -> u64 {
+        self.config.sequencer.min_soft_confirmations_per_commitment
+    }
 }
 
 impl Node for Sequencer {
