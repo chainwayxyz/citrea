@@ -507,7 +507,7 @@ async fn test_healthcheck() {
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::SequencerNode,
             sequencer_db_dir,
@@ -531,7 +531,7 @@ async fn test_healthcheck() {
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             NodeMode::FullNode(seq_addr),
             fullnode_db_dir,
