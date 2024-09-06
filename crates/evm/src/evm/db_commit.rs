@@ -18,7 +18,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             }
             let mut new_account_flag = false;
 
-            let mut info = self
+            let info = self
                 .accounts
                 .get(&address, self.working_set)
                 .unwrap_or_else(|| {
@@ -29,9 +29,6 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
-                info.balance = U256::from(0);
-                info.nonce = 0;
-                info.code_hash = None;
                 // TODO find mroe efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
@@ -41,7 +38,13 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                     db_account.storage.delete(&key, self.working_set);
                 }
                 db_account.keys.clear(self.working_set);
-                self.accounts.set(&address, &info, self.working_set);
+
+                // clear code
+                if let Some(code_hash) = info.code_hash {
+                    self.code.delete(&code_hash, self.working_set);
+                }
+
+                self.accounts.delete(&address, self.working_set);
                 continue;
             }
 
