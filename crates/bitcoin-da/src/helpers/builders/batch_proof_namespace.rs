@@ -49,7 +49,6 @@ impl TxListWithReveal for BatchProvingTxs {
         writer.flush()?;
         Ok(())
     }
-    }
 }
 
 // TODO: parametrize hardness

@@ -43,18 +43,18 @@ pub(crate) enum LightClientTxs {
 impl TxListWithReveal for LightClientTxs {
     fn write_to_file(&self) -> Result<(), anyhow::Error> {
         let ws_root = get_workspace_root();
-        let mut resources_path = ws_root.to_path_buf();
-        resources_path.push("resources");
-        resources_path.push("bitcoin");
-        resources_path.push("inscription_txs");
-        let resources_path = resources_path.to_str().unwrap();
+        let mut path = ws_root.to_path_buf();
+        path.push("resources");
+        path.push("bitcoin");
+        path.push("inscription_txs");
 
         match self {
             Self::Complete { commit, reveal } => {
-                let file = File::create(format!(
-                    "{}/complete_light_client_inscription_with_reveal_id_{}.txs",
-                    resources_path, reveal.id
-                ))?;
+                path.push(format!(
+                    "complete_light_client_inscription_with_reveal_id_{}.txs",
+                    reveal.id
+                ));
+                let file = File::create(path)?;
                 let mut writer: BufWriter<&File> = BufWriter::new(&file);
                 writer.write_all(&serialize(commit))?;
                 writer.write_all(&serialize(&reveal.tx))?;
@@ -67,10 +67,11 @@ impl TxListWithReveal for LightClientTxs {
                 commit,
                 reveal,
             } => {
-                let file = File::create(format!(
-                    "{}/chunked_light_client_inscription_with_reveal_id_{}.txs",
-                    resources_path, reveal.id
-                ))?;
+                path.push(format!(
+                    "chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    reveal.id
+                ));
+                let file = File::create(path)?;
                 let mut writer = BufWriter::new(&file);
                 for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {
                     writer.write_all(&serialize(commit_chunk))?;
