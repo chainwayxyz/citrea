@@ -284,7 +284,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
 
-    use sov_db::rocks_db_config::gen_rocksdb_options;
+    use sov_db::rocks_db_config::RocksdbConfig;
     use sov_schema_db::schema::{KeyDecoder, ValueCodec};
     use sov_schema_db::snapshot::{DbSnapshot, NoopQueryManager, QueryManager};
     use sov_schema_db::test::TestField;
@@ -303,7 +303,7 @@ mod tests {
             path,
             "test_db",
             tables,
-            &gen_rocksdb_options(&Default::default(), false),
+            &RocksdbConfig::new(path, None).as_rocksdb_options(false),
         )
         .unwrap()
     }

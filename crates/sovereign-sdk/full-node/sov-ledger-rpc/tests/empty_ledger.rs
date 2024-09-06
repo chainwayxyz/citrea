@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::client::RpcClient;
 use sov_ledger_rpc::server::rpc_module;
 use sov_ledger_rpc::HexHash;
@@ -9,7 +10,7 @@ use tempfile::tempdir;
 
 async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
     let dir = tempdir().unwrap();
-    let db = LedgerDB::with_path(dir).unwrap();
+    let db = LedgerDB::with_config(&RocksdbConfig::new(dir.path(), None)).unwrap();
     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
 
     let server = jsonrpsee::server::ServerBuilder::default()
