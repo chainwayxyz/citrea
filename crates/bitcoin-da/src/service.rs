@@ -428,7 +428,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file().unwrap();
+                inscription_txs.write_to_file()?;
 
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
                 // sign inscribe transactions
