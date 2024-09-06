@@ -4,6 +4,7 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
+#[cfg(feature = "native")]
 mod provider_functions;
 
 pub use call::*;
@@ -35,12 +36,14 @@ use evm::db::EvmDb;
 use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
-use sov_modules_api::{AccessoryWorkingSet, Error, ModuleInfo, StateVecAccessor, WorkingSet};
+#[cfg(feature = "native")]
+use sov_modules_api::{AccessoryWorkingSet, StateVecAccessor};
+use sov_modules_api::{Error, ModuleInfo, WorkingSet};
 use sov_state::codec::BcsCodec;
 
-use crate::evm::primitive_types::{
-    Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
-};
+#[cfg(feature = "native")]
+use crate::evm::primitive_types::SealedBlock;
+use crate::evm::primitive_types::{Block, BlockEnv, Receipt, TransactionSignedAndRecovered};
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
@@ -110,6 +113,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Native pending transactions. Used to store transactions that are not yet included in the block.
     /// We use this in the sequencer to see which txs did not fail
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) native_pending_transactions:
         sov_modules_api::AccessoryStateVec<PendingTransaction, BcsCodec>,
@@ -117,6 +121,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Transaction's hash that failed to pay the L1 fee.
     /// Used to prevent DOS attacks.
     /// The vector is cleared in `finalize_hook`.
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) l1_fee_failed_txs: sov_modules_api::AccessoryStateVec<TxHash, BcsCodec>,
 
@@ -124,32 +129,35 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.
     /// Since this value is not authenticated, it can be modified in the `finalize_hook` with the correct `state_root`.
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) pending_head: sov_modules_api::AccessoryStateValue<Block, BcsCodec>,
 
     /// Used only by the RPC: The vec is extended with `pending_head` in `finalize_hook`.
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) blocks: sov_modules_api::AccessoryStateVec<SealedBlock, BcsCodec>,
 
     /// Used only by the RPC: block_hash => block_number mapping,
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) block_hashes:
         sov_modules_api::AccessoryStateMap<reth_primitives::B256, u64, BcsCodec>,
 
-    #[cfg(feature = "native")]
     /// Used only by the RPC: List of processed transactions.
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) transactions:
         sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, BcsCodec>,
 
-    #[cfg(feature = "native")]
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) transaction_hashes:
         sov_modules_api::AccessoryStateMap<reth_primitives::B256, u64, BcsCodec>,
 
-    #[cfg(feature = "native")]
     /// Used only by the RPC: Receipts.
+    #[cfg(feature = "native")]
     #[state]
     pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
 }
@@ -188,6 +196,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns transaction hashes that failed to pay the L1 fee.
+    #[cfg(feature = "native")]
     pub fn get_l1_fee_failed_txs(
         &self,
         accessory_working_set: &mut AccessoryWorkingSet<C>,
@@ -196,6 +205,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns the list of pending EVM transactions
+    #[cfg(feature = "native")]
     pub fn get_last_pending_transaction(
         &self,
         accessory_working_set: &mut WorkingSet<C>,

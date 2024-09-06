@@ -260,6 +260,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         self.head.set(&block, working_set);
+
+        #[cfg(feature = "native")]
         self.pending_head
             .set(&block, &mut working_set.accessory_state());
 

@@ -58,16 +58,6 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
 fn end_soft_confirmation_hook_sets_head() {
     let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
 
-    let b = evm
-        .get_block_by_number(
-            Some(alloy_eips::BlockNumberOrTag::Earliest),
-            None,
-            &mut working_set,
-        )
-        .unwrap()
-        .unwrap();
-    println!("{:?}", b.header.hash.unwrap());
-    println!("{:?}", b.header.state_root);
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;

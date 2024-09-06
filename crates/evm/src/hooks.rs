@@ -264,12 +264,14 @@ where
         feature = "native",
         instrument(level = "trace", skip(self, accessory_working_set), ret)
     )]
+    #[cfg_attr(not(feature = "native"), allow(unused_variables))]
     pub fn finalize_hook(
         &self,
         root_hash: &<<C as Spec>::Storage as Storage>::Root,
         accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) {
-        if cfg!(feature = "native") {
+        #[cfg(feature = "native")]
+        {
             let expected_block_number = self.blocks.len(accessory_working_set) as u64;
 
             let mut block = self
