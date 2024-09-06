@@ -35,6 +35,9 @@ const DB_ACCOUNT_KEY_SIZE: usize = 7;
 /// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
 const STORAGE_KEY_SIZE: usize = 59;
 
+/// StorageKey key is 59 bytes because of sov sdk prefix ("Evm/k/")
+const KEY_KEY_SIZE: usize = 59;
+
 /// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
 const STORAGE_VALUE_SIZE: usize = 33;
 
@@ -512,9 +515,11 @@ fn calc_diff_size<EXT, DB: Database>(
             // account_info:
             diff_size += DB_ACCOUNT_KEY_SIZE + 1;
             diff_size += size_of::<Address>();
-            // account_slots:
+            // account_slots (and also keys):
             let account = &state[addr];
-            diff_size += (STORAGE_KEY_SIZE + 1) * account.storage.len();
+            let n_slots = account.storage.len();
+            diff_size += (STORAGE_KEY_SIZE + 1) * n_slots;
+            diff_size += (KEY_KEY_SIZE + 1) * n_slots;
             // account_code:
             diff_size += CODE_KEY_SIZE + 1;
             continue;
