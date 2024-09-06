@@ -2,6 +2,7 @@ use hex::ToHex;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_modules_api::DaSpec;
@@ -65,7 +66,8 @@ fn test_helper(
     rt.block_on(async {
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
-        let mut ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
+        let mut ledger_db =
+            LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None)).unwrap();
         populate_ledger(&mut ledger_db, &[1; 32], soft_confirmation_receipts);
         let server = jsonrpsee::server::ServerBuilder::default()
             .build("127.0.0.1:0")

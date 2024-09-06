@@ -545,8 +545,32 @@ where
             }
         }
 
-        // Sort commitments just in case
-        sequencer_commitments.sort_unstable();
+        // A breakdown of why we sort the sequencer commitments, and why we need fields
+        // `StateTransitionData::preproven_commitments` and `StateTransitionData::sequencer_commitment_range`:
+        //
+        // There is a chance of your "relevant transaction" being replayed on da layer, if the da layer does not have
+        // a publickey-nonce check. To prevent from these attacks stopping our proving, we need to have a way to input the
+        // the commitments we will ignore. This does not break any trust assumptions, as the zk circuit checks the
+        // state transitions. So the prover can not leave out any commitments, beacuse it would break the state root checks
+        // done by the zk circuit.
+        //
+        // If there is limitations on da on for the size of a single transaction (all blockchains have this), then
+        // it's a good idea to allow proving of a single sequencer commitment at a time. Because more sequencer commmitments being
+        // processed means there will be a bigger state diff. But sometimes it's efficient to
+        // prove multiple commitments at a time. So we need to have a way to input the range of commitments we are proving.
+        //
+        // Now, why do we sort?
+        //
+        // Again, if the da layer doesn't have a publickey-nonce relation, there is a chance of sequencer commitment #10
+        // landing on the da layer before sequencer commitment #9. If DA layer ordering is enforced in the zk circuit,
+        // then this will break your rollup. So we need to sort the commitments by their l2_start_block_number, or something else.
+        //
+        // As long as the zk circuit and the prover (the entity providing the zk circuit inputs) are in agreement on the
+        // ordering, the range of commitments, and which commitments to ignore, the zk circuit will be able to verify the state transition.
+        //
+        // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
+        // rollup state transitions.
+        sequencer_commitments.sort();
 
         // The preproven indicies are sorted by the prover when originally passed.
         // Therefore, we pass the commitments sequentially to make sure that the current

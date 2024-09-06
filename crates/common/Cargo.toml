@@ -1,0 +1,18 @@
+[package]
+name = "citrea-common"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+resolver = "2"
+
+[dependencies]
+hyper = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+tokio = { workspace = true }
+tower-http = { workspace = true }
