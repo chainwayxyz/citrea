@@ -38,6 +38,7 @@ use crate::error::rpc::ensure_success;
 use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::evm::DbAccount;
 use crate::handler::TxInfo;
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
@@ -329,7 +330,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let balance = self
             .accounts
             .get(&address, working_set)
-            .map(|account| account.info.balance)
+            .map(|info| info.balance)
             .unwrap_or_default();
 
         Ok(balance)
@@ -374,11 +375,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
-        let storage_slot = self
-            .accounts
-            .get(&address, working_set)
-            .and_then(|account| account.storage.get(&index, working_set))
-            .unwrap_or_default();
+        let storage_slot = if self.accounts.get(&address, working_set).is_some() {
+            let db_account = DbAccount::new(self.accounts.prefix(), address);
+            db_account
+                .storage
+                .get(&index, working_set)
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
 
         Ok(storage_slot.into())
     }
@@ -424,7 +429,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let nonce = self
             .accounts
             .get(&address, working_set)
-            .map(|account| account.info.nonce)
+            .map(|account| account.nonce)
             .unwrap_or_default();
 
         Ok(U64::from(nonce))
@@ -472,7 +477,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let code = self
             .accounts
             .get(&address, working_set)
-            .and_then(|account| self.code.get(&account.info.code_hash, working_set))
+            .and_then(|account| self.code.get(&account.code_hash, working_set))
             .unwrap_or_default();
 
         Ok(code.original_bytes())
@@ -962,17 +967,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let account = self
             .accounts
             .get(&tx_env.caller, working_set)
-            .map(|account| account.info)
             .unwrap_or_default();
 
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.transact_to {
-                let to_account = self
-                    .accounts
-                    .get(&to, working_set)
-                    .map(|account| account.info)
-                    .unwrap_or_default();
+                let to_account = self.accounts.get(&to, working_set).unwrap_or_default();
                 if KECCAK_EMPTY == to_account.code_hash {
                     // If the tx is a simple transfer (call to an account with no code) we can
                     // shortcircuit But simply returning

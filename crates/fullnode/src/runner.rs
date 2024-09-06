@@ -6,7 +6,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::fork::ForkManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -25,6 +24,7 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec,
     SequencerCommitment,
 };
+use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;

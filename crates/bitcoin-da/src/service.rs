@@ -474,7 +474,7 @@ impl BitcoinService {
         let smart_fee = self.client.estimate_smart_fee(1, None).await?;
         let sat_vkb = smart_fee.fee_rate.map_or(1000, |rate| rate.to_sat());
 
-        tracing::info!("Fee rate: {} sat/vb", sat_vkb / 1000);
+        tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
         Ok(sat_vkb / 1000)
     }
 }

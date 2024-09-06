@@ -8,8 +8,8 @@ use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredSlot, StoredSoftConfirmation,
-    StoredStateTransition, StoredTransaction, TxNumber,
+    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
+    StoredSoftConfirmation, StoredStateTransition, StoredTransaction, TxNumber,
 };
 
 /// Shared ledger operations
@@ -168,13 +168,17 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
 
     /// Stores proof related data on disk, accessible via l1 slot height
-    fn put_proof_data(
+    /// Inserts proofs of state transitions of multiple ranges of sequencer commitments found in an l1 block
+    fn insert_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
         proof: Proof,
         state_transition: StoredStateTransition,
     ) -> Result<()>;
+
+    /// Gets proofs by L1 height
+    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredProof>>>;
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;

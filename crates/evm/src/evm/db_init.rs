@@ -16,10 +16,7 @@ pub(crate) trait InitEvmDb {
 
 impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
-        let parent_prefix = self.accounts.prefix();
-        let db_account = DbAccount::new_with_info(parent_prefix, sender, info);
-
-        self.accounts.set(&sender, &db_account, self.working_set);
+        self.accounts.set(&sender, &info, self.working_set);
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytecode) {
@@ -27,11 +24,13 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
     }
 
     fn insert_storage(&mut self, address: Address, index: U256, value: U256) {
-        self.accounts
+        let _info = self
+            .accounts
             .get(&address, self.working_set)
-            .expect("Account should already be inserted")
-            .storage
-            .set(&index, &value, self.working_set);
+            .expect("Account should already be inserted");
+        let parent_prefix = self.accounts.prefix();
+        let db_account = DbAccount::new(parent_prefix, address);
+        db_account.storage.set(&index, &value, self.working_set);
     }
 }
 

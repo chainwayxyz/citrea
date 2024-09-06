@@ -17,6 +17,7 @@ use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
+use crate::evm::DbAccount;
 use crate::primitive_types::Block;
 use crate::tests::ef_tests::models::{BlockchainTest, ForkSpec};
 use crate::tests::ef_tests::{Case, Error, Suite};
@@ -245,12 +246,13 @@ impl Case for BlockchainTestCase {
                             if let Some(account_state) =
                                 evm.accounts.get(&address, &mut working_set)
                             {
-                                assert_eq!(U256::from(account_state.info.nonce), account.nonce);
-                                assert_eq!(account_state.info.balance, account.balance);
-                                assert_eq!(*account_state.info.code_hash, **account.code);
+                                assert_eq!(U256::from(account_state.nonce), account.nonce);
+                                assert_eq!(account_state.balance, account.balance);
+                                assert_eq!(*account_state.code_hash, **account.code);
+                                let db_account = DbAccount::new(evm.accounts.prefix(), address);
                                 for (key, value) in account.storage.iter() {
                                     assert_eq!(
-                                        account_state.storage.get(key, &mut working_set),
+                                        db_account.storage.get(key, &mut working_set),
                                         Some(value).copied()
                                     );
                                 }
