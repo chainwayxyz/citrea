@@ -43,8 +43,10 @@ pub const L1_FEE_VAULT: Address = address!("310000000000000000000000000000000000
 /// Priority fee vault address
 pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
 
-/// asd
-pub const STORAGE_DBACCOUNT_PREFIX: [u8; 6] = *b"Evm/s/";
+/// Prefix for Storage module for evm::Account::storage
+pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
+/// Prefix for Storage module for evm::Account::keys
+pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
 
 // Stores information about an EVM account
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -73,16 +75,22 @@ pub(crate) struct DbAccount {
 
 impl DbAccount {
     pub fn new(address: Address) -> Self {
-        let prefix = Self::create_storage_prefix(address);
         Self {
-            storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
-            keys: StateVec::with_codec(prefix, BcsCodec {}),
+            storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),
+            keys: StateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
         }
     }
 
     fn create_storage_prefix(address: Address) -> Prefix {
         let mut prefix = [0u8; 26];
-        prefix[0..6].copy_from_slice(&STORAGE_DBACCOUNT_PREFIX);
+        prefix[0..6].copy_from_slice(&DBACCOUNT_STORAGE_PREFIX);
+        prefix[6..].copy_from_slice(address.as_raw_slice());
+        Prefix::new(prefix.to_vec())
+    }
+
+    fn create_keys_prefix(address: Address) -> Prefix {
+        let mut prefix = [0u8; 26];
+        prefix[0..6].copy_from_slice(&DBACCOUNT_KEYS_PREFIX);
         prefix[6..].copy_from_slice(address.as_raw_slice());
         Prefix::new(prefix.to_vec())
     }
