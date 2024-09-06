@@ -76,6 +76,12 @@ impl TestClient {
         Ok(client)
     }
 
+    pub(crate) async fn healthcheck(&self) -> Result<u16, Box<dyn std::error::Error>> {
+        let healthcheck_url = format!("http://localhost:{}/health", self.rpc_addr.port());
+        let resp = reqwest::get(healthcheck_url).await?;
+        Ok(resp.status().as_u16())
+    }
+
     pub(crate) async fn spam_publish_batch_request(
         &self,
     ) -> Result<(), Box<dyn std::error::Error>> {
