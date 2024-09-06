@@ -55,7 +55,7 @@ fn initial_and_deployed_token() {
 #[test]
 /// Currently integer overflow happens on bank genesis
 fn overflow_max_supply() {
-    let mut bank = Bank::<C>::default();
+    let bank = Bank::<C>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 

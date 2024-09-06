@@ -68,7 +68,7 @@ lazy_static! {
 
 #[test]
 fn genesis_data() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     let account = &TEST_CONFIG.data[0];
 
@@ -138,7 +138,7 @@ fn genesis_data() {
 
 #[test]
 fn genesis_cfg() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     let cfg = evm.cfg.get(&mut working_set).unwrap();
     assert_eq!(
@@ -167,7 +167,7 @@ fn genesis_cfg_missing_specs() {
 fn genesis_empty_spec_defaults_to_shanghai() {
     let mut config = TEST_CONFIG.clone();
     config.spec.clear();
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (evm, mut working_set) = get_evm(&config);
 
     let cfg = evm.cfg.get(&mut working_set).unwrap();
     assert_eq!(cfg.spec, vec![(0, SpecId::SHANGHAI)]);
@@ -184,7 +184,7 @@ fn genesis_cfg_cancun() {
 
 #[test]
 fn genesis_block() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -238,7 +238,7 @@ fn genesis_block() {
 
 #[test]
 fn genesis_head() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
     let head = evm.head.get(&mut working_set).unwrap();
 
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);

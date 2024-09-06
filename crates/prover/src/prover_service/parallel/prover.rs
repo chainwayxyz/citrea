@@ -232,6 +232,8 @@ where
     match config.deref() {
         ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
         ProofGenConfig::Simulate(verifier) => {
+            let _ = verifier;
+            let _ = zk_storage;
             unimplemented!("Simulate is not implemented yet");
             //verifier
             // .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)

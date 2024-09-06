@@ -136,16 +136,19 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) block_hashes:
         sov_modules_api::AccessoryStateMap<reth_primitives::B256, u64, BcsCodec>,
 
+    #[cfg(feature = "native")]
     /// Used only by the RPC: List of processed transactions.
     #[state]
     pub(crate) transactions:
         sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, BcsCodec>,
 
+    #[cfg(feature = "native")]
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
     #[state]
     pub(crate) transaction_hashes:
         sov_modules_api::AccessoryStateMap<reth_primitives::B256, u64, BcsCodec>,
 
+    #[cfg(feature = "native")]
     /// Used only by the RPC: Receipts.
     #[state]
     pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,

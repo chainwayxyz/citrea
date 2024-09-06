@@ -49,7 +49,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
 
 #[test]
 fn begin_soft_confirmation_hook_checks_timestamp() {
-    let (mut soft_confirmation_rule_enforcer, mut working_set) =
+    let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
 
     let original_timestamp = chrono::Local::now().timestamp() as u64;

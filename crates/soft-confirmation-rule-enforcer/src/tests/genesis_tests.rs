@@ -23,7 +23,7 @@ lazy_static! {
 
 #[test]
 fn genesis_data() {
-    let (mut soft_confirmation_rule_enforcer, mut working_set) =
+    let (soft_confirmation_rule_enforcer, mut working_set) =
         get_soft_confirmation_rule_enforcer::<MockDaSpec>(&TEST_CONFIG);
     let max_l2_blocks_per_l1 = &TEST_CONFIG.max_l2_blocks_per_l1;
     let authority = &TEST_CONFIG.authority;

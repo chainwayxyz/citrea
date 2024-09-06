@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::evm::system_events::SystemEvent;
-use crate::{Evm, PendingTransaction};
+use crate::Evm;
 
 impl<C: sov_modules_api::Context> Evm<C>
 where
@@ -227,6 +227,7 @@ where
 
         #[cfg(feature = "native")]
         {
+            use crate::PendingTransaction;
             let mut accessory_state = working_set.accessory_state();
             self.pending_head.set(&block, &mut accessory_state);
 

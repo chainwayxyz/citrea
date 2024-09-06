@@ -3,11 +3,9 @@ mod helpers;
 use helpers::*;
 use sov_bank::{
     get_genesis_token_address, get_token_address, Bank, BankConfig, CallMessage, Coins,
-    TotalSupplyResponse,
 };
-use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
+use sov_modules_api::{Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 

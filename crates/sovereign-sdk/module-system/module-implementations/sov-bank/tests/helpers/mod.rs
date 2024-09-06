@@ -37,6 +37,8 @@ pub fn create_bank_config_with_token(
     }
 }
 
+// used in tests only
+#[allow(dead_code)]
 pub fn query_user_balance(
     bank: &sov_bank::Bank<C>,
     user_address: Address,
@@ -46,6 +48,8 @@ pub fn query_user_balance(
     bank.get_balance_of(user_address, token_address, working_set)
 }
 
+// used in tests only
+#[allow(dead_code)]
 pub fn query_total_supply(
     bank: &sov_bank::Bank<C>,
     token_address: Address,
