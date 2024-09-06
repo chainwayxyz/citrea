@@ -492,7 +492,7 @@ async fn test_full_node_sync_status() {
     full_node_task.abort();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_healthcheck() {
     // citrea::initialize_logging();
 
