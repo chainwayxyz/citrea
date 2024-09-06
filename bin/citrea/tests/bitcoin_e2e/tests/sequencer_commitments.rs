@@ -19,8 +19,6 @@ use crate::bitcoin_e2e::Result;
 
 struct LedgerGetCommitmentsProverTest;
 
-const MIN_SOFT_CONF_PER_COMMITMENT: u64 = 4;
-
 #[async_trait]
 impl TestCase for LedgerGetCommitmentsProverTest {
     fn test_config() -> TestCaseConfig {
@@ -32,7 +30,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: MIN_SOFT_CONF_PER_COMMITMENT,
+            min_soft_confirmations_per_commitment: 4,
             ..Default::default()
         }
     }
@@ -42,11 +40,14 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let prover = f.prover.as_ref().unwrap();
 
-        for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT {
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
         sequencer
-            .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT, None)
+            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
             .await;
 
         // Wait for blob tx to hit the mempool
@@ -107,7 +108,7 @@ impl TestCase for LedgerGetCommitmentsTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: MIN_SOFT_CONF_PER_COMMITMENT,
+            min_soft_confirmations_per_commitment: 4,
             ..Default::default()
         }
     }
@@ -116,8 +117,10 @@ impl TestCase for LedgerGetCommitmentsTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
 
-        for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT {
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
 
@@ -132,7 +135,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         da.generate(FINALITY_DEPTH + 1, None).await?;
 
         full_node
-            .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT + 1, None)
+            .wait_for_l2_height(min_soft_confirmations_per_commitment + 1, None)
             .await;
 
         let finalized_height = da.get_finalized_height().await?;
@@ -172,7 +175,7 @@ struct SequencerSendCommitmentsToDaTest;
 impl TestCase for SequencerSendCommitmentsToDaTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: MIN_SOFT_CONF_PER_COMMITMENT,
+            min_soft_confirmations_per_commitment: 4,
             ..Default::default()
         }
     }
@@ -182,13 +185,15 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
         let initial_height = f.initial_da_height;
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
 
-        // publish MIN_SOFT_CONF_PER_COMMITMENT - 1 confirmations, no commitments should be sent
-        for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT - 1 {
+        // publish min_soft_confirmations_per_commitment - 1 confirmations, no commitments should be sent
+        for _ in 0..min_soft_confirmations_per_commitment - 1 {
             sequencer.client.send_publish_batch_request().await;
         }
         sequencer
-            .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT - 1, None)
+            .wait_for_l2_height(min_soft_confirmations_per_commitment - 1, None)
             .await;
 
         da.generate(FINALITY_DEPTH + 1, None).await?;
@@ -208,7 +213,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         // Publish one more L2 block and send commitment
         sequencer.client.send_publish_batch_request().await;
         sequencer
-            .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT, None)
+            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
             .await;
 
         // Wait for blob tx to hit the mempool
@@ -223,11 +228,11 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
 
-        for _ in 0..MIN_SOFT_CONF_PER_COMMITMENT {
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
         sequencer
-            .wait_for_l2_height(MIN_SOFT_CONF_PER_COMMITMENT * 2, None)
+            .wait_for_l2_height(min_soft_confirmations_per_commitment * 2, None)
             .await;
 
         // Wait for blob tx to hit the mempool
