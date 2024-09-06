@@ -21,9 +21,7 @@ use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTra
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmation, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{
-    sort_sequencer_commitments, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
@@ -471,7 +469,7 @@ where
                 || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
             // Make sure all sequencer commitments are stored in ascending order.
-            sort_sequencer_commitments(&mut sequencer_commitments);
+            sequencer_commitments.sort();
 
             let (sequencer_commitments, preproven_commitments) =
                 self.filter_out_proven_commitments(&sequencer_commitments)?;

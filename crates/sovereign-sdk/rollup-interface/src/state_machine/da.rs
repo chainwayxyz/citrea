@@ -33,11 +33,6 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
-/// Sorts the sequencer commitments by their L2 start block number
-pub fn sort_sequencer_commitments(commitments: &mut [SequencerCommitment]) {
-    commitments.sort();
-}
-
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
