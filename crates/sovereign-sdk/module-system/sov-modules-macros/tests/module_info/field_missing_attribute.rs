@@ -21,7 +21,7 @@ impl<C: Context> Module for TestStruct<C> {
     type Event = ();
 
     fn call(
-        &self,
+        &mut self,
         _message: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<Self::Context>,

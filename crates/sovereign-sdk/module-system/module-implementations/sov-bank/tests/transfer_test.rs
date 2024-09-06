@@ -143,6 +143,7 @@ fn transfer_initial_token() {
             message_1
         );
         assert!(
+            // .starts_with("Value not found for prefix: \"sov_bank/Bank/tokens/\" and: storage key"));
             message_2.starts_with("Value not found for prefix: \"Bank/tokens/\" and: storage key")
         );
     }
@@ -192,6 +193,7 @@ fn transfer_initial_token() {
             message_2,
         );
 
+        // "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and: storage key",
         let expected_message_part = format!(
             "Value not found for prefix: \"Bank/tokens/{}\" and: storage key",
             token_address
