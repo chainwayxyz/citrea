@@ -426,7 +426,6 @@ fn calc_diff_size<EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<usize, <DB as Database>::Error> {
     let InnerEvmContext {
-        db,
         journaled_state,
         env,
         ..
@@ -498,7 +497,6 @@ fn calc_diff_size<EXT, DB: Database>(
         "Total accounts for diff size"
     );
 
-    let slot_size = (STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE) * STORAGE_DISCOUNTED_PERCENTAGE / 100; // key + value;
     let mut diff_size = 0usize;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
@@ -509,50 +507,42 @@ fn calc_diff_size<EXT, DB: Database>(
     }
 
     for (addr, account) in account_changes {
-        let db_account_size = {
+        if account.destroyed {
+            // Each 'delete' key produces a write of 'key' + 1 byte
+            // account_info:
+            diff_size += DB_ACCOUNT_KEY_SIZE + 1;
+            diff_size += size_of::<Address>();
+            // account_slots:
             let account = &state[addr];
-            if account.info.code_hash == KECCAK_EMPTY {
-                DB_ACCOUNT_SIZE_EOA
-            } else {
-                DB_ACCOUNT_SIZE_CONTRACT
-            }
-        };
+            diff_size += (STORAGE_KEY_SIZE + 1) * account.storage.len();
+            // account_code:
+            diff_size += CODE_KEY_SIZE + 1;
+            continue;
+        }
 
         // Apply size of address of changed account
         diff_size += size_of::<Address>() * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
-        if account.destroyed {
-            let account = &state[addr];
-            diff_size += slot_size * account.storage.len(); // Storage size
-
-            // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
-            diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
-
-            // Retrieve code from DB and apply its size
-            if let Some(info) = db.basic(*addr)? {
-                if let Some(code) = info.code {
-                    diff_size += code.len();
-                    diff_size += CODE_KEY_SIZE;
-                } else {
-                    let code = db.code_by_hash(info.code_hash)?;
-                    diff_size += code.len();
-                    diff_size += CODE_KEY_SIZE;
-                }
-            }
-            continue;
-        }
-
-        // we don't check `code_changed` bc account_info is changed always for code_changed
+        // Apply size of account_info
         if account.account_info_changed || account.code_changed {
-            // DbAccount size is added because when any of those changes the db account is written to the state
+            let db_account_size = {
+                let account = &state[addr];
+                if account.info.code_hash == KECCAK_EMPTY {
+                    DB_ACCOUNT_SIZE_EOA
+                } else {
+                    DB_ACCOUNT_SIZE_CONTRACT
+                }
+            };
+            // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
             diff_size +=
                 (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots
-        diff_size += slot_size * account.storage_changes.len();
+        let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
+        diff_size +=
+            slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
 
         // Apply size of changed codes
         if account.code_changed {
@@ -560,8 +550,8 @@ fn calc_diff_size<EXT, DB: Database>(
 
             if let Some(code) = account.info.code.as_ref() {
                 // if code is eoa code
-                diff_size += code.len();
                 diff_size += CODE_KEY_SIZE;
+                diff_size += code.len();
             } else {
                 native_warn!(
                     "Code must exist for account when calculating diff: {}",
