@@ -1,9 +1,8 @@
 use anyhow::anyhow;
-use sov_rollup_interface::fork::Fork;
-use sov_rollup_interface::spec::SpecId;
 
 use super::ForkManager;
-use crate::fork::{fork_from_block_number, ForkMigration};
+use crate::fork::{fork_from_block_number, Fork, ForkMigration};
+use crate::spec::SpecId;
 
 #[test]
 fn test_fork_from_block_number() {

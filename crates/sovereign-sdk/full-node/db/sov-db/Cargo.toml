@@ -1,11 +1,11 @@
 [package]
 name = "sov-db"
-description = "A high-level DB interface for the Sovereign SDK"
-license = "Apache-2.0"                                          # This license is inherited from Aptos 
-edition = { workspace = true }
 authors = { workspace = true }
+edition = { workspace = true }
 homepage = { workspace = true }
+license = "Apache-2.0" # This license is inherited from Aptos
 repository = { workspace = true }
+description = "A high-level DB interface for the Sovereign SDK"
 
 version = { workspace = true }
 readme = "README.md"
@@ -16,21 +16,14 @@ resolver = "2"
 [dependencies]
 # Maintained by sovereign labs
 jmt = { workspace = true }
-sov-rollup-interface = { path = "../../../rollup-interface", features = [
-  "native",
-] }
+sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
 sov-schema-db = { path = "../sov-schema-db" }
-
-citrea-primitives = { path = "../../../../primitives" }
 
 # External
 anyhow = { workspace = true, default-features = true }
 arbitrary = { workspace = true, optional = true }
 bincode = { workspace = true }
-borsh = { workspace = true, default-features = true, features = [
-  "bytes",
-  "rc",
-] }
+borsh = { workspace = true, default-features = true, features = ["bytes", "rc"] }
 byteorder = { workspace = true, default-features = true }
 hex = { workspace = true }
 proptest = { workspace = true, optional = true, default-features = true }

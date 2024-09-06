@@ -8,7 +8,6 @@ use anyhow::{anyhow, bail};
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use citrea_primitives::fork::ForkManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
@@ -38,6 +37,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
+use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;

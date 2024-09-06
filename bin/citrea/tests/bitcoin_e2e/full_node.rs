@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, TestConfig};
 use super::framework::TestContext;
-use super::node::{L2Node, Node, SpawnOutput};
+use super::node::{L2Node, LogProvider, Node, NodeKind, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::config::RollupConfig;
@@ -36,7 +36,7 @@ impl FullNode {
 
         let dir = test_case.dir.join("full-node");
 
-        let spawn_output = Self::spawn(rollup_config, &dir).await?;
+        let spawn_output = Self::spawn(rollup_config, &dir)?;
 
         let socket_addr = SocketAddr::new(
             rollup_config
@@ -110,7 +110,7 @@ impl Node for FullNode {
     type Config = RollupConfig;
     type Client = TestClient;
 
-    async fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
 
         let stdout_file =
@@ -164,3 +164,13 @@ impl Node for FullNode {
 }
 
 impl L2Node for FullNode {}
+
+impl LogProvider for FullNode {
+    fn kind(&self) -> NodeKind {
+        NodeKind::FullNode
+    }
+
+    fn log_path(&self) -> PathBuf {
+        get_stdout_path(&self.dir)
+    }
+}

@@ -146,8 +146,9 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(3)
-        .await;
+        .ledger_get_proofs_by_slot_height(3)
+        .await[0]
+        .clone();
 
     // The proof will be in l1 block #4 because prover publishes it after the commitment and
     // in mock da submitting proof and commitments creates a new block.
