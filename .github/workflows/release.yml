@@ -35,7 +35,10 @@ jobs:
 
       - name: Install Cargo Risczero
         run: |
-          curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup -v 1.0.5;
+          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+        env:
+          XDG_CONFIG_HOME: "."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
         env:
@@ -82,8 +85,10 @@ jobs:
       - name: Install Cargo Risczero
         run: |
           source $HOME/.cargo/env
-          curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup -v 1.0.5;
-
+          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+        env:
+          XDG_CONFIG_HOME: "."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
           REPR_GUEST_BUILD: 1
