@@ -64,8 +64,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let storage_value: U256 = if self.accounts.get(&address, self.working_set).is_some() {
-            let parent_prefix = self.accounts.prefix();
-            let db_account = DbAccount::new(parent_prefix, address);
+            let db_account = DbAccount::new(address);
             db_account
                 .storage
                 .get(&index, self.working_set)

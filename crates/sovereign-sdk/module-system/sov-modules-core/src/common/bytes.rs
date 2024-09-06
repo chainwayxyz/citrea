@@ -187,14 +187,17 @@ impl ModulePrefix {
             .unwrap_or_default();
 
         let mut combined_prefix = Vec::with_capacity(
-            self.module_path.len()
-                + self.module_name.len()
-                + 2 * DOMAIN_SEPARATOR.len()
-                + storage_name_len,
+            self.module_name.len() + DOMAIN_SEPARATOR.len() + storage_name_len,
+            // self.module_path.len()
+            //     + self.module_name.len()
+            //     + 2 * DOMAIN_SEPARATOR.len()
+            //     + storage_name_len,
         );
 
-        combined_prefix.extend(self.module_path.as_bytes());
-        combined_prefix.extend(DOMAIN_SEPARATOR);
+        // We ignore `self.module_path/` because is common prefix for all keys
+        //
+        // combined_prefix.extend(self.module_path.as_bytes());
+        // combined_prefix.extend(DOMAIN_SEPARATOR);
         combined_prefix.extend(self.module_name.as_bytes());
         combined_prefix.extend(DOMAIN_SEPARATOR);
         if let Some(storage_name) = self.storage_name {

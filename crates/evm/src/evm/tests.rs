@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use reth_primitives::{Address, TxKind};
-use revm::primitives::{CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
@@ -41,7 +41,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
         caller,
         AccountInfo {
             balance: U256::from_str("100000000000000000000").unwrap(),
-            code_hash: KECCAK_EMPTY,
+            code_hash: None,
             nonce: 1,
         },
     );

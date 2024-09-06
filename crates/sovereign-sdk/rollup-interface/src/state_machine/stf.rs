@@ -253,7 +253,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
     fn apply_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
@@ -279,7 +279,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
     #[allow(clippy::type_complexity)]
     #[allow(clippy::too_many_arguments)]
     fn apply_soft_confirmations_from_sequencer_commitments(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,

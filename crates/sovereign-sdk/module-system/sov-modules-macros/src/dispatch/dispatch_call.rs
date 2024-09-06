@@ -30,7 +30,7 @@ impl<'a> StructDef<'a> {
 
             quote::quote!(
                 #enum_ident::#name(message)=>{
-                    ::sov_modules_api::Module::call(&self.#name, message, context, working_set)
+                    ::sov_modules_api::Module::call(&mut self.#name, message, context, working_set)
                 },
             )
         });
@@ -64,7 +64,7 @@ impl<'a> StructDef<'a> {
                 }
 
                 fn dispatch_call(
-                    &self,
+                    &mut self,
                     decodable: Self::Decodable,
                     working_set: &mut ::sov_modules_api::WorkingSet<Self::Context>,
                     context: &Self::Context,

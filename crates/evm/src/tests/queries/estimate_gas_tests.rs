@@ -93,7 +93,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x6f"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x60"}])
             .unwrap()
     );
 

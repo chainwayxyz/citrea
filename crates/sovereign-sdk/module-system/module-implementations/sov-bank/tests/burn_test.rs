@@ -1,10 +1,8 @@
-use helpers::{generate_address, C};
+use helpers::{generate_address, query_total_supply, query_user_balance, C};
 use sov_bank::{
     get_genesis_token_address, get_token_address, Bank, BankConfig, CallMessage, Coins,
-    TotalSupplyResponse,
 };
-use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
+use sov_modules_api::{Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -16,7 +14,7 @@ pub type Storage = ProverStorage<DefaultStorageSpec, SnapshotManager>;
 
 #[test]
 fn burn_deployed_tokens() {
-    let bank = Bank::<C>::default();
+    let mut bank = Bank::<C>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let empty_bank_config = BankConfig::<C> { tokens: vec![] };
@@ -47,17 +45,7 @@ fn burn_deployed_tokens() {
     // No events at the moment. If there are, needs to be checked
     assert!(working_set.events().is_empty());
 
-    let query_total_supply = |working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
-        let total_supply: TotalSupplyResponse = bank.supply_of(token_address, working_set).unwrap();
-        total_supply.amount
-    };
-
-    let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
-        };
-
-    let previous_total_supply = query_total_supply(&mut working_set);
+    let previous_total_supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(Some(initial_balance), previous_total_supply);
 
     // -----
@@ -74,9 +62,9 @@ fn burn_deployed_tokens() {
         .expect("Failed to burn token");
     assert!(working_set.events().is_empty());
 
-    let current_total_supply = query_total_supply(&mut working_set);
+    let current_total_supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), current_total_supply);
-    let minter_balance = query_user_balance(minter_address, &mut working_set);
+    let minter_balance = query_user_balance(&bank, minter_address, token_address, &mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), minter_balance);
 
     let previous_total_supply = current_total_supply;
@@ -97,14 +85,15 @@ fn burn_deployed_tokens() {
         message_1
     );
     let expected_error_part = format!(
-        "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and: storage key",
+        "Value not found for prefix: \"Bank/tokens/{}\" and: storage key",
         token_address
     );
+    println!("m{:?}", message_2);
     assert!(message_2.starts_with(&expected_error_part));
 
-    let current_total_supply = query_total_supply(&mut working_set);
+    let current_total_supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(previous_total_supply, current_total_supply);
-    let sender_balance = query_user_balance(sender_address, &mut working_set);
+    let sender_balance = query_user_balance(&bank, sender_address, token_address, &mut working_set);
     assert_eq!(None, sender_balance);
 
     // ---
@@ -119,7 +108,8 @@ fn burn_deployed_tokens() {
     bank.call(burn_zero_message, &minter_context, &mut working_set)
         .expect("Failed to burn token");
     assert!(working_set.events().is_empty());
-    let minter_balance_after = query_user_balance(minter_address, &mut working_set);
+    let minter_balance_after =
+        query_user_balance(&bank, minter_address, token_address, &mut working_set);
     assert_eq!(minter_balance, minter_balance_after);
 
     // ---
@@ -177,8 +167,7 @@ fn burn_deployed_tokens() {
         message_1
     );
     // Note, no token address in root cause message.
-    let expected_error_part =
-        "Value not found for prefix: \"sov_bank/Bank/tokens/\" and: storage key";
+    let expected_error_part = "Value not found for prefix: \"Bank/tokens/\" and: storage key";
     assert!(message_2.starts_with(expected_error_part));
 }
 
@@ -188,7 +177,7 @@ fn burn_initial_tokens() {
     let bank_config = create_bank_config_with_token(2, initial_balance);
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
-    let bank = Bank::default();
+    let mut bank = Bank::default();
     bank.genesis(&bank_config, &mut working_set).unwrap();
 
     let token_address = get_genesis_token_address::<C>(
@@ -198,12 +187,7 @@ fn burn_initial_tokens() {
     let sender_address = bank_config.tokens[0].address_and_balances[0].0;
     let sequencer_address = bank_config.tokens[0].address_and_balances[1].0;
 
-    let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
-        };
-
-    let balance_before = query_user_balance(sender_address, &mut working_set);
+    let balance_before = query_user_balance(&bank, sender_address, token_address, &mut working_set);
     assert_eq!(Some(initial_balance), balance_before);
 
     let burn_amount = 10;
@@ -219,7 +203,7 @@ fn burn_initial_tokens() {
         .expect("Failed to burn token");
     assert!(working_set.events().is_empty());
 
-    let balance_after = query_user_balance(sender_address, &mut working_set);
+    let balance_after = query_user_balance(&bank, sender_address, token_address, &mut working_set);
     assert_eq!(Some(initial_balance - burn_amount), balance_after);
 
     // Assume that the rest of edge cases are similar to deployed tokens

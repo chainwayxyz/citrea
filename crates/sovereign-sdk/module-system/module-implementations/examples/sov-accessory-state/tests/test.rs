@@ -22,7 +22,7 @@ fn test_accessory_value_setter() {
     let sequencer = Address::from([2; 32]);
     let context = DefaultContext::new(admin, sequencer, 1, SpecId::Genesis, 0);
 
-    let module = AccessorySetter::<DefaultContext>::default();
+    let mut module = AccessorySetter::<DefaultContext>::default();
 
     module.genesis(&(), &mut working_set_for_state).unwrap();
     module

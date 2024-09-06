@@ -19,7 +19,7 @@ pub trait DispatchCall: Send + Sync {
 
     /// Dispatches a call message to the appropriate module.
     fn dispatch_call(
-        &self,
+        &mut self,
         message: Self::Decodable,
         working_set: &mut WorkingSet<Self::Context>,
         context: &Self::Context,
