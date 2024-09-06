@@ -29,8 +29,7 @@ const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
 /// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
-/// But we already add address size to diff size, so we don't need to add it here
-const DB_ACCOUNT_KEY_SIZE: usize = 7;
+const DB_ACCOUNT_KEY_SIZE: usize = 27;
 
 /// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
 const STORAGE_KEY_SIZE: usize = 59;
@@ -514,7 +513,6 @@ fn calc_diff_size<EXT, DB: Database>(
             // Each 'delete' key produces a write of 'key' + 1 byte
             // account_info:
             diff_size += DB_ACCOUNT_KEY_SIZE + 1;
-            diff_size += size_of::<Address>();
             // account_slots (and also keys):
             let account = &state[addr];
             let n_slots = account.storage.len();
@@ -526,7 +524,7 @@ fn calc_diff_size<EXT, DB: Database>(
         }
 
         // Apply size of address of changed account
-        diff_size += size_of::<Address>() * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
+        diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
         // Apply size of account_info
         if account.account_info_changed || account.code_changed {
