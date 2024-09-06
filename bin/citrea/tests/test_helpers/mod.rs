@@ -139,6 +139,7 @@ pub fn create_default_rollup_config(
         },
         storage: StorageConfig {
             path: rollup_path.to_path_buf(),
+            db_max_open_files: None,
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".into(),
