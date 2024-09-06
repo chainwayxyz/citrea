@@ -1692,6 +1692,7 @@ dependencies = [
  "bitcoincore-rpc",
  "bollard",
  "borsh",
+ "citrea-common",
  "citrea-evm",
  "citrea-fullnode",
  "citrea-primitives",
@@ -1738,6 +1739,17 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "citrea-common"
+version = "0.4.0-rc.3"
+dependencies = [
+ "hyper 1.4.1",
+ "jsonrpsee",
+ "sov-db",
+ "tokio",
+ "tower-http",
 ]
 
 [[package]]
@@ -1795,6 +1807,7 @@ dependencies = [
  "anyhow",
  "backoff",
  "borsh",
+ "citrea-common",
  "citrea-primitives",
  "futures",
  "hex",
@@ -1817,6 +1830,7 @@ dependencies = [
  "sov-stf-runner",
  "tempfile",
  "tokio",
+ "tower",
  "tracing",
 ]
 
@@ -1843,6 +1857,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "borsh",
+ "citrea-common",
  "citrea-primitives",
  "citrea-stf",
  "futures",
@@ -1865,6 +1880,7 @@ dependencies = [
  "sov-stf-runner",
  "tempfile",
  "tokio",
+ "tower",
  "tracing",
 ]
 
@@ -1901,6 +1917,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "chrono",
+ "citrea-common",
  "citrea-evm",
  "citrea-primitives",
  "citrea-stf",

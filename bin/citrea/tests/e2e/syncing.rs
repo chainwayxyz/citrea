@@ -491,3 +491,77 @@ async fn test_full_node_sync_status() {
     seq_task.abort();
     full_node_task.abort();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_healthcheck() {
+    // citrea::initialize_logging();
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+    let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            None,
+            Some(false),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_addr = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_addr).await;
+
+    let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
+
+    let da_db_dir_cloned = da_db_dir.clone();
+    let full_node_task = tokio::spawn(async move {
+        start_rollup(
+            full_node_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::FullNode(seq_addr),
+            fullnode_db_dir,
+            da_db_dir_cloned,
+            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            true,
+            None,
+            None,
+            Some(true),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    wait_for_l2_block(&seq_test_client, 2, None).await;
+
+    let full_node_addr = full_node_port_rx.await.unwrap();
+    let full_node_test_client = make_test_client(full_node_addr).await.unwrap();
+
+    wait_for_l2_block(&full_node_test_client, 2, None).await;
+
+    let status = full_node_test_client.healthcheck().await.unwrap();
+    assert_eq!(status, 200);
+
+    wait_for_l2_block(&full_node_test_client, 4, None).await;
+    seq_task.abort();
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let status = full_node_test_client.healthcheck().await.unwrap();
+    assert_eq!(status, 500);
+
+    full_node_task.abort();
+}
