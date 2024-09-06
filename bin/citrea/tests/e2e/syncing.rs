@@ -559,6 +559,7 @@ async fn test_healthcheck() {
     wait_for_l2_block(&full_node_test_client, 4, None).await;
     seq_task.abort();
 
+    tokio::time::sleep(Duration::from_secs(5)).await;
     let status = full_node_test_client.healthcheck().await.unwrap();
     assert_eq!(status, 500);
 
