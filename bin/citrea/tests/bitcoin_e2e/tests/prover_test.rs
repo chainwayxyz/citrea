@@ -144,7 +144,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             bail!("bitcoind not running. Test cannot run with bitcoind running as DA")
         };
 
-        let initial_height = f.initial_da_height;
+        let _initial_height = f.initial_da_height;
 
         let (secret_key, _public_key) = generate_keypair(&mut rand::thread_rng());
         let secret_key = secret_key.secret_bytes().encode_hex();
