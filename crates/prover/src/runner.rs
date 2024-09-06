@@ -469,7 +469,7 @@ where
                 || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
             // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort_unstable();
+            sequencer_commitments.sort();
 
             let (sequencer_commitments, preproven_commitments) =
                 self.filter_out_proven_commitments(&sequencer_commitments)?;
