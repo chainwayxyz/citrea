@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
 use sov_db::native_db::NativeDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -70,10 +71,9 @@ where
 
     /// Create new [`ProverStorageManager`] from state config
     pub fn new(config: sov_state::config::Config) -> anyhow::Result<Self> {
-        let path = config.path;
-        let state_db = StateDB::<SnapshotManager>::setup_schema_db(&path)?;
-        let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&path)?;
-
+        let rocksdb_config = RocksdbConfig::new(config.path.as_path(), config.db_max_open_files);
+        let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
+        let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
         Ok(Self::with_db_handles(state_db, native_db))
     }
 
@@ -427,11 +427,13 @@ where
 pub fn new_orphan_storage<S: MerkleProofSpec>(
     path: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<ProverStorage<S, SnapshotManager>> {
-    let state_db_raw = StateDB::<SnapshotManager>::setup_schema_db(path.as_ref())?;
+    let state_db_raw =
+        StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None))?;
     let state_db_sm = Arc::new(RwLock::new(SnapshotManager::orphan(state_db_raw)));
     let state_db_snapshot = DbSnapshot::<SnapshotManager>::new(0, state_db_sm.into());
     let state_db = StateDB::with_db_snapshot(state_db_snapshot)?;
-    let native_db_raw = NativeDB::<SnapshotManager>::setup_schema_db(path.as_ref())?;
+    let native_db_raw =
+        NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None))?;
     let native_db_sm = Arc::new(RwLock::new(SnapshotManager::orphan(native_db_raw)));
     let native_db_snapshot = DbSnapshot::<SnapshotManager>::new(0, native_db_sm.into());
     let native_db = NativeDB::with_db_snapshot(native_db_snapshot)?;
@@ -508,8 +510,10 @@ mod tests {
     }
 
     fn build_dbs(path: &std::path::Path) -> (sov_schema_db::DB, sov_schema_db::DB) {
-        let state_db = StateDB::<SnapshotManager>::setup_schema_db(path).unwrap();
-        let native_db = NativeDB::<SnapshotManager>::setup_schema_db(path).unwrap();
+        let state_db =
+            StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path, None)).unwrap();
+        let native_db =
+            NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path, None)).unwrap();
 
         (state_db, native_db)
     }

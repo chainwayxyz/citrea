@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
@@ -88,6 +89,8 @@ impl RollupBlueprint for BitcoinRollup {
             soft_confirmation_rx,
         )?;
 
+        register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
+
         Ok(rpc_methods)
     }
 
@@ -105,6 +108,7 @@ impl RollupBlueprint for BitcoinRollup {
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
+            db_max_open_files: rollup_config.storage.db_max_open_files,
         };
         ProverStorageManager::new(storage_config)
     }

@@ -86,6 +86,8 @@ const fn default_max_subscriptions_per_connection() -> u32 {
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
+    /// File descriptor limit for RocksDB
+    pub db_max_open_files: Option<i32>,
 }
 
 /// Important public keys for the rollup
@@ -191,6 +193,7 @@ mod tests {
             
             [storage]
             path = "/tmp/rollup"
+            db_max_open_files = 123
             
             [runner]
             include_tx_body = true
@@ -214,6 +217,7 @@ mod tests {
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
+                db_max_open_files: Some(123),
             },
             rpc: RpcConfig {
                 bind_host: "127.0.0.1".to_string(),

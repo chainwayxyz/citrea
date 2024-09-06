@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use citrea_fullnode::CitreaFullnode;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
@@ -71,6 +72,7 @@ fn initialize_runner(
     let rollup_config = FullNodeConfig::<MockDaConfig> {
         storage: StorageConfig {
             path: rollup_storage_path.clone(),
+            db_max_open_files: None,
         },
         rpc: RpcConfig {
             bind_host: "127.0.0.1".to_string(),
@@ -101,12 +103,14 @@ fn initialize_runner(
 
     let da_service = MockDaService::new(address, &da_storage_path);
 
-    let ledger_db = LedgerDB::with_path(rollup_storage_path.clone()).unwrap();
+    let ledger_db =
+        LedgerDB::with_config(&RocksdbConfig::new(rollup_storage_path.as_path(), None)).unwrap();
 
     let stf = HashStf::<MockValidityCond>::new();
 
     let storage_config = sov_state::config::Config {
         path: rollup_storage_path.to_path_buf(),
+        db_max_open_files: None,
     };
     let storage_manager = ProverStorageManager::new(storage_config).unwrap();
 

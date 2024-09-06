@@ -188,6 +188,10 @@ where
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
+        let middleware = tower::ServiceBuilder::new()
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
+
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
@@ -195,6 +199,7 @@ where
                 .max_request_body_size(max_request_body_size)
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
+                .set_http_middleware(middleware)
                 .build([listen_address].as_ref())
                 .await;
 
@@ -470,7 +475,7 @@ where
                 || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
             // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort_unstable();
+            sequencer_commitments.sort();
 
             let (sequencer_commitments, preproven_commitments) =
                 filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;

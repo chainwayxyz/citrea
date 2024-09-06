@@ -5,6 +5,7 @@ use citrea_primitives::forks::FORKS;
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
 use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
@@ -44,7 +45,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
@@ -134,7 +139,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
@@ -224,7 +233,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     {
         let da_service = self.create_da_service(&rollup_config).await?;
 
-        let ledger_db = self.create_ledger_db(&rollup_config);
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
             .create_prover_service(

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
@@ -65,7 +66,6 @@ impl RollupBlueprint for MockDemoRollup {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
 
-        #[allow(unused_mut)]
         let mut rpc_methods = sov_modules_rollup_blueprint::register_rpc::<
             Self::NativeRuntime,
             Self::NativeContext,
@@ -79,6 +79,8 @@ impl RollupBlueprint for MockDemoRollup {
             sequencer_client_url,
             soft_confirmation_rx,
         )?;
+
+        register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
 
         Ok(rpc_methods)
     }
@@ -133,6 +135,7 @@ impl RollupBlueprint for MockDemoRollup {
     ) -> anyhow::Result<Self::StorageManager> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
+            db_max_open_files: rollup_config.storage.db_max_open_files,
         };
         ProverStorageManager::new(storage_config)
     }
