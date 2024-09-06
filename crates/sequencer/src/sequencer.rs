@@ -15,7 +15,6 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
-use hyper::Method;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
@@ -46,7 +45,6 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Instant};
-use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::commitment_controller;
@@ -206,11 +204,9 @@ where
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
-        let cors = CorsLayer::new()
-            .allow_methods([Method::POST, Method::OPTIONS])
-            .allow_origin(Any)
-            .allow_headers(Any);
-        let middleware = tower::ServiceBuilder::new().layer(cors);
+        let middleware = tower::ServiceBuilder::new()
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
