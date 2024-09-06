@@ -1,6 +1,6 @@
 [package]
 name = "sov-demo-prover-guest-mock"
-version = "0.3.0"
+version = "0.5.0-rc.1"
 edition = "2021"
 resolver = "2"
 

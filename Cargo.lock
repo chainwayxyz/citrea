@@ -1108,7 +1108,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
 name = "bashtestmd"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "clap",
  "indoc",
@@ -1678,7 +1678,7 @@ dependencies = [
 
 [[package]]
 name = "citrea"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "alloy",
  "alloy-primitives",
@@ -1743,7 +1743,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-common"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "hyper 1.4.1",
  "jsonrpsee",
@@ -1754,7 +1754,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-evm"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-fullnode"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "backoff",
@@ -1836,7 +1836,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
@@ -1852,7 +1852,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-prover"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1887,7 +1887,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-bonsai-adapter"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "backoff",
@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sequencer"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
@@ -1961,7 +1961,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-stf"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2071,7 +2071,7 @@ checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "const-rollup-config"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 
 [[package]]
 name = "constant_time_eq"
@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "demo-simple-stf"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "hex",
@@ -2391,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "demo-stf"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2738,7 +2738,7 @@ dependencies = [
 
 [[package]]
 name = "ethereum-rpc"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3725,7 +3725,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -4429,7 +4429,7 @@ dependencies = [
 
 [[package]]
 name = "module-template"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -6259,7 +6259,7 @@ dependencies = [
 
 [[package]]
 name = "risc0"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "risc0-build",
 ]
@@ -6998,7 +6998,7 @@ checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
 
 [[package]]
 name = "sequencer-client"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "citrea-primitives",
@@ -7270,7 +7270,7 @@ dependencies = [
 
 [[package]]
 name = "soft-confirmation-rule-enforcer"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7305,7 +7305,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accessory-state"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "borsh",
  "jsonrpsee",
@@ -7318,7 +7318,7 @@ dependencies = [
 
 [[package]]
 name = "sov-accounts"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7339,7 +7339,7 @@ dependencies = [
 
 [[package]]
 name = "sov-bank"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7358,7 +7358,7 @@ dependencies = [
 
 [[package]]
 name = "sov-cli"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7377,7 +7377,7 @@ dependencies = [
 
 [[package]]
 name = "sov-data-generators"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "borsh",
  "proptest",
@@ -7391,7 +7391,7 @@ dependencies = [
 
 [[package]]
 name = "sov-db"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7417,7 +7417,7 @@ dependencies = [
 
 [[package]]
 name = "sov-ledger-rpc"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "futures",
@@ -7433,7 +7433,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7456,7 +7456,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-zkvm"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7467,7 +7467,7 @@ dependencies = [
 
 [[package]]
 name = "sov-module-schemas"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "sov-accounts",
  "sov-bank",
@@ -7481,7 +7481,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7515,7 +7515,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7543,7 +7543,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-macros"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7563,7 +7563,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-rollup-blueprint"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7586,7 +7586,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7609,7 +7609,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-incentives"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7628,7 +7628,7 @@ dependencies = [
 
 [[package]]
 name = "sov-prover-storage-manager"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "criterion",
@@ -7645,7 +7645,7 @@ dependencies = [
 
 [[package]]
 name = "sov-risc0-adapter"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7664,7 +7664,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rng-da-service"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7682,7 +7682,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7704,7 +7704,7 @@ dependencies = [
 
 [[package]]
 name = "sov-schema-db"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -7722,7 +7722,7 @@ dependencies = [
 
 [[package]]
 name = "sov-sequencer-registry"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7749,7 +7749,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "arbitrary",
@@ -7774,7 +7774,7 @@ dependencies = [
 
 [[package]]
 name = "sov-stf-runner"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7803,7 +7803,7 @@ dependencies = [
 
 [[package]]
 name = "sov-value-setter"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7821,7 +7821,7 @@ dependencies = [
 
 [[package]]
 name = "sov-vec-setter"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
@@ -7839,7 +7839,7 @@ dependencies = [
 
 [[package]]
 name = "sov-zk-cycle-macros"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7852,7 +7852,7 @@ dependencies = [
 
 [[package]]
 name = "sov-zk-cycle-utils"
-version = "0.4.0-rc.3"
+version = "0.5.0-rc.1"
 dependencies = [
  "bytes",
  "risc0-zkvm",
