@@ -33,21 +33,22 @@ pub(crate) struct BatchProvingTxs {
 
 impl TxListWithReveal for BatchProvingTxs {
     fn write_to_file(&self) -> Result<(), anyhow::Error> {
-        let ws_root = get_workspace_root();
-        let mut resources_path = ws_root.to_path_buf();
-        resources_path.push("resources");
-        resources_path.push("bitcoin");
-        resources_path.push("inscription_txs");
-        let resources_path = resources_path.to_str().unwrap();
-        let file = File::create(format!(
-            "{}/chunked_light_client_inscription_with_reveal_id_{}.txs",
-            resources_path, self.reveal.id
-        ))?;
+        let mut path = get_workspace_root();
+        path.push("resources");
+        path.push("bitcoin");
+        path.push("inscription_txs");
+        path.push(format!(
+            "chunked_light_client_inscription_with_reveal_id_{}.txs",
+            self.reveal.id
+        ));
+
+        let file = File::create(path)?;
         let mut writer = BufWriter::new(&file);
         writer.write_all(&serialize(&self.commit))?;
         writer.write_all(&serialize(&self.reveal.tx))?;
         writer.flush()?;
         Ok(())
+    }
     }
 }
 
