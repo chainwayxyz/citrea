@@ -130,7 +130,8 @@ pub struct StoredStateTransition {
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
     pub sequencer_da_public_key: Vec<u8>,
-
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
     /// An additional validity condition for the state transition which needs
     /// to be checked outside of the zkVM circuit. This typically corresponds to
     /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
@@ -148,6 +149,7 @@ impl From<StoredStateTransition> for StateTransitionRpcResponse {
             sequencer_public_key: value.sequencer_public_key,
             validity_condition: value.validity_condition,
             sequencer_commitments_range: value.sequencer_commitments_range,
+            preproven_commitments: value.preproven_commitments,
         }
     }
 }

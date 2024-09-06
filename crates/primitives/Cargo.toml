@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 # Sov SDK deps
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
@@ -32,4 +33,5 @@ native = [
   "dep:tokio",
   "dep:tracing",
   "sov-rollup-interface/native",
+  "sov-db",
 ]

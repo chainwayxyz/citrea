@@ -572,6 +572,7 @@ where
         // rollup state transitions.
         sequencer_commitments.sort();
 
+        // TODO: filter in a better looking way maybe?
         // The preproven indicies are sorted by the prover when originally passed.
         // Therefore, we pass the commitments sequentially to make sure that the current
         // commitment index is not at the beginning of the list of preproven indicies.

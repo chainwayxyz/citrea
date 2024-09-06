@@ -414,6 +414,27 @@ impl SharedLedgerOps for LedgerDB {
         Ok(())
     }
 
+    /// Get the state root by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    fn get_l2_state_root<StateRoot: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<StateRoot>> {
+        if l2_height == 0 {
+            self.db
+                .get::<L2GenesisStateRoot>(&())?
+                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+                .transpose()
+        } else {
+            self.db
+                .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
+                .map(|soft_confirmation| {
+                    bincode::deserialize(&soft_confirmation.state_root).map_err(Into::into)
+                })
+                .transpose()
+        }
+    }
+
     /// Get the most recent committed soft confirmation, if any
     #[instrument(level = "trace", skip(self), err)]
     fn get_head_soft_confirmation(
@@ -472,27 +493,6 @@ impl SharedLedgerOps for LedgerDB {
 }
 
 impl ProverLedgerOps for LedgerDB {
-    /// Get the state root by L2 height
-    #[instrument(level = "trace", skip_all, err)]
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>> {
-        if l2_height == 0 {
-            self.db
-                .get::<L2GenesisStateRoot>(&())?
-                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
-                .transpose()
-        } else {
-            self.db
-                .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
-                .map(|soft_confirmation| {
-                    bincode::deserialize(&soft_confirmation.state_root).map_err(Into::into)
-                })
-                .transpose()
-        }
-    }
-
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {

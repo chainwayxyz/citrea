@@ -148,6 +148,8 @@ pub struct StateTransition<Da: DaSpec, Root> {
     pub validity_condition: Da::ValidityCondition,
     /// The final spec id after state transition is completed.
     pub last_active_spec_id: SpecId,
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
 }
 
 /// This trait expresses that a type can check a validity condition.

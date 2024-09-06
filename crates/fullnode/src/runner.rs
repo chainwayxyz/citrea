@@ -276,6 +276,7 @@ where
             sequencer_commitments_range: state_transition.sequencer_commitments_range,
             sequencer_public_key: state_transition.sequencer_public_key,
             sequencer_da_public_key: state_transition.sequencer_da_public_key,
+            preproven_commitments: state_transition.preproven_commitments.clone(),
             validity_condition: borsh::to_vec(&state_transition.validity_condition).unwrap(),
         };
 
@@ -294,36 +295,64 @@ where
             }
         };
 
-        let proven_commitments = match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
-            Some(commitments) => commitments,
-            None => {
-                return Err(anyhow!(
+        let mut commitments_on_da_slot =
+            match self.ledger_db.get_commitments_on_da_slot(l1_height)? {
+                Some(commitments) => commitments,
+                None => {
+                    return Err(anyhow!(
                     "Proof verification: No commitments found for l1 height: {}. Skipping proof.",
                     l1_height
                 )
-                .into());
-            }
-        };
+                    .into());
+                }
+            };
 
-        let l2_height = proven_commitments[0].l2_start_block_number;
+        commitments_on_da_slot.sort_unstable();
+
+        let excluded_commitment_indices = state_transition.preproven_commitments.clone();
+        let filtered_commitments: Vec<SequencerCommitment> = commitments_on_da_slot
+            .into_iter()
+            .enumerate()
+            .filter(|(index, _)| !excluded_commitment_indices.contains(index))
+            .map(|(_, commitment)| commitment.clone())
+            .collect();
+
+        let l2_height = filtered_commitments
+            [state_transition.sequencer_commitments_range.0 as usize]
+            .l2_start_block_number;
         // Fetch the block prior to the one at l2_height so compare state roots
-        let prior_soft_confirmation = self
+
+        let prior_soft_confirmation_post_state_root = self
             .ledger_db
-            .get_soft_confirmation_by_number(&(BatchNumber(l2_height - 1)))?;
-        if let Some(prior_soft_confirmation) = prior_soft_confirmation {
-            if prior_soft_confirmation.state_root.as_slice()
-                != state_transition.initial_state_root.as_ref()
-            {
-                return Err(anyhow!(
+            .get_l2_state_root::<Stf::StateRoot>(l2_height - 1)?
+            .ok_or_else(|| {
+                anyhow!(
+                "Proof verification: Could not find state root for L2 height: {}. Skipping proof.",
+                l2_height - 1
+            )
+            })?;
+
+        tracing::info!("out");
+
+        if prior_soft_confirmation_post_state_root.as_ref()
+            != state_transition.initial_state_root.as_ref()
+        {
+            return Err(anyhow!(
                     "Proof verification: For a known and verified sequencer commitment. Pre state root mismatch - expected 0x{} but got 0x{}. Skipping proof.",
-                    hex::encode(&prior_soft_confirmation.state_root),
+                    hex::encode(&prior_soft_confirmation_post_state_root),
                     hex::encode(&state_transition.initial_state_root)
                 ).into());
-            }
         }
 
-        for commitment in proven_commitments {
-            // TODO: put_soft_confirmation_status to use L2 range
+        for commitment in filtered_commitments
+            .iter()
+            .skip(state_transition.sequencer_commitments_range.0 as usize)
+            .take(
+                (state_transition.sequencer_commitments_range.1
+                    - state_transition.sequencer_commitments_range.0
+                    + 1) as usize,
+            )
+        {
             let l2_start_height = commitment.l2_start_block_number;
             let l2_end_height = commitment.l2_end_block_number;
             for i in l2_start_height..=l2_end_height {
