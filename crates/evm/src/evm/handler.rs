@@ -37,6 +37,9 @@ const STORAGE_KEY_SIZE: usize = 59;
 /// StorageKey key is 59 bytes because of sov sdk prefix ("Evm/k/")
 const KEY_KEY_SIZE: usize = 59;
 
+/// StorageKey value is 32 bytes + 1 byte length
+const KEY_VALUE_SIZE: usize = 33;
+
 /// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
 const STORAGE_VALUE_SIZE: usize = 33;
 
@@ -544,8 +547,10 @@ fn calc_diff_size<EXT, DB: Database>(
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
+        let keys_size = KEY_KEY_SIZE + KEY_VALUE_SIZE; // key + value
         diff_size +=
             slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
+        diff_size += keys_size * account.storage_changes.len();
 
         // Apply size of changed codes
         if account.code_changed {
