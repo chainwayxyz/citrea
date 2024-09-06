@@ -1,5 +1,5 @@
 use alloy_eips::eip1559::BaseFeeParams;
-use reth_primitives::{address, Address, B256, KECCAK_EMPTY, U256};
+use reth_primitives::{address, Address, B256, U256};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
@@ -49,21 +49,11 @@ pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
 pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
 
 // Stores information about an EVM account
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
+#[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct AccountInfo {
     pub(crate) balance: U256,
-    pub(crate) code_hash: B256,
     pub(crate) nonce: u64,
-}
-
-impl Default for AccountInfo {
-    fn default() -> Self {
-        Self {
-            balance: U256::default(),
-            code_hash: KECCAK_EMPTY,
-            nonce: 0,
-        }
-    }
+    pub(crate) code_hash: Option<B256>,
 }
 
 /// Stores information about an EVM account and a corresponding account state.

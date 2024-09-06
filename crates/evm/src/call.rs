@@ -77,7 +77,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
 
-        assert!(self.pending_transactions.len() == 0);
+        assert!(self.pending_transactions.is_empty());
 
         for (tx, result) in system_txs.into_iter().zip(tx_results.into_iter()) {
             let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();

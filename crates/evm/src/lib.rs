@@ -202,7 +202,5 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Option<PendingTransaction> {
         self.native_pending_transactions
             .last(&mut accessory_working_set.accessory_state())
-            .clone()
-            .map(|tx| tx.clone())
     }
 }

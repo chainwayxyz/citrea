@@ -21,7 +21,7 @@ use reth_rpc_types::{
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
-    TxEnv, KECCAK_EMPTY,
+    TxEnv,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -474,11 +474,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
-        let code = self
-            .accounts
-            .get(&address, working_set)
-            .and_then(|account| self.code.get(&account.code_hash, working_set))
-            .unwrap_or_default();
+        let account = self.accounts.get(&address, working_set).unwrap_or_default();
+        let code = if let Some(code_hash) = account.code_hash {
+            self.code.get(&code_hash, working_set).unwrap_or_default()
+        } else {
+            Default::default()
+        };
 
         Ok(code.original_bytes())
     }
@@ -968,7 +969,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.transact_to {
                 let to_account = self.accounts.get(&to, working_set).unwrap_or_default();
-                if KECCAK_EMPTY == to_account.code_hash {
+                if to_account.code_hash.is_none() {
                     // If the tx is a simple transfer (call to an account with no code) we can
                     // shortcircuit But simply returning
 

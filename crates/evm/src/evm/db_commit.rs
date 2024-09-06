@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
-use alloy_primitives::Address;
-use reth_primitives::{KECCAK_EMPTY, U256};
+use alloy_primitives::{Address, U256};
 use revm::primitives::{Account, AccountInfo, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
@@ -32,7 +31,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             if account.is_selfdestructed() {
                 info.balance = U256::from(0);
                 info.nonce = 0;
-                info.code_hash = KECCAK_EMPTY;
+                info.code_hash = None;
                 // TODO find mroe efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
@@ -75,5 +74,5 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 }
 
 fn check_account_info_changed(old: &DbAccountInfo, new: &AccountInfo) -> bool {
-    old.balance != new.balance || old.code_hash != new.code_hash || old.nonce != new.nonce
+    old.balance != new.balance || old.code_hash != Some(new.code_hash) || old.nonce != new.nonce
 }

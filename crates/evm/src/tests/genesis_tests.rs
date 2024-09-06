@@ -104,7 +104,7 @@ fn genesis_data() {
         db_account,
         AccountInfo {
             balance: account.balance,
-            code_hash: account.code_hash,
+            code_hash: Some(account.code_hash),
             nonce: account.nonce,
         }
     );
@@ -113,7 +113,7 @@ fn genesis_data() {
         contract_account,
         AccountInfo {
             balance: contract.balance,
-            code_hash: contract.code_hash,
+            code_hash: Some(contract.code_hash),
             nonce: contract.nonce,
         }
     );

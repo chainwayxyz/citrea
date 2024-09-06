@@ -465,7 +465,7 @@ fn self_destruct_test() {
     assert_eq!(die_to_acc.balance, U256::from(contract_balance));
 
     // the codehash should be 0
-    assert_eq!(contract_info.code_hash, KECCAK_EMPTY);
+    assert_eq!(contract_info.code_hash, None);
 
     // the nonce should be 0
     assert_eq!(contract_info.nonce, 0);
