@@ -39,7 +39,7 @@ pub fn main() {
 
     let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>> = StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::new(
+    let mut stf_verifier = StfVerifier::new(
         stf,
         BitcoinVerifier::new(RollupParams {
             reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),

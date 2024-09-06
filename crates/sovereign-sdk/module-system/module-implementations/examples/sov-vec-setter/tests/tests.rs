@@ -37,7 +37,7 @@ fn test_vec_setter_calls() {
     let admin = Address::from([1; 32]);
     let config = VecSetterConfig { admin };
 
-    let vec_setter = VecSetter::default();
+    let mut vec_setter = VecSetter::default();
     vec_setter.genesis(&config, &mut working_set).unwrap();
 
     for (sender, sequencer, call, expected_contents) in test_cases().iter().cloned() {

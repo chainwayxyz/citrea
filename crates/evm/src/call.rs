@@ -31,7 +31,7 @@ pub struct CallMessage {
 impl<C: sov_modules_api::Context> Evm<C> {
     /// Executes system events for the current block and push tx to pending_transactions.
     pub(crate) fn execute_system_events(
-        &self,
+        &mut self,
         system_events: Vec<SystemEvent>,
         l1_fee_rate: u128,
         cfg: EvmChainConfig,
@@ -65,10 +65,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);
 
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
-        let block_number = block_env.number;
+        let block_number = self.block_env.number;
         let tx_results = executor::execute_system_txs(
             db,
-            block_env,
+            self.block_env,
             &system_txs,
             cfg_env,
             &mut citrea_handler_ext,
@@ -77,7 +77,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
 
-        assert!(self.pending_transactions.len(working_set) == 0);
+        assert!(self.pending_transactions.is_empty());
 
         for (tx, result) in system_txs.into_iter().zip(tx_results.into_iter()) {
             let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
@@ -109,14 +109,19 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
                 receipt,
             };
-            self.pending_transactions
-                .push(&pending_transaction, working_set);
+            #[cfg(feature = "native")]
+            {
+                self.native_pending_transactions
+                    .push(&pending_transaction, &mut working_set.accessory_state());
+            }
+
+            self.pending_transactions.push(pending_transaction);
         }
     }
 
     /// Executes a call message.
     pub(crate) fn execute_call(
-        &self,
+        &mut self,
         txs: Vec<RlpEvmTransaction>,
         context: &C,
         working_set: &mut WorkingSet<C>,
@@ -129,21 +134,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
-        let block_env = self
-            .block_env
-            .get(working_set)
-            .expect("Pending block must be set");
-
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&self.block_env, cfg);
 
         let l1_fee_rate = context.l1_fee_rate();
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
 
-        let block_number = block_env.number;
+        let block_number = self.block_env.number;
         let mut cumulative_gas_used = 0;
         let mut log_index_start = 0;
-        if let Some(tx) = self.pending_transactions.last(working_set) {
+
+        if let Some(tx) = self.pending_transactions.last() {
             cumulative_gas_used = tx.receipt.receipt.cumulative_gas_used;
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
@@ -152,7 +153,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let results = executor::execute_multiple_tx(
             evm_db,
-            block_env,
+            self.block_env,
             &users_txs,
             cfg_env,
             &mut citrea_handler_ext,
@@ -198,8 +199,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         receipt,
                     };
 
-                    self.pending_transactions
-                        .push(&pending_transaction, working_set);
+                    #[cfg(feature = "native")]
+                    {
+                        self.native_pending_transactions
+                            .push(&pending_transaction, &mut working_set.accessory_state());
+                    }
+
+                    self.pending_transactions.push(pending_transaction);
                 }
                 // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
                 Err(err) => match err {

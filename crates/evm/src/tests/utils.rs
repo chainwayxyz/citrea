@@ -14,10 +14,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "969d7e2135c5b5ce33d3111f14789b8276941c6ae94467fda5105243be66c9fa"
+        "9fcaf6e03bf17a3372e03c5f3aa293dee54f73545462f82ba7875710da4604d5"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "6deb9a18df7eb41e1f98d2d879482e2f9398d77230dd7074eee5b30ec29704a0"
+        "5a4c1a83d16c771fa4221e0353ef5e2af558dbe11ce429e677914292428dec1c"
     ));
 }
 
@@ -47,7 +47,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
-    let evm = Evm::<C>::default();
+    let mut evm = Evm::<C>::default();
     evm.genesis(config, &mut working_set).unwrap();
 
     let root = commit(working_set, storage.clone());

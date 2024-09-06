@@ -85,7 +85,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         instrument(level = "trace", skip(self, working_set), err, ret)
     )]
     fn begin_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError> {
@@ -100,7 +100,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
 
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, err, ret))]
     fn end_soft_confirmation_hook(
-        &self,
+        &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {

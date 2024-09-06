@@ -1,8 +1,7 @@
-use helpers::C;
-use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins, TotalSupplyResponse};
-use sov_modules_api::default_context::DefaultContext;
+use helpers::{query_total_supply, query_user_balance, C};
+use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins};
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Address, Context, Error, Module, SpecId, WorkingSet};
+use sov_modules_api::{Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 
@@ -12,7 +11,7 @@ pub type Storage = ProverStorage<DefaultStorageSpec, SnapshotManager>;
 
 #[test]
 fn mint_token() {
-    let bank = Bank::<C>::default();
+    let mut bank = Bank::<C>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let empty_bank_config = BankConfig::<C> { tokens: vec![] };
@@ -42,19 +41,7 @@ fn mint_token() {
     // No events at the moment. If there are, needs to be checked
     assert!(working_set.events().is_empty());
 
-    let query_total_supply = |token_address: Address,
-                              working_set: &mut WorkingSet<DefaultContext>|
-     -> Option<u64> {
-        let total_supply: TotalSupplyResponse = bank.supply_of(token_address, working_set).unwrap();
-        total_supply.amount
-    };
-
-    let query_user_balance =
-        |user_address: Address, working_set: &mut WorkingSet<DefaultContext>| -> Option<u64> {
-            bank.get_balance_of(user_address, token_address, working_set)
-        };
-
-    let previous_total_supply = query_total_supply(token_address, &mut working_set);
+    let previous_total_supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(Some(initial_balance), previous_total_supply);
 
     // -----
@@ -74,15 +61,15 @@ fn mint_token() {
         .expect("Failed to mint token");
     assert!(working_set.events().is_empty());
 
-    let total_supply = query_total_supply(token_address, &mut working_set);
+    let total_supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(Some(initial_balance + mint_amount), total_supply);
 
     // check user balance after minting
-    let balance = query_user_balance(new_holder, &mut working_set);
+    let balance = query_user_balance(&bank, new_holder, token_address, &mut working_set);
     assert_eq!(Some(10), balance);
 
     // check original token creation balance
-    let bal = query_user_balance(minter_address, &mut working_set);
+    let bal = query_user_balance(&bank, minter_address, token_address, &mut working_set);
     assert_eq!(Some(100), bal);
 
     // Mint with an un-authorized user
@@ -196,7 +183,7 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &authorized_minter_2_context, &mut working_set)
         .expect("Failed to mint token");
-    let supply = query_total_supply(token_address, &mut working_set);
+    let supply = query_total_supply(&bank, token_address, &mut working_set);
     assert!(working_set.events().is_empty());
     assert_eq!(Some(110), supply);
 
@@ -219,7 +206,7 @@ fn mint_token() {
     let _minted = bank
         .call(mint_message, &authorized_minter_1_context, &mut working_set)
         .expect("Failed to mint token");
-    let supply = query_total_supply(token_address, &mut working_set);
+    let supply = query_total_supply(&bank, token_address, &mut working_set);
     assert!(working_set.events().is_empty());
     assert_eq!(Some(120), supply);
 
@@ -258,7 +245,7 @@ fn mint_token() {
         message_2,
     );
     // assert that the supply is unchanged after the overflow mint
-    let supply = query_total_supply(token_address, &mut working_set);
+    let supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(Some(120), supply);
 
     // Overflow test 2 - total supply
@@ -298,6 +285,6 @@ fn mint_token() {
     );
 
     // assert that the supply is unchanged after the overflow mint
-    let supply = query_total_supply(token_address, &mut working_set);
+    let supply = query_total_supply(&bank, token_address, &mut working_set);
     assert_eq!(Some(120), supply);
 }

@@ -24,7 +24,7 @@ lazy_static! {
 
 #[test]
 fn begin_soft_confirmation_hook_creates_pending_block() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
     let l2_height = 2;
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -40,7 +40,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         timestamp: 54,
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    let pending_block = evm.block_env.get(&mut working_set).unwrap();
+    let pending_block = evm.block_env;
     assert_eq!(
         pending_block,
         BlockEnv {
@@ -56,7 +56,8 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
 
 #[test]
 fn end_soft_confirmation_hook_sets_head() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
     let txs_commitment = *GENESIS_DA_TXS_COMMITMENT;
@@ -78,15 +79,11 @@ fn end_soft_confirmation_hook_sets_head() {
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
-    evm.pending_transactions.push(
-        &create_pending_transaction(B256::from([1u8; 32]), 1),
-        &mut working_set,
-    );
+    evm.pending_transactions
+        .push(create_pending_transaction(B256::from([1u8; 32]), 1));
 
-    evm.pending_transactions.push(
-        &create_pending_transaction(B256::from([2u8; 32]), 2),
-        &mut working_set,
-    );
+    evm.pending_transactions
+        .push(create_pending_transaction(B256::from([2u8; 32]), 2));
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     let head = evm.head.get(&mut working_set).unwrap();
@@ -101,7 +98,7 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "caf80a7442f0e29111864ecbb76a705f428fc4c115825ee14f5a76fdeb78c77e"
+                    "3c83b326074b9430d4899991bbb06b8517315c50ca2cb17c11e1e972afce1b02"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -138,7 +135,7 @@ fn end_soft_confirmation_hook_sets_head() {
 
 #[test]
 fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -157,10 +154,10 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
-    evm.pending_transactions.push(&tx1, &mut working_set);
+    evm.pending_transactions.push(tx1.clone());
 
     let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
-    evm.pending_transactions.push(&tx2, &mut working_set);
+    evm.pending_transactions.push(tx2.clone());
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
@@ -195,7 +192,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
         1
     );
 
-    assert_eq!(evm.pending_transactions.len(&mut working_set), 0);
+    assert_eq!(evm.pending_transactions.len(), 0);
 }
 
 fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
@@ -235,7 +232,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
 
 #[test]
 fn finalize_hook_creates_final_block() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     // hack to get the root hash
     let binding = evm
@@ -262,14 +259,10 @@ fn finalize_hook_creates_final_block() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
-    evm.pending_transactions.push(
-        &create_pending_transaction(B256::from([1u8; 32]), 1),
-        &mut working_set,
-    );
-    evm.pending_transactions.push(
-        &create_pending_transaction(B256::from([2u8; 32]), 2),
-        &mut working_set,
-    );
+    evm.pending_transactions
+        .push(create_pending_transaction(B256::from([1u8; 32]), 1));
+    evm.pending_transactions
+        .push(create_pending_transaction(B256::from([2u8; 32]), 2));
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let root_hash = [99u8; 32];
@@ -353,7 +346,7 @@ fn finalize_hook_creates_final_block() {
 
 #[test]
 fn begin_soft_confirmation_hook_appends_last_block_hashes() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
 
     // hack to get the root hash
     let binding = evm

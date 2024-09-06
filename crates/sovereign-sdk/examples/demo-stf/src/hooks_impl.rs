@@ -82,7 +82,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         SequencerOutcome<<<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address>;
 
     fn begin_soft_confirmation_hook(
-        &self,
+        &mut self,
         _soft_confirmation: &HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationError> {
@@ -91,7 +91,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     }
 
     fn end_soft_confirmation_hook(
-        &self,
+        &mut self,
         _soft_confirmation: HookSoftConfirmationInfo,
         _working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationError> {

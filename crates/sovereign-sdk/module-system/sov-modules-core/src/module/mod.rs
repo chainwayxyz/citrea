@@ -46,7 +46,7 @@ pub trait Module {
     /// Call allows interaction with the module and invokes state changes.
     /// It takes a module defined type and a context as parameters.
     fn call(
-        &self,
+        &mut self,
         _message: Self::CallMessage,
         _context: &Self::Context,
         _working_set: &mut WorkingSet<Self::Context>,

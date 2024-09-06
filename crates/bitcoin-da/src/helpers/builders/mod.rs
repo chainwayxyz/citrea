@@ -7,8 +7,6 @@ mod tests;
 use core::fmt;
 use core::result::Result::Ok;
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::{BufWriter, Write};
 
 use anyhow::anyhow;
 use bitcoin::absolute::LockTime;
@@ -47,7 +45,7 @@ impl fmt::Debug for TxWithId {
 
 // To dump raw da txs into file to recover from a sequencer crash
 pub(crate) trait TxListWithReveal: Serialize {
-    fn reveal_id(&self) -> Txid;
+    fn write_to_file(&self) -> Result<(), anyhow::Error>;
 }
 
 /// Return (tx, leftover_utxos)
@@ -349,11 +347,4 @@ pub fn sign_blob_with_private_key(blob: &[u8], private_key: &SecretKey) -> (Vec<
         sig.serialize_compact().to_vec(),
         public_key.serialize().to_vec(),
     )
-}
-
-pub(crate) fn write_inscription_txs<Txs: TxListWithReveal + Serialize>(txs: &Txs) {
-    let reveal_tx_file = File::create(format!("reveal_{}.tx", txs.reveal_id())).unwrap();
-    let j = serde_json::to_string(&txs).unwrap();
-    let mut reveal_tx_writer = BufWriter::new(reveal_tx_file);
-    reveal_tx_writer.write_all(j.as_bytes()).unwrap();
 }

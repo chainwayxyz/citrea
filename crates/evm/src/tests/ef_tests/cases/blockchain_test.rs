@@ -248,8 +248,8 @@ impl Case for BlockchainTestCase {
                             {
                                 assert_eq!(U256::from(account_state.nonce), account.nonce);
                                 assert_eq!(account_state.balance, account.balance);
-                                assert_eq!(*account_state.code_hash, **account.code);
-                                let db_account = DbAccount::new(evm.accounts.prefix(), address);
+                                assert_eq!(*account_state.code_hash.unwrap(), **account.code);
+                                let db_account = DbAccount::new(address);
                                 for (key, value) in account.storage.iter() {
                                     assert_eq!(
                                         db_account.storage.get(key, &mut working_set),

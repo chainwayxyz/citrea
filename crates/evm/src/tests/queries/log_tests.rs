@@ -64,7 +64,7 @@ fn log_filter_test_at_block_hash() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let l2_height = 2;
@@ -279,7 +279,7 @@ fn log_filter_test_with_range() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 2;
@@ -418,7 +418,7 @@ fn test_log_limits() {
         Some(20 * ETHEREUM_BLOCK_GAS_LIMIT),
     );
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 1;
     let mut l2_height = 2;

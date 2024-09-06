@@ -65,7 +65,7 @@ impl<C: Context, Vm: Zkvm> sov_modules_api::Module for ProverIncentives<C, Vm> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,

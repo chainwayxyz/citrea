@@ -15,16 +15,21 @@ impl From<AccountInfo> for ReVmAccountInfo {
             nonce: info.nonce,
             balance: info.balance,
             code: None,
-            code_hash: info.code_hash,
+            code_hash: info.code_hash.unwrap_or(KECCAK_EMPTY),
         }
     }
 }
 
 impl From<ReVmAccountInfo> for AccountInfo {
     fn from(info: ReVmAccountInfo) -> Self {
+        let code_hash = if info.code_hash != KECCAK_EMPTY {
+            Some(info.code_hash)
+        } else {
+            None
+        };
         Self {
             balance: info.balance,
-            code_hash: info.code_hash,
+            code_hash,
             nonce: info.nonce,
         }
     }
@@ -34,11 +39,7 @@ impl From<AccountInfo> for reth_primitives::Account {
     fn from(acc: AccountInfo) -> Self {
         Self {
             balance: acc.balance,
-            bytecode_hash: if acc.code_hash == KECCAK_EMPTY {
-                None
-            } else {
-                Some(acc.code_hash)
-            },
+            bytecode_hash: acc.code_hash,
             nonce: acc.nonce,
         }
     }

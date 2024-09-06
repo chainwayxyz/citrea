@@ -178,7 +178,7 @@ async fn test_sequencer_commitment_threshold() {
 
     seq_test_client.send_publish_batch_request().await;
 
-    for i in 1..11 {
+    for i in 1..17 {
         for _ in 0..300 {
             let address = Address::random();
             let _pending = seq_test_client
@@ -186,17 +186,19 @@ async fn test_sequencer_commitment_threshold() {
                 .await
                 .unwrap();
         }
+        // give time for mempool to be filled
+        tokio::time::sleep(Duration::from_millis(500)).await;
         seq_test_client.send_publish_batch_request().await;
         wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
-    wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 16, Some(Duration::from_secs(60))).await;
 
     // After block 9/10, the state diff should be large enough to trigger a commitment.
     let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
-    for i in 12..22 {
+    for i in 17..30 {
         for _ in 0..300 {
             let address = Address::random();
             let _pending = seq_test_client
@@ -204,11 +206,13 @@ async fn test_sequencer_commitment_threshold() {
                 .await
                 .unwrap();
         }
+        // give time for mempool to be filled
+        tokio::time::sleep(Duration::from_millis(500)).await;
         seq_test_client.send_publish_batch_request().await;
         wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
-    wait_for_l2_block(&seq_test_client, 21, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 29, Some(Duration::from_secs(60))).await;
 
     // After block 17/18, the state diff should be large enough to trigger a commitment.
     // But the remaining blocks state diff should NOT trigger a third.
