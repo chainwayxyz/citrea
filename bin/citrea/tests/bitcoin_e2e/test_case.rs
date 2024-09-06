@@ -162,6 +162,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 },
                 storage: StorageConfig {
                     path: dbs_dir.join(format!("{}-db", node_kind)),
+                    db_max_open_files: None,
                 },
                 rpc: RpcConfig {
                     bind_port,
@@ -194,6 +195,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 },
                 storage: StorageConfig {
                     path: dbs_dir.join(format!("{}-db", node_kind)),
+                    db_max_open_files: None,
                 },
                 rpc: RpcConfig {
                     bind_port,
@@ -218,6 +220,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 },
                 storage: StorageConfig {
                     path: dbs_dir.join(format!("{}-db", node_kind)),
+                    db_max_open_files: None,
                 },
                 rpc: RpcConfig {
                     bind_port,

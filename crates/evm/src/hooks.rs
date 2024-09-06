@@ -100,6 +100,8 @@ where
             self.execute_system_events(
                 system_events,
                 soft_confirmation_info.l1_fee_rate(),
+                cfg,
+                new_pending_env,
                 working_set,
             );
         }

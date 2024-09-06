@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use jmt::storage::{HasPreimage, TreeReader, TreeWriter};
@@ -6,7 +5,7 @@ use jmt::{KeyHash, Version};
 use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
 use sov_schema_db::SchemaBatch;
 
-use crate::rocks_db_config::gen_rocksdb_options;
+use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, STATE_TABLES};
 use crate::schema::types::StateKey;
 
@@ -40,13 +39,13 @@ impl<Q> StateDB<Q> {
     const DB_NAME: &'static str = "state-db";
 
     /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.
-    pub fn setup_schema_db(path: impl AsRef<Path>) -> anyhow::Result<sov_schema_db::DB> {
-        let state_db_path = path.as_ref().join(Self::DB_PATH_SUFFIX);
+    pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
+        let state_db_path = cfg.path.join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
             state_db_path,
             Self::DB_NAME,
             STATE_TABLES.iter().copied(),
-            &gen_rocksdb_options(&Default::default(), false),
+            &cfg.as_rocksdb_options(false),
         )
     }
 

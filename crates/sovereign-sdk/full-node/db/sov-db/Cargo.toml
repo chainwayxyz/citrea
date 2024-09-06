@@ -28,6 +28,7 @@ byteorder = { workspace = true, default-features = true }
 hex = { workspace = true }
 proptest = { workspace = true, optional = true, default-features = true }
 proptest-derive = { workspace = true, optional = true }
+rlimit ={ workspace = true }
 rocksdb = { workspace = true }
 serde = { workspace = true, default-features = true, features = ["rc"] }
 tempfile = { workspace = true, optional = true }

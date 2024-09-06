@@ -8,4 +8,6 @@ use std::path::PathBuf;
 pub struct Config {
     /// Path to folder where storage files will be stored.
     pub path: PathBuf,
+    /// File descriptor limit for RocksDB
+    pub db_max_open_files: Option<i32>,
 }
