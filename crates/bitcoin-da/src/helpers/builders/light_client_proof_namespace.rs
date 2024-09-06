@@ -1,8 +1,11 @@
 use core::result::Result::Ok;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
+use bitcoin::consensus::encode::serialize;
 use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
@@ -10,7 +13,7 @@ use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
-use bitcoin::{Address, Network, Transaction, Txid};
+use bitcoin::{Address, Network, Transaction};
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -18,6 +21,7 @@ use super::{
     build_commit_transaction, build_reveal_transaction, get_size_reveal,
     sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal, TxWithId,
 };
+use crate::helpers::get_workspace_root;
 use crate::spec::utxo::UTXO;
 use crate::MAX_TXBODY_SIZE;
 
@@ -37,10 +41,47 @@ pub(crate) enum LightClientTxs {
 }
 
 impl TxListWithReveal for LightClientTxs {
-    fn reveal_id(&self) -> Txid {
+    fn write_to_file(&self) -> Result<(), anyhow::Error> {
+        let ws_root = get_workspace_root();
+        let mut path = ws_root.to_path_buf();
+        path.push("resources");
+        path.push("bitcoin");
+        path.push("inscription_txs");
+
         match self {
-            Self::Complete { reveal, .. } => reveal.id,
-            Self::Chunked { reveal, .. } => reveal.id,
+            Self::Complete { commit, reveal } => {
+                path.push(format!(
+                    "complete_light_client_inscription_with_reveal_id_{}.txs",
+                    reveal.id
+                ));
+                let file = File::create(path)?;
+                let mut writer: BufWriter<&File> = BufWriter::new(&file);
+                writer.write_all(&serialize(commit))?;
+                writer.write_all(&serialize(&reveal.tx))?;
+                writer.flush()?;
+                Ok(())
+            }
+            Self::Chunked {
+                commit_chunks,
+                reveal_chunks,
+                commit,
+                reveal,
+            } => {
+                path.push(format!(
+                    "chunked_light_client_inscription_with_reveal_id_{}.txs",
+                    reveal.id
+                ));
+                let file = File::create(path)?;
+                let mut writer = BufWriter::new(&file);
+                for (commit_chunk, reveal_chunk) in commit_chunks.iter().zip(reveal_chunks.iter()) {
+                    writer.write_all(&serialize(commit_chunk))?;
+                    writer.write_all(&serialize(reveal_chunk))?;
+                }
+                writer.write_all(&serialize(commit))?;
+                writer.write_all(&serialize(&reveal.tx))?;
+                writer.flush()?;
+                Ok(())
+            }
         }
     }
 }

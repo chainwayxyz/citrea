@@ -1,8 +1,11 @@
 use core::result::Result::Ok;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
 use bitcoin::blockdata::script;
+use bitcoin::consensus::encode::serialize;
 use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
@@ -10,7 +13,7 @@ use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
-use bitcoin::{Address, Network, Transaction, Txid};
+use bitcoin::{Address, Network, Transaction};
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -18,6 +21,7 @@ use super::{TransactionKindBatchProof, TxListWithReveal, TxWithId};
 use crate::helpers::builders::{
     build_commit_transaction, build_reveal_transaction, get_size_reveal, sign_blob_with_private_key,
 };
+use crate::helpers::get_workspace_root;
 use crate::spec::utxo::UTXO;
 
 /// This is a list of batch proof tx we need to send to DA (only SequencerCommitment for now)
@@ -28,8 +32,22 @@ pub(crate) struct BatchProvingTxs {
 }
 
 impl TxListWithReveal for BatchProvingTxs {
-    fn reveal_id(&self) -> Txid {
-        self.reveal.id
+    fn write_to_file(&self) -> Result<(), anyhow::Error> {
+        let mut path = get_workspace_root();
+        path.push("resources");
+        path.push("bitcoin");
+        path.push("inscription_txs");
+        path.push(format!(
+            "chunked_light_client_inscription_with_reveal_id_{}.txs",
+            self.reveal.id
+        ));
+
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(&file);
+        writer.write_all(&serialize(&self.commit))?;
+        writer.write_all(&serialize(&self.reveal.tx))?;
+        writer.flush()?;
+        Ok(())
     }
 }
 

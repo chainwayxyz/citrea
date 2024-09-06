@@ -34,7 +34,7 @@ use crate::helpers::builders::batch_proof_namespace::{
 use crate::helpers::builders::light_client_proof_namespace::{
     create_zkproof_transactions, LightClientTxs,
 };
-use crate::helpers::builders::{write_inscription_txs, TxWithId};
+use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
@@ -339,7 +339,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                write_inscription_txs(&inscription_txs);
+                inscription_txs.write_to_file()?;
 
                 match inscription_txs {
                     LightClientTxs::Complete { commit, reveal } => {
@@ -374,7 +374,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                write_inscription_txs(&inscription_txs);
+                inscription_txs.write_to_file()?;
 
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
 
