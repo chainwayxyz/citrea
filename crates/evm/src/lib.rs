@@ -76,7 +76,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
-    #[state]
+    #[state(rename = "c")]
     pub(crate) code:
         sov_modules_api::StateMap<reth_primitives::B256, revm::primitives::Bytecode, BcsCodec>,
 
