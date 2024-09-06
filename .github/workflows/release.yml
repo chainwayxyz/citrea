@@ -33,10 +33,7 @@ jobs:
 
       - name: Install Cargo Risczero
         run: |
-          cargo binstall -y cargo-risczero
-          cargo risczero install --version v2024-04-22.0
-          # TODO: do below on testnet launch
-          # curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
+          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
 
       - name: Build Project
         env:
@@ -81,8 +78,7 @@ jobs:
       - name: Install Cargo Risczero
         run: |
           source $HOME/.cargo/env
-          cargo binstall -y cargo-risczero
-          cargo risczero install --version v2024-04-22.0
+          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
 
       - name: Build Project
         env:
