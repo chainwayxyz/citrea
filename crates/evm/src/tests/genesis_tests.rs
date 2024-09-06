@@ -104,7 +104,7 @@ fn genesis_data() {
         db_account,
         AccountInfo {
             balance: account.balance,
-            code_hash: Some(account.code_hash),
+            code_hash: None,
             nonce: account.nonce,
         }
     );

@@ -101,11 +101,21 @@ fn call_multiple_test() {
 
     let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
 
-    // Make sure the db account size is 74 bytes
+    // Make sure the contract db account size is 75 bytes
     let db_account_len = bcs::to_bytes(&account_info)
         .expect("Failed to serialize value")
         .len();
-    assert_eq!(db_account_len, 74);
+    assert_eq!(db_account_len, 75);
+
+    let eoa_account_info = evm
+        .accounts
+        .get(&dev_signer1.address(), &mut working_set)
+        .unwrap();
+    // Make sure the eoa db account size is 42 bytes
+    let db_account_len = bcs::to_bytes(&eoa_account_info)
+        .expect("Failed to serialize value")
+        .len();
+    assert_eq!(db_account_len, 42);
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
@@ -128,7 +138,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 539,
+                l1_diff_size: 567,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -139,7 +149,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -150,7 +160,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -161,7 +171,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             }
         ]
     )
@@ -238,7 +248,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 539,
+                l1_diff_size: 567,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -249,7 +259,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             }
         ]
     )
@@ -440,10 +450,8 @@ fn self_destruct_test() {
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
-    let contract_info = evm
-        .accounts
-        .get(&contract_addr, &mut working_set)
-        .expect("contract address should exist");
+    // we now delete destructed accounts from storage
+    assert_eq!(evm.accounts.get(&contract_addr, &mut working_set), None);
 
     let die_to_acc = evm
         .accounts
@@ -458,17 +466,8 @@ fn self_destruct_test() {
     // the tx should be a success
     assert!(receipts[0].receipt.success);
 
-    // after self destruct, contract balance should be 0,
-    assert_eq!(contract_info.balance, U256::from(0));
-
     // the to address balance should be equal to contract balance
     assert_eq!(die_to_acc.balance, U256::from(contract_balance));
-
-    // the codehash should be 0
-    assert_eq!(contract_info.code_hash, None);
-
-    // the nonce should be 0
-    assert_eq!(contract_info.nonce, 0);
 
     let db_account = DbAccount::new(contract_addr);
 
@@ -977,7 +976,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 451,
+                l1_diff_size: 479,
             },]
         )
     }
@@ -994,11 +993,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 451 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 479 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(451 + L1_FEE_OVERHEAD as u64),
+        U256::from(479 + L1_FEE_OVERHEAD as u64),
     );
 }
 
@@ -1151,7 +1150,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 419,
+                l1_diff_size: 447,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1162,7 +1161,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 111,
+                l1_diff_size: 96,
             },
         ]
     );
@@ -1173,8 +1172,8 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        419  + // l1 contract deploy fee
-        111  + // l1 contract call fee
+        447  + // l1 contract deploy fee
+        96  + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.balance,
@@ -1190,6 +1189,6 @@ fn test_l1_fee_halt() {
     assert_eq!(base_fee_valut.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
         l1_fee_valut.balance,
-        U256::from(419 + 111 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(447 + 96 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
