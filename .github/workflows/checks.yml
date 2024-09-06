@@ -82,13 +82,10 @@ jobs:
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
         env:
+          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
@@ -119,13 +116,10 @@ jobs:
           override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
         env:
+          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
         env:
@@ -157,12 +151,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+        env:
+          XDG_CONFIG_HOME: "."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
@@ -172,6 +165,7 @@ jobs:
         run: make coverage
         env:
           RUST_BACKTRACE: 1
+          USE_DOCKER: "true"
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -191,13 +185,10 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - uses: dcarbone/install-jq-action@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
         env:
+          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
         run: make build
@@ -236,13 +227,10 @@ jobs:
       - uses: actions/setup-python@v4
       - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
         env:
+          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/cache@v3
         with:
@@ -275,13 +263,10 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - uses: dcarbone/install-jq-action@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
         env:
+          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
         run: make build
@@ -343,14 +328,13 @@ jobs:
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
         env:
+          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: make build
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
@@ -365,6 +349,7 @@ jobs:
           REPR_GUEST_BUILD: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+          USE_DOCKER: "true"
 
   system-contracts:
     strategy:

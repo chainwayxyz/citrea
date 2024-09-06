@@ -2,7 +2,6 @@
 #![doc = include_str!("../README.md")]
 
 use borsh::BorshDeserialize;
-use citrea_primitives::fork::ForkManager;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -17,7 +16,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::fork::Fork;
+use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
@@ -278,7 +277,7 @@ where
         // verify signature
         if verify_soft_confirmation_signature::<C>(
             unsigned,
-            soft_confirmation.signature().as_slice(),
+            soft_confirmation.signature_as_ref(),
             sequencer_public_key,
         )
         .is_err()

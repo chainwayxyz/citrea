@@ -9,7 +9,8 @@ use sov_rollup_interface::zk::{Proof, StateTransitionData};
 use thiserror::Error;
 
 /// The possible configurations of the prover.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ProverGuestRunConfig {
     /// Skip proving.
     Skip,

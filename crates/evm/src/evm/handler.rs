@@ -23,11 +23,45 @@ use tracing::instrument;
 use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
-const DB_ACCOUNT_SIZE: usize = 256;
+const DB_ACCOUNT_SIZE: usize = 74;
 
-// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
-// But we already add address size to diff size, so we don't need to add it here
+/// Normally db account key is: 24 bytes of prefix + 1 byte for size of remaining data + 20 bytes of address = 45 bytes
+/// But we already add address size to diff size, so we don't need to add it here
 const DB_ACCOUNT_KEY_SIZE: usize = 25;
+
+/// Storage key is 77 bytes because of sov sdk prefix
+const STORAGE_KEY_SIZE: usize = 77;
+
+/// Storage value is 33 bytes because of 1 extra byte of size descriptor at the beginning of the value of StateMap
+const STORAGE_VALUE_SIZE: usize = 33;
+
+/// We write data to da besides account and code data like block hashes, pending transactions and some other state variables that are in modules: evm, soft_confirmation_rule_enforcer and sov_accounts
+/// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
+/// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 soft confirmations
+/// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
+pub const L1_FEE_OVERHEAD: usize = 4;
+
+/// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
+/// So we calculate the state diff created by a single transaction and use that to charge user
+/// However at the time of the batch proof some state diffs will be merged and some users will be overcharged.
+/// To tackle this we calculated statistics on the ratio between the merged state diff and unique changes vs total changes
+/*
+Let's consider a batch of 1 block with the following transactions:
+
+    Block 1:
+        Transaction 1: Account A transfers balance to Account C
+        Transaction 2: Account B transfers balance to Account C
+
+    In this account A and B pays for the balance state diff of C, but at the end of the batch the diffs are merged and there is one state diff for C
+    So A and B should share that cost
+    So the ratio would be something like this in this simple scenario:
+    3 unique balance slots (A,B,C) / 4 total changes (A,B,C,C) = 3/4 = 0.75
+    If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
+*/
+/// Nonce and balance are stored together so we use single constant
+const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
+const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
+const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -358,7 +392,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
         let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
         let l1_fee_rate = context.external.l1_fee_rate();
-        let l1_fee = U256::from(diff_size) * U256::from(l1_fee_rate);
+        let l1_fee =
+            U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
         context.external.set_tx_info(TxInfo {
             l1_diff_size: diff_size,
             l1_fee,
@@ -457,7 +492,7 @@ fn calc_diff_size<EXT, DB: Database>(
         "Total accounts for diff size"
     );
 
-    let slot_size = 2 * size_of::<U256>(); // key + value;
+    let slot_size = (STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE) * STORAGE_DISCOUNTED_PERCENTAGE / 100; // key + value;
     let mut diff_size = 0usize;
 
     // no matter the type of transaction or its fee rates, a tx must pay at least base fee and L1 fee
@@ -469,15 +504,15 @@ fn calc_diff_size<EXT, DB: Database>(
 
     for (addr, account) in account_changes {
         // Apply size of address of changed account
-        diff_size += size_of::<Address>();
+        diff_size += size_of::<Address>() * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
 
         if account.destroyed {
             let account = &state[addr];
             diff_size += slot_size * account.storage.len(); // Storage size
 
             // All the nonce, balance and code_hash fields are updated and written to the state with DbAccount
-            diff_size += DB_ACCOUNT_SIZE; // DbAccount size
-            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
+            diff_size +=
+                (DB_ACCOUNT_SIZE + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
 
             // Retrieve code from DB and apply its size
             if let Some(info) = db.basic(*addr)? {
@@ -491,13 +526,12 @@ fn calc_diff_size<EXT, DB: Database>(
             continue;
         }
 
-        // dev signer address 0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773
         // we don't check `code_changed` bc account_info is changed always for code_changed
         if account.account_info_changed || account.code_changed {
             // DbAccount size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size += DB_ACCOUNT_SIZE;
-            diff_size += DB_ACCOUNT_KEY_SIZE; // DbAccount key size
+            diff_size +=
+                (DB_ACCOUNT_SIZE + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots

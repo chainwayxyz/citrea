@@ -1,7 +1,7 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerConfig {
     /// Private key of the sequencer
     pub private_key: String,
@@ -19,9 +19,24 @@ pub struct SequencerConfig {
     pub block_production_interval_ms: u64,
 }
 
+impl Default for SequencerConfig {
+    fn default() -> Self {
+        SequencerConfig {
+            private_key: "1212121212121212121212121212121212121212121212121212121212121212"
+                .to_string(),
+            min_soft_confirmations_per_commitment: 10,
+            test_mode: true,
+            deposit_mempool_fetch_limit: 10,
+            block_production_interval_ms: 100,
+            da_update_interval_ms: 100,
+            mempool_conf: Default::default(),
+        }
+    }
+}
+
 /// Mempool Config for the sequencer
 /// Read: https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SequencerMempoolConfig {
     /// Max number of transactions in the pending sub-pool
     pub pending_tx_limit: u64,

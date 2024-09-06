@@ -133,7 +133,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
 /// Check if the sequencer triggers a commitment after a certain state diff size since it's last commitment.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_commitment_threshold() {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::INFO);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -147,7 +147,7 @@ async fn test_sequencer_commitment_threshold() {
         create_default_sequencer_config(min_soft_confirmations_per_commitment, Some(true), 10);
 
     sequencer_config.mempool_conf = SequencerMempoolConfig {
-        max_account_slots: 1000,
+        max_account_slots: 4000,
         ..Default::default()
     };
 
@@ -178,8 +178,8 @@ async fn test_sequencer_commitment_threshold() {
 
     seq_test_client.send_publish_batch_request().await;
 
-    for _ in 0..10 {
-        for _ in 0..100 {
+    for i in 1..11 {
+        for _ in 0..300 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -187,16 +187,17 @@ async fn test_sequencer_commitment_threshold() {
                 .unwrap();
         }
         seq_test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
     wait_for_l2_block(&seq_test_client, 11, Some(Duration::from_secs(60))).await;
 
-    // At block 725, the state diff should be large enough to trigger a commitment.
+    // After block 9/10, the state diff should be large enough to trigger a commitment.
     let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
-    for _ in 0..10 {
-        for _ in 0..100 {
+    for i in 12..22 {
+        for _ in 0..300 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -204,12 +205,13 @@ async fn test_sequencer_commitment_threshold() {
                 .unwrap();
         }
         seq_test_client.send_publish_batch_request().await;
+        wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
     wait_for_l2_block(&seq_test_client, 21, Some(Duration::from_secs(60))).await;
 
-    // At block 1450, the state diff should be large enough to trigger a commitment.
-    // But the 50 remaining blocks state diff should NOT trigger a third.
+    // After block 17/18, the state diff should be large enough to trigger a commitment.
+    // But the remaining blocks state diff should NOT trigger a third.
     let commitments = wait_for_commitment(&da_service, 3, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
@@ -241,7 +243,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 768641461;
+    let second_block_base_fee = 767970154;
 
     let _pending = seq_test_client
         .send_eth(
@@ -264,7 +266,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
         random_wallet_address,
         seq_test_client.rpc_addr,
     )
-    .await;
+    .await?;
 
     let tx = random_test_client
         .send_eth_with_gas(
@@ -338,7 +340,7 @@ async fn test_gas_limit_too_high() {
 
     let target_gas_limit: u64 = 30_000_000;
     let transfer_gas_limit = 21_000;
-    let system_txs_gas_used = 390434;
+    let system_txs_gas_used = 300621;
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
@@ -374,7 +376,7 @@ async fn test_gas_limit_too_high() {
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
+    let seq_test_client = make_test_client(seq_port).await.unwrap();
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
@@ -398,7 +400,7 @@ async fn test_gas_limit_too_high() {
     });
 
     let full_node_port = full_node_port_rx.await.unwrap();
-    let full_node_test_client = make_test_client(full_node_port).await;
+    let full_node_test_client = make_test_client(full_node_port).await.unwrap();
 
     let mut tx_hashes = vec![];
     // Loop until tx_count.
@@ -515,29 +517,29 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await;
-    // sys tx use L1BlockHash(50751 + 80720) + Bridge(261215) = 392686 gas
+    let seq_test_client = make_test_client(seq_port).await?;
+    // sys tx use L1BlockHash(50751 + 80720) + Bridge(169150) = 300621 gas
     // the block gas limit is 1_500_000 because the system txs gas limit is 1_500_000 (decided with @eyusufatik and @okkothejawa as bridge init takes 1M gas)
 
-    // 1500000 - 392686 = 1107314 gas left in block
-    // 1107314 / 21000 = 52,72... so 52 ether transfer transactions can be included in the block
+    // 1500000 - 300621 = 1177464 gas left in block
+    // 1107314 / 21000 = 57.13... so 57 ether transfer transactions can be included in the block
 
-    // send 52 ether transfer transactions
+    // send 57 ether transfer transactions
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    for _ in 0..51 {
+    for _ in 0..56 {
         let _pending = seq_test_client
             .send_eth(addr, None, None, None, 0u128)
             .await
             .unwrap();
     }
 
-    // 52th tx should be the last tx in the soft confirmation
+    // 57th tx should be the last tx in the soft confirmation
     let last_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;
 
-    // 53th tx should not be in soft confirmation
+    // 58th tx should not be in soft confirmation
     let not_in_tx = seq_test_client
         .send_eth(addr, None, None, None, 0u128)
         .await;

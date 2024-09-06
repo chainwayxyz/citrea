@@ -2614,7 +2614,6 @@ dependencies = [
  "borsh",
  "derive_more",
  "digest 0.10.7",
- "hashbrown 0.14.5",
  "hex",
  "jmt",
  "schemars",
@@ -2642,7 +2641,6 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
- "citrea-primitives",
  "hex",
  "itertools 0.13.0",
  "jmt",
@@ -2713,9 +2711,7 @@ version = "0.4.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
- "citrea-primitives",
  "hex",
- "num_cpus",
  "serde",
  "serde_json",
  "sov-modules-api",

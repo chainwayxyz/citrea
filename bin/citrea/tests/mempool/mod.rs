@@ -40,7 +40,7 @@ async fn initialize_test(
     });
 
     let seq_port = seq_port_rx.await.unwrap();
-    let test_client = make_test_client(seq_port).await;
+    let test_client = make_test_client(seq_port).await.unwrap();
 
     (seq_task, test_client)
 }
@@ -161,7 +161,9 @@ async fn test_order_by_fee() {
         .with_chain_id(Some(chain_id));
     let poor_addr = key.address();
 
-    let poor_test_client = TestClient::new(chain_id, key, poor_addr, test_client.rpc_addr).await;
+    let poor_test_client = TestClient::new(chain_id, key, poor_addr, test_client.rpc_addr)
+        .await
+        .unwrap();
 
     let _addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 

@@ -50,6 +50,12 @@ Run Bitcoin Regtest:
 bitcoind -regtest -txindex=1
 ```
 
+Or using docker:
+
+```sh
+docker compose -f docker-compose.regtest.yml up
+```
+
 Keep this terminal open.
 
 Create bitcoin wallet for Bitcoin DA adapter.

@@ -19,7 +19,6 @@ futures = { workspace = true, optional = true }
 hex = { workspace = true }
 hyper = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
-num_cpus = { workspace = true }
 rand = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -33,9 +32,6 @@ tracing = { workspace = true, optional = true }
 sov-db = { path = "../db/sov-db", optional = true }
 sov-modules-api = { path = "../../module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../../rollup-interface" }
-
-# Citrea-Deps
-citrea-primitives = { path = "../../../primitives" }
 
 [dev-dependencies]
 sha2 = { workspace = true }

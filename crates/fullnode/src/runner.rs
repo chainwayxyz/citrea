@@ -6,7 +6,6 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
-use citrea_primitives::fork::ForkManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -22,8 +21,10 @@ use sov_db::schema::types::{
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaData, DaSpec, SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec,
+    SequencerCommitment,
 };
+use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -336,8 +337,8 @@ where
 
     async fn process_sequencer_commitment(
         &self,
-        l1_block: Da::FilteredBlock,
-        sequencer_commitment: SequencerCommitment,
+        l1_block: &Da::FilteredBlock,
+        sequencer_commitment: &SequencerCommitment,
     ) -> Result<(), SyncError> {
         let start_l2_height = sequencer_commitment.l2_start_block_number;
         let end_l2_height = sequencer_commitment.l2_end_block_number;
@@ -385,21 +386,20 @@ where
                 hex::encode(sequencer_commitment.merkle_root)
             )
             .into());
-        } else {
-            self.ledger_db.update_commitments_on_da_slot(
-                l1_block.header().height(),
-                sequencer_commitment.clone(),
-            )?;
-
-            for i in start_l2_height..=end_l2_height {
-                self.ledger_db.put_soft_confirmation_status(
-                    BatchNumber(i),
-                    SoftConfirmationStatus::Finalized,
-                )?;
-            }
-            self.ledger_db
-                .set_last_commitment_l2_height(BatchNumber(end_l2_height))?;
         }
+
+        self.ledger_db.update_commitments_on_da_slot(
+            l1_block.header().height(),
+            sequencer_commitment.clone(),
+        )?;
+
+        for i in start_l2_height..=end_l2_height {
+            self.ledger_db
+                .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Finalized)?;
+        }
+        self.ledger_db
+            .set_last_commitment_l2_height(BatchNumber(end_l2_height))?;
+
         Ok(())
     }
 
@@ -545,7 +545,13 @@ where
                 .unwrap();
 
             let (sequencer_commitments, zk_proofs) =
-                self.extract_relevant_l1_data(l1_block.clone());
+                match self.extract_relevant_l1_data(l1_block.clone()).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Could not process L1 block: {}...skipping", e);
+                        return;
+                    }
+                };
 
             for zk_proof in zk_proofs.clone().iter() {
                 if let Err(e) = self
@@ -566,7 +572,7 @@ where
 
             for sequencer_commitment in sequencer_commitments.clone().iter() {
                 if let Err(e) = self
-                    .process_sequencer_commitment(l1_block.clone(), sequencer_commitment.clone())
+                    .process_sequencer_commitment(l1_block, sequencer_commitment)
                     .await
                 {
                     match e {
@@ -585,22 +591,37 @@ where
         }
     }
 
-    fn extract_relevant_l1_data(
+    async fn extract_relevant_l1_data(
         &self,
         l1_block: Da::FilteredBlock,
-    ) -> (Vec<SequencerCommitment>, Vec<Proof>) {
+    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<Proof>)> {
         let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
         let mut zk_proofs = Vec::<Proof>::new();
+
+        self.da_service
+            .extract_relevant_proofs(&l1_block, &self.prover_da_pub_key)
+            .await?
+            .into_iter()
+            .for_each(|data| match data {
+                DaDataLightClient::ZKProof(proof) => {
+                    zk_proofs.push(proof);
+                }
+            });
 
         self.da_service
             .extract_relevant_blobs(&l1_block)
             .into_iter()
             .for_each(|mut tx| {
-                let data = DaData::try_from_slice(tx.full_data());
+                let data = DaDataBatchProof::try_from_slice(tx.full_data());
                 // Check for commitment
                 if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                    if let Ok(DaData::SequencerCommitment(seq_com)) = data {
-                        sequencer_commitments.push(seq_com);
+                    if let Ok(data) = data {
+                        match data {
+                            // TODO: This is where force transactions will land
+                            DaDataBatchProof::SequencerCommitment(seq_com) => {
+                                sequencer_commitments.push(seq_com);
+                            }
+                        }
                     } else {
                         tracing::warn!(
                             "Found broken DA data in block 0x{}: {:?}",
@@ -608,25 +629,9 @@ where
                             data
                         );
                     }
-                }
-                let data = DaData::try_from_slice(tx.full_data());
-                // Check for proof
-                if tx.sender().as_ref() == self.prover_da_pub_key.as_slice() {
-                    if let Ok(DaData::ZKProof(proof)) = data {
-                        zk_proofs.push(proof);
-                    } else {
-                        tracing::warn!(
-                            "Found broken DA data in block 0x{}: {:?}",
-                            hex::encode(l1_block.hash()),
-                            data
-                        );
-                    }
-                } else {
-                    warn!("Force transactions are not implemented yet");
-                    // TODO: This is where force transactions will land - try to parse DA data force transaction
                 }
             });
-        (sequencer_commitments, zk_proofs)
+        Ok((sequencer_commitments, zk_proofs))
     }
 
     /// Allows to read current state root

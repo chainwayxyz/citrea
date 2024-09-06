@@ -7,6 +7,7 @@ EF_TESTS_DIR := crates/evm/ethereum-tests
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+.PHONY: build
 build: ## Build the project
 	@cargo build
 
@@ -20,11 +21,12 @@ clean-node: ## Cleans local dbs needed for sequencer and nodes
 	rm -rf resources/dbs/sequencer-db
 	rm -rf resources/dbs/prover-db
 	rm -rf resources/dbs/full-node-db
+	rm -rf resources/dbs/citrea-bitcoin-regtest-data
 
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: $(EF_TESTS_DIR) ## Runs test suite using next test
+test: build $(EF_TESTS_DIR) ## Runs test suite using next test
 	@cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
@@ -35,12 +37,8 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
 	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall cargo-risczero
-ifeq ($(shell uname -ms), Darwin x86_64)
-	cargo risczero build-toolchain
-else
-	cargo risczero install --version r0.1.79.0
-endif
+	curl -L https://risczero.com/install | bash
+	~/.risc0/bin/rzup -v 1.0.5
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
 	cargo install cargo-llvm-cov
@@ -75,7 +73,7 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
-coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
+coverage: build $(EF_TESTS_DIR) ## Coverage in lcov format
 	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format

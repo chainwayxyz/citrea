@@ -6,7 +6,6 @@ mod constants;
 mod da;
 #[cfg(feature = "native")]
 mod error;
-pub mod fork;
 pub mod forks;
 pub mod types;
 #[cfg(feature = "native")]
