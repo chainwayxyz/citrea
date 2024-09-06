@@ -197,7 +197,7 @@ async fn test_all_flow() {
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(3)
+        .ledger_get_proofs_by_slot_height(3)
         .await[0]
         .clone();
 
@@ -295,7 +295,7 @@ async fn test_all_flow() {
     assert_eq!(commitments.len(), 1);
 
     let prover_proof_data = prover_node_test_client
-        .ledger_get_proof_by_slot_height(5)
+        .ledger_get_proofs_by_slot_height(5)
         .await[0]
         .clone();
 

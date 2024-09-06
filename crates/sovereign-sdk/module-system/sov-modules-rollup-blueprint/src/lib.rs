@@ -10,6 +10,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
 use sov_rollup_interface::services::da::DaService;
@@ -125,7 +126,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Self::StorageManager, anyhow::Error>;
 
     /// Creates instance of a LedgerDB.
-    fn create_ledger_db(&self, rollup_config: &FullNodeConfig<Self::DaConfig>) -> LedgerDB {
-        LedgerDB::with_path(&rollup_config.storage.path).expect("Ledger DB failed to open")
+    fn create_ledger_db(&self, rocksdb_config: &RocksdbConfig) -> LedgerDB {
+        LedgerDB::with_config(rocksdb_config).expect("Ledger DB failed to open")
     }
 }

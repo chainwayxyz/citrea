@@ -146,7 +146,7 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proof_by_slot_height(3)
+        .ledger_get_proofs_by_slot_height(3)
         .await[0]
         .clone();
 

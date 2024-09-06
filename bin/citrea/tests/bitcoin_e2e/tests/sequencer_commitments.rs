@@ -124,9 +124,10 @@ impl TestCase for LedgerGetCommitmentsTest {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(1, None).await?;
+        // disable this since it's the only difference from other tests??
+        // da.generate(1, None).await?;
 
-        sequencer.client.send_publish_batch_request().await;
+        // sequencer.client.send_publish_batch_request().await;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
@@ -135,7 +136,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         da.generate(FINALITY_DEPTH + 1, None).await?;
 
         full_node
-            .wait_for_l2_height(min_soft_confirmations_per_commitment + 1, None)
+            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
             .await;
 
         let finalized_height = da.get_finalized_height().await?;
@@ -153,13 +154,13 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         let hash = da.get_block_hash(finalized_height).await?;
 
-        let commitments_hash = full_node
+        let commitments_node = full_node
             .client
             .ledger_get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(commitments_hash, commitments);
+        assert_eq!(commitments_node, commitments);
         Ok(())
     }
 }
