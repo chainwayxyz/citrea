@@ -258,6 +258,12 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         let finalized_height = da.get_finalized_height().await?;
 
+        prover
+            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
+            .await;
+
+        da.generate(1 + FINALITY_DEPTH, None).await?;
+
         let proofs = full_node
             .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
             .await
