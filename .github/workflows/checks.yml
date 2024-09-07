@@ -83,7 +83,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install cargo-risczero 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
