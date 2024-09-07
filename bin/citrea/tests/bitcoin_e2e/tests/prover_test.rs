@@ -155,6 +155,12 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             node_password: da_config.rpc_password.clone(),
             network: bitcoin::Network::Regtest,
             da_private_key: Some(
+                // This is the private key used by the sequencer.
+                // This is because the prover has a check to make sure that the commitment was
+                // submitted by the sequencer and NOT any other key. Which means that arbitrary keys
+                // CANNOT submit preproven commitments.
+                // Using the sequencer DA private key means that we simulate the fact that the sequencer
+                // somehow resubmitted the same commitment.
                 "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D".to_owned(),
             ),
         };
