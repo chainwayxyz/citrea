@@ -83,7 +83,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -117,7 +117,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -152,7 +152,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -186,7 +186,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - uses: dcarbone/install-jq-action@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -228,7 +228,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -264,7 +264,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - uses: dcarbone/install-jq-action@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --version 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -329,7 +329,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --help; ~/.risc0/bin/rzup install -v 1.0.5;
+        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ~/.risc0/bin/rzup install --help; ~/.risc0/bin/rzup install 1.0.5;
         env:
           XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
