@@ -77,6 +77,8 @@ pub struct BitcoinServiceConfig {
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
+
+    pub require_wallet_check: bool,
 }
 
 pub const FINALITY_DEPTH: u64 = 4; // blocks

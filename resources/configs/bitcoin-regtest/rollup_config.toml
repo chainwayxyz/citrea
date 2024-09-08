@@ -11,6 +11,7 @@ node_username = ""
 # fill here
 node_password = ""
 network = "regtest"
+require_wallet_check = false
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
