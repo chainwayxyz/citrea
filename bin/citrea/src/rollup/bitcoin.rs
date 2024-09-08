@@ -120,7 +120,7 @@ impl RollupBlueprint for BitcoinRollup {
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
 
-        let service = Arc::new(
+        let bitcoin_service = if rollup_config.da.require_wallet_check {
             BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
@@ -129,8 +129,19 @@ impl RollupBlueprint for BitcoinRollup {
                 },
                 tx,
             )
-            .await?,
-        );
+            .await?
+        } else {
+            BitcoinService::new_without_wallet_check(
+                rollup_config.da.clone(),
+                RollupParams {
+                    reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+                    reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+                },
+                tx,
+            )
+            .await?
+        };
+        let service = Arc::new(bitcoin_service);
 
         Arc::clone(&service).spawn_da_queue(rx);
 

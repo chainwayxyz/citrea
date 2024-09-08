@@ -122,6 +122,33 @@ impl BitcoinService {
         })
     }
 
+    pub async fn new_without_wallet_check(
+        config: BitcoinServiceConfig,
+        chain_params: RollupParams,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        let client = Client::new(
+            &config.node_url,
+            Auth::UserPass(config.node_username, config.node_password),
+        )
+        .await?;
+
+        let da_private_key = config
+            .da_private_key
+            .map(|pk| SecretKey::from_str(&pk))
+            .transpose()
+            .context("Invalid private key")?;
+
+        Ok(Self {
+            client,
+            network: config.network,
+            da_private_key,
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
+            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            inscribes_queue: tx,
+        })
+    }
+
     pub fn spawn_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
@@ -194,34 +221,6 @@ impl BitcoinService {
                 error!("BitcoinDA queue stopped");
             });
         });
-    }
-
-    #[cfg(test)]
-    pub async fn new_without_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Client::new(
-            &config.node_url,
-            Auth::UserPass(config.node_username, config.node_password),
-        )
-        .await?;
-
-        let da_private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        Ok(Self {
-            client,
-            network: config.network,
-            da_private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
-            inscribes_queue: tx,
-        })
     }
 
     #[instrument(level = "trace", skip_all, ret)]
