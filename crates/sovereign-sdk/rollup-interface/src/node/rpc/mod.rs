@@ -368,8 +368,6 @@ pub struct TxResponse<Tx> {
     /// The hex encoded transaction hash.
     #[serde(with = "utils::rpc_hex")]
     pub hash: [u8; 32],
-    /// The range of events occurring in this transaction.
-    pub event_range: core::ops::Range<u64>,
     /// The transaction body, if stored by the rollup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<HexTx>,
