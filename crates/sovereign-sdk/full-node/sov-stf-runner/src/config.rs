@@ -16,6 +16,9 @@ pub struct RunnerConfig {
     pub include_tx_body: bool,
     /// Only true for tests
     pub accept_public_input_as_proven: Option<bool>,
+    /// Number of blocks to request during sync
+    #[serde(default = "default_sync_blocks_count")]
+    pub sync_blocks_count: u64,
 }
 
 /// RPC configuration.
@@ -119,9 +122,6 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
     pub da: BitcoinServiceConfig,
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
-    /// Number of blocks to request during sync
-    #[serde(default = "default_sync_blocks_count")]
-    pub sync_blocks_count: u64,
 }
 
 /// Prover configuration
@@ -210,6 +210,7 @@ mod tests {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,
                 accept_public_input_as_proven: None,
+                sync_blocks_count: 10,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),
@@ -234,7 +235,6 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
-            sync_blocks_count: 10,
         };
         assert_eq!(config, expected);
     }
