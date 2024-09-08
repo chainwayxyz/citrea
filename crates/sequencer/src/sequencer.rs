@@ -689,7 +689,7 @@ where
         let request = SenderWithNotifier { da_data, notify };
         self.da_service
             .get_send_transaction_queue()
-            .send(request)
+            .send(Some(request))
             .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
 
         info!(

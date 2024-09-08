@@ -11,8 +11,8 @@ use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
 use bitcoincore_rpc::RpcApi;
 use citrea_sequencer::SequencerConfig;
+use futures::FutureExt;
 use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
-use tokio::task;
 
 use super::config::{
     default_rollup_config, BitcoinConfig, FullSequencerConfig, RollupConfig, TestCaseConfig,
@@ -72,34 +72,26 @@ impl<T: TestCase> TestCaseRunner<T> {
 
     /// Executes the test case, handling any panics and performing cleanup.
     ///
-    /// This method spawns a blocking task to run the test, sets up the framework,
-    /// executes the test, and ensures cleanup is performed even if a panic occurs.
+    /// This sets up the framework, executes the test, and ensures cleanup is performed even if a panic occurs.
     pub async fn run(self) -> Result<()> {
-        let result = task::spawn_blocking(move || {
-            let mut framework = None;
-            let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-                futures::executor::block_on(async {
-                    framework = Some(TestFramework::new(Self::generate_test_config()?).await?);
-                    self.setup(framework.as_mut().unwrap()).await?;
-                    self.run_test_case(framework.as_mut().unwrap()).await
-                })
-            }));
+        let result = panic::AssertUnwindSafe(async {
+            let mut framework = TestFramework::new(Self::generate_test_config()?).await?;
+            self.setup(&mut framework).await?;
 
-            // Always attempt to stop the framework, even if a panic occurred
-            if let Some(mut f) = framework {
-                let _ = futures::executor::block_on(f.stop());
+            let test_result = self.run_test_case(&mut framework).await;
 
-                if result.is_err() {
-                    if let Err(e) = f.dump_log() {
-                        eprintln!("{e}")
-                    }
+            if test_result.is_err() {
+                if let Err(e) = framework.dump_log() {
+                    eprintln!("Error dumping log: {}", e);
                 }
             }
 
-            result
+            framework.stop().await?;
+
+            test_result
         })
-        .await
-        .expect("Task panicked");
+        .catch_unwind()
+        .await;
 
         match result {
             Ok(Ok(())) => Ok(()),

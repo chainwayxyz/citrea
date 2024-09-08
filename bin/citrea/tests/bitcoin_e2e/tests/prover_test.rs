@@ -27,6 +27,7 @@ impl TestCase for BasicProverTest {
         TestCaseConfig {
             with_prover: true,
             with_full_node: true,
+            docker: true,
             ..Default::default()
         }
     }
@@ -112,7 +113,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         TestCaseConfig {
             with_prover: true,
             with_full_node: true,
-            docker: true,
+            docker: false,
             ..Default::default()
         }
     }
@@ -172,7 +173,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                     reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
                     reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
                 },
-                tx,
+                tx.clone(),
             )
             .await
             .unwrap(),
@@ -279,6 +280,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             1
         );
 
+        tx.send(None).unwrap();
         Ok(())
     }
 }
