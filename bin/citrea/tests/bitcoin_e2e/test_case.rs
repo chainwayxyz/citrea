@@ -3,7 +3,6 @@
 
 use std::panic::{self};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
@@ -29,12 +28,12 @@ use crate::bitcoin_e2e::utils::{get_default_genesis_path, get_workspace_root};
 /// It creates a test framework with the associated configs, spawns required nodes, connects them,
 /// runs the test case, and performs cleanup afterwards. The `run` method handles any panics that
 /// might occur during test execution and takes care of cleaning up and stopping the child processes.
-pub struct TestCaseRunner<T: TestCase>(Arc<T>);
+pub struct TestCaseRunner<T: TestCase>(T);
 
 impl<T: TestCase> TestCaseRunner<T> {
     /// Creates a new TestCaseRunner with the given test case.
     pub fn new(test_case: T) -> Self {
-        Self(Arc::new(test_case))
+        Self(test_case)
     }
 
     pub async fn setup(&self, f: &mut TestFramework) -> Result<()> {
@@ -60,7 +59,7 @@ impl<T: TestCase> TestCaseRunner<T> {
     }
 
     /// Internal method to set up connect the nodes, wait for the nodes to be ready and run the test.
-    async fn run_test_case(&self, f: &mut TestFramework) -> Result<()> {
+    async fn run_test_case(&mut self, f: &mut TestFramework) -> Result<()> {
         f.bitcoin_nodes.connect_nodes().await?;
 
         if let Some(sequencer) = &f.sequencer {
@@ -73,7 +72,7 @@ impl<T: TestCase> TestCaseRunner<T> {
     /// Executes the test case, handling any panics and performing cleanup.
     ///
     /// This sets up the framework, executes the test, and ensures cleanup is performed even if a panic occurs.
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         let result = panic::AssertUnwindSafe(async {
             let mut framework = TestFramework::new(Self::generate_test_config()?).await?;
             self.setup(&mut framework).await?;
@@ -92,6 +91,9 @@ impl<T: TestCase> TestCaseRunner<T> {
         })
         .catch_unwind()
         .await;
+
+        // Additional test cleanup
+        self.0.cleanup().await?;
 
         match result {
             Ok(Ok(())) => Ok(()),
@@ -277,7 +279,11 @@ pub trait TestCase: Send + Sync + 'static {
     ///
     /// # Arguments
     /// * `framework` - A reference to the TestFramework instance
-    async fn run_test(&self, framework: &TestFramework) -> Result<()>;
+    async fn run_test(&mut self, framework: &TestFramework) -> Result<()>;
+
+    async fn cleanup(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 6]> {

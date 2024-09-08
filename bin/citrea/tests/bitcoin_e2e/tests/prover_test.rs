@@ -3,11 +3,13 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::services::da::SenderWithNotifier;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
@@ -40,7 +42,7 @@ impl TestCase for BasicProverTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
@@ -105,7 +107,10 @@ impl TestCase for BasicProverTest {
     }
 }
 
-struct SkipPreprovenCommitmentsTest;
+#[derive(Default)]
+struct SkipPreprovenCommitmentsTest {
+    tx: Option<UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>>,
+}
 
 #[async_trait]
 impl TestCase for SkipPreprovenCommitmentsTest {
@@ -126,7 +131,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
@@ -166,6 +171,9 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             ),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        // Keep sender for cleanup
+        self.tx = Some(tx.clone());
+
         let bitcoin_da_service = Arc::new(
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
@@ -280,7 +288,14 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             1
         );
 
-        tx.send(None).unwrap();
+        Ok(())
+    }
+
+    async fn cleanup(&self) -> Result<()> {
+        // Send shutdown message to da queue
+        if let Some(tx) = &self.tx {
+            tx.send(None).unwrap();
+        }
         Ok(())
     }
 }
@@ -292,7 +307,7 @@ async fn basic_prover_test() -> Result<()> {
 
 #[tokio::test]
 async fn prover_skips_preproven_commitments_test() -> Result<()> {
-    TestCaseRunner::new(SkipPreprovenCommitmentsTest)
+    TestCaseRunner::new(SkipPreprovenCommitmentsTest::default())
         .run()
         .await
 }
