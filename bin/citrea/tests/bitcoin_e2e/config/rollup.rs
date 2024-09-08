@@ -30,6 +30,7 @@ pub fn default_rollup_config() -> RollupConfig {
             node_password: String::from("password"),
             network: bitcoin::Network::Regtest,
             da_private_key: None,
+            require_wallet_check: true,
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
@@ -61,6 +62,7 @@ impl From<BitcoinConfig> for BitcoinServiceConfig {
             node_password: v.rpc_password,
             network: v.network,
             da_private_key: None,
+            require_wallet_check: true,
         }
     }
 }
