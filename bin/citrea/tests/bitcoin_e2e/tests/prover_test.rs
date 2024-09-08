@@ -29,7 +29,6 @@ impl TestCase for BasicProverTest {
         TestCaseConfig {
             with_prover: true,
             with_full_node: true,
-            docker: true,
             ..Default::default()
         }
     }
@@ -118,7 +117,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         TestCaseConfig {
             with_prover: true,
             with_full_node: true,
-            docker: false,
             ..Default::default()
         }
     }
