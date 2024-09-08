@@ -90,7 +90,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - name: Check TOML
@@ -127,7 +126,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - name: Run cargo-udeps
@@ -165,7 +163,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - name: Cache ethereum-tests
@@ -202,7 +199,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - name: Build citrea
@@ -247,7 +243,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - uses: actions/cache@v3
@@ -286,7 +281,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - name: Build citrea
@@ -354,7 +348,6 @@ jobs:
           curl -L https://risczero.com/install | bash;
           source ~/.bashrc;
           ~/.risc0/bin/rzup install rust $RISC0_RUST_TOOLCHAIN_VERSION
-          ~/.risc0/bin/rzup install cpp $RISC0_CPP_TOOLCHAIN_VERSION
         env:
           XDG_CONFIG_HOME: "."
       - name: Build citrea
