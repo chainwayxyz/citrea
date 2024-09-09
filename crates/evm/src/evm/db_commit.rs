@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
-use alloy_primitives::Address;
-use reth_primitives::{KECCAK_EMPTY, U256};
+use alloy_primitives::{Address, U256};
 use revm::primitives::{Account, AccountInfo, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
@@ -19,21 +18,17 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             }
             let mut new_account_flag = false;
 
-            let mut info = self
+            let info = self
                 .accounts
                 .get(&address, self.working_set)
                 .unwrap_or_else(|| {
                     new_account_flag = true;
                     DbAccountInfo::default()
                 });
-            let parent_prefix = self.accounts.prefix();
-            let db_account = DbAccount::new(parent_prefix, address);
+            let db_account = DbAccount::new(address);
 
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
-                info.balance = U256::from(0);
-                info.nonce = 0;
-                info.code_hash = KECCAK_EMPTY;
                 // TODO find mroe efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
@@ -45,7 +40,13 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                     println!("delete key: {:?}", key);
                 }
                 db_account.keys.clear(self.working_set);
-                self.accounts.set(&address, &info, self.working_set);
+
+                // clear code
+                if let Some(code_hash) = info.code_hash {
+                    self.code.delete(&code_hash, self.working_set);
+                }
+
+                self.accounts.delete(&address, self.working_set);
                 continue;
             }
 
@@ -79,5 +80,5 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 }
 
 fn check_account_info_changed(old: &DbAccountInfo, new: &AccountInfo) -> bool {
-    old.balance != new.balance || old.code_hash != new.code_hash || old.nonce != new.nonce
+    old.balance != new.balance || old.code_hash != Some(new.code_hash) || old.nonce != new.nonce
 }

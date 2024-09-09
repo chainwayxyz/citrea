@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::de::DeserializeOwned;
@@ -11,7 +10,7 @@ use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
-use crate::rocks_db_config::gen_rocksdb_options;
+use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
     L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
@@ -103,13 +102,13 @@ impl LedgerDB {
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
     /// The returned instance will be at the path `{path}/ledger-db`.
     #[instrument(level = "trace", skip_all, err)]
-    pub fn with_path(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
-        let path = path.as_ref().join(LEDGER_DB_PATH_SUFFIX);
+    pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
+        let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let inner = DB::open(
             path,
             "ledger-db",
             LEDGER_TABLES.iter().copied(),
-            &gen_rocksdb_options(&Default::default(), false),
+            &cfg.as_rocksdb_options(false),
         )?;
 
         let next_item_numbers = ItemNumbers {
@@ -415,6 +414,27 @@ impl SharedLedgerOps for LedgerDB {
         Ok(())
     }
 
+    /// Get the state root by L2 height
+    #[instrument(level = "trace", skip_all, err)]
+    fn get_l2_state_root<StateRoot: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> anyhow::Result<Option<StateRoot>> {
+        if l2_height == 0 {
+            self.db
+                .get::<L2GenesisStateRoot>(&())?
+                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
+                .transpose()
+        } else {
+            self.db
+                .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
+                .map(|soft_confirmation| {
+                    bincode::deserialize(&soft_confirmation.state_root).map_err(Into::into)
+                })
+                .transpose()
+        }
+    }
+
     /// Get the most recent committed soft confirmation, if any
     #[instrument(level = "trace", skip(self), err)]
     fn get_head_soft_confirmation(
@@ -473,27 +493,6 @@ impl SharedLedgerOps for LedgerDB {
 }
 
 impl ProverLedgerOps for LedgerDB {
-    /// Get the state root by L2 height
-    #[instrument(level = "trace", skip_all, err)]
-    fn get_l2_state_root<StateRoot: DeserializeOwned>(
-        &self,
-        l2_height: u64,
-    ) -> anyhow::Result<Option<StateRoot>> {
-        if l2_height == 0 {
-            self.db
-                .get::<L2GenesisStateRoot>(&())?
-                .map(|state_root| bincode::deserialize(&state_root).map_err(Into::into))
-                .transpose()
-        } else {
-            self.db
-                .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))?
-                .map(|soft_confirmation| {
-                    bincode::deserialize(&soft_confirmation.state_root).map_err(Into::into)
-                })
-                .transpose()
-        }
-    }
-
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {

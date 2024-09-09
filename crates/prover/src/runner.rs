@@ -1,6 +1,7 @@
 use core::panic;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,7 +10,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use borsh::de::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::merge_state_diffs;
+use citrea_primitives::utils::{filter_out_proven_commitments, merge_state_diffs};
 use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -187,6 +188,10 @@ where
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
+        let middleware = tower::ServiceBuilder::new()
+            .layer(citrea_common::rpc::get_cors_layer())
+            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
+
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
@@ -194,6 +199,7 @@ where
                 .max_request_body_size(max_request_body_size)
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
+                .set_http_middleware(middleware)
                 .build([listen_address].as_ref())
                 .await;
 
@@ -469,10 +475,28 @@ where
                 || rand::thread_rng().gen_range(0..prover_config.proof_sampling_number) == 0;
 
             // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort_unstable();
+            sequencer_commitments.sort();
 
             let (sequencer_commitments, preproven_commitments) =
-                self.filter_out_proven_commitments(&sequencer_commitments)?;
+                filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
+
+            if sequencer_commitments.is_empty() {
+                info!(
+                    "All sequencer commitments are duplicates from a former DA block {}",
+                    l1_height
+                );
+                self.ledger_db
+                    .set_last_scanned_l1_height(SlotNumber(l1_height))
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "Failed to put prover last scanned l1 height in the ledger db {}",
+                            l1_height
+                        )
+                    });
+
+                pending_l1_blocks.pop_front();
+                continue;
+            }
 
             let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
                 l1_block.header().clone();
@@ -481,14 +505,13 @@ where
 
             if should_prove {
                 let sequencer_commitments_groups =
-                    self.break_sequencer_commitments_into_groups(sequencer_commitments)?;
+                    self.break_sequencer_commitments_into_groups(&sequencer_commitments)?;
 
                 let submitted_proofs = self
                     .ledger_db
                     .get_proofs_by_l1_height(l1_height)?
                     .unwrap_or(vec![]);
-
-                for sequencer_commitments in sequencer_commitments_groups {
+                for sequencer_commitment_range in sequencer_commitments_groups {
                     // There is no ongoing bonsai session to recover
                     let transition_data: StateTransitionData<
                         Stf::StateRoot,
@@ -497,6 +520,7 @@ where
                     > = self
                         .create_state_transition_data(
                             &sequencer_commitments,
+                            sequencer_commitment_range,
                             &preproven_commitments,
                             da_block_header_of_commitments.clone(),
                             da_data.clone(),
@@ -515,7 +539,7 @@ where
                         .await?;
                     }
 
-                    self.save_commitments(sequencer_commitments, l1_height);
+                    self.save_commitments(&sequencer_commitments, l1_height);
                 }
             }
 
@@ -554,20 +578,25 @@ where
     async fn create_state_transition_data(
         &self,
         sequencer_commitments: &[SequencerCommitment],
+        sequencer_commitments_range: RangeInclusive<usize>,
         preproven_commitments: &[usize],
         da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
         l1_block: &Da::FilteredBlock,
     ) -> Result<StateTransitionData<Stf::StateRoot, Stf::Witness, Da::Spec>, anyhow::Error> {
-        let first_l2_height_of_l1 = sequencer_commitments[0].l2_start_block_number;
+        let first_l2_height_of_l1 =
+            sequencer_commitments[*sequencer_commitments_range.start()].l2_start_block_number;
         let last_l2_height_of_l1 =
-            sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number;
+            sequencer_commitments[*sequencer_commitments_range.end()].l2_end_block_number;
         let (
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
         ) = self
-            .get_state_transition_data_from_commitments(sequencer_commitments, &self.da_service)
+            .get_state_transition_data_from_commitments(
+                &sequencer_commitments[sequencer_commitments_range.clone()],
+                &self.da_service,
+            )
             .await?;
         let initial_state_root = self
             .ledger_db
@@ -606,11 +635,9 @@ where
                 da_block_headers_of_soft_confirmations,
                 preproven_commitments: preproven_commitments.to_vec(),
                 sequencer_commitments_range: (
-                    0,
-                    (sequencer_commitments.len() - 1)
-                        .try_into()
-                        .expect("cant be more than 4 billion commitments in a da block; qed"),
-                ), // for now process all commitments
+                    *sequencer_commitments_range.start() as u32,
+                    *sequencer_commitments_range.end() as u32,
+                ),
                 sequencer_public_key: self.sequencer_pub_key.clone(),
                 sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
             };
@@ -806,6 +833,7 @@ where
             sequencer_commitments_range: transition_data.sequencer_commitments_range,
             sequencer_public_key: transition_data.sequencer_public_key,
             sequencer_da_public_key: transition_data.sequencer_da_public_key,
+            preproven_commitments: transition_data.preproven_commitments,
             validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
         };
         let l1_height = self
@@ -824,8 +852,8 @@ where
         Ok(())
     }
 
-    fn save_commitments(&self, sequencer_commitments: Vec<SequencerCommitment>, l1_height: u64) {
-        for sequencer_commitment in sequencer_commitments.into_iter() {
+    fn save_commitments(&self, sequencer_commitments: &[SequencerCommitment], l1_height: u64) {
+        for sequencer_commitment in sequencer_commitments.iter() {
             // Save commitments on prover ledger db
             self.ledger_db
                 .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
@@ -835,7 +863,7 @@ where
             let l2_end_height = sequencer_commitment.l2_end_block_number;
             for i in l2_start_height..=l2_end_height {
                 self.ledger_db
-                    .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Finalized)
+                    .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)
                     .unwrap_or_else(|_| {
                         panic!(
                             "Failed to put soft confirmation status in the ledger db {}",
@@ -853,13 +881,13 @@ where
 
     fn break_sequencer_commitments_into_groups(
         &self,
-        sequencer_commitments: Vec<SequencerCommitment>,
-    ) -> anyhow::Result<Vec<Vec<SequencerCommitment>>> {
-        let mut result = vec![];
+        sequencer_commitments: &[SequencerCommitment],
+    ) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
+        let mut result_range = vec![];
 
-        let mut group = vec![];
+        let mut range = 0usize..=0usize;
         let mut cumulative_state_diff = StateDiff::new();
-        for sequencer_commitment in sequencer_commitments {
+        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
             let mut sequencer_commitment_state_diff = StateDiff::new();
             for l2_height in sequencer_commitment.l2_start_block_number
                 ..=sequencer_commitment.l2_end_block_number
@@ -885,64 +913,23 @@ where
             let state_diff_threshold_reached =
                 serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
 
-            if state_diff_threshold_reached && !group.is_empty() {
+            if state_diff_threshold_reached {
                 // We've exceeded the limit with the current commitments
                 // so we have to stop at the previous one.
-                result.push(group);
+                result_range.push(range);
+
                 // Reset the cumulative state diff to be equal to the current commitment state diff
                 cumulative_state_diff = sequencer_commitment_state_diff;
-                group = vec![sequencer_commitment.clone()];
+                range = index..=index;
             } else {
-                group.push(sequencer_commitment.clone());
+                range = *range.start()..=index;
             }
         }
 
         // If the last group hasn't been reset because it has not reached the threshold,
         // Add it anyway
-        if !group.is_empty() {
-            result.push(group);
-        }
-
-        Ok(result)
-    }
-
-    /// Remove proven commitments using the end block number of the L2 range.
-    /// This is basically filtering out finalized soft confirmations.
-    fn filter_out_proven_commitments(
-        &self,
-        sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
-        let mut preproven_commitments = vec![];
-        let mut filtered = vec![];
-        let mut visited_l2_ranges = HashSet::new();
-        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
-            // Handle commitments which have the same L2 range
-            let current_range = (
-                sequencer_commitment.l2_start_block_number,
-                sequencer_commitment.l2_end_block_number,
-            );
-            if visited_l2_ranges.contains(&current_range) {
-                continue;
-            }
-            visited_l2_ranges.insert(current_range);
-
-            // Check if the commitment was previously finalized.
-            let Some(status) = self.ledger_db.get_soft_confirmation_status(BatchNumber(
-                sequencer_commitment.l2_end_block_number,
-            ))?
-            else {
-                filtered.push(sequencer_commitment.clone());
-                continue;
-            };
-
-            if status != SoftConfirmationStatus::Finalized {
-                filtered.push(sequencer_commitment.clone());
-            } else {
-                preproven_commitments.push(index);
-            }
-        }
-
-        Ok((filtered, preproven_commitments))
+        result_range.push(range);
+        Ok(result_range)
     }
 
     fn state_transition_already_proven(

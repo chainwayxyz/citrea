@@ -25,18 +25,20 @@ jobs:
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup install 1.79.0
+          rustup default 1.79.0
 
       - name: Install Cargo Binstall
         run: |
           source $HOME/.cargo/env
-          cargo install cargo-binstall
+          cargo install --version 1.7.0 cargo-binstall
 
       - name: Install Cargo Risczero
         run: |
-          cargo binstall -y cargo-risczero
-          cargo risczero install --version v2024-04-22.0
-          # TODO: do below on testnet launch
-          # curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
+          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+        env:
+          XDG_CONFIG_HOME: "."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
         env:
@@ -72,18 +74,21 @@ jobs:
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup install 1.79.0
+          rustup default 1.79.0
 
       - name: Install Cargo Binstall
         run: |
           source $HOME/.cargo/env
-          cargo install cargo-binstall
+          cargo install --version 1.7.0 cargo-binstall
 
       - name: Install Cargo Risczero
         run: |
           source $HOME/.cargo/env
-          cargo binstall -y cargo-risczero
-          cargo risczero install --version v2024-04-22.0
-
+          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+        env:
+          XDG_CONFIG_HOME: "."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
           REPR_GUEST_BUILD: 1

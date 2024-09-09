@@ -93,7 +93,7 @@ impl TestFramework {
 
             for node in self.get_nodes_as_log_provider() {
                 println!(
-                    "{}  logs available at : {}",
+                    "{} logs available at : {}",
                     node.kind(),
                     node.log_path().display()
                 );

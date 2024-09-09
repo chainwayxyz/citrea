@@ -29,7 +29,7 @@ pub mod first_test_module {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
@@ -40,8 +40,9 @@ pub mod first_test_module {
 }
 
 mod second_test_module {
-    use super::*;
     use sov_modules_api::Module;
+
+    use super::*;
 
     #[derive(ModuleInfo)]
     pub(crate) struct SecondTestStruct<C: Context> {
@@ -65,7 +66,7 @@ mod second_test_module {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,

@@ -14,7 +14,7 @@ fuzz_target!(|input: (&[u8], [u8; 32], [u8; 32])| {
         let tmpdir = tempfile::tempdir().unwrap();
         let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
         let ctx = C::new(sender.into(), sequencer.into(), 1, SpecId::Genesis, 0);
-        let bank = Bank::default();
+        let mut bank = Bank::default();
         for msg in msgs {
             bank.call(msg, &ctx, &mut working_set).ok();
         }

@@ -117,7 +117,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     }
 
     fn apply_soft_confirmation(
-        &self,
+        &mut self,
         _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
@@ -140,7 +140,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     }
 
     fn apply_soft_confirmations_from_sequencer_commitments(
-        &self,
+        &mut self,
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,

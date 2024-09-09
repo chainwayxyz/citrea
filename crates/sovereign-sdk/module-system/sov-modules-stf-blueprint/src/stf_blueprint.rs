@@ -61,7 +61,7 @@ where
     /// Applies sov txs to the state
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn apply_sov_txs_inner(
-        &self,
+        &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         mut sc_workspace: WorkingSet<C>,
@@ -163,7 +163,7 @@ where
     /// Module hooks are called here
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn begin_soft_confirmation_inner(
-        &self,
+        &mut self,
         mut batch_workspace: WorkingSet<C>,
         soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
@@ -200,7 +200,7 @@ where
     /// Module hooks are called here
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn end_soft_confirmation_inner(
-        &self,
+        &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         soft_confirmation: &mut SignedSoftConfirmation,

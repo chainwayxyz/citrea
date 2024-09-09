@@ -21,6 +21,7 @@ pub fn default_rollup_config() -> RollupConfig {
             path: TempDir::new()
                 .expect("Failed to create temporary directory")
                 .into_path(),
+            db_max_open_files: None,
         },
         runner: None,
         da: BitcoinServiceConfig {

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use citrea_prover::prover_service::ParallelProverService;
 use sov_db::ledger_db::LedgerDB;
+use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{
     MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash,
     MockValidityCond,
@@ -192,7 +193,7 @@ fn make_new_prover() -> TestProver {
     let zk_stf = MockStf::<MockValidityCond>::default();
     let da_verifier = MockDaVerifier::default();
     let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_path(tmpdir.path()).unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None)).unwrap();
     TestProver {
         prover_service: ParallelProverService::new(
             vm.clone(),

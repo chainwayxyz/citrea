@@ -105,7 +105,7 @@ impl BankGasTestCase {
     pub fn execute(self) -> anyhow::Result<u64> {
         let Self {
             mut ws,
-            bank,
+            mut bank,
             ctx,
             message,
             tmpdir,

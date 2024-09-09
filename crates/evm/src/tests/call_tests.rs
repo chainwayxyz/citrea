@@ -49,7 +49,7 @@ fn call_multiple_test() {
         ..Default::default()
     };
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
 
@@ -104,12 +104,22 @@ fn call_multiple_test() {
 
     let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
 
-    // Make sure the db account size is 74 bytes
+    // Make sure the contract db account size is 75 bytes
     let db_account_len = bcs::to_bytes(&account_info)
         .expect("Failed to serialize value")
         .len();
-    assert_eq!(db_account_len, 74);
-    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    assert_eq!(db_account_len, 75);
+
+    let eoa_account_info = evm
+        .accounts
+        .get(&dev_signer1.address(), &mut working_set)
+        .unwrap();
+    // Make sure the eoa db account size is 42 bytes
+    let db_account_len = bcs::to_bytes(&eoa_account_info)
+        .expect("Failed to serialize value")
+        .len();
+    assert_eq!(db_account_len, 42);
+    let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -131,7 +141,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 539,
+                l1_diff_size: 567,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -142,7 +152,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -153,7 +163,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -164,7 +174,7 @@ fn call_multiple_test() {
                 },
                 gas_used: 26630,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             }
         ]
     )
@@ -232,7 +242,7 @@ fn call_test() {
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
     println!("\nFinalize hook ended\n");
     let db_account = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
-    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
         .get(&U256::ZERO, &mut working_set)
@@ -263,7 +273,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 0,
-                l1_diff_size: 539,
+                l1_diff_size: 567,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -274,7 +284,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 0,
-                l1_diff_size: 188,
+                l1_diff_size: 255,
             }
         ]
     )
@@ -283,7 +293,7 @@ fn call_test() {
 #[test]
 fn failed_transaction_test() {
     let dev_signer: TestSigner = TestSigner::new_random();
-    let (evm, mut working_set) = get_evm(&EvmConfig::default());
+    let (mut evm, mut working_set) = get_evm(&EvmConfig::default());
     let working_set = &mut working_set;
     let l1_fee_rate = 0;
     let l2_height = 2;
@@ -325,13 +335,13 @@ fn failed_transaction_test() {
     }
 
     // assert no pending transaction
-    let pending_txs = evm.pending_transactions.iter(working_set);
+    let pending_txs = &evm.pending_transactions;
     assert_eq!(pending_txs.len(), 0);
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, working_set);
 
     // assert no pending transaction
-    let pending_txs = evm.pending_transactions.iter(working_set);
+    let pending_txs = &evm.pending_transactions;
     assert_eq!(pending_txs.len(), 0);
 
     // Assert block does not have any transaction
@@ -349,7 +359,7 @@ fn self_destruct_test() {
 
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -409,7 +419,7 @@ fn self_destruct_test() {
     // Test if we managed to send money to ocntract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
-    let db_contract = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_contract = DbAccount::new(contract_addr);
 
     // // Test if we managed to set the variable in the contract
     // assert_eq!(
@@ -466,10 +476,8 @@ fn self_destruct_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let contract_info = evm
-        .accounts
-        .get(&contract_addr, &mut working_set)
-        .expect("contract address should exist");
+    // we now delete destructed accounts from storage
+    assert_eq!(evm.accounts.get(&contract_addr, &mut working_set), None);
 
     let die_to_acc = evm
         .accounts
@@ -484,19 +492,10 @@ fn self_destruct_test() {
     // the tx should be a success
     // assert!(receipts[0].receipt.success);
 
-    // after self destruct, contract balance should be 0,
-    assert_eq!(contract_info.balance, U256::from(0));
-
     // the to address balance should be equal to contract balance
     assert_eq!(die_to_acc.balance, U256::from(contract_balance));
 
-    // the codehash should be 0
-    assert_eq!(contract_info.code_hash, KECCAK_EMPTY);
-
-    // the nonce should be 0
-    assert_eq!(contract_info.nonce, 0);
-
-    let db_account = DbAccount::new(evm.accounts.prefix(), contract_addr);
+    let db_account = DbAccount::new(contract_addr);
 
     // the storage should be empty
     assert_eq!(
@@ -513,7 +512,7 @@ fn test_block_hash_in_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -636,7 +635,7 @@ fn test_block_gas_limit() {
         Some(ETHEREUM_BLOCK_GAS_LIMIT),
     );
 
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -960,7 +959,7 @@ fn test_l1_fee_success() {
         let (config, dev_signer, _) =
             get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
 
-        let (evm, mut working_set) = get_evm(&config);
+        let (mut evm, mut working_set) = get_evm(&config);
 
         let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height: 2,
@@ -1039,7 +1038,7 @@ fn test_l1_fee_success() {
                 },
                 gas_used: 114235,
                 log_index_start: 0,
-                l1_diff_size: 451,
+                l1_diff_size: 479,
             },]
         )
     }
@@ -1056,11 +1055,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 451 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 479 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(451 + L1_FEE_OVERHEAD as u64),
+        U256::from(479 + L1_FEE_OVERHEAD as u64),
     );
 }
 
@@ -1070,7 +1069,7 @@ fn test_l1_fee_not_enough_funds() {
         get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
 
     let l1_fee_rate = 10000;
-    let (evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm(&config);
 
     let l2_height = 2;
 
@@ -1138,7 +1137,7 @@ fn test_l1_fee_halt() {
     let (config, dev_signer, _) =
         get_evm_config_starting_base_fee(U256::from_str("20000000000000").unwrap(), None, 1);
 
-    let (evm, mut working_set) = get_evm(&config); // l2 height 1
+    let (mut evm, mut working_set) = get_evm(&config); // l2 height 1
     let l1_fee_rate = 1;
     let l2_height = 2;
 
@@ -1213,7 +1212,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 0,
-                l1_diff_size: 419,
+                l1_diff_size: 447,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1224,7 +1223,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 0,
-                l1_diff_size: 111,
+                l1_diff_size: 96,
             },
         ]
     );
@@ -1235,8 +1234,8 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        419  + // l1 contract deploy fee
-        111  + // l1 contract call fee
+        447  + // l1 contract deploy fee
+        96  + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.balance,
@@ -1252,6 +1251,6 @@ fn test_l1_fee_halt() {
     assert_eq!(base_fee_valut.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
         l1_fee_valut.balance,
-        U256::from(419 + 111 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(447 + 96 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }

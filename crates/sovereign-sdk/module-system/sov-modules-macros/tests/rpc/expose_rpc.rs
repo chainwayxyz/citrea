@@ -26,7 +26,7 @@ impl<C: Context> Module for QueryModule<C> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         _context: &Self::Context,
         working_set: &mut WorkingSet<C>,

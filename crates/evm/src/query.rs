@@ -21,7 +21,7 @@ use reth_rpc_types::{
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
-    TxEnv, KECCAK_EMPTY,
+    TxEnv,
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
@@ -376,7 +376,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         let storage_slot = if self.accounts.get(&address, working_set).is_some() {
-            let db_account = DbAccount::new(self.accounts.prefix(), address);
+            let db_account = DbAccount::new(address);
             db_account
                 .storage
                 .get(&index, working_set)
@@ -474,11 +474,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             }
         }
 
-        let code = self
-            .accounts
-            .get(&address, working_set)
-            .and_then(|account| self.code.get(&account.code_hash, working_set))
-            .unwrap_or_default();
+        let account = self.accounts.get(&address, working_set).unwrap_or_default();
+        let code = if let Some(code_hash) = account.code_hash {
+            self.code.get(&code_hash, working_set).unwrap_or_default()
+        } else {
+            Default::default()
+        };
 
         Ok(code.original_bytes())
     }
@@ -629,20 +630,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<reth_primitives::Bytes> {
         debug!("evm module: eth_call");
         let mut block_env = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {
-                // if no block is produced yet, should default to genesis block env, else just return the lates
-                self.block_env.get(working_set).unwrap_or_else(|| {
-                    BlockEnv::from(
-                        &self
-                            .get_sealed_block_by_number(
-                                Some(BlockNumberOrTag::Earliest),
-                                working_set,
-                            )
-                            .unwrap()
-                            .expect("Genesis block must be set"),
-                    )
-                })
-            }
+            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => BlockEnv::from(
+                &self
+                    .get_sealed_block_by_number(Some(BlockNumberOrTag::Latest), working_set)
+                    .unwrap()
+                    .expect("Genesis block must be set"),
+            ),
             _ => {
                 let block = match self.get_sealed_block_by_number(block_number, working_set)? {
                     Some(block) => block,
@@ -973,7 +966,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         if tx_env.data.is_empty() {
             if let TransactTo::Call(to) = tx_env.transact_to {
                 let to_account = self.accounts.get(&to, working_set).unwrap_or_default();
-                if KECCAK_EMPTY == to_account.code_hash {
+                if to_account.code_hash.is_none() {
                     // If the tx is a simple transfer (call to an account with no code) we can
                     // shortcircuit But simply returning
 
@@ -1602,8 +1595,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
     /// Returns the cumulative gas used in pending transactions
     /// Used to calculate how much gas system transactions use at the beginning of the block
     pub fn get_pending_txs_cumulative_gas_used(&self, working_set: &mut WorkingSet<C>) -> u128 {
-        self.pending_transactions
-            .iter(working_set)
+        self.native_pending_transactions
+            .iter(&mut working_set.accessory_state())
             .map(|tx| tx.receipt.gas_used)
             .sum::<u128>()
     }

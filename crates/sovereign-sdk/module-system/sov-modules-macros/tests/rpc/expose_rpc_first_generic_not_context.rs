@@ -57,7 +57,7 @@ pub mod my_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<C>,

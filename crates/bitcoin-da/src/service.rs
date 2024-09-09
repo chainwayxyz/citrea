@@ -7,7 +7,7 @@ use core::time::Duration;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 // use std::sync::Arc;
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
@@ -17,6 +17,7 @@ use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::json::TestMempoolAcceptResult;
 use bitcoincore_rpc::jsonrpc_async::Error as RpcError;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi};
 use borsh::BorshDeserialize;
@@ -33,7 +34,7 @@ use crate::helpers::builders::batch_proof_namespace::{
 use crate::helpers::builders::light_client_proof_namespace::{
     create_zkproof_transactions, LightClientTxs,
 };
-use crate::helpers::builders::{write_inscription_txs, TxWithId};
+use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
@@ -303,7 +304,6 @@ impl BitcoinService {
         da_data: DaData,
         fee_sat_per_vbyte: u64,
     ) -> Result<TxWithId, anyhow::Error> {
-        let client = &self.client;
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
@@ -339,29 +339,11 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                write_inscription_txs(&inscription_txs);
+                inscription_txs.write_to_file()?;
 
                 match inscription_txs {
                     LightClientTxs::Complete { commit, reveal } => {
-                        // sign inscribe transactions
-                        let signed_raw_commit_tx = client
-                            .sign_raw_transaction_with_wallet(&commit, None, None)
-                            .await?;
-
-                        // send inscribe transactions
-                        client
-                            .send_raw_transaction(&signed_raw_commit_tx.hex)
-                            .await?;
-
-                        // serialize reveal tx
-                        let serialized_reveal_tx = &encode::serialize(&reveal.tx);
-
-                        // send reveal tx
-                        let reveal_tx_hash =
-                            client.send_raw_transaction(serialized_reveal_tx).await?;
-
-                        info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
-                        Ok(reveal)
+                        self.send_complete_transaction(commit, reveal).await
                     }
                     LightClientTxs::Chunked {
                         commit_chunks,
@@ -369,44 +351,8 @@ impl BitcoinService {
                         commit,
                         reveal,
                     } => {
-                        for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
-                            // sign inscribe transactions
-                            let signed_raw_commit_tx = client
-                                .sign_raw_transaction_with_wallet(&commit, None, None)
-                                .await?;
-
-                            // send inscribe transactions
-                            client
-                                .send_raw_transaction(&signed_raw_commit_tx.hex)
-                                .await?;
-
-                            // serialize reveal tx
-                            let serialized_reveal_tx = encode::serialize(&reveal);
-
-                            // send reveal tx
-                            let reveal_tx_hash =
-                                client.send_raw_transaction(&serialized_reveal_tx).await?;
-                            info!("Blob chunk inscribe tx sent. Hash: {}", reveal_tx_hash);
-                        }
-
-                        // sign inscribe transactions
-                        let signed_raw_commit_tx = client
-                            .sign_raw_transaction_with_wallet(&commit, None, None)
-                            .await?;
-
-                        // send inscribe transactions
-                        client
-                            .send_raw_transaction(&signed_raw_commit_tx.hex)
-                            .await?;
-
-                        // serialize reveal tx
-                        let serialized_reveal_tx = encode::serialize(&reveal.tx);
-
-                        // send reveal tx
-                        let reveal_tx_hash =
-                            client.send_raw_transaction(&serialized_reveal_tx).await?;
-                        info!("Blob chunk aggregate tx sent. Hash: {}", reveal_tx_hash);
-                        Ok(reveal)
+                        self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
+                            .await
                     }
                 }
             }
@@ -428,29 +374,114 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                write_inscription_txs(&inscription_txs);
+                inscription_txs.write_to_file()?;
 
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
-                // sign inscribe transactions
-                let signed_raw_commit_tx = client
-                    .sign_raw_transaction_with_wallet(&commit, None, None)
-                    .await?;
 
-                // send inscribe transactions
-                client
-                    .send_raw_transaction(&signed_raw_commit_tx.hex)
-                    .await?;
-
-                // serialize reveal tx
-                let serialized_reveal_tx = &encode::serialize(&reveal.tx);
-
-                // send reveal tx
-                let reveal_tx_hash = client.send_raw_transaction(serialized_reveal_tx).await?;
-
-                info!("Blob inscribe tx sent. Hash: {}", reveal_tx_hash);
-                Ok(reveal)
+                self.send_complete_transaction(commit, reveal).await
             }
         }
+    }
+
+    pub async fn send_chunked_transaction(
+        &self,
+        commit_chunks: Vec<Transaction>,
+        reveal_chunks: Vec<Transaction>,
+        commit: Transaction,
+        reveal: TxWithId,
+    ) -> Result<TxWithId> {
+        debug!("Sending chunked transaction");
+        let mut raw_txs = Vec::with_capacity(commit_chunks.len() * 2 + 2);
+
+        for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+            let signed_raw_commit_tx = self
+                .client
+                .sign_raw_transaction_with_wallet(&commit, None, None)
+                .await?;
+            raw_txs.push(signed_raw_commit_tx.hex);
+            let serialized_reveal_tx = encode::serialize(&reveal);
+            raw_txs.push(serialized_reveal_tx);
+        }
+
+        let signed_raw_commit_tx = self
+            .client
+            .sign_raw_transaction_with_wallet(&commit, None, None)
+            .await?;
+        raw_txs.push(signed_raw_commit_tx.hex);
+
+        let serialized_reveal_tx = encode::serialize(&reveal.tx);
+        raw_txs.push(serialized_reveal_tx);
+
+        self.test_mempool_accept(&raw_txs).await?;
+        let txids = self.send_raw_transactions(&raw_txs).await?;
+
+        for txid in txids[1..txids.len() - 1].iter().step_by(2) {
+            info!("Blob chunk inscribe tx sent. Hash: {txid}");
+        }
+
+        if let Some(last_txid) = txids.last() {
+            info!("Blob chunk aggregate tx sent. Hash: {last_txid}");
+        }
+
+        Ok(reveal)
+    }
+
+    pub async fn send_complete_transaction(
+        &self,
+        commit: Transaction,
+        reveal: TxWithId,
+    ) -> Result<TxWithId> {
+        let signed_raw_commit_tx = self
+            .client
+            .sign_raw_transaction_with_wallet(&commit, None, None)
+            .await?;
+        let serialized_reveal_tx = encode::serialize(&reveal.tx);
+        let raw_txs = [signed_raw_commit_tx.hex, serialized_reveal_tx];
+
+        self.test_mempool_accept(&raw_txs).await?;
+
+        let txids = self.send_raw_transactions(&raw_txs).await?;
+        info!("Blob inscribe tx sent. Hash: {}", txids[1]);
+        Ok(reveal)
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
+    async fn test_mempool_accept(&self, raw_txs: &[Vec<u8>]) -> Result<()> {
+        let results = self
+            .client
+            .test_mempool_accept(
+                raw_txs
+                    .iter()
+                    .map(|tx| tx.as_slice())
+                    .collect::<Vec<&[u8]>>()
+                    .as_slice(),
+            )
+            .await?;
+
+        for res in results {
+            if let TestMempoolAcceptResult {
+                allowed: Some(false) | None,
+                reject_reason,
+                ..
+            } = res
+            {
+                bail!(
+                    "{}",
+                    reject_reason.unwrap_or("[testmempoolaccept] Unkown rejection".to_string())
+                )
+            }
+        }
+        Ok(())
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
+    async fn send_raw_transactions(&self, raw_txs: &[Vec<u8>]) -> Result<Vec<Txid>> {
+        let mut txids = Vec::with_capacity(raw_txs.len());
+        for tx in raw_txs {
+            let txid = self.client.send_raw_transaction(tx.as_slice()).await?;
+            txids.push(txid);
+        }
+        Ok(txids)
     }
 
     #[instrument(level = "trace", skip_all, ret)]

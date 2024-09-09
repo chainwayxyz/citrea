@@ -139,7 +139,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     /// Begin a soft confirmation
     #[allow(clippy::too_many_arguments)]
     fn begin_soft_confirmation(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         pre_state: Self::PreState,
         witness: <<C as Spec>::Storage as Storage>::Witness,
@@ -149,7 +149,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
 
     /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
-        &self,
+        &mut self,
         soft_confirmation: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
@@ -157,7 +157,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
 
     /// End a soft confirmation
     fn end_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
@@ -194,7 +194,7 @@ where
     RT: Runtime<C, Da>,
 {
     fn begin_soft_confirmation(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         pre_state: <C>::Storage,
         witness: <<C as Spec>::Storage as Storage>::Witness,
@@ -231,7 +231,7 @@ where
     }
 
     fn apply_soft_confirmation_txs(
-        &self,
+        &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: Vec<Vec<u8>>,
         batch_workspace: WorkingSet<C>,
@@ -240,7 +240,7 @@ where
     }
 
     fn end_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
@@ -439,7 +439,7 @@ where
     }
 
     fn apply_soft_confirmation(
-        &self,
+        &mut self,
         current_spec: SpecId,
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
@@ -514,7 +514,7 @@ where
     }
 
     fn apply_soft_confirmations_from_sequencer_commitments(
-        &self,
+        &mut self,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
@@ -545,9 +545,34 @@ where
             }
         }
 
-        // Sort commitments just in case
-        sequencer_commitments.sort_unstable();
+        // A breakdown of why we sort the sequencer commitments, and why we need fields
+        // `StateTransitionData::preproven_commitments` and `StateTransitionData::sequencer_commitment_range`:
+        //
+        // There is a chance of your "relevant transaction" being replayed on da layer, if the da layer does not have
+        // a publickey-nonce check. To prevent from these attacks stopping our proving, we need to have a way to input the
+        // the commitments we will ignore. This does not break any trust assumptions, as the zk circuit checks the
+        // state transitions. So the prover can not leave out any commitments, beacuse it would break the state root checks
+        // done by the zk circuit.
+        //
+        // If there is limitations on da on for the size of a single transaction (all blockchains have this), then
+        // it's a good idea to allow proving of a single sequencer commitment at a time. Because more sequencer commmitments being
+        // processed means there will be a bigger state diff. But sometimes it's efficient to
+        // prove multiple commitments at a time. So we need to have a way to input the range of commitments we are proving.
+        //
+        // Now, why do we sort?
+        //
+        // Again, if the da layer doesn't have a publickey-nonce relation, there is a chance of sequencer commitment #10
+        // landing on the da layer before sequencer commitment #9. If DA layer ordering is enforced in the zk circuit,
+        // then this will break your rollup. So we need to sort the commitments by their l2_start_block_number, or something else.
+        //
+        // As long as the zk circuit and the prover (the entity providing the zk circuit inputs) are in agreement on the
+        // ordering, the range of commitments, and which commitments to ignore, the zk circuit will be able to verify the state transition.
+        //
+        // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
+        // rollup state transitions.
+        sequencer_commitments.sort();
 
+        // TODO: filter in a better looking way maybe?
         // The preproven indicies are sorted by the prover when originally passed.
         // Therefore, we pass the commitments sequentially to make sure that the current
         // commitment index is not at the beginning of the list of preproven indicies.

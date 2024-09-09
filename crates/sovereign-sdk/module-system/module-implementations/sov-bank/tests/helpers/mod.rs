@@ -1,4 +1,4 @@
-use sov_bank::{BankConfig, TokenConfig};
+use sov_bank::{BankConfig, TokenConfig, TotalSupplyResponse};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address as gen_address_generic;
 use sov_modules_api::Address;
@@ -35,4 +35,26 @@ pub fn create_bank_config_with_token(
     BankConfig {
         tokens: vec![token_config],
     }
+}
+
+// used in tests only
+#[allow(dead_code)]
+pub fn query_user_balance(
+    bank: &sov_bank::Bank<C>,
+    user_address: Address,
+    token_address: Address,
+    working_set: &mut sov_modules_api::WorkingSet<C>,
+) -> Option<u64> {
+    bank.get_balance_of(user_address, token_address, working_set)
+}
+
+// used in tests only
+#[allow(dead_code)]
+pub fn query_total_supply(
+    bank: &sov_bank::Bank<C>,
+    token_address: Address,
+    working_set: &mut sov_modules_api::WorkingSet<C>,
+) -> Option<u64> {
+    let total_supply: TotalSupplyResponse = bank.supply_of(token_address, working_set).unwrap();
+    total_supply.amount
 }

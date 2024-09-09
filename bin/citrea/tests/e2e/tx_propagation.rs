@@ -294,11 +294,11 @@ async fn custom_test() -> Result<(), anyhow::Error> {
 
     println!("\nAfter publish with tx\n");
 
-    println!("\nBefore publish without tx\n");
+    // println!("\nBefore publish without tx\n");
 
-    seq_test_client.send_publish_batch_request().await;
+    // seq_test_client.send_publish_batch_request().await;
 
-    println!("\nAfter publish without tx\n");
+    // println!("\nAfter publish without tx\n");
 
     seq_task.abort();
     Ok(())

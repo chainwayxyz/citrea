@@ -65,7 +65,7 @@ fn call_contract_without_value() {
 
 #[test]
 fn test_state_change() {
-    let (evm, mut working_set, signer, l2_height) = init_evm();
+    let (mut evm, mut working_set, signer, l2_height) = init_evm();
 
     let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
 

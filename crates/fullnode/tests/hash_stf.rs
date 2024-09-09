@@ -74,7 +74,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     for HashStf<Cond>
 {
     fn begin_soft_confirmation(
-        &self,
+        &mut self,
         _sequencer_public_key: &[u8],
         _pre_state: Self::PreState,
         _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
@@ -88,7 +88,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     }
 
     fn apply_soft_confirmation_txs(
-        &self,
+        &mut self,
         _soft_confirmation_info: HookSoftConfirmationInfo,
         _txs: Vec<Vec<u8>>,
         _batch_workspace: sov_modules_api::WorkingSet<C>,
@@ -100,7 +100,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     }
 
     fn end_soft_confirmation(
-        &self,
+        &mut self,
         _current_spec: SpecId,
         _pre_state_root: Vec<u8>,
         _sequencer_public_key: &[u8],
@@ -213,7 +213,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     }
 
     fn apply_soft_confirmation(
-        &self,
+        &mut self,
         _current_spec: SpecId,
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
@@ -236,7 +236,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     }
 
     fn apply_soft_confirmations_from_sequencer_commitments(
-        &self,
+        &mut self,
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,

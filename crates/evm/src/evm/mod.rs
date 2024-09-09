@@ -1,5 +1,6 @@
 use alloy_eips::eip1559::BaseFeeParams;
-use reth_primitives::{address, Address, B256, KECCAK_EMPTY, U256};
+use reth_primitives::{address, Address, B256, U256};
+use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
@@ -42,22 +43,17 @@ pub const L1_FEE_VAULT: Address = address!("310000000000000000000000000000000000
 /// Priority fee vault address
 pub const PRIORITY_FEE_VAULT: Address = address!("3100000000000000000000000000000000000005");
 
+/// Prefix for Storage module for evm::Account::storage
+pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
+/// Prefix for Storage module for evm::Account::keys
+pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
+
 // Stores information about an EVM account
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
+#[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct AccountInfo {
     pub(crate) balance: U256,
-    pub(crate) code_hash: B256,
     pub(crate) nonce: u64,
-}
-
-impl Default for AccountInfo {
-    fn default() -> Self {
-        Self {
-            balance: U256::default(),
-            code_hash: KECCAK_EMPTY,
-            nonce: 0,
-        }
-    }
+    pub(crate) code_hash: Option<B256>,
 }
 
 /// Stores information about an EVM account and a corresponding account state.
@@ -68,18 +64,25 @@ pub(crate) struct DbAccount {
 }
 
 impl DbAccount {
-    pub fn new(parent_prefix: &Prefix, address: Address) -> Self {
-        let prefix = Self::create_storage_prefix(parent_prefix, address);
+    pub fn new(address: Address) -> Self {
         Self {
-            storage: StateMap::with_codec(prefix.clone(), BcsCodec {}),
-            keys: StateVec::with_codec(prefix, BcsCodec {}),
+            storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),
+            keys: StateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
         }
     }
 
-    fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
-        let mut prefix = parent_prefix.as_aligned_vec().clone().into_inner();
-        prefix.extend_from_slice(address.as_ref());
-        Prefix::new(prefix)
+    fn create_storage_prefix(address: Address) -> Prefix {
+        let mut prefix = [0u8; 26];
+        prefix[0..6].copy_from_slice(&DBACCOUNT_STORAGE_PREFIX);
+        prefix[6..].copy_from_slice(address.as_raw_slice());
+        Prefix::new(prefix.to_vec())
+    }
+
+    fn create_keys_prefix(address: Address) -> Prefix {
+        let mut prefix = [0u8; 26];
+        prefix[0..6].copy_from_slice(&DBACCOUNT_KEYS_PREFIX);
+        prefix[6..].copy_from_slice(address.as_raw_slice());
+        Prefix::new(prefix.to_vec())
     }
 }
 

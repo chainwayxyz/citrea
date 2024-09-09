@@ -10,7 +10,7 @@ pub struct BitcoinConfig {
     pub rpc_user: String,
     pub rpc_password: String,
     pub data_dir: PathBuf,
-    pub extra_args: Vec<String>,
+    pub extra_args: Vec<&'static str>,
     pub network: Network,
     pub docker_image: Option<String>,
 }
@@ -49,6 +49,10 @@ impl BitcoinConfig {
     }
 
     pub fn args(&self) -> Vec<String> {
-        [self.base_args(), self.extra_args.clone()].concat()
+        [
+            self.base_args(),
+            self.extra_args.iter().map(|&s| s.to_string()).collect(),
+        ]
+        .concat()
     }
 }
