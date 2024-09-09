@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Stdio;
 
 use anyhow::{bail, Context};
@@ -8,12 +8,11 @@ use sov_rollup_interface::rpc::{SequencerCommitmentResponse, VerifiedProofRespon
 use tokio::process::Command;
 use tokio::time::{sleep, Duration, Instant};
 
-use super::config::{config_to_file, TestConfig};
+use super::config::{config_to_file, FullFullNodeConfig, TestConfig};
 use super::framework::TestContext;
 use super::node::{L2Node, LogProvider, Node, NodeKind, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
-use crate::bitcoin_e2e::config::RollupConfig;
 use crate::bitcoin_e2e::utils::get_genesis_path;
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
@@ -21,37 +20,33 @@ use crate::test_client::TestClient;
 #[allow(unused)]
 pub struct FullNode {
     spawn_output: SpawnOutput,
-    config: RollupConfig,
-    pub dir: PathBuf,
+    config: FullFullNodeConfig,
     pub client: Box<TestClient>,
 }
 
 impl FullNode {
     pub async fn new(ctx: &TestContext) -> Result<Self> {
         let TestConfig {
-            test_case,
-            full_node_rollup: rollup_config,
+            full_node: full_node_config,
             ..
         } = &ctx.config;
 
-        let dir = test_case.dir.join("full-node");
-
-        let spawn_output = Self::spawn(rollup_config, &dir)?;
+        let spawn_output = Self::spawn(full_node_config)?;
 
         let socket_addr = SocketAddr::new(
-            rollup_config
+            full_node_config
+                .rollup
                 .rpc
                 .bind_host
                 .parse()
                 .context("Failed to parse bind host")?,
-            rollup_config.rpc.bind_port,
+            full_node_config.rollup.rpc.bind_port,
         );
         let client = retry(|| async { make_test_client(socket_addr).await }, None).await?;
 
         Ok(Self {
             spawn_output,
-            config: rollup_config.clone(),
-            dir,
+            config: full_node_config.clone(),
             client,
         })
     }
@@ -107,11 +102,12 @@ impl FullNode {
 }
 
 impl Node for FullNode {
-    type Config = RollupConfig;
+    type Config = FullFullNodeConfig;
     type Client = TestClient;
 
-    fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
+        let dir = &config.dir;
 
         let stdout_file =
             File::create(get_stdout_path(dir)).context("Failed to create stdout file")?;
@@ -119,7 +115,7 @@ impl Node for FullNode {
             File::create(get_stderr_path(dir)).context("Failed to create stderr file")?;
 
         let rollup_config_path = dir.join("full_node_rollup_config.toml");
-        config_to_file(&config, &rollup_config_path)?;
+        config_to_file(&config.rollup, &rollup_config_path)?;
 
         Command::new(citrea)
             .arg("--da-layer")
@@ -130,6 +126,7 @@ impl Node for FullNode {
             .arg(get_genesis_path(
                 dir.parent().expect("Couldn't get parent dir"),
             ))
+            .envs(config.env.clone())
             .stdout(Stdio::from(stdout_file))
             .stderr(Stdio::from(stderr_file))
             .kill_on_drop(true)
@@ -161,6 +158,10 @@ impl Node for FullNode {
     fn client(&self) -> &Self::Client {
         &self.client
     }
+
+    fn env(&self) -> Vec<(&'static str, &'static str)> {
+        self.config.env.clone()
+    }
 }
 
 impl L2Node for FullNode {}
@@ -171,6 +172,6 @@ impl LogProvider for FullNode {
     }
 
     fn log_path(&self) -> PathBuf {
-        get_stdout_path(&self.dir)
+        get_stdout_path(&self.config.dir)
     }
 }

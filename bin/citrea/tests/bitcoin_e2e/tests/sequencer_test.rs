@@ -2,6 +2,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
 
+use crate::bitcoin_e2e::config::TestCaseEnv;
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::L2Node;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
