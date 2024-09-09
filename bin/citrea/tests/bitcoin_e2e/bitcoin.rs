@@ -108,7 +108,7 @@ impl BitcoinNode {
     }
 
     pub async fn get_finalized_height(&self) -> Result<u64> {
-        Ok(self.get_block_count().await? - FINALITY_DEPTH)
+        Ok(self.get_block_count().await? - FINALITY_DEPTH + 1)
     }
 
     pub async fn get_relevant_blobs_from_block(&self, height: u64) -> Result<Vec<BlobWithSender>> {

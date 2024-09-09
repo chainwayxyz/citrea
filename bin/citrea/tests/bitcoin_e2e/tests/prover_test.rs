@@ -68,18 +68,18 @@ impl TestCase for BasicProverTest {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
             .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
             .await
@@ -242,7 +242,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.generate(5, None).await?;
 
         prover
-            .wait_for_l1_height(FINALITY_DEPTH + 1, Some(Duration::from_secs(300)))
+            .wait_for_l1_height(FINALITY_DEPTH, Some(Duration::from_secs(300)))
             .await;
 
         assert_eq!(

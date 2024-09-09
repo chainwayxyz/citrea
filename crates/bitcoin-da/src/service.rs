@@ -79,7 +79,7 @@ pub struct BitcoinServiceConfig {
     pub da_private_key: Option<String>,
 }
 
-pub const FINALITY_DEPTH: u64 = 4; // blocks
+pub const FINALITY_DEPTH: u64 = 8; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
@@ -593,7 +593,7 @@ impl DaService for BitcoinService {
 
         let finalized_blockhash = self
             .client
-            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH))
+            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH).saturating_add(1))
             .await?;
 
         let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;
