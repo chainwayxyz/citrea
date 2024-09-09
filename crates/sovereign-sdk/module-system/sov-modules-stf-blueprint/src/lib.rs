@@ -748,6 +748,12 @@ where
                     da_block_header = da_block_headers_iter.next().unwrap();
                 }
 
+                assert_eq!(
+                    soft_confirmation.l2_height(),
+                    l2_height,
+                    "Soft confirmation heights not sequential"
+                );
+
                 let result = self
                     .apply_soft_confirmation(
                         fork_manager.active_fork().spec_id,
