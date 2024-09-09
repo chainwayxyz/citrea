@@ -33,11 +33,13 @@ jobs:
           source $HOME/.cargo/env
           cargo install --version 1.7.0 cargo-binstall
 
-      - name: Install Cargo Risczero
+      - name: Install cargo-risczero
         run: |
-          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+          cargo binstall cargo-risczero@1.0.5 --no-confirm
+
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
         env:
-          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
@@ -82,12 +84,13 @@ jobs:
           source $HOME/.cargo/env
           cargo install --version 1.7.0 cargo-binstall
 
-      - name: Install Cargo Risczero
-        run: |
-          source $HOME/.cargo/env
-          curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
         env:
-          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
