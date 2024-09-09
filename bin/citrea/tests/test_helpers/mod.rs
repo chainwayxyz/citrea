@@ -156,6 +156,7 @@ pub fn create_default_rollup_config(
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),
+                sync_blocks_count: 10,
             }),
             NodeMode::SequencerNode => None,
         },
@@ -163,7 +164,6 @@ pub fn create_default_rollup_config(
             sender_address: MockAddress::from([0; 32]),
             db_path: da_path.to_path_buf(),
         },
-        sync_blocks_count: 10,
     }
 }
 
