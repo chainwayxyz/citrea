@@ -176,7 +176,7 @@ struct SequencerSendCommitmentsToDaTest;
 impl TestCase for SequencerSendCommitmentsToDaTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
+            min_soft_confirmations_per_commitment: 12,
             ..Default::default()
         }
     }
@@ -198,6 +198,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .await;
 
         da.generate(FINALITY_DEPTH, None).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -213,8 +214,12 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         // Publish one more L2 block and send commitment
         sequencer.client.send_publish_batch_request().await;
+
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(
+                min_soft_confirmations_per_commitment + FINALITY_DEPTH - 1,
+                None,
+            )
             .await;
 
         // Wait for blob tx to hit the mempool
@@ -222,9 +227,10 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH, None).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let start_l2_block = 1;
-        let end_l2_block = 4;
+        let end_l2_block = 19;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
@@ -233,7 +239,10 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             sequencer.client.send_publish_batch_request().await;
         }
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment * 2, None)
+            .wait_for_l2_height(
+                end_l2_block + min_soft_confirmations_per_commitment + FINALITY_DEPTH - 2,
+                None,
+            )
             .await;
 
         // Wait for blob tx to hit the mempool
@@ -242,7 +251,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.generate(FINALITY_DEPTH, None).await?;
 
         let start_l2_block = end_l2_block + 1;
-        let end_l2_block = start_l2_block + 4;
+        let end_l2_block = end_l2_block + 12;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
