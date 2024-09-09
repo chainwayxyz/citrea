@@ -50,7 +50,7 @@ const CODE_KEY_SIZE: usize = 39;
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
 /// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 soft confirmations
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
-pub const L1_FEE_OVERHEAD: usize = 4;
+pub const L1_FEE_OVERHEAD: usize = 3;
 
 /// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
 /// So we calculate the state diff created by a single transaction and use that to charge user
