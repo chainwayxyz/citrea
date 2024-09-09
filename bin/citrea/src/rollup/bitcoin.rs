@@ -117,10 +117,11 @@ impl RollupBlueprint for BitcoinRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
+        require_wallet_check: bool,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
 
-        let bitcoin_service = if rollup_config.da.require_wallet_check {
+        let bitcoin_service = if require_wallet_check {
             BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {

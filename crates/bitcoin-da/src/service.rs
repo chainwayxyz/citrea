@@ -77,8 +77,6 @@ pub struct BitcoinServiceConfig {
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
-
-    pub require_wallet_check: bool,
 }
 
 pub const FINALITY_DEPTH: u64 = 4; // blocks
@@ -980,7 +978,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
-            require_wallet_check: false,
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1011,7 +1008,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
-            require_wallet_check: false,
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1043,7 +1039,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
             ),
-            require_wallet_check: false,
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1296,7 +1291,6 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
-            require_wallet_check: false,
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
