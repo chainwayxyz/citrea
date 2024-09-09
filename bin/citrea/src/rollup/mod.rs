@@ -206,7 +206,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             init_variant,
             code_commitments_by_spec,
-            rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
         )?;
@@ -316,7 +315,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_service),
             Some(prover_config),
             code_commitments_by_spec,
-            rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
         )?;

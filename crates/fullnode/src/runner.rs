@@ -105,7 +105,6 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        sync_blocks_count: u64,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
@@ -156,7 +155,7 @@ where
             accept_public_input_as_proven: runner_config
                 .accept_public_input_as_proven
                 .unwrap_or(false),
-            sync_blocks_count,
+            sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,

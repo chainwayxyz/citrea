@@ -175,10 +175,11 @@ impl<T: TestCase> TestCaseRunner<T> {
         let runner_config = Some(RunnerConfig {
             sequencer_client_url: format!(
                 "http://{}:{}",
-                sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port
+                sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port,
             ),
             include_tx_body: true,
             accept_public_input_as_proven: Some(true),
+            sync_blocks_count: Default::default(),
         });
 
         let prover_rollup = {
