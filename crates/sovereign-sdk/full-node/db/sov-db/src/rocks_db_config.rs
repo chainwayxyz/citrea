@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use rlimit::{getrlimit, Resource};
-use rocksdb::{BlockBasedOptions, Options};
+use rocksdb::{BlockBasedOptions, Cache, Options};
 use tracing::warn;
 
 /// Port selected RocksDB options for tuning underlying rocksdb instance of our state db.
@@ -50,8 +50,14 @@ impl<'a> RocksdbConfig<'a> {
          * The following settings are recommended in:
          * https://github.com/facebook/rocksdb/wiki/memory-usage-in-rocksdb
          */
-        // Since our database is write heavy, disable cache to decrease memory footprint
-        block_based_options.disable_cache();
+        // Enable read caching with a specific capacity.
+        // The initial capacity is set to a larger default. However, setting the capacity
+        // would NOT prevent rocksdb from exceeding this capacity unless `strict_capacity_limit` is set.
+        // However, the rocksdb rust binding does not expose this functionality. This means that we
+        // could still have OOM errors when trying to allocate more for the cache even if the capacity
+        // is reached.
+        let cache = Cache::new_lru_cache(100 * 1024 * 1024); // 100 MB
+        block_based_options.set_block_cache(&cache);
         // jemalloc friendly bloom filter sizing
         block_based_options.set_optimize_filters_for_memory(true);
         // By default our block size is 4KB, we set this to 32KB.
