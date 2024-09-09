@@ -49,7 +49,6 @@ pub fn default_rollup_config() -> RollupConfig {
                 172, 112, 13, 54, 9, 206, 106, 138, 251, 218, 15, 28, 137, 112, 127,
             ],
         },
-        sync_blocks_count: 10,
     }
 }
 

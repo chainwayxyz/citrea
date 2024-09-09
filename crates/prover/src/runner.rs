@@ -113,7 +113,6 @@ where
         prover_service: Option<Ps>,
         prover_config: Option<ProverConfig>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        sync_blocks_count: u64,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
@@ -161,7 +160,7 @@ where
             prover_config,
             code_commitments_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
-            sync_blocks_count,
+            sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
         })

@@ -79,7 +79,7 @@ pub struct BitcoinServiceConfig {
     pub da_private_key: Option<String>,
 }
 
-pub const FINALITY_DEPTH: u64 = 4; // blocks
+pub const FINALITY_DEPTH: u64 = 8; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
@@ -114,6 +114,33 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key: private_key,
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
+            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            inscribes_queue: tx,
+        })
+    }
+
+    pub async fn new_without_wallet_check(
+        config: BitcoinServiceConfig,
+        chain_params: RollupParams,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        let client = Client::new(
+            &config.node_url,
+            Auth::UserPass(config.node_username, config.node_password),
+        )
+        .await?;
+
+        let da_private_key = config
+            .da_private_key
+            .map(|pk| SecretKey::from_str(&pk))
+            .transpose()
+            .context("Invalid private key")?;
+
+        Ok(Self {
+            client,
+            network: config.network,
+            da_private_key,
             reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
             reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
             inscribes_queue: tx,
@@ -192,34 +219,6 @@ impl BitcoinService {
                 error!("BitcoinDA queue stopped");
             });
         });
-    }
-
-    #[cfg(test)]
-    pub async fn new_without_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Client::new(
-            &config.node_url,
-            Auth::UserPass(config.node_username, config.node_password),
-        )
-        .await?;
-
-        let da_private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        Ok(Self {
-            client,
-            network: config.network,
-            da_private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
-            inscribes_queue: tx,
-        })
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -594,7 +593,7 @@ impl DaService for BitcoinService {
 
         let finalized_blockhash = self
             .client
-            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH))
+            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH).saturating_add(1))
             .await?;
 
         let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;

@@ -39,7 +39,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await?;
+        let da_service = self.create_da_service(&rollup_config, true).await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -133,7 +133,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await?;
+        let da_service = self.create_da_service(&rollup_config, false).await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -206,7 +206,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             init_variant,
             code_commitments_by_spec,
-            rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
         )?;
@@ -231,7 +230,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config).await?;
+        let da_service = self.create_da_service(&rollup_config, true).await?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -316,7 +315,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Some(prover_service),
             Some(prover_config),
             code_commitments_by_spec,
-            rollup_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
         )?;
