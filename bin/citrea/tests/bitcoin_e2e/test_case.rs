@@ -160,6 +160,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    tx_backup_dir: "../../resources/bitcoin/inscription_txs".to_string(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -194,6 +195,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    tx_backup_dir: "../../resources/bitcoin/inscription_txs".to_string(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -219,6 +221,8 @@ impl<T: TestCase> TestCaseRunner<T> {
                         da_config.node_url,
                         NodeKind::Bitcoin // Use default wallet
                     ),
+                    tx_backup_dir: "../../resources/bitcoin/inscription_txs".to_string(),
+
                     ..da_config.clone()
                 },
                 storage: StorageConfig {

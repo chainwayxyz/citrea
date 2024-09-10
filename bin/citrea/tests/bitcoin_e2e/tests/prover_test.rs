@@ -166,6 +166,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             node_password: da_config.rpc_password.clone(),
             network: bitcoin::Network::Regtest,
             da_private_key: Some(secret_key),
+            tx_backup_dir: "../../resources/bitcoin/inscription_txs".to_string(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let bitcoin_da_service = Arc::new(
