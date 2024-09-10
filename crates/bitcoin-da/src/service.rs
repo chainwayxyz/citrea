@@ -970,6 +970,7 @@ pub fn get_relevant_blobs_from_txs(
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     // use futures::{Stream, StreamExt};
@@ -991,6 +992,21 @@ mod tests {
     use crate::spec::RollupParams;
     use crate::verifier::BitcoinVerifier;
 
+    fn get_workspace_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir
+            .ancestors()
+            .nth(2)
+            .expect("Failed to find workspace root")
+            .to_path_buf()
+    }
+
+    fn get_tx_backup_dir() -> String {
+        let mut path = get_workspace_root();
+        path.push("resources/bitcoin/inscription_txs");
+        path.to_str().unwrap().to_string()
+    }
+
     async fn get_service() -> Arc<BitcoinService> {
         let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/test".to_string(),
@@ -1000,7 +1016,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
-            tx_backup_dir: "resources/bitcoin/inscription_txs".to_string(),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1031,7 +1047,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
-            tx_backup_dir: "resources/bitcoin/inscription_txs".to_string(),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1063,7 +1079,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
             ),
-            tx_backup_dir: "resources/bitcoin/inscription_txs".to_string(),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1316,7 +1332,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
-            tx_backup_dir: "resources/bitcoin/inscription_txs".to_string(),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
