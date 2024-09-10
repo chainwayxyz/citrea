@@ -6,7 +6,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   FOUNDRY_PROFILE: ci
-  TARGET_PCT: 5
+  TARGET_PCT: 3
 
 jobs:
   performance-comparison:
