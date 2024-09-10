@@ -160,10 +160,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
-                    tx_backup_dir: get_tx_backup_dir()
-                        .to_str()
-                        .expect("Failed to get tx backup dir")
-                        .to_string(),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -198,10 +195,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
-                    tx_backup_dir: get_tx_backup_dir()
-                        .to_str()
-                        .expect("Failed to get tx backup dir")
-                        .to_string(),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -227,11 +221,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         da_config.node_url,
                         NodeKind::Bitcoin // Use default wallet
                     ),
-                    tx_backup_dir: get_tx_backup_dir()
-                        .to_str()
-                        .expect("Failed to get tx backup dir")
-                        .to_string(),
-
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {

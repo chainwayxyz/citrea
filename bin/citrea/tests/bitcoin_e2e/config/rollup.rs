@@ -31,10 +31,7 @@ pub fn default_rollup_config() -> RollupConfig {
             node_password: String::from("password"),
             network: bitcoin::Network::Regtest,
             da_private_key: None,
-            tx_backup_dir: get_tx_backup_dir()
-                .to_str()
-                .expect("Failed to get tx backup dir")
-                .to_string(),
+            tx_backup_dir: get_tx_backup_dir(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
