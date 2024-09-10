@@ -11,6 +11,7 @@ env:
   FOUNDRY_PROFILE: ci
   TARGET_PCT: 3
   COMPARISON_FILE: comparison_results.log
+  USE_DOCKER: "true"
 
 jobs:
   performance-comparison:
