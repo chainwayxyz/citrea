@@ -265,7 +265,7 @@ impl BitcoinService {
     async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
         let utxos = self
             .client
-            .list_unspent(None, None, None, None, None)
+            .list_unspent(Some(0), None, None, None, None)
             .await?;
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no UTXOs"));

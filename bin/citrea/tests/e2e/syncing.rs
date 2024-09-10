@@ -551,8 +551,6 @@ async fn test_healthcheck() {
     let full_node_addr = full_node_port_rx.await.unwrap();
     let full_node_test_client = make_test_client(full_node_addr).await.unwrap();
 
-    wait_for_l2_block(&full_node_test_client, 2, None).await;
-
     let status = full_node_test_client.healthcheck().await.unwrap();
     assert_eq!(status, 200);
 
