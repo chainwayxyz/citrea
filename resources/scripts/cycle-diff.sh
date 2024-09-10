@@ -52,8 +52,6 @@ run_test_and_extract() {
 
     make build
     $command > "$output_file" 2>&1
-    echo "Contents of $output_file:" >&2
-    cat "$output_file" >&2
 
     local prover_output_file
     prover_output_file=$(grep "prover.log" "$output_file" | awk '{print $6}')
