@@ -23,6 +23,11 @@ clean-node: ## Cleans local dbs needed for sequencer and nodes
 	rm -rf resources/dbs/full-node-db
 	rm -rf resources/dbs/citrea-bitcoin-regtest-data
 
+clean-txs:
+	rm -rf resources/bitcoin/inscription_txs/*
+
+clean-all: clean clean-node clean-txs
+
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
