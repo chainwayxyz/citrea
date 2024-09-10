@@ -18,6 +18,7 @@
 #   BASE_BRANCH: The branch to compare against (default: nightly)
 #   TEST_NAME: The test file to run (default: bitcoin_e2e::tests::prover_test::basic_prover_test)
 #   TARGET_PCT: The threshold percentage for regression detection (default: 3)
+#   NUM_RUNS: Number of times to run the test for averaging (default: 1)
 #
 # Requirements:
 #   - Git
@@ -40,6 +41,7 @@ BASE_BRANCH=${BASE_BRANCH:-"nightly"}
 TEST_NAME=${TEST_NAME:-"bitcoin_e2e::tests::prover_test::basic_prover_test"}
 TARGET_PCT=${TARGET_PCT:-3}
 COMPARISON_FILE=${COMPARISON_FILE:-"comparison_results.log"}
+NUM_RUNS=${NUM_RUNS:-1}
 
 # Used to silence custom risc0 build.rs output
 RISC0_GUEST_LOGFILE=
@@ -49,21 +51,41 @@ RISC0_GUEST_LOGFILE=$(mktemp)
 run_test_and_extract() {
     local command="cargo test $TEST_NAME -p citrea -- --nocapture"
     local output_file="output.log"
+    local total_exec_time=0
+    local total_segments=0
+    local total_total_cycles=0
+    local total_user_cycles=0
 
     make build
-    $command > "$output_file" 2>&1
 
-    local prover_output_file
-    prover_output_file=$(grep "prover.log" "$output_file" | awk '{print $6}')
+    for ((i=1; i<=NUM_RUNS; i++)); do
+        echo "Running test $i of $NUM_RUNS" >&2
+        $command > "$output_file" 2>&1
 
-    local execution_time num_segments total_cycles user_cycles
-    execution_time=$(grep "execution time:" "$prover_output_file" | awk '{print $NF}' | sed 's/s//')
-    num_segments=$(grep "number of segments:" "$prover_output_file" | awk '{print $NF}')
-    total_cycles=$(grep "total cycles:" "$prover_output_file" | awk '{print $NF}')
-    user_cycles=$(grep "user cycles:" "$prover_output_file" | awk '{print $NF}')
+        local prover_output_file
+        prover_output_file=$(grep "prover.log" "$output_file" | awk '{print $6}')
 
-    echo "$execution_time $num_segments $total_cycles $user_cycles"
+        local execution_time num_segments total_cycles user_cycles
+        execution_time=$(grep "execution time:" "$prover_output_file" | awk '{print $NF}' | sed 's/s//')
+        num_segments=$(grep "number of segments:" "$prover_output_file" | awk '{print $NF}')
+        total_cycles=$(grep "total cycles:" "$prover_output_file" | awk '{print $NF}')
+        user_cycles=$(grep "user cycles:" "$prover_output_file" | awk '{print $NF}')
+
+        total_exec_time=$(awk "BEGIN {print $total_exec_time + $execution_time}")
+        total_segments=$(awk "BEGIN {print $total_segments + $num_segments}")
+        total_total_cycles=$(awk "BEGIN {print $total_total_cycles + $total_cycles}")
+        total_user_cycles=$(awk "BEGIN {print $total_user_cycles + $user_cycles}")
+    done
+
+    local avg_exec_time avg_segments avg_total_cycles avg_user_cycles
+    avg_exec_time=$(awk "BEGIN {printf \"%.2f\", $total_exec_time / $NUM_RUNS}")
+    avg_segments=$(awk "BEGIN {printf \"%.2f\", $total_segments / $NUM_RUNS}")
+    avg_total_cycles=$(awk "BEGIN {printf \"%.2f\", $total_total_cycles / $NUM_RUNS}")
+    avg_user_cycles=$(awk "BEGIN {printf \"%.2f\", $total_user_cycles / $NUM_RUNS}")
+
+    echo "$avg_exec_time $avg_segments $avg_total_cycles $avg_user_cycles"
 }
+
 
 calc_diff() {
     awk "BEGIN {printf \"%.2f\", ($1 - $2) / $2 * 100}"
