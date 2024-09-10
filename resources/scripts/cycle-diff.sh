@@ -50,8 +50,7 @@ run_test_and_extract() {
     local command="cargo test $TEST_NAME -p citrea -- --nocapture"
     local output_file="output.log"
 
-    # Aggressively silence build output
-    script -q /dev/null make build > /dev/null 2>&1
+    make build
     $command > "$output_file" 2>&1
 
     local prover_output_file
