@@ -3,6 +3,7 @@ use sov_stf_runner::{FullNodeConfig, RollupPublicKeys, RpcConfig, StorageConfig}
 use tempfile::TempDir;
 
 use super::BitcoinConfig;
+use crate::bitcoin_e2e::utils::get_tx_backup_dir;
 pub type RollupConfig = FullNodeConfig<BitcoinServiceConfig>;
 
 pub fn default_rollup_config() -> RollupConfig {
@@ -30,6 +31,7 @@ pub fn default_rollup_config() -> RollupConfig {
             node_password: String::from("password"),
             network: bitcoin::Network::Regtest,
             da_private_key: None,
+            tx_backup_dir: get_tx_backup_dir(),
         },
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
@@ -60,6 +62,7 @@ impl From<BitcoinConfig> for BitcoinServiceConfig {
             node_password: v.rpc_password,
             network: v.network,
             da_private_key: None,
+            tx_backup_dir: "".to_string(),
         }
     }
 }
