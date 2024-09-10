@@ -154,7 +154,7 @@ main() {
     local mode=${1:-"generate"}
     case "$mode" in
         generate)
-            generate_comparison > "$COMPARISON_FILE"
+            generate_comparison | tee "$COMPARISON_FILE"
             ;;
         check)
             check_performance_regression
