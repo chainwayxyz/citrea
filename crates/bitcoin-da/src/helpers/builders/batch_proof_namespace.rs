@@ -1,6 +1,7 @@
 use core::result::Result::Ok;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
@@ -21,7 +22,6 @@ use super::{TransactionKindBatchProof, TxListWithReveal, TxWithId};
 use crate::helpers::builders::{
     build_commit_transaction, build_reveal_transaction, get_size_reveal, sign_blob_with_private_key,
 };
-use crate::helpers::get_workspace_root;
 use crate::spec::utxo::UTXO;
 
 /// This is a list of batch proof tx we need to send to DA (only SequencerCommitment for now)
@@ -32,13 +32,9 @@ pub(crate) struct BatchProvingTxs {
 }
 
 impl TxListWithReveal for BatchProvingTxs {
-    fn write_to_file(&self) -> Result<(), anyhow::Error> {
-        let mut path = get_workspace_root();
-        path.push("resources");
-        path.push("bitcoin");
-        path.push("inscription_txs");
+    fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
         path.push(format!(
-            "chunked_light_client_inscription_with_reveal_id_{}.txs",
+            "batch_proof_inscription_with_reveal_id_{}.txs",
             self.reveal.id
         ));
 

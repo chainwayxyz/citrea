@@ -15,6 +15,7 @@ use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::NodeKind;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
+use crate::bitcoin_e2e::utils::get_tx_backup_dir;
 use crate::bitcoin_e2e::Result;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
@@ -166,6 +167,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             node_password: da_config.rpc_password.clone(),
             network: bitcoin::Network::Regtest,
             da_private_key: Some(secret_key),
+            tx_backup_dir: get_tx_backup_dir(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let bitcoin_da_service = Arc::new(
