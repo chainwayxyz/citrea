@@ -89,15 +89,15 @@ generate_comparison() {
     git checkout "$current_branch"
 
     local current_exec_time current_segments current_total_cycles current_user_cycles
-    local nightly_exec_time nightly_segments nightly_total_cycles nightly_user_cycles
+    local base_exec_time base_segments base_total_cycles base_user_cycles
     read -r current_exec_time current_segments current_total_cycles current_user_cycles <<< "$current_metrics"
-    read -r nightly_exec_time nightly_segments nightly_total_cycles nightly_user_cycles <<< "$base_metrics"
+    read -r base_exec_time base_segments base_total_cycles base_user_cycles <<< "$base_metrics"
 
     local exec_time_diff segments_diff total_cycles_diff user_cycles_diff
-    exec_time_diff=$(calc_diff "$current_exec_time" "$nightly_exec_time")
-    segments_diff=$(calc_diff "$current_segments" "$nightly_segments")
-    total_cycles_diff=$(calc_diff "$current_total_cycles" "$nightly_total_cycles")
-    user_cycles_diff=$(calc_diff "$current_user_cycles" "$nightly_user_cycles")
+    exec_time_diff=$(calc_diff "$current_exec_time" "$base_exec_time")
+    segments_diff=$(calc_diff "$current_segments" "$base_segments")
+    total_cycles_diff=$(calc_diff "$current_total_cycles" "$base_total_cycles")
+    user_cycles_diff=$(calc_diff "$current_user_cycles" "$base_user_cycles")
 
     echo "Performance Comparison ($current_branch vs $BASE_BRANCH)"
     echo "----------------------------------------"
