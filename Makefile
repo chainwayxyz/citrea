@@ -21,10 +21,12 @@ clean-node: ## Cleans local dbs needed for sequencer and nodes
 	rm -rf resources/dbs/sequencer-db
 	rm -rf resources/dbs/prover-db
 	rm -rf resources/dbs/full-node-db
-	rm -rf resources/dbs/citrea-bitcoin-regtest-data
 
 clean-txs:
 	rm -rf resources/bitcoin/inscription_txs/*
+
+clean-docker:
+	rm -rf resources/dbs/citrea-bitcoin-regtest-data
 
 clean-all: clean clean-node clean-txs
 
