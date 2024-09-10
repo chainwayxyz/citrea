@@ -604,10 +604,10 @@ where
         info!("Resubmitting pending commitments");
 
         let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
-        debug!("Pending db commitments: {:?}", pending_db_commitments);
+        info!("Pending db commitments: {:?}", pending_db_commitments);
 
         let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
-        debug!(
+        info!(
             "Commitments that are already in DA mempool: {:?}",
             pending_mempool_commitments
         );
@@ -619,7 +619,7 @@ where
         let mined_commitments = self
             .get_mined_commitments_from(last_commitment_l1_height)
             .await?;
-        debug!(
+        info!(
             "Commitments that are already mined by DA: {:?}",
             mined_commitments
         );
@@ -628,7 +628,6 @@ where
         pending_commitments_to_remove.extend(pending_mempool_commitments);
         pending_commitments_to_remove.extend(mined_commitments);
 
-        // TODO: also take mined DA blocks into account
         for (l2_start, l2_end) in pending_db_commitments {
             if pending_commitments_to_remove.iter().any(|commitment| {
                 commitment.l2_start_block_number == l2_start.0
@@ -642,7 +641,7 @@ where
                     }
                 };
 
-                // Delete from pending db if it is already in DA mempool
+                // Delete from pending db if it is already in DA mempool or mined
                 self.ledger_db
                     .delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
             } else {
