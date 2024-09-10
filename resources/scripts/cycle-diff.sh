@@ -45,7 +45,7 @@ COMPARISON_FILE=${COMPARISON_FILE:-"comparison_results.log"}
 export RISC0_GUEST_LOGFILE=$(mktemp)
 
 run_test_and_extract() {
-    local command="cargo test $TEST_NAME -- --nocapture"
+    local command="cargo test $TEST_NAME -p citrea -- --nocapture"
     local output_file="output.log"
 
     # Aggressively silence build output
