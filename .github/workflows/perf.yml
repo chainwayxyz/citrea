@@ -2,6 +2,9 @@ name: Performance Comparison
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/bench-script
 
 env:
   CARGO_TERM_COLOR: always
