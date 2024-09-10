@@ -42,7 +42,9 @@ TARGET_PCT=${TARGET_PCT:-3}
 COMPARISON_FILE=${COMPARISON_FILE:-"comparison_results.log"}
 
 # Used to silence custom risc0 build.rs output
-export RISC0_GUEST_LOGFILE=$(mktemp)
+RISC0_GUEST_LOGFILE=
+export RISC0_GUEST_LOGFILE
+RISC0_GUEST_LOGFILE=$(mktemp)
 
 run_test_and_extract() {
     local command="cargo test $TEST_NAME -p citrea -- --nocapture"
@@ -107,7 +109,8 @@ generate_comparison() {
 
 check_regression() {
     local metric="$1"
-    local value=$(grep "$metric:" $COMPARISON_FILE | awk '{print $NF}' | sed 's/%//')
+    local value
+    value=$(grep "$metric:" "$COMPARISON_FILE" | awk '{print $NF}' | sed 's/%//')
     echo "Checking $metric:"
 
     if [ -z "$value" ]; then
