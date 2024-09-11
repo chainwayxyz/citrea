@@ -537,6 +537,7 @@ where
         for blob in da_data {
             // TODO: get sequencer da pub key
             if blob.sender().as_ref() == sequencer_da_public_key {
+                // TODO: if any upgrades are done, also fix below (should be DaDataBatchProof::try_from_slice)
                 let da_data = DaData::try_from_slice(blob.verified_data());
 
                 if let Ok(DaData::SequencerCommitment(commitment)) = da_data {
