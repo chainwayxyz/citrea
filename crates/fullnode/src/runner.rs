@@ -824,7 +824,7 @@ async fn sync_l2<Da>(
 async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
     loop {
         match client.get_soft_confirmation::<Da>(1).await {
-            Ok(Some(batch)) => return batch.da_slot_height,
+            Ok(Some(soft_confirmation)) => return soft_confirmation.da_slot_height,
             _ => {
                 // sleep 1
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
