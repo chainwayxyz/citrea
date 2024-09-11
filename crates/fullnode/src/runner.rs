@@ -313,7 +313,7 @@ where
         let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
         let prover_da_pub_key = self.prover_da_pub_key.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
-        let accept_public_input_as_proven = self.accept_public_input_as_proven.clone();
+        let accept_public_input_as_proven = self.accept_public_input_as_proven;
 
         tokio::spawn(async move {
             let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(

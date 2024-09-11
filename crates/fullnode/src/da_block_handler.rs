@@ -65,6 +65,7 @@ where
         + AsRef<[u8]>
         + Debug,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ledger_db: DB,
         da_service: Arc<Da>,
