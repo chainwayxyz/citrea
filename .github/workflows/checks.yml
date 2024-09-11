@@ -354,8 +354,6 @@ jobs:
         run: cargo risczero install --version r0.1.79.0-2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build citrea
-        run: make build
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
