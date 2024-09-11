@@ -162,7 +162,7 @@ where
 
         for sequencer_commitment in sequencer_commitments.clone().iter() {
             if let Err(e) = self
-                .process_sequencer_commitment(&l1_block, sequencer_commitment)
+                .process_sequencer_commitment(l1_block, sequencer_commitment)
                 .await
             {
                 match e {
