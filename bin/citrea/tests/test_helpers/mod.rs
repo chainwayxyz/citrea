@@ -230,7 +230,7 @@ pub async fn wait_for_prover_l1_height(
     let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 300 seconds timeout
     loop {
         debug!("Waiting for prover height {}", num);
-        let latest_block = prover_client.prover_get_last_scanned_l1_height().await;
+        let latest_block = prover_client.ledger_get_last_scanned_l1_height().await;
         if latest_block >= num {
             break;
         }

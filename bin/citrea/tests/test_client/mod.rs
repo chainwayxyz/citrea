@@ -526,9 +526,9 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn prover_get_last_scanned_l1_height(&self) -> u64 {
+    pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
         self.http_client
-            .request("prover_getLastScannedL1Slot", rpc_params![])
+            .request("ledger_getLastScannedL1Hieght", rpc_params![])
             .await
             .unwrap()
     }
