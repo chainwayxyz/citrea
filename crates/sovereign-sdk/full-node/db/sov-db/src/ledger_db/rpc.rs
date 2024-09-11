@@ -16,7 +16,7 @@ const MAX_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of soft confirmations that can be requested in a single RPC range query
 const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
 
-use super::{LedgerDB, ProverLedgerOps, SharedLedgerOps};
+use super::{LedgerDB, SharedLedgerOps};
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_soft_confirmation(
@@ -134,8 +134,8 @@ impl LedgerRpcProvider for LedgerDB {
         }
     }
 
-    fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error> {
-        match ProverLedgerOps::get_last_scanned_l1_height(self)? {
+    fn get_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error> {
+        match SharedLedgerOps::get_last_scanned_l1_height(self)? {
             Some(height) => Ok(height.0),
             None => Ok(0),
         }

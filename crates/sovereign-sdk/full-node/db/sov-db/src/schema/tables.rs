@@ -279,6 +279,9 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Prover uses this table to store the last slot it scanned
+    /// Full node also uses this table to store the last slot it scanned
+    /// However, we don't rename here to avoid breaking changes on deployed nodes
+    /// and prover.
     (ProverLastScannedSlot) () => SlotNumber
 );
 
