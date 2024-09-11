@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -22,7 +22,8 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use tokio::sync::Mutex;
+use tokio::select;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
 
@@ -48,6 +49,7 @@ where
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     _context: PhantomData<C>,
     _state_root: PhantomData<StateRoot>,
 }
@@ -86,57 +88,47 @@ where
             code_commitments_by_spec,
             accept_public_input_as_proven,
             l1_block_cache,
+            pending_l1_blocks: VecDeque::new(),
             _context: PhantomData,
             _state_root: PhantomData,
         }
     }
 
-    pub async fn run(self, start_l1_height: u64) {
-        let mut l1_height = start_l1_height;
-        info!("Starting to sync from L1 height {}", l1_height);
+    pub async fn run(mut self, start_l1_height: u64) {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
 
-        'block_sync: loop {
-            // TODO: for a node, the da block at slot_height might not have been finalized yet
-            // should wait for it to be finalized
-            let last_finalized_l1_block_header =
-                match self.da_service.get_last_finalized_block_header().await {
-                    Ok(header) => header,
-                    Err(e) => {
-                        error!("Could not fetch last finalized L1 block header: {}", e);
-                        sleep(Duration::from_secs(2)).await;
-                        continue;
-                    }
-                };
+        let (l1_tx, mut l1_rx) = mpsc::channel(1);
+        let l1_sync_worker = sync_l1(
+            start_l1_height,
+            self.da_service.clone(),
+            l1_tx,
+            self.l1_block_cache.clone(),
+        );
+        tokio::pin!(l1_sync_worker);
 
-            let new_l1_height = last_finalized_l1_block_header.height();
-
-            for block_number in l1_height + 1..=new_l1_height {
-                let l1_block = match get_da_block_at_height(
-                    &self.da_service,
-                    block_number,
-                    self.l1_block_cache.clone(),
-                )
-                .await
-                {
-                    Ok(block) => block,
-                    Err(e) => {
-                        error!("Could not fetch last finalized L1 block: {}", e);
-                        sleep(Duration::from_secs(2)).await;
-                        continue 'block_sync;
-                    }
-                };
-
-                if block_number > l1_height {
-                    l1_height = block_number;
-                    self.process_l1_block(&l1_block).await;
-                }
+        loop {
+            select! {
+                _ = &mut l1_sync_worker => {},
+                Some(l1_block) = l1_rx.recv() => {
+                    self.pending_l1_blocks.push_back(l1_block);
+                },
+                _ = interval.tick() => {
+                    self.process_l1_block().await
+                },
             }
-
-            sleep(Duration::from_secs(2)).await;
         }
     }
 
-    async fn process_l1_block(&self, l1_block: &Da::FilteredBlock) {
+    async fn process_l1_block(&mut self) {
+        if self.pending_l1_blocks.is_empty() {
+            return;
+        }
+        let l1_block = self
+            .pending_l1_blocks
+            .front()
+            .expect("Just checked pending L1 blocks is not empty");
+
         // Set the l1 height of the l1 hash
         self.ledger_db
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
@@ -194,6 +186,8 @@ where
             .map_err(|e| {
                 error!("Could not set last scanned l1 height: {}", e);
             });
+
+        self.pending_l1_blocks.pop_front();
     }
 
     async fn extract_relevant_l1_data(
@@ -445,5 +439,57 @@ where
             stored_state_transition,
         )?;
         Ok(())
+    }
+}
+
+async fn sync_l1<Da>(
+    start_l1_height: u64,
+    da_service: Arc<Da>,
+    sender: mpsc::Sender<Da::FilteredBlock>,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+) where
+    Da: DaService,
+{
+    let mut l1_height = start_l1_height;
+    info!("Starting to sync from L1 height {}", l1_height);
+
+    'block_sync: loop {
+        // TODO: for a node, the da block at slot_height might not have been finalized yet
+        // should wait for it to be finalized
+        let last_finalized_l1_block_header =
+            match da_service.get_last_finalized_block_header().await {
+                Ok(header) => header,
+                Err(e) => {
+                    error!("Could not fetch last finalized L1 block header: {}", e);
+                    sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
+        let new_l1_height = last_finalized_l1_block_header.height();
+
+        for block_number in l1_height + 1..=new_l1_height {
+            let l1_block =
+                match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
+                    .await
+                {
+                    Ok(block) => block,
+                    Err(e) => {
+                        error!("Could not fetch last finalized L1 block: {}", e);
+                        sleep(Duration::from_secs(2)).await;
+                        continue 'block_sync;
+                    }
+                };
+
+            if block_number > l1_height {
+                l1_height = block_number;
+                if let Err(e) = sender.send(l1_block).await {
+                    error!("Could not notify about L1 block: {}", e);
+                    continue 'block_sync;
+                }
+            }
+        }
+
+        sleep(Duration::from_secs(2)).await;
     }
 }
