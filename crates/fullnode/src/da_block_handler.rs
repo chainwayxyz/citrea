@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
-use citrea_primitives::SyncError;
+use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde::de::DeserializeOwned;
@@ -22,8 +22,9 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{error, warn};
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
+use tracing::{error, info, warn};
 
 pub(crate) struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
 where
@@ -46,7 +47,7 @@ where
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     accept_public_input_as_proven: bool,
-    rx: UnboundedReceiver<Da::FilteredBlock>,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     _context: PhantomData<C>,
     _state_root: PhantomData<StateRoot>,
 }
@@ -74,7 +75,7 @@ where
         prover_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         accept_public_input_as_proven: bool,
-        rx: UnboundedReceiver<Da::FilteredBlock>,
+        l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     ) -> Self {
         Self {
             ledger_db,
@@ -84,75 +85,115 @@ where
             prover_da_pub_key,
             code_commitments_by_spec,
             accept_public_input_as_proven,
-            rx,
+            l1_block_cache,
             _context: PhantomData,
             _state_root: PhantomData,
         }
     }
 
-    pub async fn run(mut self) {
-        while let Some(l1_block) = self.rx.recv().await {
-            // Set the l1 height of the l1 hash
-            self.ledger_db
-                .set_l1_height_of_l1_hash(
-                    l1_block.header().hash().into(),
-                    l1_block.header().height(),
-                )
-                .unwrap();
+    pub async fn run(self, start_l1_height: u64) {
+        let mut l1_height = start_l1_height;
+        info!("Starting to sync from L1 height {}", l1_height);
 
-            let (sequencer_commitments, zk_proofs) =
-                match self.extract_relevant_l1_data(l1_block.clone()).await {
-                    Ok(r) => r,
+        'block_sync: loop {
+            // TODO: for a node, the da block at slot_height might not have been finalized yet
+            // should wait for it to be finalized
+            let last_finalized_l1_block_header =
+                match self.da_service.get_last_finalized_block_header().await {
+                    Ok(header) => header,
                     Err(e) => {
-                        error!("Could not process L1 block: {}...skipping", e);
-                        return;
+                        error!("Could not fetch last finalized L1 block header: {}", e);
+                        sleep(Duration::from_secs(2)).await;
+                        continue;
                     }
                 };
 
-            for zk_proof in zk_proofs.clone().iter() {
-                if let Err(e) = self
-                    .process_zk_proof(l1_block.clone(), zk_proof.clone())
-                    .await
+            let new_l1_height = last_finalized_l1_block_header.height();
+
+            for block_number in l1_height + 1..=new_l1_height {
+                let l1_block = match get_da_block_at_height(
+                    &self.da_service,
+                    block_number,
+                    self.l1_block_cache.clone(),
+                )
+                .await
                 {
-                    match e {
-                        SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                            warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
-                            return;
-                        }
-                        SyncError::Error(e) => {
-                            error!("Could not process ZK proofs: {}...skipping", e);
-                        }
+                    Ok(block) => block,
+                    Err(e) => {
+                        error!("Could not fetch last finalized L1 block: {}", e);
+                        sleep(Duration::from_secs(2)).await;
+                        continue 'block_sync;
                     }
+                };
+
+                if block_number > l1_height {
+                    l1_height = block_number;
+                    self.process_l1_block(&l1_block).await;
                 }
             }
 
-            for sequencer_commitment in sequencer_commitments.clone().iter() {
-                if let Err(e) = self
-                    .process_sequencer_commitment(&l1_block, sequencer_commitment)
-                    .await
-                {
-                    match e {
-                        SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
-                            warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
-                            return;
-                        }
-                        SyncError::Error(e) => {
-                            error!("Could not process sequencer commitments: {}... skipping", e);
-                        }
-                    }
-                }
-            }
-
-            // We do not care about the result of writing this height to the ledger db
-            // So log and continue
-            // Worst case scenario is that we will reprocess the same block after a restart
-            let _ = self
-                .ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
-                .map_err(|e| {
-                    error!("Could not set last scanned l1 height: {}", e);
-                });
+            sleep(Duration::from_secs(2)).await;
         }
+    }
+
+    async fn process_l1_block(&self, l1_block: &Da::FilteredBlock) {
+        // Set the l1 height of the l1 hash
+        self.ledger_db
+            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
+            .unwrap();
+
+        let (sequencer_commitments, zk_proofs) =
+            match self.extract_relevant_l1_data(l1_block.clone()).await {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("Could not process L1 block: {}...skipping", e);
+                    return;
+                }
+            };
+
+        for zk_proof in zk_proofs.clone().iter() {
+            if let Err(e) = self
+                .process_zk_proof(l1_block.clone(), zk_proof.clone())
+                .await
+            {
+                match e {
+                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                        warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
+                        return;
+                    }
+                    SyncError::Error(e) => {
+                        error!("Could not process ZK proofs: {}...skipping", e);
+                    }
+                }
+            }
+        }
+
+        for sequencer_commitment in sequencer_commitments.clone().iter() {
+            if let Err(e) = self
+                .process_sequencer_commitment(&l1_block, sequencer_commitment)
+                .await
+            {
+                match e {
+                    SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
+                        warn!("Could not completely process sequencer commitments. Missing L2 blocks {:?} - {:?}, msg = {}", start_l2_height, end_l2_height, msg);
+                        return;
+                    }
+                    SyncError::Error(e) => {
+                        error!("Could not process sequencer commitments: {}... skipping", e);
+                    }
+                }
+            }
+        }
+
+        // We do not care about the result of writing this height to the ledger db
+        // So log and continue
+        // Worst case scenario is that we will reprocess the same block after a restart
+        let _ = self
+            .ledger_db
+            .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
+            .map_err(|e| {
+                error!("Could not set last scanned l1 height: {}", e);
+            });
     }
 
     async fn extract_relevant_l1_data(

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -305,8 +305,6 @@ where
             }
         };
 
-        let (l1_handler_tx, l1_handler_rx) = mpsc::unbounded_channel();
-
         let ledger_db = self.ledger_db.clone();
         let da_service = self.da_service.clone();
         let sequencer_pub_key = self.sequencer_pub_key.clone();
@@ -314,6 +312,7 @@ where
         let prover_da_pub_key = self.prover_da_pub_key.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let accept_public_input_as_proven = self.accept_public_input_as_proven;
+        let l1_block_cache = self.l1_block_cache.clone();
 
         tokio::spawn(async move {
             let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(
@@ -324,19 +323,10 @@ where
                 prover_da_pub_key,
                 code_commitments_by_spec,
                 accept_public_input_as_proven,
-                l1_handler_rx,
+                l1_block_cache.clone(),
             );
-            l1_block_handler.run().await
+            l1_block_handler.run(start_l1_height).await
         });
-
-        let (l1_tx, mut l1_rx) = mpsc::channel(1);
-        let l1_sync_worker = l1_sync(
-            start_l1_height,
-            self.da_service.clone(),
-            l1_tx,
-            self.l1_block_cache.clone(),
-        );
-        tokio::pin!(l1_sync_worker);
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2::<Da>(
@@ -347,26 +337,9 @@ where
         );
         tokio::pin!(l2_sync_worker);
 
-        let mut pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock> =
-            VecDeque::<Da::FilteredBlock>::new();
-        let pending_l1 = &mut pending_l1_blocks;
-
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
-        interval.tick().await;
-
         loop {
             select! {
-                _ = &mut l1_sync_worker => {},
                 _ = &mut l2_sync_worker => {},
-                Some(l1_block) = l1_rx.recv() => {
-                    pending_l1.push_back(l1_block);
-                },
-                _ = interval.tick() => {
-                    for pending_l1_block in pending_l1.iter() {
-                        let _ = l1_handler_tx.send(pending_l1_block.clone());
-                    }
-                    pending_l1.clear();
-                },
                 Some(l2_blocks) = l2_rx.recv() => {
                     for (l2_height, l2_block) in l2_blocks {
                         let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
@@ -382,58 +355,6 @@ where
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
-    }
-}
-
-async fn l1_sync<Da>(
-    start_l1_height: u64,
-    da_service: Arc<Da>,
-    sender: mpsc::Sender<Da::FilteredBlock>,
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) where
-    Da: DaService,
-{
-    let mut l1_height = start_l1_height;
-    info!("Starting to sync from L1 height {}", l1_height);
-
-    'block_sync: loop {
-        // TODO: for a node, the da block at slot_height might not have been finalized yet
-        // should wait for it to be finalized
-        let last_finalized_l1_block_header =
-            match da_service.get_last_finalized_block_header().await {
-                Ok(header) => header,
-                Err(e) => {
-                    error!("Could not fetch last finalized L1 block header: {}", e);
-                    sleep(Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
-
-        let new_l1_height = last_finalized_l1_block_header.height();
-
-        for block_number in l1_height + 1..=new_l1_height {
-            let l1_block =
-                match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
-                    .await
-                {
-                    Ok(block) => block,
-                    Err(e) => {
-                        error!("Could not fetch last finalized L1 block: {}", e);
-                        sleep(Duration::from_secs(2)).await;
-                        continue 'block_sync;
-                    }
-                };
-
-            if block_number > l1_height {
-                l1_height = block_number;
-                if let Err(e) = sender.send(l1_block).await {
-                    error!("Could not notify about L1 block: {}", e);
-                    continue 'block_sync;
-                }
-            }
-        }
-
-        sleep(Duration::from_secs(2)).await;
     }
 }
 
