@@ -69,7 +69,7 @@ pub struct ParsedSequencerCommitment {
 }
 
 /// To verify the signature of the inscription and get the hash of the body
-pub(crate) trait VerifyParsed {
+pub trait VerifyParsed {
     fn public_key(&self) -> &[u8];
     fn signature(&self) -> &[u8];
     fn body(&self) -> &[u8];
