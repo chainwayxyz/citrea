@@ -1,0 +1,61 @@
+name: Performance Comparison
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  FOUNDRY_PROFILE: ci
+  TARGET_PCT: 3
+  COMPARISON_FILE: comparison_results.log
+  USE_DOCKER: "true"
+
+jobs:
+  performance-comparison:
+    runs-on: ubicloud-standard-16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch latest nightly
+        run: |
+          git fetch origin nightly:nightly
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@1.79.0
+        with:
+          override: true
+          components: rustfmt, clippy
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache ethereum-tests
+        uses: actions/cache@v3
+        with:
+          key: "eth-tests-1c23e3c"
+          path: crates/evm/ethereum-tests
+
+      - name: Run Performance Comparison
+        run: |
+          chmod +x ./resources/scripts/cycle-diff.sh
+          ./resources/scripts/cycle-diff.sh generate
+
+      - name: Check Performance Regression
+        run: |
+          ./resources/scripts/cycle-diff.sh check
+
+      - name: Upload comparison results
+        uses: actions/upload-artifact@v4
+        with:
+          name: comparison-results
+          path: comparison_results.log
