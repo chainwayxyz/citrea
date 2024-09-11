@@ -412,8 +412,6 @@ where
             )
             })?;
 
-        tracing::info!("out");
-
         if prior_soft_confirmation_post_state_root.as_ref()
             != state_transition.initial_state_root.as_ref()
         {
