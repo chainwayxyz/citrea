@@ -490,9 +490,7 @@ impl SharedLedgerOps for LedgerDB {
 
         Ok(())
     }
-}
 
-impl ProverLedgerOps for LedgerDB {
     /// Get the last scanned slot by the prover
     #[instrument(level = "trace", skip(self), err, ret)]
     fn get_last_scanned_l1_height(&self) -> anyhow::Result<Option<SlotNumber>> {
@@ -510,7 +508,9 @@ impl ProverLedgerOps for LedgerDB {
 
         Ok(())
     }
+}
 
+impl ProverLedgerOps for LedgerDB {
     /// Get the witness by L2 height
     #[instrument(level = "trace", skip_all, err)]
     fn get_l2_witness<Witness: DeserializeOwned>(
