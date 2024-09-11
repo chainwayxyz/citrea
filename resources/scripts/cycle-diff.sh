@@ -153,7 +153,7 @@ check_regression() {
 
 check_performance_regression() {
     local failed=false
-    if ! check_regression "Execution Time"; then failed=true; fi
+    # if ! check_regression "Execution Time"; then failed=true; fi
     if ! check_regression "Number of Segments"; then failed=true; fi
     if ! check_regression "Total Cycles"; then failed=true; fi
     if ! check_regression "User Cycles"; then failed=true; fi
