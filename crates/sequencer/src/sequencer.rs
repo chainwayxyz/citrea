@@ -35,7 +35,9 @@ use sov_modules_api::{
     UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::{
+    BlockHeaderTrait, DaData, DaDataBatchProof, DaSpec, SequencerCommitment,
+};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -86,6 +88,7 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
+    sequencer_da_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
     last_state_diff: StateDiff,
     fork_manager: ForkManager,
@@ -176,6 +179,7 @@ where
             state_root: prev_state_root,
             batch_hash: prev_batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             rpc_config,
             last_state_diff,
             fork_manager,
@@ -744,16 +748,23 @@ where
             .get_relevant_blobs_of_pending_transactions()
             .await
             .into_iter()
-            .filter_map(|mut blob| match DaData::try_from_slice(blob.full_data()) {
-                Ok(da_data) => match da_data {
-                    DaData::SequencerCommitment(commitment) => Some(commitment),
-                    _ => None,
+            .filter_map(
+                |mut blob| match DaDataBatchProof::try_from_slice(blob.full_data()) {
+                    Ok(da_data)
+                    // we check on da pending txs of our wallet however let's keep consistency 
+                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
+                    {
+                        match da_data {
+                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
+                        }
+                    }
+                    Ok(_) => None,
+                    Err(err) => {
+                        warn!("Pending transaction blob failed to be parsed: {}", err);
+                        None
+                    }
                 },
-                Err(err) => {
-                    warn!("Pending transaction blob failed to be parsed: {}", err);
-                    None
-                }
-            })
+            )
             .collect()
     }
 
@@ -776,11 +787,15 @@ where
                 .map_err(|e| anyhow!(e))?;
             let blobs = self.da_service.extract_relevant_blobs(&block);
             let iter = blobs.into_iter().filter_map(|mut blob| {
-                match DaData::try_from_slice(blob.full_data()) {
-                    Ok(da_data) => match da_data {
-                        DaData::SequencerCommitment(commitment) => Some(commitment),
-                        _ => None,
-                    },
+                match DaDataBatchProof::try_from_slice(blob.full_data()) {
+                    Ok(da_data)
+                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
+                    {
+                        match da_data {
+                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
+                        }
+                    }
+                    Ok(_) => None,
                     Err(err) => {
                         warn!("Pending transaction blob failed to be parsed: {}", err);
                         None
