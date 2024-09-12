@@ -103,7 +103,7 @@ where
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
-                debug!("Chain is already initialized. Skipping initialization.");
+                info!("Chain is already initialized. Skipping initialization. State root: {}. Previous soft confirmation hash: {}", hex::encode(state_root.as_ref()), hex::encode(batch_hash));
                 (state_root, batch_hash)
             }
             InitVariant::Genesis(params) => {
@@ -122,6 +122,8 @@ where
         };
 
         let start_l2_height = ledger_db.get_next_items_numbers().soft_confirmation_number;
+
+        info!("Starting L2 height: {}", start_l2_height);
 
         Ok(Self {
             start_l2_height,
