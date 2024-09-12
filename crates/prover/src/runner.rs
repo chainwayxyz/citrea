@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -272,21 +272,51 @@ where
         let sequencer_client = self.sequencer_client.clone();
         let sync_blocks_count = self.sync_blocks_count;
 
-        let l2_handle = tokio::spawn(async move {
-            sync_l2::<Da>(start_l2_height, sequencer_client, l2_tx, sync_blocks_count).await;
-        });
-        tokio::pin!(l2_handle);
+        let l2_sync_worker =
+            sync_l2::<Da>(start_l2_height, sequencer_client, l2_tx, sync_blocks_count);
+        tokio::pin!(l2_sync_worker);
 
-        let da_service = self.da_service.clone();
+        // Store L2 blocks and make sure they are processed in order.
+        // Otherwise, processing N+1 L2 block before N would emit prev_hash mismatch.
+        let mut pending_l2_blocks: VecDeque<(u64, GetSoftConfirmationResponse)> = VecDeque::new();
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
 
         loop {
             select! {
-                _ = &mut l2_handle => {panic!("l2 sync handle exited unexpectedly");},
+                _ = &mut l2_sync_worker => {},
                 Some(l2_blocks) = l2_rx.recv() => {
-                    for (l2_height, l2_block) in l2_blocks {
-                        let l1_block = get_da_block_at_height(&da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
-                        if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
-                            error!("Could not process L2 block: {}", e);
+                    // While syncing, we'd like to process L2 blocks as they come without any delays.
+                    // However, when an L2 block fails to process for whatever reason, we want to block this process
+                    // and make sure that we start processing L2 blocks in queue.
+                    if pending_l2_blocks.is_empty() {
+                        for (index, (l2_height, l2_block)) in l2_blocks.iter().enumerate() {
+                            if let Err(e) = self.process_l2_block(*l2_height, l2_block).await {
+                                error!("Could not process L2 block: {}", e);
+                                // This block failed to process, add remaining L2 blocks to queue including this one.
+                                let remaining_l2s: Vec<(u64, GetSoftConfirmationResponse)> = l2_blocks[index..].to_vec();
+                                pending_l2_blocks.extend(remaining_l2s);
+                            }
+                        }
+                        continue;
+                    } else {
+                        pending_l2_blocks.extend(l2_blocks);
+                    }
+                },
+                _ = interval.tick() => {
+                    if pending_l2_blocks.is_empty() {
+                        continue;
+                    }
+                    while let Some((l2_height, l2_block)) = pending_l2_blocks.front() {
+                        match self.process_l2_block(*l2_height, l2_block).await {
+                            Ok(_) => {
+                                pending_l2_blocks.pop_front();
+                            },
+                            Err(e) => {
+                                error!("Could not process L2 block: {}", e);
+                                // Get out of the while loop to go back to the outer one.
+                                break;
+                            }
                         }
                     }
                 },
@@ -297,9 +327,15 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_confirmation: GetSoftConfirmationResponse,
-        current_l1_block: Da::FilteredBlock,
+        soft_confirmation: &GetSoftConfirmationResponse,
     ) -> anyhow::Result<()> {
+        let current_l1_block = get_da_block_at_height(
+            &self.da_service,
+            soft_confirmation.da_slot_height,
+            self.l1_block_cache.clone(),
+        )
+        .await?;
+
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
             l2_height,
