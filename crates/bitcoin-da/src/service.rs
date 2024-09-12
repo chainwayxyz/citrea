@@ -5,6 +5,7 @@ use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
@@ -62,6 +63,7 @@ pub struct BitcoinService {
     reveal_light_client_prefix: Vec<u8>,
     reveal_batch_prover_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    tx_backup_dir: PathBuf,
 }
 
 /// Runtime configuration for the DA service
@@ -77,9 +79,12 @@ pub struct BitcoinServiceConfig {
 
     // da private key of the sequencer
     pub da_private_key: Option<String>,
+
+    // absolute path to the directory where the txs will be written to
+    pub tx_backup_dir: String,
 }
 
-pub const FINALITY_DEPTH: u64 = 4; // blocks
+pub const FINALITY_DEPTH: u64 = 8; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 impl BitcoinService {
@@ -110,6 +115,14 @@ impl BitcoinService {
             tracing::warn!("No loaded wallet found!");
         }
 
+        // check if config.tx_backup_dir exists
+        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
+
+        if !tx_backup_dir.exists() {
+            std::fs::create_dir_all(tx_backup_dir)
+                .context("Failed to create tx backup directory")?;
+        }
+
         Ok(Self {
             client,
             network: config.network,
@@ -117,6 +130,42 @@ impl BitcoinService {
             reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
             reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
             inscribes_queue: tx,
+            tx_backup_dir: tx_backup_dir.to_path_buf(),
+        })
+    }
+
+    pub async fn new_without_wallet_check(
+        config: BitcoinServiceConfig,
+        chain_params: RollupParams,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    ) -> Result<Self> {
+        let client = Client::new(
+            &config.node_url,
+            Auth::UserPass(config.node_username, config.node_password),
+        )
+        .await?;
+
+        let da_private_key = config
+            .da_private_key
+            .map(|pk| SecretKey::from_str(&pk))
+            .transpose()
+            .context("Invalid private key")?;
+
+        // check if config.tx_backup_dir exists
+        let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
+
+        if !tx_backup_dir.exists() {
+            std::fs::create_dir_all(tx_backup_dir)
+                .context("Failed to create tx backup directory")?;
+        }
+        Ok(Self {
+            client,
+            network: config.network,
+            da_private_key,
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
+            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            inscribes_queue: tx,
+            tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
     }
 
@@ -194,34 +243,6 @@ impl BitcoinService {
         });
     }
 
-    #[cfg(test)]
-    pub async fn new_without_wallet_check(
-        config: BitcoinServiceConfig,
-        chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
-    ) -> Result<Self> {
-        let client = Client::new(
-            &config.node_url,
-            Auth::UserPass(config.node_username, config.node_password),
-        )
-        .await?;
-
-        let da_private_key = config
-            .da_private_key
-            .map(|pk| SecretKey::from_str(&pk))
-            .transpose()
-            .context("Invalid private key")?;
-
-        Ok(Self {
-            client,
-            network: config.network,
-            da_private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
-            inscribes_queue: tx,
-        })
-    }
-
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
         let mut pending_utxos = self
@@ -244,7 +265,7 @@ impl BitcoinService {
     async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
         let utxos = self
             .client
-            .list_unspent(None, None, None, None, None)
+            .list_unspent(Some(0), None, None, None, None)
             .await?;
         if utxos.is_empty() {
             return Err(anyhow::anyhow!("There are no UTXOs"));
@@ -339,7 +360,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file()?;
+                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
 
                 match inscription_txs {
                     LightClientTxs::Complete { commit, reveal } => {
@@ -374,7 +395,7 @@ impl BitcoinService {
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
-                inscription_txs.write_to_file()?;
+                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
 
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
 
@@ -594,7 +615,7 @@ impl DaService for BitcoinService {
 
         let finalized_blockhash = self
             .client
-            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH))
+            .get_block_hash(block_count.saturating_sub(FINALITY_DEPTH).saturating_add(1))
             .await?;
 
         let finalized_block_header = self.get_block_by_hash(finalized_blockhash).await?;
@@ -949,6 +970,7 @@ pub fn get_relevant_blobs_from_txs(
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     // use futures::{Stream, StreamExt};
@@ -970,6 +992,21 @@ mod tests {
     use crate::spec::RollupParams;
     use crate::verifier::BitcoinVerifier;
 
+    fn get_workspace_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        manifest_dir
+            .ancestors()
+            .nth(2)
+            .expect("Failed to find workspace root")
+            .to_path_buf()
+    }
+
+    fn get_tx_backup_dir() -> String {
+        let mut path = get_workspace_root();
+        path.push("resources/bitcoin/inscription_txs");
+        path.to_str().unwrap().to_string()
+    }
+
     async fn get_service() -> Arc<BitcoinService> {
         let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/test".to_string(),
@@ -979,6 +1016,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1009,6 +1047,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1040,6 +1079,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
             ),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1292,6 +1332,7 @@ mod tests {
             da_private_key: Some(
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
+            tx_backup_dir: get_tx_backup_dir(),
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();

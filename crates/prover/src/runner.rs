@@ -22,7 +22,7 @@ use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTra
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{BlobReaderTrait, Context, SignedSoftConfirmation, SlotData, StateDiff};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
@@ -113,7 +113,6 @@ where
         prover_service: Option<Ps>,
         prover_config: Option<ProverConfig>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        sync_blocks_count: u64,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
@@ -161,7 +160,7 @@ where
             prover_config,
             code_commitments_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
-            sync_blocks_count,
+            sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
         })
@@ -655,10 +654,10 @@ where
             blob.full_data();
         });
         da_data.iter_mut().for_each(|tx| {
-            let data = DaData::try_from_slice(tx.full_data());
+            let data = DaDataBatchProof::try_from_slice(tx.full_data());
             // Check for commitment
             if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                if let Ok(DaData::SequencerCommitment(seq_com)) = data {
+                if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
                     sequencer_commitments.push(seq_com);
                 } else {
                     tracing::warn!(

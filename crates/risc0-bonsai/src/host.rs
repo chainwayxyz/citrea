@@ -350,48 +350,15 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let image_id = hex::encode(self.image_id);
             let input_id = input_id.clone();
             let session = thread::spawn(move || {
-                retry_backoff(
-                    ExponentialBackoffBuilder::<SystemClock>::new()
-                        .with_initial_interval(Duration::from_secs(5))
-                        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-                        .build(),
-                    || {
-                        let image_id = image_id.clone();
-                        let input_id = input_id.clone();
-                        let response =
-                            client_clone.create_session(image_id, input_id, vec![], false);
-                        match response {
-                            Ok(r) => Ok(r),
-                            Err(e) => {
-                                use ::bonsai_sdk::SdkErr::*;
-                                match e {
-                                    InternalServerErr(s) => {
-                                        let err = format!("Got HHTP 500 from Bonsai: {}", s);
-                                        warn!(err);
-                                        Err(backoff::Error::transient(err))
-                                    }
-                                    HttpErr(e) => {
-                                        let err = format!("Reconnecting to Bonsai: {}", e);
-                                        error!(err);
-                                        Err(backoff::Error::transient(err))
-                                    }
-                                    HttpHeaderErr(e) => {
-                                        let err = format!("Reconnecting to Bonsai: {}", e);
-                                        error!(err);
-                                        Err(backoff::Error::transient(err))
-                                    }
-                                    e => {
-                                        let err =
-                                            format!("Got unrecoverable error from Bonsai: {}", e);
-                                        error!(err);
-                                        Err(backoff::Error::permanent(err))
-                                    }
-                                }
-                            }
-                        }
-                    },
-                )
-                .expect("Failed to create session; qed")
+                let input_id = &input_id;
+                let image_id = &image_id;
+                retry_backoff_bonsai!(client_clone.create_session(
+                    image_id.clone(),
+                    input_id.clone(),
+                    vec![],
+                    false
+                ))
+                .expect("Failed to fetch status; qed")
             })
             .join()
             .unwrap();
@@ -413,46 +380,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             let client_clone = client.clone();
             let uuid = session.uuid.clone();
             let snark_session = thread::spawn(move || {
-                retry_backoff(
-                    ExponentialBackoffBuilder::<SystemClock>::new()
-                        .with_initial_interval(Duration::from_secs(5))
-                        .with_max_elapsed_time(Some(Duration::from_secs(15 * 60)))
-                        .build(),
-                    || {
-                        let uuid = uuid.clone();
-                        let response = client_clone.create_snark(uuid);
-                        match response {
-                            Ok(r) => Ok(r),
-                            Err(e) => {
-                                use ::bonsai_sdk::SdkErr::*;
-                                match e {
-                                    InternalServerErr(s) => {
-                                        let err = format!("Got HHTP 500 from Bonsai: {}", s);
-                                        warn!(err);
-                                        Err(backoff::Error::transient(err))
-                                    }
-                                    HttpErr(e) => {
-                                        let err = format!("Reconnecting to Bonsai: {}", e);
-                                        error!(err);
-                                        Err(backoff::Error::transient(err))
-                                    }
-                                    HttpHeaderErr(e) => {
-                                        let err = format!("Reconnecting to Bonsai: {}", e);
-                                        error!(err);
-                                        Err(backoff::Error::transient(err))
-                                    }
-                                    e => {
-                                        let err =
-                                            format!("Got unrecoverable error from Bonsai: {}", e);
-                                        error!(err);
-                                        Err(backoff::Error::permanent(err))
-                                    }
-                                }
-                            }
-                        }
-                    },
-                )
-                .expect("Failed to create snark session; qed")
+                let uuid = &uuid;
+                retry_backoff_bonsai!(client_clone.create_snark(uuid.clone()))
+                    .expect("Failed to fetch status; qed")
             })
             .join()
             .unwrap();

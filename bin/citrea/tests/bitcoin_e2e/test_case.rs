@@ -15,12 +15,12 @@ use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 use tokio::task;
 
 use super::config::{
-    default_rollup_config, BitcoinConfig, FullSequencerConfig, RollupConfig, TestCaseConfig,
-    TestConfig,
+    default_rollup_config, BitcoinConfig, FullFullNodeConfig, FullProverConfig,
+    FullSequencerConfig, RollupConfig, TestCaseConfig, TestCaseEnv, TestConfig,
 };
 use super::framework::TestFramework;
 use super::node::NodeKind;
-use super::utils::{copy_directory, get_available_port};
+use super::utils::{copy_directory, get_available_port, get_tx_backup_dir};
 use super::Result;
 use crate::bitcoin_e2e::node::Node;
 use crate::bitcoin_e2e::utils::{get_default_genesis_path, get_workspace_root};
@@ -116,6 +116,7 @@ impl<T: TestCase> TestCaseRunner<T> {
 
     fn generate_test_config() -> Result<TestConfig> {
         let test_case = T::test_config();
+        let env = T::test_env();
         let bitcoin = T::bitcoin_config();
         let prover = T::prover_config();
         let sequencer = T::sequencer_config();
@@ -123,7 +124,7 @@ impl<T: TestCase> TestCaseRunner<T> {
         let prover_rollup = default_rollup_config();
         let full_node_rollup = default_rollup_config();
 
-        let [bitcoin_dir, dbs_dir, _prover_dir, sequencer_dir, _full_node_dir, genesis_dir] =
+        let [bitcoin_dir, dbs_dir, prover_dir, sequencer_dir, full_node_dir, genesis_dir] =
             create_dirs(&test_case.dir)?;
 
         copy_genesis_dir(&test_case.genesis_dir, &genesis_dir)?;
@@ -141,6 +142,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 p2p_port,
                 rpc_port,
                 data_dir,
+                env: env.bitcoin().clone(),
                 ..bitcoin.clone()
             })
         }
@@ -158,6 +160,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -175,10 +178,11 @@ impl<T: TestCase> TestCaseRunner<T> {
         let runner_config = Some(RunnerConfig {
             sequencer_client_url: format!(
                 "http://{}:{}",
-                sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port
+                sequencer_rollup.rpc.bind_host, sequencer_rollup.rpc.bind_port,
             ),
             include_tx_body: true,
             accept_public_input_as_proven: Some(true),
+            sync_blocks_count: Default::default(),
         });
 
         let prover_rollup = {
@@ -191,6 +195,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -216,6 +221,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         da_config.node_url,
                         NodeKind::Bitcoin // Use default wallet
                     ),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -237,11 +243,23 @@ impl<T: TestCase> TestCaseRunner<T> {
                 rollup: sequencer_rollup,
                 dir: sequencer_dir,
                 docker_image: None,
-                sequencer,
+                node: sequencer,
+                env: env.sequencer(),
             },
-            prover,
-            prover_rollup,
-            full_node_rollup,
+            prover: FullProverConfig {
+                rollup: prover_rollup,
+                dir: prover_dir,
+                docker_image: None,
+                node: prover,
+                env: env.prover(),
+            },
+            full_node: FullFullNodeConfig {
+                rollup: full_node_rollup,
+                dir: full_node_dir,
+                docker_image: None,
+                node: (),
+                env: env.full_node(),
+            },
             test_case,
         })
     }
@@ -258,6 +276,12 @@ pub trait TestCase: Send + Sync + 'static {
     /// Override this method to provide custom test configurations.
     fn test_config() -> TestCaseConfig {
         TestCaseConfig::default()
+    }
+
+    /// Returns the test case env.
+    /// Override this method to provide custom env per node.
+    fn test_env() -> TestCaseEnv {
+        TestCaseEnv::default()
     }
 
     /// Returns the Bitcoin configuration for the test.
