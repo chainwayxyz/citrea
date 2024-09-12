@@ -15,7 +15,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tokio::sync::broadcast;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 mod bitcoin;
 mod mock;
