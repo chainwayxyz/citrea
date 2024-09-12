@@ -62,6 +62,7 @@ pub struct BitcoinService {
     da_private_key: Option<SecretKey>,
     reveal_light_client_prefix: Vec<u8>,
     reveal_batch_prover_prefix: Vec<u8>,
+    inscribes_queue: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     tx_backup_dir: PathBuf,
 }
 
