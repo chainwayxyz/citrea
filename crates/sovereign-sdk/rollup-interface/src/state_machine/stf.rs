@@ -172,7 +172,9 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         + DeserializeOwned
         + Clone
         + AsRef<[u8]>
-        + Debug;
+        + Debug
+        + Sync
+        + Send;
 
     /// The initial params of the rollup.
     type GenesisParams;
