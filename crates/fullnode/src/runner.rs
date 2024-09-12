@@ -347,7 +347,7 @@ where
 
         // Store L2 blocks and make sure they are processed in order.
         // Otherwise, processing N+1 L2 block before N would emit prev_hash mismatch.
-        let mut pending_l2_blocks = VecDeque::new();
+        let mut pending_l2_blocks: VecDeque<(u64, GetSoftConfirmationResponse)> = VecDeque::new();
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
@@ -355,7 +355,22 @@ where
             select! {
                 _ = &mut l2_sync_worker => {},
                 Some(l2_blocks) = l2_rx.recv() => {
-                    pending_l2_blocks.extend(l2_blocks);
+                    // While syncing, we'd like to process L2 blocks as they come without any delays.
+                    // However, when an L2 block fails to process for whatever reason, we want to block this process
+                    // and make sure that we start processing L2 blocks in queue.
+                    if pending_l2_blocks.is_empty() {
+                        for (index, (l2_height, l2_block)) in l2_blocks.iter().enumerate() {
+                            if let Err(e) = self.process_l2_block(*l2_height, l2_block).await {
+                                error!("Could not process L2 block: {}", e);
+                                // This block failed to process, add remaining L2 blocks to queue including this one.
+                                let remaining_l2s: Vec<(u64, GetSoftConfirmationResponse)> = l2_blocks[index..].to_vec();
+                                pending_l2_blocks.extend(remaining_l2s);
+                            }
+                        }
+                        continue;
+                    } else {
+                        pending_l2_blocks.extend(l2_blocks);
+                    }
                 },
                 _ = interval.tick() => {
                     if pending_l2_blocks.is_empty() {
