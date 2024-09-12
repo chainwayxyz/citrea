@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -215,9 +215,15 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_confirmation: GetSoftConfirmationResponse,
-        current_l1_block: Da::FilteredBlock,
+        soft_confirmation: &GetSoftConfirmationResponse,
     ) -> anyhow::Result<()> {
+        let current_l1_block = get_da_block_at_height(
+            &self.da_service,
+            soft_confirmation.da_slot_height,
+            self.l1_block_cache.clone(),
+        )
+        .await?;
+
         info!(
             "Running soft confirmation batch #{} with hash: 0x{} on DA block #{}",
             l2_height,
@@ -337,13 +343,28 @@ where
         );
         tokio::pin!(l2_sync_worker);
 
+        // Store L2 blocks and make sure they are processed in order.
+        // Otherwise, processing N+1 L2 block before N would emit prev_hash mismatch.
+        let mut pending_l2_blocks = VecDeque::new();
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        interval.tick().await;
+
         loop {
             select! {
                 _ = &mut l2_sync_worker => {},
                 Some(l2_blocks) = l2_rx.recv() => {
-                    for (l2_height, l2_block) in l2_blocks {
-                        let l1_block = get_da_block_at_height(&self.da_service, l2_block.da_slot_height, self.l1_block_cache.clone()).await?;
-                        if let Err(e) = self.process_l2_block(l2_height, l2_block, l1_block).await {
+                    pending_l2_blocks.extend(l2_blocks);
+                },
+                _ = interval.tick() => {
+                    if pending_l2_blocks.is_empty() {
+                        continue;
+                    }
+                    let (l2_height, l2_block) = pending_l2_blocks.front().expect("Should not be empty");
+                    match self.process_l2_block(*l2_height, l2_block).await {
+                        Ok(_) => {
+                            pending_l2_blocks.pop_front();
+                        },
+                        Err(e) => {
                             error!("Could not process L2 block: {}", e);
                         }
                     }
@@ -423,12 +444,16 @@ async fn sync_l2<Da>(
             continue;
         }
 
-        let soft_confirmations: Vec<(u64, GetSoftConfirmationResponse)> = (l2_height
+        let mut soft_confirmations: Vec<(u64, GetSoftConfirmationResponse)> = (l2_height
             ..l2_height + soft_confirmations.len() as u64)
             .zip(soft_confirmations)
             .collect();
 
         l2_height += soft_confirmations.len() as u64;
+
+        // Make sure soft confirmations are sorted for us to make sure they are processed
+        // in the correct order.
+        soft_confirmations.sort_by_key(|(height, _)| *height);
 
         if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
