@@ -7,6 +7,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use tokio::sync::oneshot;
 use tracing::instrument;
 
+mod da_block_handler;
 mod runner;
 
 /// Dependencies needed to run the rollup.
