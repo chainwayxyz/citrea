@@ -517,7 +517,7 @@ fn test_log_limits() {
     if let Err(rpc_err) = rpc_logs {
         assert_eq!(
             rpc_err.message(),
-            "query exceeds max results 20000".to_string()
+            "query exceeds max results 5000".to_string()
         );
     }
 
