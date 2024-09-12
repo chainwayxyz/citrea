@@ -15,6 +15,7 @@ use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::NodeKind;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
+use crate::bitcoin_e2e::utils::get_tx_backup_dir;
 use crate::bitcoin_e2e::Result;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
@@ -64,24 +65,28 @@ impl TestCase for BasicProverTest {
         let seq_height0 = sequencer.client.eth_block_number().await;
         assert_eq!(seq_height0, 0);
 
-        for _ in 0..10 {
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
-        prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await;
+        prover.wait_for_l1_height(finalized_height, None).await;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
-            .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
+            .wait_for_zkproofs(
+                finalized_height + FINALITY_DEPTH,
+                Some(Duration::from_secs(120)),
+            )
             .await
             .unwrap();
 
@@ -167,6 +172,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                 // somehow resubmitted the same commitment.
                 "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D".to_owned(),
             ),
+            tx_backup_dir: get_tx_backup_dir(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         // Keep sender for cleanup
@@ -254,7 +260,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         // Trigger a new commitment.
-        let min_soft_confirmations_per_commitment = sequencer.min_soft_confirmations_per_commitment();
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }

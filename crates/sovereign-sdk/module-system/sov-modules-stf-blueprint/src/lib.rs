@@ -14,7 +14,7 @@ use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
     Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet, Zkvm,
 };
-use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::da::{DaDataBatchProof, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
@@ -535,11 +535,10 @@ where
         // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
         let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
         for blob in da_data {
-            // TODO: get sequencer da pub key
             if blob.sender().as_ref() == sequencer_da_public_key {
-                let da_data = DaData::try_from_slice(blob.verified_data());
+                let da_data = DaDataBatchProof::try_from_slice(blob.verified_data());
 
-                if let Ok(DaData::SequencerCommitment(commitment)) = da_data {
+                if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
                     sequencer_commitments.push(commitment);
                 }
             }

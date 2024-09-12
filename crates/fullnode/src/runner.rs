@@ -52,7 +52,6 @@ where
     DB: NodeLedgerOps,
 {
     start_l2_height: u64,
-    start_l1_height: u64,
     da_service: Arc<Da>,
     stf: Stf,
     storage_manager: Sm,
@@ -128,15 +127,9 @@ where
             }
         };
 
-        // Start the main rollup loop
-        let item_numbers = ledger_db.get_next_items_numbers();
-
-        // Last L1/L2 height before shutdown.
-        let start_l1_height = item_numbers.slot_number;
-        let start_l2_height = item_numbers.soft_confirmation_number;
+        let start_l2_height = ledger_db.get_next_items_numbers().soft_confirmation_number;
 
         Ok(Self {
-            start_l1_height,
             start_l2_height,
             da_service,
             stf,
@@ -514,9 +507,24 @@ where
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        // Last L1/L2 height before shutdown.
+        let start_l1_height = {
+            let last_scanned_l1_height = self
+                .ledger_db
+                .get_last_scanned_l1_height()
+                .unwrap_or_else(|_| {
+                    panic!("Failed to get last scanned l1 height from the ledger db")
+                });
+
+            match last_scanned_l1_height {
+                Some(height) => height.0,
+                None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
+            }
+        };
+
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = l1_sync(
-            self.start_l1_height,
+            start_l1_height,
             self.da_service.clone(),
             l1_tx,
             self.l1_block_cache.clone(),
@@ -619,6 +627,16 @@ where
                     }
                 }
             }
+
+            // We do not care about the result of writing this height to the ledger db
+            // So log and continue
+            // Worst case scenario is that we will reprocess the same block after a restart
+            let _ = self
+                .ledger_db
+                .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
+                .map_err(|e| {
+                    error!("Could not set last scanned l1 height: {}", e);
+                });
 
             pending_l1_blocks.pop_front();
         }
@@ -799,6 +817,19 @@ async fn sync_l2<Da>(
 
         if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
+        }
+    }
+}
+
+async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
+    loop {
+        match client.get_soft_confirmation::<Da>(1).await {
+            Ok(Some(soft_confirmation)) => return soft_confirmation.da_slot_height,
+            _ => {
+                // sleep 1
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                continue;
+            }
         }
     }
 }

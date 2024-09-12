@@ -19,7 +19,7 @@ use super::config::{
 };
 use super::framework::TestFramework;
 use super::node::NodeKind;
-use super::utils::{copy_directory, get_available_port};
+use super::utils::{copy_directory, get_available_port, get_tx_backup_dir};
 use super::Result;
 use crate::bitcoin_e2e::node::Node;
 use crate::bitcoin_e2e::utils::{get_default_genesis_path, get_workspace_root};
@@ -154,6 +154,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -188,6 +189,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                             .to_string(),
                     ),
                     node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {
@@ -213,6 +215,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         da_config.node_url,
                         NodeKind::Bitcoin // Use default wallet
                     ),
+                    tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
                 storage: StorageConfig {

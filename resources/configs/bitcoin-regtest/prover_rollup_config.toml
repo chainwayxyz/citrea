@@ -11,6 +11,7 @@ node_username = ""
 # fill here
 node_password = ""
 network = "regtest"
+tx_backup_dir = "resources/bitcoin/inscription_txs"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
