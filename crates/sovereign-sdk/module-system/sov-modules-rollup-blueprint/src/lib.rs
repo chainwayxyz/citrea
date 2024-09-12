@@ -35,13 +35,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of a zkVM program.
-    type Vm: ZkvmHost + Zkvm + Send;
+    type Vm: ZkvmHost + Zkvm + Send + Sync;
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
 
     /// Context for Native environment.
-    type NativeContext: Context;
+    type NativeContext: Context + Sync + Send;
 
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
