@@ -78,7 +78,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
             Some((number, soft_confirmation)) => {
-                info!("Initialize sequencer at batch number {:?}.", number);
+                info!("Initialize sequencer at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
                 InitVariant::Initialized((
                     prover_storage.get_root_hash(number.0 + 1)?,
                     soft_confirmation.hash,
@@ -178,7 +179,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
             Some((number, soft_confirmation)) => {
-                info!("Initialize node at batch number {:?}.", number);
+                info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
                 InitVariant::Initialized((
                     prover_storage.get_root_hash(number.0 + 1)?,
                     soft_confirmation.hash,
@@ -290,7 +292,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
             Some((number, soft_confirmation)) => {
-                info!("Initialize prover at batch number {:?}.", number);
+                info!("Initialize prover at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
                 InitVariant::Initialized((
                     prover_storage.get_root_hash(number.0 + 1)?,
                     soft_confirmation.hash,
