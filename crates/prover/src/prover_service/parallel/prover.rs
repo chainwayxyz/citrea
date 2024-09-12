@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
@@ -78,7 +78,7 @@ impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
 // the prover will reject new jobs.
 pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
-    prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
+    prover_state: Arc<Mutex<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
 }
@@ -106,7 +106,7 @@ where
                 .build()
                 .map_err(|e| anyhow!(e))?,
 
-            prover_state: Arc::new(RwLock::new(ProverState {
+            prover_state: Arc::new(Mutex::new(ProverState {
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
@@ -120,7 +120,7 @@ where
         let header_hash = state_transition_data.da_block_header_of_commitments.hash();
         let data = ProverStatus::WitnessSubmitted(state_transition_data);
 
-        let mut prover_state = self.prover_state.write();
+        let mut prover_state = self.prover_state.lock();
         let entry = prover_state.prover_status.entry(header_hash);
 
         match entry {
@@ -145,7 +145,7 @@ where
         V::PreState: Send + Sync + 'static,
     {
         let prover_state_clone = self.prover_state.clone();
-        let mut prover_state = self.prover_state.write();
+        let mut prover_state = self.prover_state.lock();
 
         let prover_status = prover_state
             .remove(&block_header_hash)
@@ -163,7 +163,7 @@ where
                         tracing::debug_span!("guest_execution").in_scope(|| {
                             let proof = make_proof(vm, config, zk_storage);
 
-                            let mut prover_state = prover_state_clone.write();
+                            let mut prover_state = prover_state_clone.lock();
 
                             prover_state.set_to_proved(block_header_hash, proof);
                             prover_state.dec_task_count();
@@ -193,7 +193,7 @@ where
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
-        let mut prover_state = self.prover_state.write();
+        let mut prover_state = self.prover_state.lock();
 
         let status = prover_state.get_prover_status(block_header_hash.clone());
 
