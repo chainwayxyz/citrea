@@ -376,13 +376,16 @@ where
                     if pending_l2_blocks.is_empty() {
                         continue;
                     }
-                    let (l2_height, l2_block) = pending_l2_blocks.front().expect("Should not be empty");
-                    match self.process_l2_block(*l2_height, l2_block).await {
-                        Ok(_) => {
-                            pending_l2_blocks.pop_front();
-                        },
-                        Err(e) => {
-                            error!("Could not process L2 block: {}", e);
+                    while let Some((l2_height, l2_block)) = pending_l2_blocks.front() {
+                        match self.process_l2_block(*l2_height, l2_block).await {
+                            Ok(_) => {
+                                pending_l2_blocks.pop_front();
+                            },
+                            Err(e) => {
+                                error!("Could not process L2 block: {}", e);
+                                // Get out of the while loop to go back to the outer one.
+                                break;
+                            }
                         }
                     }
                 },
