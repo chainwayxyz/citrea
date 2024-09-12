@@ -254,7 +254,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         // Trigger a new commitment.
-        for _ in 0..10 {
+        let min_soft_confirmations_per_commitment = sequencer.min_soft_confirmations_per_commitment();
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
 
