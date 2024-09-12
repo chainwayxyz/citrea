@@ -77,19 +77,23 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
-            Some((number, soft_confirmation)) => InitVariant::Initialized((
-                prover_storage.get_root_hash(number.0 + 1)?,
-                soft_confirmation.hash,
-            )),
-            None => match genesis_root {
-                // Chain was initialized but no soft confirmations was processed
-                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                // Not even initialized
-                _ => InitVariant::Genesis(genesis_config),
-            },
+            Some((number, soft_confirmation)) => {
+                info!("Initialize sequencer at batch number {:?}.", number);
+                InitVariant::Initialized((
+                    prover_storage.get_root_hash(number.0 + 1)?,
+                    soft_confirmation.hash,
+                ))
+            }
+            None => {
+                info!("Initialize sequencer at genesis.");
+                match genesis_root {
+                    // Chain was initialized but no soft confirmations was processed
+                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
+                    // Not even initialized
+                    _ => InitVariant::Genesis(genesis_config),
+                }
+            }
         };
-
-        info!("Creating sequencer with init_variant: {:?}", init_variant);
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -173,19 +177,23 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
-            Some((number, soft_confirmation)) => InitVariant::Initialized((
-                prover_storage.get_root_hash(number.0 + 1)?,
-                soft_confirmation.hash,
-            )),
-            None => match genesis_root {
-                // Chain was initialized but no soft confirmations was processed
-                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                // Not even initialized
-                _ => InitVariant::Genesis(genesis_config),
-            },
+            Some((number, soft_confirmation)) => {
+                info!("Initialize node at batch number {:?}.", number);
+                InitVariant::Initialized((
+                    prover_storage.get_root_hash(number.0 + 1)?,
+                    soft_confirmation.hash,
+                ))
+            }
+            None => {
+                info!("Initialize node at genesis.");
+                match genesis_root {
+                    // Chain was initialized but no soft confirmations was processed
+                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
+                    // Not even initialized
+                    _ => InitVariant::Genesis(genesis_config),
+                }
+            }
         };
-
-        info!("Creating sequencer with init_variant: {:?}", init_variant);
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
@@ -281,19 +289,23 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
-            Some((number, soft_confirmation)) => InitVariant::Initialized((
-                prover_storage.get_root_hash(number.0 + 1)?,
-                soft_confirmation.hash,
-            )),
-            None => match genesis_root {
-                // Chain was initialized but no soft confirmations was processed
-                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                // Not even initialized
-                _ => InitVariant::Genesis(genesis_config),
-            },
+            Some((number, soft_confirmation)) => {
+                info!("Initialize prover at batch number {:?}.", number);
+                InitVariant::Initialized((
+                    prover_storage.get_root_hash(number.0 + 1)?,
+                    soft_confirmation.hash,
+                ))
+            }
+            None => {
+                info!("Initialize prover at genesis.");
+                match genesis_root {
+                    // Chain was initialized but no soft confirmations was processed
+                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
+                    // Not even initialized
+                    _ => InitVariant::Genesis(genesis_config),
+                }
+            }
         };
-
-        info!("Creating sequencer with init_variant: {:?}", init_variant);
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
