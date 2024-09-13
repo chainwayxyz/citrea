@@ -241,14 +241,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .client
             .ledger_get_sequencer_commitments_on_slot_by_number(finalized_height)
             .await
-            .expect(&format!(
-                "Failed to get sequencer commitments at {}",
-                finalized_height
-            ))
-            .expect(&format!(
-                "No sequencer commitments found at {}",
-                finalized_height
-            ))
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Failed to get sequencer commitments at {}",
+                    finalized_height
+                )
+            })
+            .unwrap_or_else(|| panic!("No sequencer commitments found at {}", finalized_height))
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
