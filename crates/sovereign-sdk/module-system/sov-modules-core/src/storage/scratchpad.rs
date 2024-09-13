@@ -215,7 +215,7 @@ impl<S: Storage> StateReaderAndWriter for Delta<S> {
     }
 
     fn contains_key(&mut self, key: &StorageKey) -> bool {
-        self.cache.exists(key, &self.inner, &mut self.witness)
+        self.cache.contains_key(key, &self.inner, &mut self.witness)
     }
 }
 

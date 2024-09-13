@@ -420,7 +420,7 @@ impl StorageInternalCache {
     }
 
     /// Check a key for existance.
-    pub fn exists<S: Storage>(
+    pub fn contains_key<S: Storage>(
         &mut self,
         key: &StorageKey,
         value_reader: &S,
