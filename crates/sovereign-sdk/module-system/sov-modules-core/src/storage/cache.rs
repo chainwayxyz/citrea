@@ -419,29 +419,6 @@ impl StorageInternalCache {
         self.tx_cache.add_write(cache_key, None);
     }
 
-    /// Check a key for existance.
-    pub fn contains_key<S: Storage>(
-        &mut self,
-        key: &StorageKey,
-        value_reader: &S,
-        witness: &mut S::Witness,
-    ) -> bool {
-        let cache_key = key.to_cache_key_version(self.version);
-        let cache_value = self.get_value_from_cache(&cache_key);
-
-        match cache_value {
-            ValueExists::Yes(cache_value_exists) => cache_value_exists.is_some(),
-            // If the value does not exist in the cache, then fetch it from an external source.
-            ValueExists::No => {
-                let storage_value = value_reader.get(key, self.version, witness);
-                let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
-
-                self.add_read(cache_key, cache_value);
-                storage_value.is_some()
-            }
-        }
-    }
-
     fn get_value_from_cache(&self, cache_key: &CacheKey) -> ValueExists {
         self.tx_cache.get_value(cache_key)
     }

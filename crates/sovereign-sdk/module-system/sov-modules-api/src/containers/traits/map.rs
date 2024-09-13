@@ -140,15 +140,4 @@ where
     {
         working_set.delete_value(self.prefix(), key, self.codec());
     }
-
-    /// Checks if a key exists in the map.
-    fn exists<Q>(&self, key: &Q, working_set: &mut W) -> bool
-    where
-        Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-        Codec::ValueCodec: StateValueCodec<V>,
-        Q: ?Sized,
-    {
-        working_set.key_exists(self.prefix(), key, self.codec())
-    }
 }
