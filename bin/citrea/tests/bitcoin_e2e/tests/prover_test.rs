@@ -198,25 +198,31 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let seq_height0 = sequencer.client.eth_block_number().await;
         assert_eq!(seq_height0, 0);
 
-        for _ in 0..10 {
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await;
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
-            .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
+            .wait_for_zkproofs(
+                finalized_height + FINALITY_DEPTH,
+                Some(Duration::from_secs(120)),
+            )
             .await
             .unwrap();
 
@@ -235,8 +241,14 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .client
             .ledger_get_sequencer_commitments_on_slot_by_number(finalized_height)
             .await
-            .unwrap()
-            .unwrap()
+            .expect(&format!(
+                "Failed to get sequencer commitments at {}",
+                finalized_height
+            ))
+            .expect(&format!(
+                "No sequencer commitments found at {}",
+                finalized_height
+            ))
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
@@ -260,8 +272,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(2, None).await?;
 
         // Trigger a new commitment.
-        let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
@@ -269,7 +279,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Wait for the sequencer commitment to be submitted & accepted.
         da.wait_mempool_len(4, None).await?;
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -277,10 +287,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await;
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         let proofs = full_node
-            .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
+            .wait_for_zkproofs(
+                finalized_height + FINALITY_DEPTH,
+                Some(Duration::from_secs(120)),
+            )
             .await
             .unwrap();
 
