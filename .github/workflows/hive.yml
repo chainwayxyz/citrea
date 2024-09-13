@@ -16,7 +16,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Except in `nightly` and `stable` branches! Any cancelled job will cause the
   # CI run to fail, and we want to keep a clean history for major branches.
-  cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/main') }}
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/devnet-freeze') }}
 
 jobs:
   prepare:
@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: chainwayxyz/hive
-          ref: main
+          ref: devnet-freeze
           path: hivetests
 
       - uses: actions/setup-go@v5
@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: chainwayxyz/hive
-          ref: main
+          ref: devnet-freeze
           path: hivetests
 
       - name: Run ethereum/rpc simulator
