@@ -1865,6 +1865,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "num_cpus",
+ "parking_lot",
  "rand 0.8.5",
  "rayon",
  "rs_merkle",

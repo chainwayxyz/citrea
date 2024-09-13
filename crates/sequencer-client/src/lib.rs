@@ -104,7 +104,7 @@ impl SequencerClient {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSoftConfirmationResponse {
-    l2_height: u64,
+    pub l2_height: u64,
     #[serde(with = "hex::serde")]
     pub hash: SoftConfirmationHash,
     #[serde(with = "hex::serde")]

@@ -32,6 +32,7 @@ futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true }
 num_cpus = { workspace = true }
+parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 rs_merkle = { workspace = true }

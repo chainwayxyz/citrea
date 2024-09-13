@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_fullnode::{CitreaFullnode, FullNode};
@@ -15,7 +17,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
 use tokio::sync::broadcast;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 mod bitcoin;
 mod mock;
@@ -75,19 +77,25 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_confirmation()? {
-            Some((number, soft_confirmation)) => Some((
-                prover_storage.get_root_hash(number.0 + 1)?,
-                soft_confirmation.hash,
-            )),
-            None => None,
-        };
-        let init_variant = match prev_data {
-            Some((root_hash, batch_hash)) => InitVariant::Initialized((root_hash, batch_hash)),
-            None => match genesis_root {
-                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                _ => InitVariant::Genesis(genesis_config),
-            },
+        let init_variant = match ledger_db.get_head_soft_confirmation()? {
+            // At least one soft confirmation was processed
+            Some((number, soft_confirmation)) => {
+                info!("Initialize sequencer at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
+                InitVariant::Initialized((
+                    prover_storage.get_root_hash(number.0 + 1)?,
+                    soft_confirmation.hash,
+                ))
+            }
+            None => {
+                info!("Initialize sequencer at genesis.");
+                match genesis_root {
+                    // Chain was initialized but no soft confirmations was processed
+                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
+                    // Not even initialized
+                    _ => InitVariant::Genesis(genesis_config),
+                }
+            }
         };
 
         let current_l2_height = ledger_db
@@ -170,19 +178,25 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_confirmation()? {
-            Some((number, soft_confirmation)) => Some((
-                prover_storage.get_root_hash(number.0 + 1)?,
-                soft_confirmation.hash,
-            )),
-            None => None,
-        };
-        let init_variant = match prev_data {
-            Some((root_hash, batch_hash)) => InitVariant::Initialized((root_hash, batch_hash)),
-            None => match genesis_root {
-                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                _ => InitVariant::Genesis(genesis_config),
-            },
+        let init_variant = match ledger_db.get_head_soft_confirmation()? {
+            // At least one soft confirmation was processed
+            Some((number, soft_confirmation)) => {
+                info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
+                InitVariant::Initialized((
+                    prover_storage.get_root_hash(number.0 + 1)?,
+                    soft_confirmation.hash,
+                ))
+            }
+            None => {
+                info!("Initialize node at genesis.");
+                match genesis_root {
+                    // Chain was initialized but no soft confirmations was processed
+                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
+                    // Not even initialized
+                    _ => InitVariant::Genesis(genesis_config),
+                }
+            }
         };
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
@@ -277,19 +291,25 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let prev_data = match ledger_db.get_head_soft_confirmation()? {
-            Some((number, soft_confirmation)) => Some((
-                prover_storage.get_root_hash(number.0 + 1)?,
-                soft_confirmation.hash,
-            )),
-            None => None,
-        };
-        let init_variant = match prev_data {
-            Some((root_hash, batch_hash)) => InitVariant::Initialized((root_hash, batch_hash)),
-            None => match genesis_root {
-                Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                _ => InitVariant::Genesis(genesis_config),
-            },
+        let init_variant = match ledger_db.get_head_soft_confirmation()? {
+            // At least one soft confirmation was processed
+            Some((number, soft_confirmation)) => {
+                info!("Initialize prover at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
+                InitVariant::Initialized((
+                    prover_storage.get_root_hash(number.0 + 1)?,
+                    soft_confirmation.hash,
+                ))
+            }
+            None => {
+                info!("Initialize prover at genesis.");
+                match genesis_root {
+                    // Chain was initialized but no soft confirmations was processed
+                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
+                    // Not even initialized
+                    _ => InitVariant::Genesis(genesis_config),
+                }
+            }
         };
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
@@ -312,7 +332,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             native_stf,
             storage_manager,
             init_variant,
-            Some(prover_service),
+            Arc::new(prover_service),
             Some(prover_config),
             code_commitments_by_spec,
             fork_manager,
