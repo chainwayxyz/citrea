@@ -88,6 +88,7 @@ fn initialize_runner(
             sequencer_client_url: "http://127.0.0.1:4444".to_string(),
             include_tx_body: true,
             accept_public_input_as_proven: None,
+            sync_blocks_count: 10,
         }),
         da: MockDaConfig {
             sender_address: address,
@@ -98,7 +99,6 @@ fn initialize_runner(
             sequencer_da_pub_key: vec![],
             prover_da_pub_key: vec![],
         },
-        sync_blocks_count: 10,
     };
 
     let da_service = MockDaService::new(address, &da_storage_path);
@@ -132,7 +132,6 @@ fn initialize_runner(
         storage_manager,
         init_variant,
         code_commitments_by_spec,
-        10,
         fork_manager,
         broadcast::channel(1).0,
     )

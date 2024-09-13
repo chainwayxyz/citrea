@@ -113,6 +113,12 @@ pub trait SharedLedgerOps {
     /// Get the most recent committed batch
     /// Returns L2 height.
     fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
+
+    /// Get the last scanned slot
+    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
+
+    /// Set the last scanned slot
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
 }
 
 /// Node ledger operations
@@ -134,13 +140,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
 /// Prover ledger operations
 pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Get the last scanned slot by the prover
-    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
-
-    /// Set the last scanned slot by the prover
-    /// Called by the prover.
-    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
-
     /// Get the witness by L2 height
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
 

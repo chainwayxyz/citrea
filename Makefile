@@ -21,7 +21,14 @@ clean-node: ## Cleans local dbs needed for sequencer and nodes
 	rm -rf resources/dbs/sequencer-db
 	rm -rf resources/dbs/prover-db
 	rm -rf resources/dbs/full-node-db
+
+clean-txs:
+	rm -rf resources/bitcoin/inscription_txs/*
+
+clean-docker:
 	rm -rf resources/dbs/citrea-bitcoin-regtest-data
+
+clean-all: clean clean-node clean-txs
 
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
@@ -37,8 +44,8 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
 	cargo install --version 1.7.0 cargo-binstall
-	curl -L https://risczero.com/install | bash
-	~/.risc0/bin/rzup -v 1.0.5
+	cargo binstall cargo-risczero@1.0.5 --no-confirm
+	cargo risczero install --version r0.1.79.0-2
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
 	cargo install cargo-llvm-cov
