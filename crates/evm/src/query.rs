@@ -1602,8 +1602,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     _ => {
                         return Err(EthApiError::InvalidParams(
                             "Please provide a number or earliest/latest tag".to_string(),
-                        )
-                        .into())
+                        ))
                     }
                 }
             }
