@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_fullnode::{CitreaFullnode, FullNode};
@@ -330,7 +332,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             native_stf,
             storage_manager,
             init_variant,
-            Some(prover_service),
+            Arc::new(prover_service),
             Some(prover_config),
             code_commitments_by_spec,
             fork_manager,
