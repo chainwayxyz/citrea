@@ -16,9 +16,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::evm::error::result::rpc_error_with_code;
 
 /// The maximum number of blocks that can be queried in a single eth_getLogs request.
-pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 100_000;
+pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
 /// The maximum number of logs that can be returned in a single eth_getLogs response.
-pub const DEFAULT_MAX_LOGS_PER_RESPONSE: usize = 20_000;
+pub const DEFAULT_MAX_LOGS_PER_RESPONSE: usize = 5_000;
 /// The maximum number of headers we read at once when handling a range filter.
 pub const MAX_HEADERS_RANGE: u64 = 1_000; // with ~530bytes? per header this is ~500kb?
 
