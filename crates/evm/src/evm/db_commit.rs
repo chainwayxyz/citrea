@@ -39,10 +39,9 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 }
                 db_account.keys.clear(self.working_set);
 
-                // clear code
-                if let Some(code_hash) = info.code_hash {
-                    self.code.delete(&code_hash, self.working_set);
-                }
+                // Do not clear account.code, because there
+                // may exist duplicate contracts with the same code.
+                // self.code.delete(...) <- DONT DO THIS
 
                 self.accounts.delete(&address, self.working_set);
                 continue;
