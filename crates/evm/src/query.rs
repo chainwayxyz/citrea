@@ -554,9 +554,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .get_block_number_by_block_hash(block_hash.block_hash, working_set)
                     .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
 
-                set_state_to_end_of_evm_block(block_number, working_set);
-
-                BlockEnv::from(
+                let block_env = BlockEnv::from(
                     &self
                         .get_sealed_block_by_number(
                             Some(BlockNumberOrTag::Number(block_number)),
@@ -564,7 +562,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         )
                         .unwrap()
                         .expect("Block must be set"),
-                )
+                );
+
+                set_state_to_end_of_evm_block(block_number, working_set);
+
+                block_env
             }
             None => self.block_env.get(working_set).unwrap_or_else(|| {
                 BlockEnv::from(
