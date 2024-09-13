@@ -322,14 +322,10 @@ impl TestClient {
     pub(crate) async fn eth_get_balance(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<U256, Box<dyn std::error::Error>> {
-        let block_number = match block_number {
-            Some(block_number) => block_number,
-            None => BlockNumberOrTag::Latest,
-        };
         self.http_client
-            .request("eth_getBalance", rpc_params![address, block_number])
+            .request("eth_getBalance", rpc_params![address, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -338,13 +334,10 @@ impl TestClient {
         &self,
         address: Address,
         index: U256,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<U256, Box<dyn std::error::Error>> {
         self.http_client
-            .request(
-                "eth_getStorageAt",
-                rpc_params![address, index, block_number],
-            )
+            .request("eth_getStorageAt", rpc_params![address, index, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -352,10 +345,10 @@ impl TestClient {
     pub(crate) async fn eth_get_code(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
-            .request("eth_getCode", rpc_params![address, block_number])
+            .request("eth_getCode", rpc_params![address, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -363,14 +356,11 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_count(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<u64, Box<dyn std::error::Error>> {
         match self
             .http_client
-            .request::<U64, _>(
-                "eth_getTransactionCount",
-                rpc_params![address, block_number],
-            )
+            .request::<U64, _>("eth_getTransactionCount", rpc_params![address, block_id])
             .await
         {
             Ok(count) => Ok(count.saturating_to()),

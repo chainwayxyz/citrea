@@ -294,39 +294,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_balance(
         &self,
         address: reth_primitives::Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         debug!("evm module: eth_getBalance");
 
-        let curr_block_number = self
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .expect("Head block must be set")
-            .header
-            .number;
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
-        match block_number {
-            Some(BlockNumberOrTag::Number(num)) => {
-                if num > curr_block_number {
-                    return Err(EthApiError::UnknownBlockNumber.into());
-                }
-                set_state_to_end_of_evm_block(num, working_set);
-            }
-            // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
-            Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
-            }
-            _ => {
-                return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
-                )
-                .into())
-            }
-        }
-
         let balance = self
             .accounts
             .get(&address, working_set)
@@ -342,38 +317,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         address: reth_primitives::Address,
         index: reth_primitives::U256,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::B256> {
         debug!("evm module: eth_getStorageAt");
-
-        let curr_block_number = self
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .expect("Head block must be set")
-            .header
-            .number;
-
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
-        match block_number {
-            Some(BlockNumberOrTag::Number(num)) => {
-                if num > curr_block_number {
-                    return Err(EthApiError::UnknownBlockNumber.into());
-                }
-                set_state_to_end_of_evm_block(num, working_set);
-            }
-            // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
-            Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
-            }
-            _ => {
-                return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
-                )
-                .into())
-            }
-        }
+
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let storage_slot = if self.accounts.get(&address, working_set).is_some() {
             let db_account = DbAccount::new(address);
@@ -393,38 +343,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_transaction_count(
         &self,
         address: reth_primitives::Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U64> {
         debug!("evm module: eth_getTransactionCount");
 
-        let curr_block_number = self
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .expect("Head block must be set")
-            .header
-            .number;
-
         // Specs from https://ethereum.org/en/developers/docs/apis/json-rpc
-        match block_number {
-            Some(BlockNumberOrTag::Number(num)) => {
-                if num > curr_block_number {
-                    return Err(EthApiError::UnknownBlockNumber.into());
-                }
-                set_state_to_end_of_evm_block(num, working_set);
-            }
-            // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
-            Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
-            }
-            _ => {
-                return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
-                )
-                .into())
-            }
-        }
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let nonce = self
             .accounts
@@ -440,39 +365,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_code(
         &self,
         address: reth_primitives::Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         debug!("evm module: eth_getCode");
 
-        let curr_block_number = self
-            .blocks
-            .last(&mut working_set.accessory_state())
-            .expect("Head block must be set")
-            .header
-            .number;
-
-        match block_number {
-            Some(BlockNumberOrTag::Number(num)) => {
-                if num > curr_block_number {
-                    return Err(EthApiError::UnknownBlockNumber.into());
-                }
-                set_state_to_end_of_evm_block(num, working_set);
-            }
-            // Working state here is already at the latest state, so no need to anything
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) | None => {}
-            Some(BlockNumberOrTag::Earliest) => {
-                set_state_to_end_of_evm_block(0, working_set);
-            }
-            // Is this the way?
-            // Note that reth works for all types of BlockNumberOrTag
-            _ => {
-                return Err(EthApiError::InvalidParams(
-                    "Please provide a number or earliest/latest tag".to_string(),
-                )
-                .into())
-            }
-        }
+        self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let account = self.accounts.get(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
@@ -623,29 +521,57 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn get_call(
         &self,
         request: reth_rpc_types::TransactionRequest,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
         _state_overrides: Option<reth_rpc_types::state::StateOverride>,
         _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         debug!("evm module: eth_call");
-        let mut block_env = match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => BlockEnv::from(
+        let mut block_env = match block_id {
+            Some(BlockId::Number(block_num)) => match block_num {
+                BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => BlockEnv::from(
+                    &self
+                        .get_sealed_block_by_number(Some(BlockNumberOrTag::Latest), working_set)
+                        .unwrap()
+                        .expect("Genesis block must be set"),
+                ),
+                _ => {
+                    let block =
+                        match self.get_sealed_block_by_number(Some(block_num), working_set)? {
+                            Some(block) => block,
+                            None => return Err(EthApiError::UnknownBlockNumber.into()),
+                        };
+
+                    set_state_to_end_of_evm_block(block.header.number, working_set);
+
+                    BlockEnv::from(&block)
+                }
+            },
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+
+                let block_env = BlockEnv::from(
+                    &self
+                        .get_sealed_block_by_number(
+                            Some(BlockNumberOrTag::Number(block_number)),
+                            working_set,
+                        )
+                        .unwrap()
+                        .expect("Block must be set"),
+                );
+
+                set_state_to_end_of_evm_block(block_number, working_set);
+
+                block_env
+            }
+            None => BlockEnv::from(
                 &self
                     .get_sealed_block_by_number(Some(BlockNumberOrTag::Latest), working_set)
                     .unwrap()
                     .expect("Genesis block must be set"),
             ),
-            _ => {
-                let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                    Some(block) => block,
-                    None => return Err(EthApiError::UnknownBlockNumber.into()),
-                };
-
-                set_state_to_end_of_evm_block(block.header.number, working_set);
-
-                BlockEnv::from(&block)
-            }
         };
 
         let cfg = self
@@ -1599,6 +1525,52 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .iter(&mut working_set.accessory_state())
             .map(|tx| tx.receipt.gas_used)
             .sum::<u128>()
+    }
+
+    fn set_state_to_end_of_evm_block_by_block_id(
+        &self,
+        block_id: Option<BlockId>,
+        working_set: &mut WorkingSet<C>,
+    ) -> Result<(), EthApiError> {
+        match block_id {
+            // latest state
+            None => {}
+            Some(BlockId::Number(block_num)) => {
+                match block_num {
+                    BlockNumberOrTag::Number(num) => {
+                        let curr_block_number = self
+                            .blocks
+                            .last(&mut working_set.accessory_state())
+                            .expect("Head block must be set")
+                            .header
+                            .number;
+                        if num > curr_block_number {
+                            return Err(EthApiError::UnknownBlockNumber);
+                        }
+                        set_state_to_end_of_evm_block(num, working_set);
+                    }
+                    // Working state here is already at the latest state, so no need to anything
+                    BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => {}
+                    BlockNumberOrTag::Earliest => {
+                        set_state_to_end_of_evm_block(0, working_set);
+                    }
+                    _ => {
+                        return Err(EthApiError::InvalidParams(
+                            "Please provide a number or earliest/latest tag".to_string(),
+                        ))
+                    }
+                }
+            }
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+
+                set_state_to_end_of_evm_block(block_number, working_set);
+            }
+        };
+
+        Ok(())
     }
 }
 

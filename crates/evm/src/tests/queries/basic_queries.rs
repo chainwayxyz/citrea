@@ -274,7 +274,7 @@ fn call_test() {
             transaction_type: None,
             sidecar: None,
         },
-        Some(BlockNumberOrTag::Number(100)),
+        Some(BlockId::Number(BlockNumberOrTag::Number(100))),
         None,
         None,
         &mut working_set,
@@ -285,6 +285,40 @@ fn call_test() {
 
     let contract = SimpleStorageContract::default();
     let call_data = contract.get_call_data();
+
+    let block_hash_3 = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Number(3)), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
+
+    let call_with_hash_nonce_too_low_result = evm.get_call(
+        TransactionRequest {
+            from: Some(signer.address()),
+            to: Some(TxKind::Call(address!(
+                "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+            ))),
+            gas: Some(100000),
+            gas_price: Some(100000000),
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+            value: Some(U256::from(100000000)),
+            input: TransactionInput::new(call_data.clone().into()),
+            nonce: Some(7u64),
+            chain_id: Some(1u64),
+            access_list: None,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: None,
+            transaction_type: None,
+            sidecar: None,
+        },
+        Some(BlockId::Hash(block_hash_3.into())),
+        None,
+        None,
+        &mut working_set,
+    );
 
     let nonce_too_low_result = evm.get_call(
         TransactionRequest {
@@ -306,14 +340,23 @@ fn call_test() {
             transaction_type: None,
             sidecar: None,
         },
-        Some(BlockNumberOrTag::Number(3)),
+        Some(BlockId::Number(BlockNumberOrTag::Number(3))),
         None,
         None,
         &mut working_set,
     );
 
+    assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
     assert!(nonce_too_low_result.is_err());
     working_set.unset_archival_version();
+
+    let latest_block_hash = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .unwrap()
+        .unwrap()
+        .header
+        .hash
+        .unwrap();
 
     let result = evm
         .get_call(
@@ -337,13 +380,43 @@ fn call_test() {
                 sidecar: None,
             },
             // How does this work precisely? In the first block, the contract was not there?
-            Some(BlockNumberOrTag::Latest),
+            Some(BlockId::Number(BlockNumberOrTag::Latest)),
             None,
             None,
             &mut working_set,
         )
         .unwrap();
 
+    let call_with_hash_result = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(address!(
+                    "eeb03d20dae810f52111b853b31c8be6f30f4cd3"
+                ))),
+                gas: Some(100000),
+                gas_price: Some(10000),
+                max_fee_per_gas: None,
+                max_priority_fee_per_gas: None,
+                value: None,
+                input: TransactionInput::new(call_data.clone().into()),
+                nonce: None,
+                chain_id: Some(1u64),
+                access_list: None,
+                max_fee_per_blob_gas: None,
+                blob_versioned_hashes: None,
+                transaction_type: None,
+                sidecar: None,
+            },
+            // How does this work precisely? In the first block, the contract was not there?
+            Some(BlockId::Hash(latest_block_hash.into())),
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(call_with_hash_result, result);
     assert_eq!(
         result.to_string(),
         "0x00000000000000000000000000000000000000000000000000000000000001de"
@@ -372,7 +445,7 @@ fn call_test() {
                 sidecar: None,
             },
             // How does this work precisely? In the first block, the contract was not there?
-            Some(BlockNumberOrTag::Latest),
+            Some(BlockId::Number(BlockNumberOrTag::Latest)),
             None,
             None,
             &mut working_set,
