@@ -8,14 +8,14 @@ use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{Block, BlockId, Bytes, Eip1559TransactionRequest, Transaction, TxHash};
+use ethers_core::types::{Block, Bytes, Eip1559TransactionRequest, Transaction, TxHash};
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use sequencer_client::GetSoftBatchResponse;
 use sov_rollup_interface::rpc::{
@@ -367,14 +367,10 @@ impl TestClient {
     pub(crate) async fn eth_get_balance(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
-        let block_number = match block_number {
-            Some(block_number) => block_number,
-            None => BlockNumberOrTag::Latest,
-        };
         self.http_client
-            .request("eth_getBalance", rpc_params![address, block_number])
+            .request("eth_getBalance", rpc_params![address, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -383,13 +379,10 @@ impl TestClient {
         &self,
         address: Address,
         index: ethereum_types::U256,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
         self.http_client
-            .request(
-                "eth_getStorageAt",
-                rpc_params![address, index, block_number],
-            )
+            .request("eth_getStorageAt", rpc_params![address, index, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -397,10 +390,10 @@ impl TestClient {
     pub(crate) async fn eth_get_code(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
-            .request("eth_getCode", rpc_params![address, block_number])
+            .request("eth_getCode", rpc_params![address, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -408,13 +401,13 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_count(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<u64, Box<dyn std::error::Error>> {
         match self
             .http_client
             .request::<ethereum_types::U64, _>(
                 "eth_getTransactionCount",
-                rpc_params![address, block_number],
+                rpc_params![address, block_id],
             )
             .await
         {
@@ -533,10 +526,10 @@ impl TestClient {
     pub(crate) async fn eth_call(
         &self,
         tx: TypedTransaction,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
-            .request("eth_call", rpc_params![tx, block_number])
+            .request("eth_call", rpc_params![tx, block_id])
             .await
             .map_err(|e| e.into())
     }

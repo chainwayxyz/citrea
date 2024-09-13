@@ -7,9 +7,9 @@ use citrea_evm::smart_contracts::{
 };
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers_core::abi::Address;
-use ethers_core::types::{BlockId, Bytes, U256};
+use ethers_core::types::{Bytes, U256};
 use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
@@ -501,11 +501,11 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
         assert_eq!(latest_block.transactions[0], tx_hash);
 
         let latest_block_receipts = client
-            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Latest))
+            .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Latest))
             .await;
         let latest_block_receipt_by_number = client
-            .eth_get_block_receipts(BlockId::Number(ethers_core::types::BlockNumber::Number(
-                latest_block.number.unwrap(),
+            .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(
+                latest_block.number.unwrap().as_u64(),
             )))
             .await;
         assert_eq!(latest_block_receipts, latest_block_receipt_by_number);
