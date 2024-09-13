@@ -521,8 +521,7 @@ fn calc_diff_size<EXT, DB: Database>(
             let n_slots = account.storage.len();
             diff_size += (STORAGE_KEY_SIZE + 1) * n_slots;
             diff_size += (KEY_KEY_SIZE + 1) * n_slots;
-            // account_code:
-            diff_size += CODE_KEY_SIZE + 1;
+            // We don't delete account_code.
             continue;
         }
 
