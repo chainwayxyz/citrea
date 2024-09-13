@@ -4,7 +4,10 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use ethers::abi::Address;
 use ethers_core::abi::Bytes;
+use ethers_core::types::transaction::eip2718::TypedTransaction;
+use ethers_core::types::{Block, Eip1559TransactionRequest, Transaction, TxHash};
 use reth_primitives::{BlockId, BlockNumberOrTag, B256};
+use revm::primitives::ExecutionResult;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
