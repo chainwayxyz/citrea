@@ -517,7 +517,7 @@ fn test_log_limits() {
     if let Err(rpc_err) = rpc_logs {
         assert_eq!(
             rpc_err.message(),
-            "query exceeds max results 20000".to_string()
+            "query exceeds max results 5000".to_string()
         );
     }
 
@@ -529,7 +529,7 @@ fn test_log_limits() {
         FilterSet::default(),
     ];
 
-    for _ in 1..100_001 {
+    for _ in 1..1001 {
         let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height,
             da_slot_hash: [5u8; 32],
@@ -553,7 +553,7 @@ fn test_log_limits() {
     let filter = Filter {
         block_option: crate::FilterBlockOption::Range {
             from_block: Some(BlockNumberOrTag::Number(1)),
-            to_block: Some(BlockNumberOrTag::Number(100_001)),
+            to_block: Some(BlockNumberOrTag::Number(1_001)),
         },
         address: FilterSet::default(),
         topics: empty_topics.clone(),
@@ -564,6 +564,6 @@ fn test_log_limits() {
     assert!(rpc_logs.is_err());
     assert_eq!(
         rpc_logs.err().unwrap().message(),
-        "query exceeds max block range 100000".to_string()
+        "query exceeds max block range 1000".to_string()
     );
 }
