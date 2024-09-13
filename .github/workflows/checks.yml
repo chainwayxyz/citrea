@@ -452,7 +452,7 @@ jobs:
         shell: bash
 
   validate_and_check_DA_ID:
-    runs-on: ubicloud-standard-30
+    runs-on: ubicloud-standard-2
     needs: build
     env:
       EXPECTED_BITCOIN_DA_ID: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
