@@ -99,8 +99,9 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: citrea-build
-          path: target/release/citrea
-          path: target/release/**/methods.rs
+          path: |
+            target/release/citrea
+            target/release/**/methods.rs
           retention-days: 1
 
   check:
