@@ -27,8 +27,8 @@ pub trait StateReaderAndWriter {
     /// Deletes a storage value.
     fn delete(&mut self, key: &StorageKey);
 
-    /// Checks for existance
-    fn exists(&mut self, key: &StorageKey) -> bool;
+    /// Checks a storage key for existance
+    fn contains_key(&mut self, key: &StorageKey) -> bool;
 
     /// Replaces a storage value with the provided prefix, using the provided codec.
     fn set_value<Q, K, V, Codec>(
@@ -130,7 +130,7 @@ pub trait StateReaderAndWriter {
         // Codec::ValueCodec: StateValueCodec<V>,
     {
         let storage_key = StorageKey::new(prefix, storage_key, codec.key_codec());
-        self.exists(&storage_key)
+        self.contains_key(&storage_key)
     }
 
     /// Removes a singleton from the storage. For more information, check [StorageKey::singleton].
@@ -214,7 +214,7 @@ impl<S: Storage> StateReaderAndWriter for Delta<S> {
         self.cache.delete(key)
     }
 
-    fn exists(&mut self, key: &StorageKey) -> bool {
+    fn contains_key(&mut self, key: &StorageKey) -> bool {
         self.cache.exists(key, &self.inner, &mut self.witness)
     }
 }
@@ -284,11 +284,10 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
             .insert(key.to_cache_key_version(self.writes.version), None);
     }
 
-    fn exists(&mut self, key: &StorageKey) -> bool {
+    fn contains_key(&mut self, key: &StorageKey) -> bool {
         self.writes
             .cache
-            .get(&key.to_cache_key_version(self.writes.version))
-            .is_some()
+            .contains_key(&key.to_cache_key_version(self.writes.version))
     }
 }
 
@@ -512,10 +511,10 @@ impl<C: Context> StateReaderAndWriter for WorkingSet<C> {
         }
     }
 
-    fn exists(&mut self, key: &StorageKey) -> bool {
+    fn contains_key(&mut self, key: &StorageKey) -> bool {
         match &mut self.archival_working_set {
-            None => self.delta.exists(key),
-            Some(ref mut archival_working_set) => archival_working_set.exists(key),
+            None => self.delta.contains_key(key),
+            Some(ref mut archival_working_set) => archival_working_set.contains_key(key),
         }
     }
 }
@@ -552,10 +551,10 @@ impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
         }
     }
 
-    fn exists(&mut self, key: &StorageKey) -> bool {
+    fn contains_key(&mut self, key: &StorageKey) -> bool {
         match &mut self.ws.archival_accessory_working_set {
-            None => self.ws.accessory_delta.exists(key),
-            Some(ref mut archival_working_set) => archival_working_set.exists(key),
+            None => self.ws.accessory_delta.contains_key(key),
+            Some(ref mut archival_working_set) => archival_working_set.contains_key(key),
         }
     }
 }
@@ -611,8 +610,8 @@ pub mod archival_state {
             self.delta.delete(key)
         }
 
-        fn exists(&mut self, key: &StorageKey) -> bool {
-            self.delta.exists(key)
+        fn contains_key(&mut self, key: &StorageKey) -> bool {
+            self.delta.contains_key(key)
         }
     }
 
@@ -633,8 +632,8 @@ pub mod archival_state {
             self.delta.delete(key)
         }
 
-        fn exists(&mut self, key: &StorageKey) -> bool {
-            self.delta.exists(key)
+        fn contains_key(&mut self, key: &StorageKey) -> bool {
+            self.delta.contains_key(key)
         }
     }
 }
@@ -684,8 +683,8 @@ pub mod kernel_state {
             self.ws.delta.delete(key)
         }
 
-        fn exists(&mut self, key: &StorageKey) -> bool {
-            self.ws.delta.exists(key)
+        fn contains_key(&mut self, key: &StorageKey) -> bool {
+            self.ws.delta.contains_key(key)
         }
     }
 
@@ -744,8 +743,8 @@ pub mod kernel_state {
             self.inner.delta.delete(key)
         }
 
-        fn exists(&mut self, key: &StorageKey) -> bool {
-            self.inner.delta.exists(key)
+        fn contains_key(&mut self, key: &StorageKey) -> bool {
+            self.inner.delta.contains_key(key)
         }
     }
 }
@@ -814,9 +813,8 @@ impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
             .insert(key.to_cache_key_version(self.version), None);
     }
 
-    fn exists(&mut self, key: &StorageKey) -> bool {
+    fn contains_key(&mut self, key: &StorageKey) -> bool {
         self.writes
-            .get(&key.to_cache_key_version(self.version))
-            .is_some()
+            .contains_key(&key.to_cache_key_version(self.version))
     }
 }
