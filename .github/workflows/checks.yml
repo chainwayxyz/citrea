@@ -156,13 +156,10 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: actions-rs/toolchain@v1
         with:
-          components: rustfmt, clippy
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
+          toolchain: nightly-2024-07-27
+          override: true
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
