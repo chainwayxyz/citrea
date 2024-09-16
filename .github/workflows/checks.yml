@@ -96,6 +96,10 @@ jobs:
             target/release/citrea
             target/release/**/methods.rs
           retention-days: 1
+      - uses: actions/upload-artifact@v3
+        with:
+          name: cargo-timing
+          path: target/cargo-timings/cargo-timing.html
 
   check:
     name: check
