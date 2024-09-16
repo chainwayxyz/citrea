@@ -77,9 +77,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
@@ -120,7 +117,6 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          override: true
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -141,6 +137,7 @@ jobs:
             exit 1
           fi
 
+
   udeps:
     name: udeps
     runs-on: ubicloud-standard-8
@@ -155,10 +152,9 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly-2024-07-27
-          override: true
+          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
@@ -336,14 +332,14 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: 1.79.0
-          target: thumbv6m-none-eabi
           override: true
+          target: thumbv6m-none-eabi
       - name: Install Rust WASM
         uses: actions-rs/toolchain@v1
         with:
           toolchain: 1.79.0
-          target: wasm32-unknown-unknown
           override: true
+          target: wasm32-unknown-unknown
       - name: cargo install cargo-hack
         uses: taiki-e/install-action@cargo-hack
       - uses: Swatinem/rust-cache@v2
@@ -368,7 +364,6 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.79.0
         with:
-          override: true
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -399,7 +394,6 @@ jobs:
   system-contracts:
     strategy:
       fail-fast: true
-
     name: Foundry project
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
@@ -425,6 +419,7 @@ jobs:
           cd crates/evm/src/evm/system_contracts
           forge test -vvv
         id: test
+
   check_genesis_files:
     strategy:
       fail-fast: true
