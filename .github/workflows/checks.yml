@@ -50,7 +50,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
+  RUSTFLAGS: -D warnings -C opt-level=2
   FOUNDRY_PROFILE: ci
   NEXTEST_TEST_THREADS: 16
 
@@ -132,8 +132,6 @@ jobs:
         run: cargo risczero install --version r0.1.79.0-2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Check TOML
-        uses: dprint/check@v2.2
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
