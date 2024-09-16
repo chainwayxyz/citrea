@@ -53,7 +53,6 @@ env:
   RUSTFLAGS: -D warnings -C opt-level=2
   FOUNDRY_PROFILE: ci
   NEXTEST_TEST_THREADS: 16
-  CARGO_INCREMENTAL: 1
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -91,7 +90,6 @@ jobs:
         run: make build-release
         env:
           REPR_GUEST_BUILD: 1
-          CARGO_INCREMENTAL: 1
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
@@ -138,8 +136,6 @@ jobs:
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
-        env:
-          CARGO_INCREMENTAL: 1
 
   udeps:
     name: udeps
