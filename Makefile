@@ -40,7 +40,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install --locked dprint
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
-	cargo install cargo-udeps
+	cargo install cargo-udeps --locked
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
 	cargo install --version 1.7.0 cargo-binstall
