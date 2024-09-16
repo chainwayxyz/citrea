@@ -231,7 +231,6 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -276,7 +275,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
       - name: Download artifact
         uses: actions/download-artifact@v3
@@ -304,7 +302,6 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
