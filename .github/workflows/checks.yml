@@ -82,6 +82,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-build-${{ hashFiles('**/Cargo.lock') }}
+          cache-all-crates: true
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
         with:
@@ -124,6 +125,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-check-${{ hashFiles('**/Cargo.lock') }}
+          cache-all-crates: true
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
         with:
@@ -190,6 +192,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
+          cache-all-crates: true
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Setup RISC-0
@@ -354,6 +357,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
+          cache-all-crates: true
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
         with:
