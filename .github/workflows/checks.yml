@@ -82,14 +82,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
       - name: Build citrea
         run: make build-release
         env:
@@ -124,14 +118,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
@@ -157,14 +145,8 @@ jobs:
         with:
           toolchain: nightly-2024-07-27
           override: true
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -197,14 +179,8 @@ jobs:
           key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
@@ -363,14 +339,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests

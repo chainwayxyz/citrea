@@ -1,0 +1,29 @@
+name: 'Setup RISC-0'
+description: 'Setup RISC-0 environment'
+runs:
+  using: composite
+  steps:
+    - name: Cache RISC-0 build artifacts
+      id: cache-risc0
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-risc0-${{ hashFiles('**/risc0/**') }}
+
+    - name: Install cargo-risczero
+      if: steps.cache-risc0.outputs.cache-hit != 'true'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-risczero@1.0.5
+
+    - name: Install risc0-zkvm toolchain
+      if: steps.cache-risc0.outputs.cache-hit != 'true'
+      shell: bash
+      run: cargo risczero install --version r0.1.79.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
