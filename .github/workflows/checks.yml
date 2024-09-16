@@ -191,7 +191,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: nexttest
           cache-all-crates: true
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
@@ -356,7 +356,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
+          shared-key: nexttest
           cache-all-crates: true
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
