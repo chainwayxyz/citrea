@@ -12,15 +12,11 @@ runs:
       uses: actions/cache@v3
       with:
         path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
+          ~/.cargo/
           ~/.local/share/cargo-risczero/
           target/
-        key: ${{ runner.os }}-risc0-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/risc0/**') }}
+        key: ${{ runner.os }}-risc0-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-risc0-${{ hashFiles('**/Cargo.lock') }}-
           ${{ runner.os }}-risc0-
 
     - name: Install cargo-risczero
@@ -35,3 +31,13 @@ runs:
       run: cargo risczero install --version r0.1.79.0
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+
+    - name: Force cache save
+      if: always()
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          ~/.cargo/
+          ~/.local/share/cargo-risczero/
+          target/
+        key: ${{ runner.os }}-risc0-${{ hashFiles('**/Cargo.lock') }}
