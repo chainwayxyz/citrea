@@ -81,7 +81,6 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-build-${{ hashFiles('**/Cargo.lock') }}
           cache-all-crates: true
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
@@ -124,7 +123,6 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-check-${{ hashFiles('**/Cargo.lock') }}
           cache-all-crates: true
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
