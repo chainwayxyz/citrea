@@ -128,6 +128,8 @@ jobs:
         uses: ./.github/actions/setup-risc0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check TOML
+        uses: dprint/check@v2.2
       - name: Run lint
         run: |
           if ! SKIP_GUEST_BUILD=1 make lint ; then
