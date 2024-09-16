@@ -16,6 +16,7 @@ runs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
+          ~/.local/share/cargo-risczero/
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-risc0-${{ hashFiles('**/risc0/**') }}
 
