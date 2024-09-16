@@ -79,6 +79,8 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -120,6 +122,8 @@ jobs:
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -157,6 +161,8 @@ jobs:
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
@@ -193,6 +199,8 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install cargo-risczero
@@ -342,9 +350,6 @@ jobs:
           target: wasm32-unknown-unknown
       - name: cargo install cargo-hack
         uses: taiki-e/install-action@cargo-hack
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/nightly' }}
       - name: Run check
         run: make check-no-std
 
@@ -367,6 +372,8 @@ jobs:
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-nexttest-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
