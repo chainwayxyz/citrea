@@ -1,5 +1,9 @@
 name: 'Setup RISC-0'
 description: 'Setup RISC-0 environment'
+inputs:
+  github-token:
+    description: 'GitHub token for risc0-zkvm toolchain auth'
+    required: true
 runs:
   using: composite
   steps:
@@ -26,4 +30,4 @@ runs:
       shell: bash
       run: cargo risczero install --version r0.1.79.0
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
