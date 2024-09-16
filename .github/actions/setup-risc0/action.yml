@@ -18,7 +18,10 @@ runs:
           ~/.cargo/git/db/
           ~/.local/share/cargo-risczero/
           target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-risc0-${{ hashFiles('**/risc0/**') }}
+        key: ${{ runner.os }}-risc0-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/risc0/**') }}
+        restore-keys: |
+          ${{ runner.os }}-risc0-${{ hashFiles('**/Cargo.lock') }}-
+          ${{ runner.os }}-risc0-
 
     - name: Install cargo-risczero
       if: steps.cache-risc0.outputs.cache-hit != 'true'
