@@ -82,7 +82,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('**/Cargo.lock') }}
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
         with:
@@ -125,7 +125,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ runner.os }}-cargo-nightly-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-check-${{ hashFiles('**/Cargo.lock') }}
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
         with:
@@ -138,6 +138,8 @@ jobs:
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
+        env:
+          CARGO_INCREMENTAL: 1
 
   udeps:
     name: udeps
@@ -184,6 +186,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
       - uses: dtolnay/rust-toolchain@1.79.0
         with:
           components: llvm-tools-preview
