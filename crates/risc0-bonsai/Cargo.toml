@@ -21,7 +21,6 @@ bytemuck = "1.13.1"
 hex = { workspace = true }
 once_cell = { version = "1.19.0", optional = true }
 parking_lot = { version = "0.12.1", optional = true }
-risc0-circuit-rv32im = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
@@ -38,7 +37,6 @@ default = []
 native = [
   "risc0-zkvm/prove",
   "dep:risc0-zkp",
-  "dep:risc0-circuit-rv32im",
   "sov-risc0-adapter/native",
 ]
 bench = ["once_cell", "parking_lot", "native"]
