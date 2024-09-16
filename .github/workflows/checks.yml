@@ -53,6 +53,7 @@ env:
   RUSTFLAGS: -D warnings -C opt-level=2
   FOUNDRY_PROFILE: ci
   NEXTEST_TEST_THREADS: 16
+  CARGO_INCREMENTAL: 1
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
