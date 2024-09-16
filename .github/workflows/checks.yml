@@ -52,6 +52,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
+  NEXTEST_TEST_THREADS: 16
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
