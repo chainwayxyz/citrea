@@ -35,12 +35,16 @@ pub struct SyncStatus {
     pub head_block_number: u64,
     pub synced_block_number: u64,
 }
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum CitreaStatus {
+pub enum LayerStatus{
     Synced(u64),
     Syncing(SyncStatus),
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CitreaStatus {
+    l1_status: LayerStatus,
+    l2_status: LayerStatus,
 }
 
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
@@ -617,7 +621,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .block_number()
                     .await;
 
-                let head_block_number = match block_number {
+                let l2_head_block_number = match block_number {
                     Ok(block_number) => block_number,
                     Err(e) => match e {
                         jsonrpsee::core::client::Error::Call(e_owned) => return Err(e_owned),
@@ -631,23 +635,40 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 let block =
                     evm.get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set);
 
-                let synced_block_number = match block {
+                let l2_synced_block_number = match block {
                     Ok(Some(block)) => block.header.number.unwrap(),
                     Ok(None) => 0u64,
                     Err(e) => return Err(e),
                 };
-                // check l1 sync status
-                let l1_block_number = ethereum.ledger_db.get_last_scanned_l1_height();
-                let head_l2_block_number = ethereum.da_service.get_head_block_header().await.unwrap().height();
 
-                if synced_block_number < head_block_number {
-                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Syncing(SyncStatus {
-                        synced_block_number,
-                        head_block_number,
-                    }))
+                let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height(){
+                    Ok(Some(slot_number)) => slot_number.0,
+                    Ok(None) => 0,
+                    Err(e) => return Err(to_jsonrpsee_error_object("PROVER_ERROR", e)),
+                };
+                let l1_head_block_number = match ethereum.da_service.get_head_block_header().await{
+                    Ok(header) => header.height(),
+                    Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
+                };
+                let l1_status = if l1_synced_block_number < l1_head_block_number {
+                    LayerStatus::Syncing(SyncStatus {
+                        synced_block_number: l1_synced_block_number,
+                        head_block_number: l1_head_block_number,
+                    })
                 } else {
-                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Synced(head_block_number))
-                }
+                    LayerStatus::Synced(l1_head_block_number)
+                };
+                let l2_status = if l2_synced_block_number < l2_head_block_number {
+                    LayerStatus::Syncing(SyncStatus {
+                        synced_block_number: l2_synced_block_number,
+                        head_block_number: l2_head_block_number,
+                    })
+                } else {
+                    LayerStatus::Synced(l2_head_block_number)
+                };
+                Ok::<CitreaStatus, ErrorObjectOwned>(
+                    CitreaStatus { l1_status, l2_status }
+                )
             },
         )?;
     }
