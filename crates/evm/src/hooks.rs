@@ -100,6 +100,10 @@ where
             gas_limit: cfg.block_gas_limit,
         };
 
+        // set early. so that if underlying calls use `self.block_env`
+        // they don't use the wrong value
+        self.block_env = new_pending_env;
+
         if !system_events.is_empty() {
             self.execute_system_events(
                 system_events,
@@ -120,8 +124,6 @@ where
             self.latest_block_hashes
                 .remove(&U256::from(new_pending_env.number - 257), working_set);
         }
-
-        self.block_env = new_pending_env;
 
         self.last_l1_hash
             .set(&soft_confirmation_info.da_slot_hash.into(), working_set);

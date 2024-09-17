@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
+use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind, U64};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -174,7 +174,19 @@ fn call_multiple_test() {
                 l1_diff_size: 255,
             }
         ]
-    )
+    );
+
+    // checkout esad/fix-block-env-bug branch
+    let tx = evm
+        .get_transaction_by_block_number_and_index(
+            BlockNumberOrTag::Number(l2_height),
+            U64::from(0),
+            &mut working_set,
+        )
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(tx.block_number.unwrap(), l2_height);
 }
 
 #[test]
