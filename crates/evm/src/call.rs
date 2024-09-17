@@ -38,6 +38,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_env: BlockEnv,
         working_set: &mut WorkingSet<C>,
     ) {
+        // don't use self.block_env here
+        // function is expected to use block_env passed as argument
+
         let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
 
         let l1_block_hash_exists = self
@@ -65,10 +68,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);
 
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
-        let block_number = self.block_env.number;
+        let block_number = block_env.number;
         let tx_results = executor::execute_system_txs(
             db,
-            self.block_env,
+            block_env,
             &system_txs,
             cfg_env,
             &mut citrea_handler_ext,
@@ -126,6 +129,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse> {
+        // use of `self.block_env` is allowed here
+
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .filter_map(|tx| match tx.try_into() {
