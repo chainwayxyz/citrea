@@ -19,7 +19,8 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{FeeHistory, Index};
 use sequencer_client::SequencerClient;
 use serde_json::json;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{self, LedgerDB, SharedLedgerOps};
+use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
@@ -70,6 +71,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         #[cfg(feature = "local")]
         eth_signer,
         storage,
+        ledger_db,
         sequencer_client_url.map(SequencerClient::new),
         soft_confirmation_rx,
     ));
@@ -634,6 +636,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Ok(None) => 0u64,
                     Err(e) => return Err(e),
                 };
+                // check l1 sync status
+                let l1_block_number = ethereum.ledger_db.get_last_scanned_l1_height();
+                let head_l2_block_number = ethereum.da_service.get_head_block_header().await.unwrap().height();
 
                 if synced_block_number < head_block_number {
                     Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Syncing(SyncStatus {

@@ -8,6 +8,7 @@ use reth_rpc_types::trace::geth::GethTrace;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
+use sov_db::ledger_db::{self, LedgerDB};
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;
@@ -35,6 +36,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     #[cfg(feature = "local")]
     pub(crate) eth_signer: DevSigner,
     pub(crate) storage: C::Storage,
+    pub(crate) ledger_db: LedgerDB,
     pub(crate) sequencer_client: Option<SequencerClient>,
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
@@ -48,6 +50,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         fee_history_cache_config: FeeHistoryCacheConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
+        ledger_db: LedgerDB,
         sequencer_client: Option<SequencerClient>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Self {
@@ -72,6 +75,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             #[cfg(feature = "local")]
             eth_signer,
             storage,
+            ledger_db,
             sequencer_client,
             web3_client_version: current_version,
             trace_cache,
