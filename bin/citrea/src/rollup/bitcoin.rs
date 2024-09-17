@@ -119,7 +119,7 @@ impl RollupBlueprint for BitcoinRollup {
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
+        let (tx, rx) = unbounded_channel::<Option<SenderWithNotifier<TxidWrapper>>>();
 
         let bitcoin_service = if require_wallet_check {
             BitcoinService::new_with_wallet_check(

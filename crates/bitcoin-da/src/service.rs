@@ -62,7 +62,7 @@ pub struct BitcoinService {
     da_private_key: Option<SecretKey>,
     reveal_light_client_prefix: Vec<u8>,
     reveal_batch_prover_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    inscribes_queue: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     tx_backup_dir: PathBuf,
 }
 
@@ -92,7 +92,7 @@ impl BitcoinService {
     pub async fn new_with_wallet_check(
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+        tx: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     ) -> Result<Self> {
         let client = Client::new(
             &config.node_url,
@@ -137,7 +137,7 @@ impl BitcoinService {
     pub async fn new_without_wallet_check(
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+        tx: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     ) -> Result<Self> {
         let client = Client::new(
             &config.node_url,
@@ -171,7 +171,7 @@ impl BitcoinService {
 
     pub fn spawn_da_queue(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
+        mut rx: UnboundedReceiver<Option<SenderWithNotifier<TxidWrapper>>>,
     ) {
         // This is a queue of inscribe requests
         tokio::task::spawn_blocking(|| {
@@ -191,50 +191,61 @@ impl BitcoinService {
                 trace!("BitcoinDA queue is initialized. Waiting for the first request...");
 
                 // We execute commit and reveal txs one by one to chain them
-                while let Some(request) = rx.recv().await {
-                    trace!("A new request is received");
-                    let prev = prev_utxo.take();
-                    loop {
-                        // Build and send tx with retries:
-                        let fee_sat_per_vbyte = match self.get_fee_rate().await {
-                            Ok(rate) => rate,
-                            Err(e) => {
-                                error!(?e, "Failed to call get_fee_rate. Retrying...");
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                continue;
-                            }
-                        };
-                        match self
-                            .send_transaction_with_fee_rate(
-                                prev.clone(),
-                                request.da_data.clone(),
-                                fee_sat_per_vbyte,
-                            )
-                            .await
-                        {
-                            Ok(tx) => {
-                                let tx_id = TxidWrapper(tx.id);
-                                info!(%tx.id, "Sent tx to BitcoinDA");
-                                prev_utxo = Some(UTXO {
-                                    tx_id: tx.id,
-                                    vout: 0,
-                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-                                    address: None,
-                                    amount: tx.tx.output[0].value.to_sat(),
-                                    confirmations: 0,
-                                    spendable: true,
-                                    solvable: true,
-                                });
+                while let Some(request_opt) = rx.recv().await {
+                    match request_opt {
+                        Some(request) => {
+                            trace!("A new request is received");
+                            let prev = prev_utxo.take();
+                            loop {
+                                // Build and send tx with retries:
+                                let fee_sat_per_vbyte = match self.get_fee_rate().await {
+                                    Ok(rate) => rate,
+                                    Err(e) => {
+                                        error!(?e, "Failed to call get_fee_rate. Retrying...");
+                                        tokio::time::sleep(Duration::from_secs(1)).await;
+                                        continue;
+                                    }
+                                };
+                                match self
+                                    .send_transaction_with_fee_rate(
+                                        prev.clone(),
+                                        request.da_data.clone(),
+                                        fee_sat_per_vbyte,
+                                    )
+                                    .await
+                                {
+                                    Ok(tx) => {
+                                        let tx_id = TxidWrapper(tx.id);
+                                        info!(%tx.id, "Sent tx to BitcoinDA");
+                                        prev_utxo = Some(UTXO {
+                                            tx_id: tx.id,
+                                            vout: 0,
+                                            script_pubkey: tx.tx.output[0]
+                                                .script_pubkey
+                                                .to_hex_string(),
+                                            address: None,
+                                            amount: tx.tx.output[0].value.to_sat(),
+                                            confirmations: 0,
+                                            spendable: true,
+                                            solvable: true,
+                                        });
 
-                                let _ = request.notify.send(Ok(tx_id));
-                            }
-                            Err(e) => {
-                                error!(?e, "Failed to send transaction to DA layer");
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                continue;
+                                        let _ = request.notify.send(Ok(tx_id));
+                                    }
+                                    Err(e) => {
+                                        error!(?e, "Failed to send transaction to DA layer");
+                                        tokio::time::sleep(Duration::from_secs(1)).await;
+                                        continue;
+                                    }
+                                }
+                                break;
                             }
                         }
-                        break;
+
+                        None => {
+                            info!("Shutdown signal received. Stopping BitcoinDA queue.");
+                            break;
+                        }
                     }
                 }
 
@@ -858,16 +869,16 @@ impl DaService for BitcoinService {
     ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
-        queue.send(SenderWithNotifier {
+        queue.send(Some(SenderWithNotifier {
             da_data,
             notify: tx,
-        })?;
+        }))?;
         rx.await?
     }
 
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
+    ) -> UnboundedSender<Option<SenderWithNotifier<Self::TransactionId>>> {
         self.inscribes_queue.clone()
     }
 
