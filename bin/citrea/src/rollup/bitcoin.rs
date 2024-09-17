@@ -84,6 +84,7 @@ impl RollupBlueprint for BitcoinRollup {
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
             storage.clone(),
+            ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,
             soft_confirmation_rx,

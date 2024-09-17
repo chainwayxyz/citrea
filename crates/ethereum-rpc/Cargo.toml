@@ -36,6 +36,7 @@ reth-rpc-types-compat = { workspace = true }
 # Sovereign-SDK deps
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["native"] }
+sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 
 [dev-dependencies]
 proptest = { workspace = true }

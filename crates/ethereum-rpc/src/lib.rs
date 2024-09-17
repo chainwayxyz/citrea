@@ -19,6 +19,7 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{FeeHistory, Index};
 use sequencer_client::SequencerClient;
 use serde_json::json;
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
@@ -45,6 +46,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
+    ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
     soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
 ) -> RpcModule<Ethereum<C, Da>> {
