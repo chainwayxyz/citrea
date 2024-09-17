@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use alloy_primitives::LogData;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{address, b256, hex, BlockNumberOrTag, Log, TxKind};
+use reth_primitives::{address, b256, hex, BlockNumberOrTag, Log, TxKind, U64};
 use reth_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -100,6 +100,18 @@ fn test_sys_bitcoin_light_client() {
             }
         ]
     );
+
+    // checkout esad/fix-block-env-bug branch
+    let tx = evm
+        .get_transaction_by_block_number_and_index(
+            BlockNumberOrTag::Number(1),
+            U64::from(0),
+            &mut working_set,
+        )
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(tx.block_number.unwrap(), 1);
 
     let l1_fee_rate = 1;
     let l2_height = 2;

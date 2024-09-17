@@ -242,9 +242,10 @@ where
         let end_l2_height = sequencer_commitment.l2_end_block_number;
 
         tracing::info!(
-            "Processing sequencer commitment. L2 Range = {}-{}.",
+            "Processing sequencer commitment for L2 Range = {}-{} at L1 height {}.",
             start_l2_height,
             end_l2_height,
+            l1_block.header().height(),
         );
 
         // Traverse each item's field of vector of transactions, put them in merkle tree

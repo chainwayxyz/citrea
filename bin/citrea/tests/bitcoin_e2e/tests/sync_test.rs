@@ -21,7 +21,7 @@ impl TestCase for BasicSyncTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let (Some(da0), Some(da1)) = (f.bitcoin_nodes.get(0), f.bitcoin_nodes.get(1)) else {
             bail!("bitcoind not running. Test should run with two da nodes")
         };
