@@ -182,10 +182,6 @@ where
                 l1_block.header().height(),
             );
 
-            // Make sure all sequencer commitments are stored in ascending order.
-            // We sort before checking ranges to prevent substraction errors.
-            sequencer_commitments.sort();
-
             // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
