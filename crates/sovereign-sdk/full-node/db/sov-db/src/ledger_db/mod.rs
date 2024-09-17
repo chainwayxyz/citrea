@@ -173,7 +173,7 @@ impl SharedLedgerOps for LedgerDB {
     fn commit_soft_confirmation<T: Serialize, DS: DaSpec>(
         &self,
         state_root: &[u8],
-        mut soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
+        soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
