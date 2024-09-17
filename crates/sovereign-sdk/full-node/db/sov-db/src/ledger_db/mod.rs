@@ -196,7 +196,6 @@ impl SharedLedgerOps for LedgerDB {
             // Sequencer full nodes need to store the tx body as they are the only ones that have it
             if !include_tx_body {
                 tx_to_store.body = None;
-                soft_confirmation_receipt.deposit_data = vec![];
             }
 
             txs.push(tx_to_store);
