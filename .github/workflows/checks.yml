@@ -78,8 +78,14 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: |
+            target
+            ~/.cargo/git
+            ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       - name: Setup RISC-0
         uses: ./.github/actions/setup-risc0
         with:
@@ -88,6 +94,8 @@ jobs:
         run: make build-release
         env:
           REPR_GUEST_BUILD: 1
+          CARGO_INCREMENTAL: 1
+          RUSTFLAGS: "-C target-cpu=native"
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
