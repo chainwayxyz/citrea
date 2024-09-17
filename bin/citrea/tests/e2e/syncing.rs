@@ -470,7 +470,6 @@ async fn test_full_node_sync_status() {
     wait_for_l2_block(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
 
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
-
     match l2_status {
         LayerStatus::Syncing(syncing) => {
             assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
@@ -482,9 +481,29 @@ async fn test_full_node_sync_status() {
     wait_for_l2_block(&full_node_test_client, 300, Some(Duration::from_secs(60))).await;
 
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
-
     match l2_status {
         LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
+        _ => panic!("Expected synced status"),
+    }
+
+    // test l1 sync status
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir);
+    for _ in 0..19 {
+        da_service.publish_test_block().await.unwrap();
+    }
+    wait_for_prover_l1_height(&full_node_test_client, 1, Some(Duration::from_secs(60))).await;
+    let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
+    match l1_status {
+        LayerStatus::Syncing(syncing) => {
+            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 20);
+            assert_eq!(syncing.head_block_number, 20);
+        }
+        _ => panic!("Expected syncing status"),
+    }
+    wait_for_prover_l1_height(&full_node_test_client, 20, Some(Duration::from_secs(60))).await;
+    let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
+    match l1_status {
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 20),
         _ => panic!("Expected synced status"),
     }
 
