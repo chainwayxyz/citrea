@@ -31,18 +31,18 @@ use tracing::info;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SyncStatus {
+pub struct SyncValues {
     pub head_block_number: u64,
     pub synced_block_number: u64,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum LayerStatus {
     Synced(u64),
-    Syncing(SyncStatus),
+    Syncing(SyncValues),
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CitreaStatus {
+pub struct SyncStatus {
     pub l1_status: LayerStatus,
     pub l2_status: LayerStatus,
 }
@@ -608,7 +608,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             },
         )?;
 
-        rpc.register_async_method::<Result<CitreaStatus, ErrorObjectOwned>, _, _>(
+        rpc.register_async_method::<Result<SyncStatus, ErrorObjectOwned>, _, _>(
             "citrea_syncStatus",
             |_, ethereum, _| async move {
                 info!("Full Node: citrea_syncStatus");
@@ -643,15 +643,15 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
                 let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height() {
                     Ok(Some(slot_number)) => slot_number.0,
-                    Ok(None) => 0,
+                    Ok(None) => 0u64,
                     Err(e) => return Err(to_jsonrpsee_error_object("PROVER_ERROR", e)),
                 };
-                let l1_head_block_number = match ethereum.da_service.get_head_block_header().await {
+                let l1_head_block_number = match ethereum.da_service.get_last_finalized_block_header().await{
                     Ok(header) => header.height(),
                     Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
                 };
                 let l1_status = if l1_synced_block_number < l1_head_block_number {
-                    LayerStatus::Syncing(SyncStatus {
+                    LayerStatus::Syncing(SyncValues {
                         synced_block_number: l1_synced_block_number,
                         head_block_number: l1_head_block_number,
                     })
@@ -659,14 +659,14 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     LayerStatus::Synced(l1_head_block_number)
                 };
                 let l2_status = if l2_synced_block_number < l2_head_block_number {
-                    LayerStatus::Syncing(SyncStatus {
+                    LayerStatus::Syncing(SyncValues {
                         synced_block_number: l2_synced_block_number,
                         head_block_number: l2_head_block_number,
                     })
                 } else {
                     LayerStatus::Synced(l2_head_block_number)
                 };
-                Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus {
+                Ok::<SyncStatus, ErrorObjectOwned>(SyncStatus {
                     l1_status,
                     l2_status,
                 })
