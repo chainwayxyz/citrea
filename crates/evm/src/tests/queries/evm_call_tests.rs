@@ -4,6 +4,7 @@ use jsonrpsee::core::RpcResult;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
+use reth_rpc_types::BlockId;
 use revm::primitives::U256;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::WorkingSet;
@@ -32,7 +33,7 @@ fn call_contract_without_value() {
             input: TransactionInput::new(contract.set_call_data(5).into()),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -50,7 +51,7 @@ fn call_contract_without_value() {
             input: TransactionInput::new(contract.get_call_data().into()),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -94,7 +95,7 @@ fn test_state_change() {
             value: Some(U256::from(123134235)),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -126,7 +127,7 @@ fn call_contract_with_value_transfer() {
             input: TransactionInput::new(contract.set_call_data(5).into()),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -156,7 +157,7 @@ fn call_contract_with_invalid_nonce() {
             input: TransactionInput::new(contract_call_data.clone().into()),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -176,7 +177,7 @@ fn call_contract_with_invalid_nonce() {
             input: TransactionInput::new(contract_call_data.into()),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -204,7 +205,7 @@ fn call_to_nonexistent_contract() {
             },
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -231,7 +232,7 @@ fn call_with_high_gas_price() {
             input: TransactionInput::new(contract.set_call_data(5).into()),
             ..Default::default()
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -331,7 +332,7 @@ fn eth_call_eip1559(
 
     evm.get_call(
         tx_req,
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         working_set,
@@ -371,7 +372,7 @@ fn gas_price_call_test() {
             gas: Some(21000),
             ..tx_req_low_gas
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -389,7 +390,7 @@ fn gas_price_call_test() {
             gas: Some(250000),
             ..tx_req_only_gas
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -406,7 +407,7 @@ fn gas_price_call_test() {
             gas_price: Some(20e9 as _),
             ..tx_req_gas_and_gas_price
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -426,7 +427,7 @@ fn gas_price_call_test() {
             gas_price: Some(20e9 as _),
             ..tx_req_gas_and_gas_price
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -443,7 +444,7 @@ fn gas_price_call_test() {
             max_priority_fee_per_gas: Some(10e9 as _),
             ..tx_req_fees
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -461,7 +462,7 @@ fn gas_price_call_test() {
             gas: Some(250000),
             ..tx_req_high_gas_price
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -479,7 +480,7 @@ fn gas_price_call_test() {
             gas_price: Some(1e12 as _),
             ..tx_req_high_gas_price
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
@@ -496,7 +497,7 @@ fn gas_price_call_test() {
             max_priority_fee_per_gas: Some(500e9 as _),
             ..tx_req_high_fees
         },
-        Some(BlockNumberOrTag::Latest),
+        Some(BlockId::Number(BlockNumberOrTag::Latest)),
         None,
         None,
         &mut working_set,
