@@ -25,6 +25,7 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use subscription::{handle_logs_subscription, handle_new_heads_subscription};
+use tokio::join;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
@@ -614,29 +615,20 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 info!("Full Node: citrea_syncStatus");
 
                 // sequencer client should send latest l2 height
-                let sequencer_client = ethereum.sequencer_client.clone().unwrap();
-                let sequencer_handle = tokio::spawn(async move {
-                    sequencer_client.block_number().await
-                });
                 // da service should send latest finalized l1 block header
-                let da_service = ethereum.da_service.clone();
-                let da_handle = tokio::spawn(async move {
-                    da_service.get_last_finalized_block_header().await
-                });
-
+                let (sequencer_response, da_response) = join!(
+                    ethereum.sequencer_client.as_ref().unwrap().block_number(),
+                    ethereum.da_service.get_last_finalized_block_header()
+                );
                 // handle sequencer response
-                let sequencer_response = match sequencer_handle.await {
-                    Ok(response) => response,
-                    Err(e) => return Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
-                };
-                let l2_head_block_number = match sequencer_response{
+                let l2_head_block_number = match sequencer_response {
                     Ok(block_number) => block_number,
                     Err(e) => match e {
                         jsonrpsee::core::client::Error::Call(e_owned) => return Err(e_owned),
                         _ => return Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                     },
                 };
-                
+
                 // get l2 synced block number
                 let evm = Evm::<C>::default();
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
@@ -651,11 +643,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 };
 
                 // handle da service response
-                let da_response = match da_handle.await{
-                    Ok(response) => response,
-                    Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
-                };
-                let l1_head_block_number = match da_response{
+                let l1_head_block_number = match da_response {
                     Ok(header) => header.height(),
                     Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
                 };
