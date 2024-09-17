@@ -5,24 +5,22 @@ use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::{Fork, ForkMigration};
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, Event, SoftConfirmationReceipt, StateDiff};
+use sov_rollup_interface::stf::{BatchReceipt, SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{
-    BatchByNumber, CommitmentsByNumber, EventByKey, EventByNumber, L2GenesisStateRoot,
-    L2RangeByL1Height, L2Witness, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
-    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, TxByHash, TxByNumber,
-    VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    BatchByNumber, CommitmentsByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2Witness,
+    LastSequencerCommitmentSent, LastStateDiff, MempoolTxs, PendingProvingSessions,
+    PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
+    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof,
-    StoredSlot, StoredSoftConfirmation, StoredStateTransition, StoredTransaction,
-    StoredVerifiedProof, TxNumber,
+    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
+    StoredSoftConfirmation, StoredStateTransition, StoredVerifiedProof,
 };
 
 mod rpc;
@@ -54,10 +52,6 @@ pub struct ItemNumbers {
     pub soft_confirmation_number: u64,
     /// The batch number
     pub batch_number: u64,
-    /// The transaction number
-    pub tx_number: u64,
-    /// The event number
-    pub event_number: u64,
 }
 
 /// All of the data to be committed to the ledger db for a single slot.
@@ -118,9 +112,6 @@ impl LedgerDB {
                 + 1,
             batch_number: Self::last_version_written(&inner, BatchByNumber)?.unwrap_or_default()
                 + 1,
-            tx_number: Self::last_version_written(&inner, TxByNumber)?.unwrap_or_default() + 1,
-            event_number: Self::last_version_written(&inner, EventByNumber)?.unwrap_or_default()
-                + 1,
         };
 
         Ok(Self {
@@ -178,47 +169,18 @@ impl SharedLedgerOps for LedgerDB {
         schema_batch.put::<SoftConfirmationByHash>(&batch.hash, batch_number)
     }
 
-    #[instrument(level = "trace", skip(self, tx, schema_batch), err, ret)]
-    fn put_transaction(
-        &self,
-        tx: &StoredTransaction,
-        tx_number: &TxNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<TxByNumber>(tx_number, tx)?;
-        schema_batch.put::<TxByHash>(&tx.hash, tx_number)
-    }
-
-    #[instrument(level = "trace", skip_all, fields(event_number, tx_number), err, ret)]
-    fn put_event(
-        &self,
-        event: &Event,
-        event_number: &EventNumber,
-        tx_number: TxNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
-        schema_batch.put::<EventByNumber>(event_number, event)?;
-        schema_batch.put::<EventByKey>(&(event.key().clone(), tx_number, *event_number), &())
-    }
-
     /// Commits a soft confirmation to the database by inserting its transactions and batches before
     fn commit_soft_confirmation<T: Serialize, DS: DaSpec>(
         &self,
         state_root: &[u8],
-        mut soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
+        soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
         include_tx_body: bool,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
             let mut next_item_numbers = self.next_item_numbers.lock().unwrap();
             let item_numbers = next_item_numbers.clone();
-            next_item_numbers.tx_number += soft_confirmation_receipt.tx_receipts.len() as u64;
             next_item_numbers.soft_confirmation_number += 1;
-            next_item_numbers.event_number += soft_confirmation_receipt
-                .tx_receipts
-                .iter()
-                .map(|r| r.events.len() as u64)
-                .sum::<u64>();
             item_numbers
             // The lock is released here
         };
@@ -226,36 +188,16 @@ impl SharedLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         let mut txs = Vec::with_capacity(soft_confirmation_receipt.tx_receipts.len());
-
-        let first_tx_number = current_item_numbers.tx_number;
-        let last_tx_number = first_tx_number + soft_confirmation_receipt.tx_receipts.len() as u64;
         // Insert transactions and events from each soft confirmation before inserting the soft confirmation
         for tx in soft_confirmation_receipt.tx_receipts.into_iter() {
-            let (mut tx_to_store, events) =
-                split_tx_for_storage(tx, current_item_numbers.event_number);
-            for event in events.into_iter() {
-                self.put_event(
-                    &event,
-                    &EventNumber(current_item_numbers.event_number),
-                    TxNumber(current_item_numbers.tx_number),
-                    &mut schema_batch,
-                )?;
-                current_item_numbers.event_number += 1;
-            }
+            let (mut tx_to_store, _events) = split_tx_for_storage(tx);
 
             // Rollup full nodes don't need to store the tx body as they already store evm body
             // Sequencer full nodes need to store the tx body as they are the only ones that have it
             if !include_tx_body {
                 tx_to_store.body = None;
-                soft_confirmation_receipt.deposit_data = vec![];
             }
 
-            self.put_transaction(
-                &tx_to_store,
-                &TxNumber(current_item_numbers.tx_number),
-                &mut schema_batch,
-            )?;
-            current_item_numbers.tx_number += 1;
             txs.push(tx_to_store);
         }
 
@@ -267,7 +209,6 @@ impl SharedLedgerOps for LedgerDB {
             da_slot_txs_commitment: soft_confirmation_receipt.da_slot_txs_commitment.into(),
             hash: soft_confirmation_receipt.hash,
             prev_hash: soft_confirmation_receipt.prev_hash,
-            tx_range: TxNumber(first_tx_number)..TxNumber(last_tx_number),
             txs,
             state_root: state_root.to_vec(),
             soft_confirmation_signature: soft_confirmation_receipt.soft_confirmation_signature,
@@ -789,18 +730,6 @@ impl NodeLedgerOps for LedgerDB {
             Some(Err(e)) => Err(e),
             _ => Ok(None),
         }
-    }
-
-    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    #[instrument(level = "trace", skip(self), err)]
-    fn get_tx_range(
-        &self,
-        range: &std::ops::Range<TxNumber>,
-    ) -> Result<Vec<StoredTransaction>, anyhow::Error> {
-        self.get_data_range::<TxByNumber, _, _>(range)
     }
 
     /// Gets the commitments in the da slot with given height if any
