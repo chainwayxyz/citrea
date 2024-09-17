@@ -159,7 +159,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D"
                             .to_string(),
                     ),
-                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    node_url: format!("http://{}/wallet/{}", da_config.node_url, node_kind),
                     tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
@@ -194,7 +194,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         "75BAF964D074594600366E5B111A1DA8F86B2EFE2D22DA51C8D82126A0FCAC72"
                             .to_string(),
                     ),
-                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    node_url: format!("http://{}/wallet/{}", da_config.node_url, node_kind),
                     tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
@@ -217,7 +217,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             RollupConfig {
                 da: BitcoinServiceConfig {
                     node_url: format!(
-                        "{}/wallet/{}",
+                        "http://{}/wallet/{}",
                         da_config.node_url,
                         NodeKind::Bitcoin // Use default wallet
                     ),
