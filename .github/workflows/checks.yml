@@ -329,6 +329,7 @@ jobs:
         run: make check-no-std
 
   nextest:
+    needs: build
     name: nextest
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
@@ -358,11 +359,15 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: citrea-build
+          path: target/release
       - name: Run nextest
         run: make test
         env:
           RUST_BACKTRACE: 1
-          REPR_GUEST_BUILD: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
           USE_DOCKER: "true"

@@ -12,7 +12,7 @@ build: ## Build the project
 	@cargo build --timings
 
 build-release: ## Build the project in release mode
-	@cargo build --release
+	@cargo build --release --timings
 
 clean: ## Cleans compiled
 	@cargo clean
@@ -33,7 +33,7 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: build $(EF_TESTS_DIR) ## Runs test suite using next test
+test: $(EF_TESTS_DIR) ## Runs test suite using next test
 	@cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
