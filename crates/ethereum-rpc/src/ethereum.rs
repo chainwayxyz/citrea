@@ -8,7 +8,7 @@ use reth_rpc_types::trace::geth::GethTrace;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
-use sov_db::ledger_db::{self, LedgerDB};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;

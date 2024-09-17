@@ -19,7 +19,7 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{FeeHistory, Index};
 use sequencer_client::SequencerClient;
 use serde_json::json;
-use sov_db::ledger_db::{self, LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
@@ -36,7 +36,7 @@ pub struct SyncStatus {
     pub synced_block_number: u64,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
-pub enum LayerStatus{
+pub enum LayerStatus {
     Synced(u64),
     Syncing(SyncStatus),
 }
@@ -641,12 +641,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Err(e) => return Err(e),
                 };
 
-                let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height(){
+                let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height() {
                     Ok(Some(slot_number)) => slot_number.0,
                     Ok(None) => 0,
                     Err(e) => return Err(to_jsonrpsee_error_object("PROVER_ERROR", e)),
                 };
-                let l1_head_block_number = match ethereum.da_service.get_head_block_header().await{
+                let l1_head_block_number = match ethereum.da_service.get_head_block_header().await {
                     Ok(header) => header.height(),
                     Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
                 };
@@ -666,9 +666,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 } else {
                     LayerStatus::Synced(l2_head_block_number)
                 };
-                Ok::<CitreaStatus, ErrorObjectOwned>(
-                    CitreaStatus { l1_status, l2_status }
-                )
+                Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus {
+                    l1_status,
+                    l2_status,
+                })
             },
         )?;
     }
