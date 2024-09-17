@@ -630,29 +630,26 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 };
 
                 // get l2 synced block number
-                let evm = Evm::<C>::default();
-                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
-                let block =
-                    evm.get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set);
+                let head_soft_confirmation = ethereum.ledger_db.get_head_soft_confirmation();
 
-                let l2_synced_block_number = match block {
-                    Ok(Some(block)) => block.header.number.unwrap(),
+                let l2_synced_block_number = match head_soft_confirmation {
+                    Ok(Some((height, _))) => height.0,
                     Ok(None) => 0u64,
-                    Err(e) => return Err(e),
+                    Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
                 };
 
                 // handle da service response
                 let l1_head_block_number = match da_response {
                     Ok(header) => header.height(),
-                    Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
+                    Err(e) => return Err(to_jsonrpsee_error_object("DA_SERVICE_ERROR", e)),
                 };
 
                 // get l1 synced block number
                 let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height() {
                     Ok(Some(slot_number)) => slot_number.0,
                     Ok(None) => 0u64,
-                    Err(e) => return Err(to_jsonrpsee_error_object("PROVER_ERROR", e)),
+                    Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
                 };
 
                 let l1_status = if l1_synced_block_number < l1_head_block_number {
