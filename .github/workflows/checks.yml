@@ -52,7 +52,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
-  NEXTEST_TEST_THREADS: "num-cpus"
+  NEXTEST_TEST_THREADS: "num-cpusq"
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -98,10 +98,6 @@ jobs:
             target/release/citrea
             target/release/**/methods.rs
           retention-days: 1
-      - uses: actions/upload-artifact@v3
-        with:
-          name: cargo-timing
-          path: target/cargo-timings/cargo-timing.html
 
   check:
     name: check
