@@ -12,7 +12,7 @@ build: ## Build the project
 	@cargo build
 
 build-release: ## Build the project in release mode
-	@cargo build --timings --release
+	@cargo build --release
 
 clean: ## Cleans compiled
 	@cargo clean
