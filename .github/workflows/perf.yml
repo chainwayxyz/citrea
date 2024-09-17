@@ -26,19 +26,12 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.79.0
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
         with:
-          tool: cargo-risczero@1.0.5
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:

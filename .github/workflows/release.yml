@@ -18,24 +18,24 @@ jobs:
         run: |
           echo "Raw EXPECTED_BITCOIN_DA_ID value:"
           echo "$EXPECTED_BITCOIN_DA_ID"
-          
+
           echo "Length of EXPECTED_BITCOIN_DA_ID: ${#EXPECTED_BITCOIN_DA_ID}"
-          
+
           if [ -z "${EXPECTED_BITCOIN_DA_ID// }" ]; then
             echo "Error: EXPECTED_BITCOIN_DA_ID is not set, empty, or contains only spaces"
             exit 1
           fi
-          
+
           # Remove any trailing newline or carriage return
           EXPECTED_BITCOIN_DA_ID=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -d '\n\r')
-          
+
           # Count commas and spaces
           comma_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ',' | wc -c)
           space_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ' ' | wc -c)
-          
+
           echo "Number of commas: $comma_count"
           echo "Number of spaces: $space_count"
-          
+
           # Split the string into an array and trim each element
           IFS=', ' read -ra raw_numbers <<< "$EXPECTED_BITCOIN_DA_ID"
           numbers=()
@@ -43,16 +43,16 @@ jobs:
             trimmed_num=$(echo "$num" | tr -d '[:space:]')  # Remove all whitespace
             numbers+=("$trimmed_num")
           done
-          
+
           echo "Number of elements after splitting and trimming: ${#numbers[@]}"
-          
+
           # Check if there are exactly 8 numbers
           if [ ${#numbers[@]} -ne 8 ]; then
             echo "Error: EXPECTED_BITCOIN_DA_ID should contain exactly 8 numbers"
             echo "Actual number of elements: ${#numbers[@]}"
             exit 1
           fi
-          
+
           # Check if all numbers are valid u32
           for i in "${!numbers[@]}"; do
             num=${numbers[$i]}
@@ -67,10 +67,10 @@ jobs:
               exit 1
             fi
           done
-          
+
           # Reconstruct the trimmed DA_ID
           trimmed_da_id=$(IFS=', '; echo "${numbers[*]}")
-          
+
           # Final check
           if [ $comma_count -eq 7 ] && [ $space_count -eq 7 ] && [ ${#numbers[@]} -eq 8 ]; then
             echo "EXPECTED_BITCOIN_DA_ID is valid:"
@@ -134,8 +134,8 @@ jobs:
             echo "Check passed successfully."
             echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
-              
-          else      
+
+          else
             echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
             exit 1
@@ -164,13 +164,10 @@ jobs:
         run: |
           source $HOME/.cargo/env
           cargo install --version 1.7.0 cargo-binstall
-      - name: Install cargo-risczero
-        run: |
-          cargo binstall cargo-risczero@1.0.5 --no-confirm
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup RISC-0
+        uses: ./.github/actions/setup-risc0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
           REPR_GUEST_BUILD: 1
@@ -187,8 +184,8 @@ jobs:
             echo "Check passed successfully."
             echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
-              
-          else      
+
+          else
             echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
             exit 1
@@ -233,7 +230,7 @@ jobs:
           name: Release ${{ github.ref_name }}
           body: |
             This is the release for version ${{ github.ref_name }}.
-            
+
             It includes:
             - citrea-${{ github.ref_name }}-linux-amd64
             - citrea-${{ github.ref_name }}-osx-arm64
