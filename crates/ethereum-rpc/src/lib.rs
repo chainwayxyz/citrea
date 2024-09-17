@@ -613,22 +613,31 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             |_, ethereum, _| async move {
                 info!("Full Node: citrea_syncStatus");
 
-                // sequencer client should send it
-                let block_number = ethereum
-                    .sequencer_client
-                    .as_ref()
-                    .unwrap()
-                    .block_number()
-                    .await;
+                // sequencer client should send latest l2 height
+                let sequencer_client = ethereum.sequencer_client.clone().unwrap();
+                let sequencer_handle = tokio::spawn(async move {
+                    sequencer_client.block_number().await
+                });
+                // da service should send latest finalized l1 block header
+                let da_service = ethereum.da_service.clone();
+                let da_handle = tokio::spawn(async move {
+                    da_service.get_last_finalized_block_header().await
+                });
 
-                let l2_head_block_number = match block_number {
+                // handle sequencer response
+                let sequencer_response = match sequencer_handle.await {
+                    Ok(response) => response,
+                    Err(e) => return Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
+                };
+                let l2_head_block_number = match sequencer_response{
                     Ok(block_number) => block_number,
                     Err(e) => match e {
                         jsonrpsee::core::client::Error::Call(e_owned) => return Err(e_owned),
                         _ => return Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
                     },
                 };
-
+                
+                // get l2 synced block number
                 let evm = Evm::<C>::default();
                 let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -641,15 +650,23 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     Err(e) => return Err(e),
                 };
 
+                // handle da service response
+                let da_response = match da_handle.await{
+                    Ok(response) => response,
+                    Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
+                };
+                let l1_head_block_number = match da_response{
+                    Ok(header) => header.height(),
+                    Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
+                };
+
+                // get l1 synced block number
                 let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height() {
                     Ok(Some(slot_number)) => slot_number.0,
                     Ok(None) => 0u64,
                     Err(e) => return Err(to_jsonrpsee_error_object("PROVER_ERROR", e)),
                 };
-                let l1_head_block_number = match ethereum.da_service.get_last_finalized_block_header().await{
-                    Ok(header) => header.height(),
-                    Err(e) => return Err(to_jsonrpsee_error_object("DA_ERROR", e)),
-                };
+
                 let l1_status = if l1_synced_block_number < l1_head_block_number {
                     LayerStatus::Syncing(SyncValues {
                         synced_block_number: l1_synced_block_number,
