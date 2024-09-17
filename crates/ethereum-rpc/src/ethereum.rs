@@ -44,6 +44,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
 }
 
 impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         da_service: Arc<Da>,
         gas_price_oracle_config: GasPriceOracleConfig,
