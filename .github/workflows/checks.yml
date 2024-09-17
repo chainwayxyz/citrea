@@ -88,6 +88,7 @@ jobs:
         run: make build-release
         env:
           REPR_GUEST_BUILD: 1
+          RUSTFLAGS: "-C lto=off"
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:

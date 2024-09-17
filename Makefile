@@ -9,7 +9,7 @@ help: ## Display this help message
 
 .PHONY: build
 build: ## Build the project
-	@cargo build
+	@cargo build --timings
 
 build-release: ## Build the project in release mode
 	@cargo build --release
