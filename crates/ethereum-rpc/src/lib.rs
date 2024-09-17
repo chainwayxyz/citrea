@@ -43,8 +43,8 @@ pub enum LayerStatus{
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CitreaStatus {
-    l1_status: LayerStatus,
-    l2_status: LayerStatus,
+    pub l1_status: LayerStatus,
+    pub l2_status: LayerStatus,
 }
 
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(

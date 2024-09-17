@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use citrea_stf::genesis_config::GenesisPaths;
-use ethereum_rpc::CitreaStatus;
+use ethereum_rpc::{CitreaStatus, LayerStatus};
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaDataLightClient, DaSpec};
@@ -469,10 +469,10 @@ async fn test_full_node_sync_status() {
 
     wait_for_l2_block(&full_node_test_client, 5, Some(Duration::from_secs(60))).await;
 
-    let status = full_node_test_client.citrea_sync_status().await;
+    let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
 
-    match status {
-        CitreaStatus::Syncing(syncing) => {
+    match l2_status {
+        LayerStatus::Syncing(syncing) => {
             assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 300);
             assert_eq!(syncing.head_block_number, 300);
         }
@@ -481,10 +481,10 @@ async fn test_full_node_sync_status() {
 
     wait_for_l2_block(&full_node_test_client, 300, Some(Duration::from_secs(60))).await;
 
-    let status = full_node_test_client.citrea_sync_status().await;
+    let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
 
-    match status {
-        CitreaStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
+    match l2_status {
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 300),
         _ => panic!("Expected synced status"),
     }
 
