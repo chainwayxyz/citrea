@@ -5,6 +5,8 @@ use std::time::Duration;
 use std::vec;
 
 use anyhow::{anyhow, bail};
+use backoff::future::retry as retry_backoff;
+use backoff::ExponentialBackoffBuilder;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
@@ -896,6 +898,8 @@ where
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
+                            // we never want to continue if we have missed blocks
+                            return Err(e);
                         }
                         missed_da_blocks_count = 0;
                     }
@@ -924,6 +928,8 @@ where
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
+                            // we never want to continue if we have missed blocks
+                            return Err(e);
                         }
                         missed_da_blocks_count = 0;
                     }
@@ -1121,13 +1127,28 @@ where
         l1_fee_rate: u128,
     ) -> anyhow::Result<()> {
         debug!("We have {} missed DA blocks", missed_da_blocks_count);
+        let exponential_backoff = ExponentialBackoffBuilder::new()
+            .with_initial_interval(Duration::from_millis(50))
+            .with_max_elapsed_time(Some(Duration::from_secs(1)))
+            .build();
         for i in 1..=missed_da_blocks_count {
             let needed_da_block_height = last_used_l1_height + i;
-            let da_block = self
-                .da_service
-                .get_block_at(needed_da_block_height)
-                .await
-                .map_err(|e| anyhow!(e))?;
+
+            // if we can't fetch da block and fail to produce a block the caller will return Err stopping
+            // the sequencer. This is very problematic.
+            // Hence, we retry fetching the DA block and producing the L2 block.
+
+            let da_service = self.da_service.as_ref();
+            let da_block = retry_backoff(exponential_backoff.clone(), || async move {
+                da_service
+                    .get_block_at(needed_da_block_height)
+                    .await
+                    .map_err(|e| backoff::Error::Transient {
+                        err: anyhow!(e),
+                        retry_after: None,
+                    })
+            })
+            .await?;
 
             debug!("Created an empty L2 for L1={}", needed_da_block_height);
             self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty)

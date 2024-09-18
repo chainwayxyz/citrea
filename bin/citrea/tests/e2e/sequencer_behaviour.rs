@@ -500,36 +500,27 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
             NodeMode::SequencerNode,
             sequencer_db_dir_cloned,
             da_db_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            // set to something high, so that commitments don't produce mock da blocks
+            1000,
             true,
             None,
             Some(SequencerConfig {
-                test_mode: true,
+                test_mode: false,
                 da_update_interval_ms: 500,
-                block_production_interval_ms: 500,
+                block_production_interval_ms: 250,
+                min_soft_confirmations_per_commitment: 1000,
                 ..Default::default()
             }),
-            Some(true),
+            Some(false),
             DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
 
-    let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await?;
+    let _seq_port = seq_port_rx.await.unwrap();
 
-    // Create 3 more DA blocks.
-    for _ in 0..3 {
-        da_service.publish_test_block().await.unwrap();
-    }
-
+    // will create some blocks
     sleep(Duration::from_secs(3)).await;
-
-    seq_test_client.send_publish_batch_request().await;
-
-    // We've only invoked 1 L2 block to be created but we've actually
-    // created 3 since we missed 2 Da blocks out the 3.
-    wait_for_l2_block(&seq_test_client, 3, None).await;
 
     seq_task.abort();
 
@@ -558,16 +549,18 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
             NodeMode::SequencerNode,
             sequencer_db_dir,
             da_db_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            // set to something high, so that commitments don't produce mock da blocks
+            1000,
             true,
             None,
             Some(SequencerConfig {
-                test_mode: true,
+                test_mode: false,
                 da_update_interval_ms: 500,
-                block_production_interval_ms: 500,
+                block_production_interval_ms: 250,
+                min_soft_confirmations_per_commitment: 1000,
                 ..Default::default()
             }),
-            Some(true),
+            Some(false),
             DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
@@ -577,10 +570,41 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
 
     let seq_test_client = make_test_client(seq_port).await?;
 
-    // Invoke the loop / select in sequencer to process missed DA blocks.
-    seq_test_client.send_publish_batch_request().await;
-    // The sequencer should create an empty block per missed finalized DA block.
-    wait_for_l2_block(&seq_test_client, 13, None).await;
+    // will produce some blocks
+    // should also produce for the missing DA blocks
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    let mut last_used_l1_height = 3;
+
+    let head_soft_confirmation_height = seq_test_client
+        .ledger_get_head_soft_confirmation_height()
+        .await
+        .unwrap()
+        .unwrap();
+
+    // check that the sequencer has at least one block for each DA block
+    // starting from DA #3 all the way up to DA #13 without no gaps
+    // the first soft confirmation should be on DA #3
+    // the last soft confirmation should be on DA #13
+    for i in 1..=head_soft_confirmation_height {
+        let soft_confirmation = seq_test_client
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+
+        if i == 1 {
+            assert_eq!(soft_confirmation.da_slot_height, last_used_l1_height);
+        } else {
+            assert!(
+                soft_confirmation.da_slot_height == last_used_l1_height
+                    || soft_confirmation.da_slot_height == last_used_l1_height + 1,
+            );
+        }
+
+        last_used_l1_height = soft_confirmation.da_slot_height;
+    }
+
+    assert_eq!(last_used_l1_height, 13);
 
     seq_task.abort();
 
