@@ -859,18 +859,13 @@ where
         ));
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
-        let mut parent_block_exec_time = Duration::from_secs(0);
 
         // In case the sequencer falls behind on DA blocks, we need to produce at least 1
         // empty block per DA block. Which means that we have to keep count of missed blocks
         // and only resume normal operations once the sequencer has caught up.
         let mut missed_da_blocks_count = 0;
 
-        let mut block_production_tick = tokio::time::interval(
-            target_block_time
-                .checked_sub(parent_block_exec_time)
-                .unwrap_or_default(),
-        );
+        let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
 
         loop {
@@ -974,7 +969,7 @@ where
                             // previous block's execution time.
                             // This is mainly to make sure we account for the execution time to
                             // achieve consistent 2-second block production.
-                            parent_block_exec_time = instant.elapsed();
+                            let parent_block_exec_time = instant.elapsed();
 
                             block_production_tick = tokio::time::interval(
                                 target_block_time
