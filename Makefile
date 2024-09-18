@@ -80,7 +80,7 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
-coverage: build $(EF_TESTS_DIR) ## Coverage in lcov format
+coverage: $(EF_TESTS_DIR) ## Coverage in lcov format
 	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format

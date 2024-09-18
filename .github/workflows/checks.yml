@@ -330,7 +330,6 @@ jobs:
         run: make check-no-std
 
   nextest:
-    needs: build
     name: nextest
     runs-on: ubicloud-standard-16
     timeout-minutes: 60
@@ -360,11 +359,6 @@ jobs:
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
-      - name: Download artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: citrea-build
-          path: target/release
       - name: Run nextest
         run: make test
         env:
