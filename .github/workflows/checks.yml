@@ -64,7 +64,7 @@ concurrency:
 jobs:
   build:
     name: build
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
@@ -323,9 +323,10 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/ethers_js
+          npm install
           npx mocha test.js
+          cd ../../../../..
 
   check_no_std:
     runs-on: ubicloud-standard-4

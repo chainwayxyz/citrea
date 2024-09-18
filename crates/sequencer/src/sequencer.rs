@@ -851,15 +851,14 @@ where
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, mut da_commitment_rx) = unbounded::<bool>();
-        let da_monitor = da_block_monitor(
+
+        tokio::task::spawn(da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
             self.config.da_update_interval_ms,
-        );
-        tokio::pin!(da_monitor);
+        ));
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
-        let mut parent_block_exec_time = Duration::from_secs(0);
 
         // In case the sequencer falls behind on DA blocks, we need to produce at least 1
         // empty block per DA block. Which means that we have to keep count of missed blocks
@@ -867,16 +866,11 @@ where
         let mut missed_da_blocks_count =
             self.da_blocks_missed(last_finalized_height, last_used_l1_height);
 
-        loop {
-            let block_production_tick = tokio::time::sleep(
-                target_block_time
-                    .checked_sub(parent_block_exec_time)
-                    .unwrap_or_default(),
-            );
+        let mut block_production_tick = tokio::time::interval(target_block_time);
+        block_production_tick.tick().await;
 
+        loop {
             tokio::select! {
-                // Run the DA monitor worker
-                _ = &mut da_monitor => {},
                 // Receive updates from DA layer worker.
                 l1_data = da_height_update_rx.recv() => {
                     // Stop receiving updates from DA layer until we have caught up.
@@ -920,7 +914,7 @@ where
                     }
                 },
                 // If sequencer is in production mode, it will build a block every 2 seconds
-                _ = block_production_tick, if !self.config.test_mode => {
+                _ = block_production_tick.tick(), if !self.config.test_mode => {
                     // By default, we produce a non-empty block IFF we were caught up all the way to
                     // last_finalized_block. If there are missed DA blocks, we start producing
                     // empty blocks at ~2 second rate, 1 L2 block per respective missed DA block
@@ -942,7 +936,14 @@ where
                             // previous block's execution time.
                             // This is mainly to make sure we account for the execution time to
                             // achieve consistent 2-second block production.
-                            parent_block_exec_time = instant.elapsed();
+                            let parent_block_exec_time = instant.elapsed();
+
+                            block_production_tick = tokio::time::interval(
+                                target_block_time
+                                    .checked_sub(parent_block_exec_time)
+                                    .unwrap_or_default(),
+                            );
+                            block_production_tick.tick().await;
 
                             last_used_l1_height = l1_block_number;
 

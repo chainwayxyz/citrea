@@ -48,7 +48,6 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo risczero install --version r0.1.79.0-2
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
-	cargo install cargo-llvm-cov
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest

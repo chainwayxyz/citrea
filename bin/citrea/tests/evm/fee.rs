@@ -1,10 +1,10 @@
-// use citrea::initialize_logging;
+use std::time::Duration;
+
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 
-// use sov_demo_rollup::initialize_logging;
 use crate::evm::init_test_rollup;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
+use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{
     DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
     TEST_DATA_GENESIS_PATH,
@@ -12,6 +12,7 @@ use crate::{
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::INFO);
     let storage_dir = tempdir_with_children(&["DA", "sequencer"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
@@ -46,9 +47,15 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     assert!(block.header.base_fee_per_gas.unwrap() >= 10000000);
-    for _ in 0..10000 {
+
+    // we used to have 10k here, and the test would finish execution
+    // before sequencer was done with all 10k blocks
+    // turns out even 1k blocks is enough
+    for _ in 0..1600 {
         test_client.spam_publish_batch_request().await.unwrap();
     }
+
+    wait_for_l2_block(&test_client, 1600, Some(Duration::from_secs(90))).await;
 
     let block = test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
@@ -58,4 +65,3 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-// 1000000000
