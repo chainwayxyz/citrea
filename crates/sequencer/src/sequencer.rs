@@ -864,7 +864,18 @@ where
         // In case the sequencer falls behind on DA blocks, we need to produce at least 1
         // empty block per DA block. Which means that we have to keep count of missed blocks
         // and only resume normal operations once the sequencer has caught up.
-        let mut missed_da_blocks_count = 0;
+        let mut missed_da_blocks_count =
+            self.da_blocks_missed(last_finalized_height, last_used_l1_height);
+
+        if missed_da_blocks_count > 0 {
+            if let Err(e) = self
+                .process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate)
+                .await
+            {
+                error!("Sequencer error: {}", e);
+            }
+            missed_da_blocks_count = 0;
+        }
 
         loop {
             let block_production_tick = tokio::time::sleep(
@@ -886,19 +897,7 @@ where
                         (last_finalized_block, l1_fee_rate) = l1_data;
                         last_finalized_height = last_finalized_block.header().height();
 
-                        if last_finalized_block.header().height() > last_used_l1_height {
-                            let skipped_blocks = last_finalized_height - last_used_l1_height - 1;
-                            if skipped_blocks > 0 {
-                                // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
-                                warn!(
-                                    "Sequencer is falling behind on L1 blocks by {:?} blocks",
-                                    skipped_blocks
-                                );
-
-                                // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
-                                missed_da_blocks_count = skipped_blocks;
-                            }
-                        }
+                        missed_da_blocks_count = self.da_blocks_missed(last_finalized_height, last_used_l1_height);
                     }
                 },
                 commitment_threshold_reached = da_commitment_rx.select_next_some() => {
@@ -911,19 +910,8 @@ where
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
                 _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
-                        debug!("We have {} missed DA blocks", missed_da_blocks_count);
-                        for i in 1..=missed_da_blocks_count {
-                            let needed_da_block_height = last_used_l1_height + i;
-                            let da_block = self
-                                .da_service
-                                .get_block_at(needed_da_block_height)
-                                .await
-                                .map_err(|e| anyhow!(e))?;
-
-                            debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty).await {
-                                error!("Sequencer error: {}", e);
-                            }
+                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
+                            error!("Sequencer error: {}", e);
                         }
                         missed_da_blocks_count = 0;
                     }
@@ -950,19 +938,8 @@ where
                     let da_block = last_finalized_block.clone();
 
                     if missed_da_blocks_count > 0 {
-                        debug!("We have {} missed DA blocks", missed_da_blocks_count);
-                        for i in 1..=missed_da_blocks_count {
-                            let needed_da_block_height = last_used_l1_height + i;
-                            let da_block = self
-                                .da_service
-                                .get_block_at(needed_da_block_height)
-                                .await
-                                .map_err(|e| anyhow!(e))?;
-
-                            debug!("Created an empty L2 for L1={}", needed_da_block_height);
-                            if let Err(e) = self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty).await {
-                                error!("Sequencer error: {}", e);
-                            }
+                        if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
+                            error!("Sequencer error: {}", e);
                         }
                         missed_da_blocks_count = 0;
                     }
@@ -1144,6 +1121,49 @@ where
         }
 
         Ok(updates)
+    }
+
+    pub async fn process_missed_da_blocks(
+        &mut self,
+        missed_da_blocks_count: u64,
+        last_used_l1_height: u64,
+        l1_fee_rate: u128,
+    ) -> anyhow::Result<()> {
+        debug!("We have {} missed DA blocks", missed_da_blocks_count);
+        for i in 1..=missed_da_blocks_count {
+            let needed_da_block_height = last_used_l1_height + i;
+            let da_block = self
+                .da_service
+                .get_block_at(needed_da_block_height)
+                .await
+                .map_err(|e| anyhow!(e))?;
+
+            debug!("Created an empty L2 for L1={}", needed_da_block_height);
+            self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::Empty)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    pub fn da_blocks_missed(
+        &self,
+        last_finalized_block_height: u64,
+        last_used_l1_height: u64,
+    ) -> u64 {
+        if last_finalized_block_height <= last_used_l1_height {
+            return 0;
+        }
+        let skipped_blocks = last_finalized_block_height - last_used_l1_height - 1;
+        if skipped_blocks > 0 {
+            // This shouldn't happen. If it does, then we should produce at least 1 block for the blocks in between
+            warn!(
+                "Sequencer is falling behind on L1 blocks by {:?} blocks",
+                skipped_blocks
+            );
+        }
+        // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
+        skipped_blocks
     }
 }
 
