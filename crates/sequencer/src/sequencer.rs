@@ -867,16 +867,6 @@ where
         let mut missed_da_blocks_count =
             self.da_blocks_missed(last_finalized_height, last_used_l1_height);
 
-        if missed_da_blocks_count > 0 {
-            if let Err(e) = self
-                .process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate)
-                .await
-            {
-                error!("Sequencer error: {}", e);
-            }
-            missed_da_blocks_count = 0;
-        }
-
         loop {
             let block_production_tick = tokio::time::sleep(
                 target_block_time
