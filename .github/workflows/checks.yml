@@ -92,8 +92,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
         run: make build-release
-        env:
-          REPR_GUEST_BUILD: 1
+        # env:
+        #   REPR_GUEST_BUILD: 1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
