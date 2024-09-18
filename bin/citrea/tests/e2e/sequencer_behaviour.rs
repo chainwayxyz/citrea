@@ -474,7 +474,7 @@ async fn test_gas_limit_too_high() {
 /// Each DA block should have a L2 block created for it.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), anyhow::Error> {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
