@@ -210,9 +210,8 @@ where
         let max_response_body_size = self.rpc_config.max_response_body_size;
         let batch_requests_limit = self.rpc_config.batch_requests_limit;
 
-        let middleware = tower::ServiceBuilder::new()
-            .layer(citrea_common::rpc::get_cors_layer())
-            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
+        let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
+        //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
