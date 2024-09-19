@@ -77,9 +77,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
@@ -120,7 +117,6 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          override: true
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -368,9 +364,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.79.0
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
