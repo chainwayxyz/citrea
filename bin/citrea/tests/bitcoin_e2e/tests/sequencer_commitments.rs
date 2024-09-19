@@ -59,7 +59,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let finalized_height = da.get_finalized_height().await?;
 
         // wait here until we see from prover's rpc that it finished proving
-        prover.wait_for_l1_height(finalized_height, None).await;
+        prover.wait_for_l1_height(finalized_height, None).await?;
 
         let commitments = prover
             .client

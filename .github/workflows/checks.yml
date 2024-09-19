@@ -52,6 +52,7 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
+  SHORT_PREFIX: 1
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -215,7 +216,7 @@ jobs:
       - name: Run coverage
         run: make coverage
         env:
-          RUST_BACKTRACE: 1
+          RUST_BACKTRACE: short
           USE_DOCKER: "true"
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -391,8 +392,7 @@ jobs:
       - name: Run nextest
         run: make test
         env:
-          RUST_BACKTRACE: 1
-          REPR_GUEST_BUILD: 1
+          RUST_BACKTRACE: short
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
           USE_DOCKER: "true"

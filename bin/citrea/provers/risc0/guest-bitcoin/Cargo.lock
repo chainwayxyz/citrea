@@ -616,6 +616,7 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "borsh",
+ "citrea-primitives",
  "futures",
  "hex",
  "rand",

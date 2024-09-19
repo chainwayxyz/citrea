@@ -34,6 +34,8 @@ sha2 = { workspace = true }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 
+citrea-primitives = { path = "../primitives" }
+
 [features]
 default = []
 native = [
