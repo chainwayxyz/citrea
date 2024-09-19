@@ -57,18 +57,18 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 131471,
+                    cumulative_gas_used: 131371,
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
                             data: LogData::new(
                                 vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000201010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
+                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000101010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202")),
                             ).unwrap(),
                         }
                     ]
                 },
-                gas_used: 80720,
+                gas_used: 80620,
                 log_index_start: 0,
                 l1_diff_size: 561,
             },
@@ -76,7 +76,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 300621,
+                    cumulative_gas_used: 300521,
                     logs: vec![
                         Log {
                             address: Bridge::address(),
@@ -364,16 +364,16 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         );
 
         let sys_tx_gas_usage = evm.get_pending_txs_cumulative_gas_used(&mut working_set);
-        assert_eq!(sys_tx_gas_usage, 80720);
+        assert_eq!(sys_tx_gas_usage, 80620);
 
         let mut rlp_transactions = Vec::new();
 
         // Check: Given now we also push bridge contract, is the following calculation correct?
 
-        // the amount of gas left is 30_000_000 - 80720 = 29_919_280
+        // the amount of gas left is 30_000_000 - 80620 = 29_919_380
         // send barely enough gas to reach the limit
         // one publish event message is 26388 gas
-        // 29919280 / 26388 = 1133.82
+        // 29919380 / 26388 = 1133.82
         // so there cannot be more than 1133 messages
         for i in 0..11350 {
             rlp_transactions.push(publish_event_message(
