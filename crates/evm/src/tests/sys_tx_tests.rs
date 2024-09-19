@@ -215,18 +215,18 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 80720,
+                    cumulative_gas_used: 80620,
                     logs: vec![
                         Log {
                             address: BitcoinLightClient::address(),
                             data: LogData::new(
                                 vec![b256!("32eff959e2e8d1609edc4b39ccf75900aa6c1da5719f8432752963fdf008234f")],
-                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000302020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303")),
+                                Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000000202020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303")),
                             ).unwrap(),
                         }
                     ]
                 },
-                gas_used: 80720,
+                gas_used: 80620,
                 log_index_start: 0,
                 l1_diff_size: 561,
             },
@@ -234,7 +234,7 @@ fn test_sys_bitcoin_light_client() {
                 receipt: reth_primitives::Receipt {
                     tx_type: reth_primitives::TxType::Eip1559,
                     success: true,
-                    cumulative_gas_used: 194955,
+                    cumulative_gas_used: 194855,
                     logs: vec![]
                 },
                 gas_used: 114235,
