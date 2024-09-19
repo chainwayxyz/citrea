@@ -96,7 +96,6 @@ impl DaVerifier for BitcoinVerifier {
         let mut inclusion_iter = inclusion_proof.wtxids.iter();
 
         let prefix = self.reveal_batch_prover_prefix.as_slice();
-
         // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = BTreeSet::new();
 
@@ -252,7 +251,6 @@ mod tests {
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
-    use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
     use sov_rollup_interface::da::DaVerifier;
 
     use super::BitcoinVerifier;
@@ -271,8 +269,8 @@ mod tests {
     #[test]
     fn correct() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -289,8 +287,8 @@ mod tests {
     #[test]
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
         let header = HeaderWrapper::new(
             Header {
@@ -370,8 +368,8 @@ mod tests {
     #[test]
     fn false_coinbase_input_witness_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let header = HeaderWrapper::new(
@@ -451,8 +449,8 @@ mod tests {
     #[test]
     fn false_coinbase_script_pubkey_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let header = HeaderWrapper::new(
@@ -548,8 +546,8 @@ mod tests {
     #[test]
     fn false_witness_script_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let header = HeaderWrapper::new(
@@ -638,8 +636,8 @@ mod tests {
     #[test]
     fn different_wtxid_fails_verification() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -682,8 +680,8 @@ mod tests {
     #[test]
     fn extra_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -704,8 +702,8 @@ mod tests {
     #[test]
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -726,8 +724,8 @@ mod tests {
     #[test]
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -748,8 +746,8 @@ mod tests {
     #[test]
     fn break_order_of_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -770,8 +768,8 @@ mod tests {
     #[test]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -792,8 +790,8 @@ mod tests {
     #[test]
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -814,8 +812,8 @@ mod tests {
     #[test]
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -836,8 +834,8 @@ mod tests {
     #[test]
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -859,8 +857,8 @@ mod tests {
     #[test]
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -881,8 +879,8 @@ mod tests {
     #[test]
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -904,8 +902,8 @@ mod tests {
     #[test]
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -927,8 +925,8 @@ mod tests {
     #[test]
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -954,8 +952,8 @@ mod tests {
     #[test]
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();

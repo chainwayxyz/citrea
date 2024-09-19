@@ -1217,7 +1217,6 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "brotli",
- "citrea-primitives",
  "futures",
  "hex",
  "pin-project",

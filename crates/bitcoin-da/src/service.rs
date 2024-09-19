@@ -161,7 +161,7 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix.to_vec(),
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
             reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
@@ -989,7 +989,6 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
-    use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
     use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
@@ -1035,8 +1034,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-                reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1098,8 +1097,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-                reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1303,8 +1302,8 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: vec![1, 1],
+            reveal_light_client_prefix: vec![2, 2],
         });
 
         let da_service = get_service().await;
@@ -1351,8 +1350,8 @@ mod tests {
         let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-                reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+                reveal_batch_prover_prefix: vec![1, 1],
+                reveal_light_client_prefix: vec![2, 2],
             },
             tx,
         )
