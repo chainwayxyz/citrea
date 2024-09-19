@@ -5,18 +5,18 @@ prover_da_pub_key = "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e5
 
 [da]
 # put in the url of your Bitcoin node
-node_url = ""
+node_url = "http://0.0.0.0:18443"
 
 #  put in the username and password of your Bitcoin node
-node_username = ""
-node_password = ""
+node_username = "citrea"
+node_password = "citrea"
 
 # leave this as is
 network = "testnet"
 tx_backup_dir = ""
 
 [storage]
-path = "~/.citrea/db"
+path = "./db"
 
 # comment out if you want to set custom max open files
 # if you leave it like this, it will use the system limit
@@ -25,7 +25,7 @@ path = "~/.citrea/db"
 [rpc]
 # the host and port to bind the rpc server for
 bind_host = "0.0.0.0"
-bind_port = 1337
+bind_port = 8080
 
 # for below if you don't want to use default values
 # comment out and set to desired value
