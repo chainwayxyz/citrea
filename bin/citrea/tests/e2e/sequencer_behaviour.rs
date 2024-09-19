@@ -13,7 +13,7 @@ use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use tokio::time::sleep;
 
-use crate::e2e::{initialize_test, TestConfig};
+use crate::e2e::{copy_dir_recursive, initialize_test, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
@@ -247,7 +247,7 @@ async fn transaction_failing_on_l1_is_removed_from_mempool() -> Result<(), anyho
 
     let random_wallet_address = random_wallet.address();
 
-    let second_block_base_fee = 767970154;
+    let second_block_base_fee = 767969424;
 
     let _pending = seq_test_client
         .send_eth(
@@ -463,6 +463,152 @@ async fn test_gas_limit_too_high() {
 
     seq_task.abort();
     full_node_task.abort();
+}
+
+/// This test checks the sequencer behavior when missed DA blocks are detected.
+/// 1. Run the sequencer.
+/// 2. Create a L2 blocks on top of an L1.
+/// 3. Shutdown sequencer
+/// 4. Create a bunch of L1 blocks.
+/// 5. Start the sequencer.
+/// Each DA block should have a L2 block created for it.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let da_service = MockDaService::new(MockAddress::default(), &da_db_dir.clone());
+
+    // start rollup on da block 3. This will mark the starting point for the sequencer
+    // at DA block 3.
+    for _ in 0..3 {
+        da_service.publish_test_block().await.unwrap();
+    }
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir_cloned,
+            da_db_dir_cloned,
+            // set to something high, so that commitments don't produce mock da blocks
+            1000,
+            true,
+            None,
+            Some(SequencerConfig {
+                test_mode: false,
+                da_update_interval_ms: 500,
+                block_production_interval_ms: 250,
+                min_soft_confirmations_per_commitment: 1000,
+                ..Default::default()
+            }),
+            Some(false),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let _seq_port = seq_port_rx.await.unwrap();
+
+    // will create some blocks
+    sleep(Duration::from_secs(3)).await;
+
+    seq_task.abort();
+
+    // Create 10 more DA blocks while the sequencer is down.
+    for _ in 0..10 {
+        da_service.publish_test_block().await.unwrap();
+    }
+
+    // Restart the sequencer.
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    // Copy the db to a new path with the same contents because
+    // the lock is not released on the db directory even though the task is aborted
+    let _ = copy_dir_recursive(
+        &sequencer_db_dir,
+        &storage_dir.path().join("sequencer_copy"),
+    );
+
+    let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
+    let da_db_dir_cloned = da_db_dir.clone();
+    let seq_task = tokio::spawn(async move {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            NodeMode::SequencerNode,
+            sequencer_db_dir,
+            da_db_dir_cloned,
+            // set to something high, so that commitments don't produce mock da blocks
+            1000,
+            true,
+            None,
+            Some(SequencerConfig {
+                test_mode: false,
+                da_update_interval_ms: 500,
+                block_production_interval_ms: 250,
+                min_soft_confirmations_per_commitment: 1000,
+                ..Default::default()
+            }),
+            Some(false),
+            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+
+    let seq_test_client = make_test_client(seq_port).await?;
+
+    // will produce some blocks
+    // should also produce for the missing DA blocks
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    let mut last_used_l1_height = 3;
+
+    let head_soft_confirmation_height = seq_test_client
+        .ledger_get_head_soft_confirmation_height()
+        .await
+        .unwrap()
+        .unwrap();
+
+    // check that the sequencer has at least one block for each DA block
+    // starting from DA #3 all the way up to DA #13 without no gaps
+    // the first soft confirmation should be on DA #3
+    // the last soft confirmation should be on DA #13
+    for i in 1..=head_soft_confirmation_height {
+        let soft_confirmation = seq_test_client
+            .ledger_get_soft_confirmation_by_number::<MockDaSpec>(i)
+            .await
+            .unwrap();
+
+        if i == 1 {
+            assert_eq!(soft_confirmation.da_slot_height, last_used_l1_height);
+        } else {
+            assert!(
+                soft_confirmation.da_slot_height == last_used_l1_height
+                    || soft_confirmation.da_slot_height == last_used_l1_height + 1,
+            );
+        }
+
+        last_used_l1_height = soft_confirmation.da_slot_height;
+    }
+
+    assert_eq!(last_used_l1_height, 13);
+
+    seq_task.abort();
+
+    Ok(())
 }
 
 /// Run the sequencer.

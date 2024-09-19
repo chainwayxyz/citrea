@@ -1920,6 +1920,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
+ "backoff",
  "borsh",
  "chrono",
  "citrea-common",
