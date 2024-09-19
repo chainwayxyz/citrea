@@ -126,7 +126,7 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key: private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix.to_vec(),
+            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
             reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
@@ -366,7 +366,7 @@ impl BitcoinService {
                     fee_sat_per_vbyte,
                     fee_sat_per_vbyte,
                     network,
-                    &self.reveal_light_client_prefix.to_vec(),
+                    &self.reveal_light_client_prefix,
                 )?;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
