@@ -1,3 +1,8 @@
+// We have to make these prefixes constants due to zk proving.
+// But two bytes takes too long to generate nonce, making tests very flaky and slow.
+// So in CI we define an env var SHORT_PREFIX to use less bytes.
+// This doesn't change any method ids, just the prefixes.
+
 const fn get_reveal_batch_proof_prefix() -> &'static [u8] {
     match option_env!("SHORT_PREFIX") {
         Some(_) => &[1],
