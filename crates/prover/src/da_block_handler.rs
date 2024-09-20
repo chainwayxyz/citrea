@@ -348,10 +348,10 @@ where
                 sequencer_commitment_state_diff.clone(),
             );
 
-            let serialized_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
+            let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
 
             let state_diff_threshold_reached =
-                serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
+                compressed_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
 
             if state_diff_threshold_reached {
                 // We've exceeded the limit with the current commitments
