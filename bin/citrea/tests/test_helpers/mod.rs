@@ -164,24 +164,6 @@ pub fn create_default_rollup_config(
     }
 }
 
-pub fn create_default_sequencer_config(
-    min_soft_confirmations_per_commitment: Option<u64>,
-    test_mode: Option<bool>,
-    deposit_mempool_fetch_limit: Option<usize>,
-) -> SequencerConfig {
-    let min_soft_confirmations_per_commitment = min_soft_confirmations_per_commitment.unwrap_or(DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT);
-    let test_mode = test_mode.unwrap_or(false);
-    let deposit_mempool_fetch_limit = deposit_mempool_fetch_limit.unwrap_or(DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT);
-    SequencerConfig {
-        private_key: TEST_PRIVATE_KEY.to_string(),
-        min_soft_confirmations_per_commitment,
-        test_mode,
-        deposit_mempool_fetch_limit,
-        mempool_conf: Default::default(),
-        da_update_interval_ms: 500,
-        block_production_interval_ms: 500, // since running in test mode, we can set this to a lower value
-    }
-}
 
 pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     let db_dir = tempfile::tempdir().expect("Could not create temporary directory for test");
