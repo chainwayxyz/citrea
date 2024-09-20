@@ -88,7 +88,7 @@ coverage-html: ## Coverage in HTML format
 docs:  ## Generates documentation locally
 	cargo doc --open
 
-set-git-hook: 
+set-git-hook:
 	git config core.hooksPath .githooks
 
 # Downloads and unpacks Ethereum Foundation tests in the `$(EF_TESTS_DIR)` directory.

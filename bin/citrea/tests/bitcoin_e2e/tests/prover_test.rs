@@ -79,7 +79,7 @@ impl TestCase for BasicProverTest {
 
         da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
-        prover.wait_for_l1_height(finalized_height, None).await;
+        prover.wait_for_l1_height(finalized_height, None).await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
@@ -215,7 +215,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let finalized_height = da.get_finalized_height().await?;
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await;
+            .await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
@@ -284,7 +284,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await;
+            .await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
 

@@ -338,7 +338,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 3, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 3, None).await?;
 
     // Submit an L2 block to prevent sequencer from falling behind.
     seq_test_client.send_publish_batch_request().await;
@@ -364,7 +364,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 4, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 4, None).await?;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-9
     // there is an extra soft confirmation due to the prover publishing a proof. This causes
@@ -491,7 +491,9 @@ async fn test_full_node_sync_status() {
     for _ in 0..19 {
         da_service.publish_test_block().await.unwrap();
     }
-    wait_for_prover_l1_height(&full_node_test_client, 1, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(&full_node_test_client, 1, Some(Duration::from_secs(60)))
+        .await
+        .unwrap();
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
         LayerStatus::Syncing(syncing) => {
@@ -500,7 +502,9 @@ async fn test_full_node_sync_status() {
         }
         _ => panic!("Expected syncing status"),
     }
-    wait_for_prover_l1_height(&full_node_test_client, 20, Some(Duration::from_secs(60))).await;
+    wait_for_prover_l1_height(&full_node_test_client, 20, Some(Duration::from_secs(60)))
+        .await
+        .unwrap();
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
         LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 20),
