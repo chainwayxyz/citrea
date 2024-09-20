@@ -77,9 +77,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
@@ -120,7 +117,6 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          override: true
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -136,10 +132,12 @@ jobs:
         uses: dprint/check@v2.2
       - name: Run lint
         run: |
-          if ! SKIP_GUEST_BUILD=1 make lint ; then
+          if ! make lint ; then
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
+        env:
+          SKIP_GUEST_BUILD: 1
 
   udeps:
     name: udeps
@@ -172,6 +170,7 @@ jobs:
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
+          SKIP_GUEST_BUILD: 1
         uses: aig787/cargo-udeps-action@v1
         with:
           version: "latest"
@@ -230,7 +229,6 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -275,7 +273,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
       - name: Download artifact
         uses: actions/download-artifact@v3
@@ -303,7 +300,6 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -368,9 +364,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.79.0
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
       - name: Install cargo-risczero
