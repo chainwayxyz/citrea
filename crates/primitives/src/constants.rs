@@ -1,8 +1,10 @@
+// Generates a prefix for REVEAL_BATCH_PROOF_PREFIX and REVEAL_LIGHT_CLIENT_PREFIX constants based on compile-time environment.
+// Returns a single-byte prefix [1] if SHORT_PREFIX env var is set, otherwise defaults to [1, 1].
+// This greatly reduces the time required to find a nonce when generating batch proving txs and LightClientTxs
 // We have to make these prefixes constants due to zk proving.
 // But two bytes takes too long to generate nonce, making tests very flaky and slow.
 // So in CI we define an env var SHORT_PREFIX to use less bytes.
 // This doesn't change any method ids, just the prefixes.
-
 const fn get_reveal_batch_proof_prefix() -> &'static [u8] {
     match option_env!("SHORT_PREFIX") {
         Some(_) => &[1],
