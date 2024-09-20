@@ -350,6 +350,7 @@ where
 
             let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
 
+            // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
             let state_diff_threshold_reached =
                 compressed_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
 
