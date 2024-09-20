@@ -57,7 +57,9 @@ pub async fn start_rollup(
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    assert_ne!(sequencer_config.is_some(), rollup_prover_config.is_some());
+    if sequencer_config.is_some() && rollup_prover_config.is_some(){
+        panic!("Both sequencer and prover config cannot be set at the same time");
+    }
     
     if sequencer_config.is_some(){
         warn!(
