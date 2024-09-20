@@ -7,6 +7,7 @@ use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
+use rand::seq;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -22,7 +23,7 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, warn, Instrument};
 
 use crate::test_client::TestClient;
-use crate::DEFAULT_PROOF_WAIT_DURATION;
+use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, DEFAULT_PROOF_WAIT_DURATION};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
@@ -36,89 +37,85 @@ pub enum NodeMode {
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
+    
     rollup_prover_config: Option<ProverConfig>,
-    node_mode: NodeMode,
-    rollup_db_path: PathBuf,
-    da_db_path: PathBuf,
-    min_soft_confirmations_per_commitment: u64,
-    include_tx_body: bool,
-    rollup_config: Option<FullNodeConfig<MockDaConfig>>,
+    //node_mode: NodeMode,
+
+    //rollup_db_path: PathBuf,
+    //da_db_path: PathBuf,
+
+    //min_soft_confirmations_per_commitment: u64,
+    //include_tx_body: bool,
+
+    rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
-    test_mode: Option<bool>,
-    deposit_mempool_fetch_limit: usize,
+
+    //test_mode: Option<bool>,
+    //deposit_mempool_fetch_limit: usize,
 ) {
     // create rollup config default creator function and use them here for the configs
-    let rollup_config = rollup_config.unwrap_or_else(|| {
-        create_default_rollup_config(include_tx_body, &rollup_db_path, &da_db_path, node_mode)
-    });
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    match node_mode {
-        NodeMode::FullNode(_) => {
-            let span = info_span!("FullNode");
-            let rollup = CitreaRollupBlueprint::create_new_rollup(
-                &mock_demo_rollup,
-                &rt_genesis_paths,
-                rollup_config.clone(),
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
-            rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
-                .instrument(span)
-                .await
-                .unwrap();
-        }
-        NodeMode::Prover(_) => {
-            let span = info_span!("Prover");
-            let rollup = CitreaRollupBlueprint::create_new_prover(
-                &mock_demo_rollup,
-                &rt_genesis_paths,
-                rollup_config,
-                rollup_prover_config.unwrap(),
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
-            rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
-                .instrument(span)
-                .await
-                .unwrap();
-        }
-        NodeMode::SequencerNode => {
-            warn!(
-                "Starting sequencer node pub key: {:?}",
-                DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
-                    .unwrap()
-                    .pub_key()
-            );
-            let sequencer_config = sequencer_config.unwrap_or_else(|| {
-                create_default_sequencer_config(
-                    min_soft_confirmations_per_commitment,
-                    test_mode,
-                    deposit_mempool_fetch_limit,
-                )
-            });
+    assert_ne!(sequencer_config.is_some(), rollup_prover_config.is_some());
+    
+    if sequencer_config.is_some(){
+        warn!(
+            "Starting sequencer node pub key: {:?}",
+            DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
+                .unwrap()
+                .pub_key()
+        );
+        let sequencer_config = sequencer_config.unwrap();
 
-            let span = info_span!("Sequencer");
-            let sequencer_rollup = CitreaRollupBlueprint::create_new_sequencer(
-                &mock_demo_rollup,
-                &rt_genesis_paths,
-                rollup_config.clone(),
-                sequencer_config,
-            )
-            .instrument(span.clone())
+        let span = info_span!("Sequencer");
+        let sequencer_rollup = CitreaRollupBlueprint::create_new_sequencer(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config.clone(),
+            sequencer_config,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        sequencer_rollup
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
             .await
             .unwrap();
-            sequencer_rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
-                .instrument(span)
-                .await
-                .unwrap();
-        }
+    }
+    else if rollup_prover_config.is_some(){
+        let span = info_span!("Prover");
+        let rollup = CitreaRollupBlueprint::create_new_prover(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config,
+            rollup_prover_config.unwrap(),
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        rollup
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
+            .await
+            .unwrap();
+    }
+    else {
+        let span = info_span!("FullNode");
+        let rollup = CitreaRollupBlueprint::create_new_rollup(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config.clone(),
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        rollup
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
+            .await
+            .unwrap();
     }
 }
 
@@ -168,14 +165,17 @@ pub fn create_default_rollup_config(
 }
 
 pub fn create_default_sequencer_config(
-    min_soft_confirmations_per_commitment: u64,
+    min_soft_confirmations_per_commitment: Option<u64>,
     test_mode: Option<bool>,
-    deposit_mempool_fetch_limit: usize,
+    deposit_mempool_fetch_limit: Option<usize>,
 ) -> SequencerConfig {
+    let min_soft_confirmations_per_commitment = min_soft_confirmations_per_commitment.unwrap_or(DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT);
+    let test_mode = test_mode.unwrap_or(false);
+    let deposit_mempool_fetch_limit = deposit_mempool_fetch_limit.unwrap_or(DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT);
     SequencerConfig {
         private_key: TEST_PRIVATE_KEY.to_string(),
         min_soft_confirmations_per_commitment,
-        test_mode: test_mode.unwrap_or(false),
+        test_mode,
         deposit_mempool_fetch_limit,
         mempool_conf: Default::default(),
         da_update_interval_ms: 500,
