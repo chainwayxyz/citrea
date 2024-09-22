@@ -28,7 +28,7 @@ use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
 };
 use tokio::select;
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument};
 
@@ -66,7 +66,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    soft_confirmation_tx: mpsc::Sender<u64>,
 }
 
 impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
@@ -107,7 +107,7 @@ where
         prover_config: Option<ProverConfig>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        soft_confirmation_tx: mpsc::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -395,7 +395,7 @@ where
         self.fork_manager.register_block(l2_height)?;
 
         // Only errors when there are no receivers
-        let _ = self.soft_confirmation_tx.send(l2_height);
+        let _ = self.soft_confirmation_tx.send(l2_height).await;
 
         self.state_root = next_state_root;
         self.batch_hash = soft_confirmation.hash;

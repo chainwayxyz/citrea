@@ -16,7 +16,7 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
-use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 use tracing::{info, instrument};
 
 mod bitcoin;
@@ -57,7 +57,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        let (soft_confirmation_tx, soft_confirmation_rx) = mpsc::channel(10);
         // If subscriptions disabled, pass None
         let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
             Some(soft_confirmation_rx)
@@ -158,7 +158,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
-        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        let (soft_confirmation_tx, soft_confirmation_rx) = mpsc::channel(10);
         // If subscriptions disabled, pass None
         let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
             Some(soft_confirmation_rx)
@@ -270,7 +270,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
+        let (soft_confirmation_tx, soft_confirmation_rx) = mpsc::channel(10);
         // If subscriptions disabled, pass None
         let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
             Some(soft_confirmation_rx)

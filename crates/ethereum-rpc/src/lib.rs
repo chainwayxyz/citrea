@@ -24,9 +24,8 @@ use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
-use subscription::{handle_logs_subscription, handle_new_heads_subscription};
 use tokio::join;
-use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
 
@@ -54,7 +53,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
-    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+    soft_confirmation_rx: Option<mpsc::Receiver<u64>>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {
@@ -722,12 +721,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match topic.as_str() {
                     "newHeads" => {
                         let subscription = pending.accept().await.unwrap();
-                        let rx = ethereum
+                        ethereum
                             .subscription_manager
                             .as_ref()
                             .unwrap()
-                            .subscribe_new_heads();
-                        handle_new_heads_subscription(subscription, rx).await
+                            .register_new_heads_subscription(subscription)
+                            .await;
                     }
                     "logs" => {
                         let filter: Filter = match params.next() {
@@ -738,13 +737,12 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             }
                         };
                         let subscription = pending.accept().await.unwrap();
-                        let rx = ethereum
+                        ethereum
                             .subscription_manager
                             .as_ref()
                             .unwrap()
-                            .subscribe_logs()
+                            .register_new_logs_subscription(filter, subscription)
                             .await;
-                        handle_logs_subscription(subscription, rx, filter).await
                     }
                     _ => {
                         pending

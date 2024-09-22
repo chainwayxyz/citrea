@@ -46,8 +46,8 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
+use tokio::sync::mpsc;
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 
@@ -94,7 +94,7 @@ where
     rpc_config: RpcConfig,
     last_state_diff: StateDiff,
     fork_manager: ForkManager,
-    soft_confirmation_tx: broadcast::Sender<u64>,
+    soft_confirmation_tx: mpsc::Sender<u64>,
 }
 
 enum L2BlockMode {
@@ -129,7 +129,7 @@ where
         ledger_db: DB,
         rpc_config: RpcConfig,
         fork_manager: ForkManager,
-        soft_confirmation_tx: broadcast::Sender<u64>,
+        soft_confirmation_tx: mpsc::Sender<u64>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -522,7 +522,7 @@ where
                 self.fork_manager.register_block(l2_height)?;
 
                 // Only errors when there are no receivers
-                let _ = self.soft_confirmation_tx.send(l2_height);
+                let _ = self.soft_confirmation_tx.send(l2_height).await;
 
                 let l1_height = da_block.header().height();
                 info!(
