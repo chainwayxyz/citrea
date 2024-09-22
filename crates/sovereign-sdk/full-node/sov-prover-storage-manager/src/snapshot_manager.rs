@@ -239,8 +239,18 @@ where
 }
 
 impl QueryManager for SnapshotManager {
-    type Iter<'a, S> = SnapshotManagerIter<'a, S, Rev<btree_map::Iter<'a, SchemaKey, Operation>>> where S: Sized, S: Schema, Self: 'a;
-    type RangeIter<'a, S: Schema> = SnapshotManagerIter<'a, S, Rev<btree_map::Range<'a, SchemaKey, Operation>>> where S: Sized, S: Schema, Self: 'a;
+    type Iter<'a, S>
+        = SnapshotManagerIter<'a, S, Rev<btree_map::Iter<'a, SchemaKey, Operation>>>
+    where
+        S: Sized,
+        S: Schema,
+        Self: 'a;
+    type RangeIter<'a, S: Schema>
+        = SnapshotManagerIter<'a, S, Rev<btree_map::Range<'a, SchemaKey, Operation>>>
+    where
+        S: Sized,
+        S: Schema,
+        Self: 'a;
 
     fn get<S: Schema>(
         &self,
