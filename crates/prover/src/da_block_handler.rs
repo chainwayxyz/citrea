@@ -6,9 +6,10 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use bitcoin_da::helpers::compression::compress_blob;
+use bitcoin_da::MAX_TXBODY_SIZE;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::utils::{filter_out_proven_commitments, merge_state_diffs};
-use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
+use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -352,7 +353,7 @@ where
 
             // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
             let state_diff_threshold_reached =
-                compressed_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
+                compressed_state_diff.len() as u64 > MAX_TXBODY_SIZE.try_into().unwrap();
 
             if state_diff_threshold_reached {
                 // We've exceeded the limit with the current commitments
