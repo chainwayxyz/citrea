@@ -7,6 +7,8 @@ mod da;
 #[cfg(feature = "native")]
 mod error;
 pub mod forks;
+#[cfg(feature = "native")]
+pub mod tasks;
 pub mod types;
 #[cfg(feature = "native")]
 pub mod utils;
@@ -18,3 +20,5 @@ pub use constants::*;
 pub use da::*;
 #[cfg(feature = "native")]
 pub use error::*;
+#[cfg(feature = "native")]
+pub use tasks::*;
