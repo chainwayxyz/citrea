@@ -6,10 +6,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use bitcoin_da::helpers::compression::compress_blob;
-use bitcoin_da::MAX_TXBODY_SIZE;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::utils::{filter_out_proven_commitments, merge_state_diffs};
-use citrea_primitives::{get_da_block_at_height, L1BlockCache};
+use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_TXBODY_SIZE};
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
