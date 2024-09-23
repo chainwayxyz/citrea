@@ -3,7 +3,7 @@
 Download our testnet docker-compose file:
 
 ```sh
-curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker-compose.yml
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker-compose.yml --output docker-compose.yml
 ```
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
@@ -104,8 +104,8 @@ Go to this [webpage](https://github.com/chainwayxyz/citrea/releases) and downloa
 
 Run this command to download full node config and testnet genesis files:
 ```sh
-curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/configs/testnet/rollup_config.toml
-curl https://static.testnet.citrea.xyz/genesis.tar.gz
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/configs/testnet/rollup_config.toml --output rollup_config.toml
+curl https://static.testnet.citrea.xyz/genesis.tar.gz --output genesis.tar.gz
 tar -xzvf genesis.tar.gz
 ```
 
