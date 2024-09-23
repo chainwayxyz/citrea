@@ -14,10 +14,10 @@ use tokio::time::sleep;
 
 use crate::evm::make_test_client;
 use crate::test_client::TestClient;
-use crate::test_helpers::{create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
-use crate::{
-    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH,
+use crate::test_helpers::{
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
+use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {

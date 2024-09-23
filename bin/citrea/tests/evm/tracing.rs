@@ -13,10 +13,10 @@ use reth_rpc_types::trace::geth::{
 use serde_json::{self, json};
 
 use crate::evm::make_test_client;
-use crate::test_helpers::{create_default_rollup_config, start_rollup, tempdir_with_children, NodeMode};
-use crate::{
-    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH,
+use crate::test_helpers::{
+    create_default_rollup_config, start_rollup, tempdir_with_children, NodeMode,
 };
+use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +33,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             &da_db_dir_cloned,
             NodeMode::SequencerNode,
         );
-        let sequencer_config = SequencerConfig{
+        let sequencer_config = SequencerConfig {
             min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             ..Default::default()
         };

@@ -8,7 +8,8 @@ use tokio::time::sleep;
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
 use crate::test_helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, NodeMode,
 };
 use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
@@ -24,7 +25,7 @@ async fn too_many_l2_block_per_l1_block() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
-    
+
     tokio::spawn(async move {
         let rollup_config = create_default_rollup_config(
             true,
@@ -32,7 +33,7 @@ async fn too_many_l2_block_per_l1_block() {
             &da_db_dir_cloned,
             NodeMode::SequencerNode,
         );
-        let sequencer_config = SequencerConfig{
+        let sequencer_config = SequencerConfig {
             min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             ..Default::default()
         };

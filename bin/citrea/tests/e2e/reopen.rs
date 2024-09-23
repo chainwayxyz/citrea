@@ -4,6 +4,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService};
@@ -14,12 +15,10 @@ use tokio::time::sleep;
 use crate::e2e::copy_dir_recursive;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, wait_for_prover_l1_height, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_prover_l1_height, NodeMode,
 };
-use crate::{
-    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH,
-};
-use citrea_sequencer::SequencerConfig;
+use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
@@ -31,12 +30,8 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
@@ -148,7 +143,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             rollup_config,
-            None
+            None,
         )
         .await;
     });
@@ -193,12 +188,8 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
@@ -209,7 +200,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             rollup_config,
-            Some(sequencer_config)
+            Some(sequencer_config),
         )
         .await;
     });
@@ -242,24 +233,20 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
-    let sequencer_config = SequencerConfig{
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
     };
-    
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             rollup_config,
-            Some(sequencer_config)
+            Some(sequencer_config),
         )
         .await;
     });
@@ -312,12 +299,8 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: 4,
         ..Default::default()
@@ -328,7 +311,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             rollup_config,
-            Some(sequencer_config)
+            Some(sequencer_config),
         )
         .await;
     });
@@ -358,7 +341,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
                     Some(ProverConfig::default()),
                     rollup_config,
-                    None
+                    None,
                 )
                 .await;
             });
@@ -414,7 +397,6 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     let _handle = std::thread::spawn(move || {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
-
             let rollup_config = create_default_rollup_config(
                 true,
                 &prover_copy_db_dir,
@@ -427,7 +409,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
                     Some(ProverConfig::default()),
                     rollup_config,
-                    None
+                    None,
                 )
                 .await;
             });

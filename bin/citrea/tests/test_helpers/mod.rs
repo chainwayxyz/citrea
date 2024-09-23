@@ -43,11 +43,11 @@ pub async fn start_rollup(
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    if sequencer_config.is_some() && rollup_prover_config.is_some(){
+    if sequencer_config.is_some() && rollup_prover_config.is_some() {
         panic!("Both sequencer and prover config cannot be set at the same time");
     }
-    
-    if sequencer_config.is_some(){
+
+    if sequencer_config.is_some() {
         warn!(
             "Starting sequencer node pub key: {:?}",
             DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
@@ -71,8 +71,7 @@ pub async fn start_rollup(
             .instrument(span)
             .await
             .unwrap();
-    }
-    else if rollup_prover_config.is_some(){
+    } else if rollup_prover_config.is_some() {
         let span = info_span!("Prover");
         let rollup = CitreaRollupBlueprint::create_new_prover(
             &mock_demo_rollup,
@@ -88,8 +87,7 @@ pub async fn start_rollup(
             .instrument(span)
             .await
             .unwrap();
-    }
-    else {
+    } else {
         let span = info_span!("FullNode");
         let rollup = CitreaRollupBlueprint::create_new_rollup(
             &mock_demo_rollup,
@@ -151,7 +149,6 @@ pub fn create_default_rollup_config(
         },
     }
 }
-
 
 pub fn tempdir_with_children(children: &[&str]) -> TempDir {
     let db_dir = tempfile::tempdir().expect("Could not create temporary directory for test");

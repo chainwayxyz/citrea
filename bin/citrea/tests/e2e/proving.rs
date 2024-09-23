@@ -1,5 +1,6 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
+
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
@@ -9,7 +10,8 @@ use sov_stf_runner::ProverConfig;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode,
 };
 use crate::TEST_DATA_GENESIS_PATH;
 
@@ -28,13 +30,9 @@ async fn full_node_verify_proof_and_store() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
-    let sequencer_config = SequencerConfig{
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: 4,
         ..Default::default()
     };
@@ -56,12 +54,8 @@ async fn full_node_verify_proof_and_store() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &prover_db_dir,
-        &da_db_dir,
-        NodeMode::Prover(seq_port),
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
 
     let prover_node_task = tokio::spawn(async move {
         start_rollup(

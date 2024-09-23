@@ -17,7 +17,8 @@ use tokio::time::sleep;
 use crate::e2e::{copy_dir_recursive, execute_blocks, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment, wait_for_l1_block, wait_for_l2_block, NodeMode
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
 use crate::TEST_DATA_GENESIS_PATH;
 
@@ -46,12 +47,8 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     let config1 = sequencer_config.clone();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
@@ -128,12 +125,8 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     let sequencer_db_dir = storage_dir.path().join("full_node_copy");
 
     let config1 = sequencer_config.clone();
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     // Start the full node as sequencer
     let seq_task = tokio::spawn(async move {
         start_rollup(
@@ -200,12 +193,8 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let config1 = sequencer_config.clone();
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
@@ -281,12 +270,8 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let config1 = sequencer_config.clone();
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy").to_path_buf();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
@@ -376,12 +361,8 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &sequencer_db_dir,
-        &da_db_dir,
-        NodeMode::SequencerNode,
-    );
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
