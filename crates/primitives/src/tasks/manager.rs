@@ -1,7 +1,7 @@
 use std::future::Future;
 
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tokio_util::task::TaskTracker;
 
 /// TaskManager manages tasks spawned using tokio and keeps
 /// track of handles so that these tasks are cancellable.
@@ -9,27 +9,30 @@ use tokio_util::task::TaskTracker;
 /// nodes by completing tasks as such read/write to DBs and then
 /// performing the shutdown so that the database does not get corrupted.
 pub struct TaskManager<T: Send> {
-    task_tracker: TaskTracker,
+    handles: Vec<JoinHandle<T>>,
     cancellation_token: CancellationToken,
 }
 
 impl<T: Send + 'static> TaskManager<T> {
     pub fn new() -> Self {
         Self {
-            task_tracker: TaskTracker::new(),
+            handles: vec![],
             cancellation_token: CancellationToken::new(),
         }
     }
 
     /// Spawn a new asynchronous task.
     pub fn spawn(&mut self, future: impl Future<Output = T> + Send + 'static) {
-        self.task_tracker.spawn(future);
+        let handle = tokio::spawn(future);
+        self.handles.push(handle);
     }
 
-    /// Wait for current tasks to finish and stop running them.
-    pub async fn abort(&self) {
-        self.task_tracker.close();
-        self.task_tracker.wait().await;
+    /// Drastically abort all running tasks
+    pub fn abort(&self) {
+        self.cancellation_token.cancel();
+        for handle in &self.handles {
+            handle.abort();
+        }
     }
 
     /// Provides a child cancellation token.

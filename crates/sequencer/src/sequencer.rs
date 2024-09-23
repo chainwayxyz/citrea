@@ -968,7 +968,8 @@ where
                 },
                 _ = signal::ctrl_c() => {
                     info!("Shutting down sequencer");
-                    self.task_manager.abort()
+                    self.task_manager.abort();
+                    return Ok(());
                 }
             }
         }
