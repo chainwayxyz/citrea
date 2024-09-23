@@ -190,7 +190,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .await
             .unwrap(),
         );
-        bitcoin_da_service.clone().spawn_da_queue(rx);
+        bitcoin_da_service.clone().run(rx);
 
         // Generate 1 FINALIZED DA block.
         da.generate(1 + FINALITY_DEPTH, None).await?;
