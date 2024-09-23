@@ -10,6 +10,7 @@ use backoff::ExponentialBackoffBuilder;
 use borsh::BorshDeserialize;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
@@ -95,6 +96,7 @@ where
     last_state_diff: StateDiff,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    task_manager: TaskManager<()>,
 }
 
 enum L2BlockMode {
@@ -165,6 +167,8 @@ where
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
+        let task_manager = TaskManager::new();
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -186,11 +190,12 @@ where
             last_state_diff,
             fork_manager,
             soft_confirmation_tx,
+            task_manager,
         })
     }
 
     pub async fn start_rpc_server(
-        &self,
+        &mut self,
         channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
     ) -> anyhow::Result<()> {
@@ -213,7 +218,7 @@ where
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
-        let _handle = tokio::spawn(async move {
+        self.task_manager.spawn(async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
@@ -853,7 +858,7 @@ where
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, mut da_commitment_rx) = unbounded::<bool>();
 
-        tokio::task::spawn(da_block_monitor(
+        self.task_manager.spawn(da_block_monitor(
             self.da_service.clone(),
             da_height_update_tx,
             self.config.da_update_interval_ms,
