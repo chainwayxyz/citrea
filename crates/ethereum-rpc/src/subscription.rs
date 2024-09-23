@@ -110,7 +110,7 @@ pub async fn logs_notifier(
             for (filter, subscription) in subscriptions.iter() {
                 if log_matches_filter(
                     &log.clone().try_into().unwrap(),
-                    &filter,
+                    filter,
                     log.block_hash.as_ref().unwrap(),
                     &log.block_number.as_ref().unwrap().to::<u64>(),
                 ) {
