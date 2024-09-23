@@ -15,6 +15,7 @@ use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
 use bitcoin::{Address, Network, Transaction};
+use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -23,7 +24,6 @@ use super::{
     sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal, TxWithId,
 };
 use crate::spec::utxo::UTXO;
-use crate::MAX_TXBODY_SIZE;
 
 /// This is a list of light client tx we need to send to DA
 #[derive(Serialize)]

@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 # Citrea Deps
+bitcoin-da = { path = "../bitcoin-da" }
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
 citrea-stf = { path = "../citrea-stf" }
