@@ -57,7 +57,7 @@ pub async fn start_rollup(
         let sequencer_config = sequencer_config.unwrap();
 
         let span = info_span!("Sequencer");
-        let sequencer_rollup = CitreaRollupBlueprint::create_new_sequencer(
+        let sequencer = CitreaRollupBlueprint::create_new_sequencer(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config.clone(),
@@ -66,7 +66,7 @@ pub async fn start_rollup(
         .instrument(span.clone())
         .await
         .unwrap();
-        sequencer_rollup
+        sequencer
             .run_and_report_rpc_port(Some(rpc_reporting_channel))
             .instrument(span)
             .await
