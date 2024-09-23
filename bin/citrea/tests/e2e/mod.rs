@@ -25,7 +25,6 @@ use tokio::task::JoinHandle;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    //edit this later
     create_default_rollup_config,
     start_rollup,
     tempdir_with_children,
@@ -69,7 +68,6 @@ async fn test_all_flow() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    //let da_db_dir_cloned = da_db_dir.clone();
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: 4,
         ..Default::default()
@@ -96,7 +94,7 @@ async fn test_all_flow() {
     let rollup_config = create_default_rollup_config(
         true,
         &prover_db_dir,
-        &da_db_dir, // not sure
+        &da_db_dir,
         NodeMode::Prover(seq_port),
     );
     let prover_node_task = tokio::spawn(async move {
@@ -440,8 +438,6 @@ async fn initialize_test(
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    //let db_path = config.da_path.clone();
-    //let sequencer_path = config.sequencer_path.clone();
     let fullnode_path = config.fullnode_path.clone();
 
     let sequencer_config = SequencerConfig {
@@ -471,7 +467,6 @@ async fn initialize_test(
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    //let db_path2 = db_path.clone();
     let rollup_config = create_default_rollup_config(
         true,
         &fullnode_path,
