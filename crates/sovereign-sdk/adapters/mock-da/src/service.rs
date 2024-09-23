@@ -139,6 +139,8 @@ impl MockDaService {
             worker_handle: CancellationToken::new(),
         };
 
+        // Spawn the DA service worker task with a cancellation token
+        // so that when the DA service instance is dropped, the tasks are cancelled.
         let cancellation_token = da_service.worker_handle.clone();
         let this = da_service.clone();
         tokio::spawn(this.da_service_worker(
