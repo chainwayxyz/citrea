@@ -1,5 +1,3 @@
-#TODO: add volumes for docker commands and docker compose commands
-
 
 ## TL; DR: I want to run it ASAP
 Download our testnet docker-compose file:
@@ -10,7 +8,7 @@ curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker-compose
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
 ```sh
-docker-compose -f docker-compose.ym up
+docker-compose -f docker-compose.yml up
 ```
 
 # Run a Citrea Testnet Full Node
@@ -60,6 +58,8 @@ You can edit RPC parameters as you wish, but you also have to edit `rollup_confi
 
 ### Option 2: Run Docker container
 
+If you are also going to run Citrea in Docker, follow [these steps](#tl-dr-i-want-to-run-it-asap).
+
 #### Step 2.1: Install Docker
 
 Follow instructions to install Docker here: https://docs.docker.com/engine/install/
@@ -70,6 +70,7 @@ After Docker is installed, run this command to pull Bitcoin v0.28rc.1 image and 
 
 ```sh
 docker run -d \
+  -v ${PWD}/bitcoin-testnet4:/home/bitcoin/.bitcoin \
   --name bitcoin-testnet4 \
   -p 18443:18443 \
   -p 18444:18444 \
@@ -91,9 +92,7 @@ You can edit RPC parameters as you wish, but you have to also edit `rollup_confi
 
 ## Citrea Full Node Setup
 
-There is three different ways to run a Citra full node: using a pre-built binary, building from source and using docker.
-
-Our suggestion is if you're going to use docker in this step, also use docker in Bitcoin Testnet4 setup.
+There is three different ways to run a Citra full node: using a [pre-built binary](#option-1-using-pre-built-binary), [building from source](#option-2-build-from-source) and [using docker](#option-3-using-docker).
 
 ### Option 1: Using pre-built binary
 
@@ -106,7 +105,7 @@ Go to this [webpage](https://github.com/chainwayxyz/citrea/releases) and downloa
 Run this command to download full node config and testnet genesis files:
 ```sh
 curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/resources/configs/testnet/rollup_config.toml
-curl #TODO: add genesis url
+curl https://static.testnet.citrea.xyz/genesis.tar.gz
 tar -xzvf genesis.tar.gz
 ```
 
@@ -118,17 +117,17 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v0.5.0-rc.6-osx-arm64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.5.0-osx-arm64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v0.5.0-rc.6-linux-amd64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.5.0-linux-amd64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
 
-### Option 2: Building from source
+### Option 2: Build from source
 
 
 #### Step 2.1: Install Rust
@@ -168,33 +167,6 @@ And then run the full node by executing this command
 ./target/release/citrea --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
 ```
 
-### Option 2: Using Docker
+### Option 3: Using Docker
 
-Run this command:
-
-```sh
-docker run -d \
-  --name full-node \
-  --platform linux/amd64 \
-  --env ROLLUP__PUBLIC_KEYS__SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
-  --env ROLLUP__PUBLIC_KEYS__SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
-  --env ROLLUP__PUBLIC_KEYS__PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
-  --env ROLLUP__DA__NETWORK=testnet \
-  --env ROLLUP__STORAGE__PATH=/mnt/task/citrea-db \
-  --env ROLLUP__RPC__BIND_HOST=0.0.0.0 \
-  --env ROLLUP__RPC__MAX_CONNECTIONS=1000 \
-  --env ROLLUP__RPC__BIND_PORT=8080 \
-  --env JSON_LOGS=1 \
-  --env ROLLUP__DA__NODE_URL=http://citrea-bitcoin-testnet4:18443/ \
-  --env ROLLUP__DA__NODE_USERNAME=citrea \
-  --env ROLLUP__DA__NODE_PASSWORD=citrea \
-  --env ROLLUP__RUNNER__SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
-  --env ROLLUP__RUNNER__INCLUDE_TX_BODY=true \
-  --env ROLLUP__STORAGE__DB_MAX_OPEN_FILES=5000 \
-  --env RUST_LOG=info \
-  --network citrea-testnet-network \
-  -p 8080:8080 \
-  chainwayxyz/citrea-full-node:testnet
-```
-
-Modify `ROLLUP__DA_NODE*` parameters if you have modified the RPC parameters while setting up your Bitcoin testnet4 node.
+See the [top section](#tl-dr-i-want-to-run-it-asap).

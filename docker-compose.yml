@@ -16,6 +16,8 @@ services:
       -rpcpassword=citrea
       -server
       -txindex=1
+    volumes:
+      - bitcoin-testnet4:/home/bitcoin/.bitcoin
     networks:
       - citrea-testnet-network
 
@@ -30,26 +32,36 @@ services:
       - ROLLUP__PUBLIC_KEYS__SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1
       - ROLLUP__PUBLIC_KEYS__SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b
       - ROLLUP__PUBLIC_KEYS__PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42
-      - ROLLUP__DA__NETWORK=testnet
-      - ROLLUP__STORAGE__PATH=/mnt/task/citrea-db
-      - ROLLUP__RPC__BIND_HOST=0.0.0.0
-      - ROLLUP__RPC__MAX_CONNECTIONS=1000
-      - ROLLUP__RPC__BIND_PORT=8080
-      - JSON_LOGS=1
       - ROLLUP__DA__NODE_URL=http://citrea-bitcoin-testnet4:18443/
       - ROLLUP__DA__NODE_USERNAME=citrea
       - ROLLUP__DA__NODE_PASSWORD=citrea
-      - ROLLUP__RUNNER__SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz
-      - ROLLUP__RUNNER__INCLUDE_TX_BODY=true
+      - ROLLUP__DA__NETWORK=testnet
+      - ROLLUP__DA__TX_BACKUP_DIR=
+      - ROLLUP__STORAGE__PATH=/mnt/task/citrea-db
       - ROLLUP__STORAGE__DB_MAX_OPEN_FILES=5000
+      - ROLLUP__RPC__BIND_HOST=0.0.0.0
+      - ROLLUP__RPC__BIND_PORT=8080
+      - ROLLUP__RPC__MAX_CONNECTIONS=100
+      - ROLLUP__RPC__MAX_REQUEST_BODY_SIZE=10485760
+      - ROLLUP__RPC__MAX_RESPONSE_BODY_SIZE=10485760
+      - ROLLUP__RPC__BATCH_REQUESTS_LIMIT=50
+      - ROLLUP__RPC__ENABLE_SUBSCRIPTIONS=true
+      - ROLLUP__RPC__MAX_SUBSCRIPTIONS_PER_CONNECTION=10
+      - ROLLUP__RUNNER__SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz
+      - ROLLUP__RUNNER__INCLUDE_TX_BODY=false
+      - ROLLUP__RUNNER__SYNC_BLOCKS_COUNT=10
       - RUST_LOG=info
+      - JSON_LOGS=1
     ports:
       - "8080:8080"
+    volumes:
+      - citrea-full-node:/mnt/task/citrea-db
     networks:
       - citrea-testnet-network
 
 volumes:
-  citrea-full-node-data:
+  bitcoin-testnet4:
+  citrea-full-node:
 
 
 networks:
