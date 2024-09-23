@@ -7,6 +7,7 @@ use std::time::Duration;
 use anyhow::bail;
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use citrea_primitives::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -27,9 +28,9 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{
     InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
 };
-use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
+use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
@@ -67,6 +68,7 @@ where
     sync_blocks_count: u64,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    task_manager: TaskManager<()>,
 }
 
 impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
@@ -156,12 +158,13 @@ where
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
+            task_manager: TaskManager::new(),
         })
     }
 
     /// Starts a RPC server with provided rpc methods.
     pub async fn start_rpc_server(
-        &self,
+        &mut self,
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
@@ -183,7 +186,7 @@ where
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
-        let _handle = tokio::spawn(async move {
+        self.task_manager.spawn(async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
@@ -248,7 +251,8 @@ where
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
 
-        tokio::spawn(async move {
+        let cancellation_token = self.task_manager.child_token();
+        self.task_manager.spawn(async move {
             let l1_block_handler =
                 L1BlockHandler::<Vm, Da, Ps, DB, Stf::StateRoot, Stf::Witness>::new(
                     prover_config,
@@ -261,7 +265,9 @@ where
                     skip_submission_until_l1,
                     l1_block_cache.clone(),
                 );
-            l1_block_handler.run(start_l1_height).await
+            l1_block_handler
+                .run(start_l1_height, cancellation_token)
+                .await
         });
 
         // Create l2 sync worker task
@@ -319,6 +325,11 @@ where
                         }
                     }
                 },
+                _ = signal::ctrl_c() => {
+                    info!("Shutting down");
+                    self.task_manager.abort();
+                    return Ok(());
+                }
             }
         }
     }

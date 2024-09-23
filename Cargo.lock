@@ -1833,6 +1833,7 @@ dependencies = [
  "sov-stf-runner",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tower",
  "tracing",
 ]
@@ -1887,6 +1888,7 @@ dependencies = [
  "sov-stf-runner",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tower",
  "tracing",
 ]

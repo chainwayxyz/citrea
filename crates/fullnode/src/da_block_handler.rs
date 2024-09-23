@@ -25,6 +25,7 @@ use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 pub(crate) struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
@@ -94,7 +95,7 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64) {
+    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
@@ -116,6 +117,9 @@ where
                 _ = interval.tick() => {
                     self.process_l1_block().await
                 },
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
             }
         }
     }

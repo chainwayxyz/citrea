@@ -24,6 +24,7 @@ use sov_stf_runner::{ProverConfig, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 type CommitmentStateTransitionData<Witness, Da> = (
@@ -104,7 +105,7 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64) {
+    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
         if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
             error!("Failed to recover ongoing proving sessions: {:?}", e);
         }
@@ -131,6 +132,9 @@ where
                         error!("Could not process L1 block and generate proof: {:?}", e);
                     }
                 },
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
             }
         }
     }
