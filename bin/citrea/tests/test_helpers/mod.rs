@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use borsh::BorshDeserialize;
@@ -7,7 +7,6 @@ use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use rand::seq;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -23,7 +22,7 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, warn, Instrument};
 
 use crate::test_client::TestClient;
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, DEFAULT_PROOF_WAIT_DURATION};
+use crate::DEFAULT_PROOF_WAIT_DURATION;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
@@ -33,25 +32,12 @@ pub enum NodeMode {
     Prover(SocketAddr),
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
-    
     rollup_prover_config: Option<ProverConfig>,
-    //node_mode: NodeMode,
-
-    //rollup_db_path: PathBuf,
-    //da_db_path: PathBuf,
-
-    //min_soft_confirmations_per_commitment: u64,
-    //include_tx_body: bool,
-
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
-
-    //test_mode: Option<bool>,
-    //deposit_mempool_fetch_limit: usize,
 ) {
     // create rollup config default creator function and use them here for the configs
 

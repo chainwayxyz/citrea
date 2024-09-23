@@ -12,9 +12,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
-use bollard::secret::Node;
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_sequencer::{Sequencer, SequencerConfig};
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
@@ -26,11 +25,11 @@ use tokio::task::JoinHandle;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
+    //edit this later
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode
 };
 use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    TEST_DATA_GENESIS_PATH,
+    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH,
 };
 
 struct TestConfig {
@@ -65,10 +64,9 @@ async fn test_all_flow() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
+    //let da_db_dir_cloned = da_db_dir.clone();
     let sequencer_config = SequencerConfig{
         min_soft_confirmations_per_commitment: 4,
-        test_mode: true,
         ..Default::default()
     };
     let rollup_config = create_default_rollup_config(
@@ -94,7 +92,13 @@ async fn test_all_flow() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
+    let rollup_config = 
+        create_default_rollup_config(
+            true,
+            &prover_db_dir, 
+            &da_db_dir,// not sure 
+            NodeMode::Prover(seq_port),
+        );
     let prover_node_task = tokio::spawn(async move {
         start_rollup(
             prover_node_port_tx,
@@ -103,15 +107,8 @@ async fn test_all_flow() {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
             }),
-            NodeMode::Prover(seq_port),
-            prover_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            None
         )
         .await;
     });
@@ -122,21 +119,19 @@ async fn test_all_flow() {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &fullnode_db_dir,
+        &da_db_dir,
+        NodeMode::FullNode(seq_port)
+    );
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::FullNode(seq_port),
-            fullnode_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            None
         )
         .await;
     });
@@ -383,21 +378,24 @@ async fn test_ledger_get_head_soft_confirmation() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+    );
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
+        deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
+        ..Default::default()
+    };
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            config.seq_min_soft_confirmations,
-            true,
-            None,
-            None,
-            Some(true),
-            config.deposit_mempool_fetch_limit,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -446,25 +444,28 @@ async fn initialize_test(
 ) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_path = config.da_path.clone();
-    let sequencer_path = config.sequencer_path.clone();
+    //let db_path = config.da_path.clone();
+    //let sequencer_path = config.sequencer_path.clone();
     let fullnode_path = config.fullnode_path.clone();
 
-    let db_path1 = db_path.clone();
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
+        deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
+        ..Default::default()
+    };
+    let rollup_config = create_default_rollup_config(
+        true,
+        &config.sequencer_path,
+        &config.da_path,
+        NodeMode::SequencerNode,
+    );
     let seq_task = tokio::spawn(async move {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_path,
-            db_path1,
-            config.seq_min_soft_confirmations,
-            true,
-            None,
-            None,
-            Some(true),
-            config.deposit_mempool_fetch_limit,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -474,21 +475,20 @@ async fn initialize_test(
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let db_path2 = db_path.clone();
+    //let db_path2 = db_path.clone();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &fullnode_path,
+        &config.da_path,
+        NodeMode::FullNode(seq_port),
+    );
     let full_node_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::FullNode(seq_port),
-            fullnode_path,
-            db_path2,
-            config.seq_min_soft_confirmations,
-            true,
+            rollup_config,
             None,
-            None,
-            Some(true),
-            config.deposit_mempool_fetch_limit,
         )
         .await;
     });

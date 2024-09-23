@@ -1,15 +1,15 @@
 /// Tests that check the full node's ability to send a transaction to the sequencer.
 use std::str::FromStr;
 
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, TxHash};
 
 use crate::e2e::{initialize_test, TestConfig};
 use crate::evm::init_test_rollup;
-use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
+use crate::test_helpers::{create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    TEST_DATA_GENESIS_PATH,
+    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH,
 };
 
 /// Full node receives transaction from RPC.
@@ -82,21 +82,23 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_dir_cloned = da_db_dir.clone();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+    );
+    let sequencer_config = SequencerConfig{
+        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        ..Default::default()
+    };
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -105,21 +107,19 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_dir_cloned = da_db_dir.clone();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &fullnode_db_dir,
+        &da_db_dir,
+        NodeMode::FullNode(seq_port),
+    );
     let rollup_task = tokio::spawn(async move {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::FullNode(seq_port),
-            fullnode_db_dir,
-            da_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
+            rollup_config,
             None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });

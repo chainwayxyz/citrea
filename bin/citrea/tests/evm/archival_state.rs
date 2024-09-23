@@ -2,16 +2,16 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use citrea_evm::smart_contracts::SimpleStorageContract;
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, B256, U256};
 use tokio::time::sleep;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;
-use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
+use crate::test_helpers::{create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
 use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    TEST_DATA_GENESIS_PATH,
+    DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -24,21 +24,24 @@ async fn test_archival_state() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+    );
+    let sequencer_config = SequencerConfig{
+        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        ..Default::default()
+    };
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
