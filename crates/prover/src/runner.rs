@@ -186,7 +186,7 @@ where
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
-        self.task_manager.spawn(async move {
+        self.task_manager.spawn(|cancellation_token| async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
@@ -215,7 +215,7 @@ where
                     info!("Starting RPC server at {} ", &bound_address);
 
                     let _server_handle = server.start(methods);
-                    futures::future::pending::<()>().await;
+                    cancellation_token.cancelled().await;
                 }
                 Err(e) => {
                     error!("Could not start RPC server: {}", e);
@@ -251,8 +251,7 @@ where
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
 
-        let cancellation_token = self.task_manager.child_token();
-        self.task_manager.spawn(async move {
+        self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler =
                 L1BlockHandler::<Vm, Da, Ps, DB, Stf::StateRoot, Stf::Witness>::new(
                     prover_config,
@@ -327,7 +326,7 @@ where
                 },
                 _ = signal::ctrl_c() => {
                     info!("Shutting down");
-                    self.task_manager.abort();
+                    self.task_manager.abort().await;
                     return Ok(());
                 }
             }

@@ -47,9 +47,11 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
+use tokio::signal;
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Instant};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::commitment_controller;
@@ -218,7 +220,7 @@ where
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
-        self.task_manager.spawn(async move {
+        self.task_manager.spawn(|cancellation_token| async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
@@ -247,7 +249,7 @@ where
                     info!("Starting RPC server at {} ", &bound_address);
 
                     let _server_handle = server.start(methods);
-                    futures::future::pending::<()>().await;
+                    cancellation_token.cancelled().await;
                 }
                 Err(e) => {
                     error!("Could not start RPC server: {}", e);
@@ -858,11 +860,14 @@ where
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, mut da_commitment_rx) = unbounded::<bool>();
 
-        self.task_manager.spawn(da_block_monitor(
-            self.da_service.clone(),
-            da_height_update_tx,
-            self.config.da_update_interval_ms,
-        ));
+        self.task_manager.spawn(|cancellation_token| {
+            da_block_monitor(
+                self.da_service.clone(),
+                da_height_update_tx,
+                self.config.da_update_interval_ms,
+                cancellation_token,
+            )
+        });
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 
@@ -968,7 +973,7 @@ where
                 },
                 _ = signal::ctrl_c() => {
                     info!("Shutting down sequencer");
-                    self.task_manager.abort();
+                    self.task_manager.abort().await;
                     return Ok(());
                 }
             }
@@ -1192,21 +1197,29 @@ async fn da_block_monitor<Da>(
     da_service: Arc<Da>,
     sender: mpsc::Sender<L1Data<Da>>,
     loop_interval: u64,
+    cancellation_token: CancellationToken,
 ) where
     Da: DaService,
 {
     loop {
-        let l1_data = match get_da_block_data(da_service.clone()).await {
-            Ok(l1_data) => l1_data,
-            Err(e) => {
-                error!("Could not fetch L1 data, {}", e);
-                continue;
+        tokio::select! {
+            l1_data = get_da_block_data(da_service.clone()) => {
+                let l1_data = match l1_data {
+                    Ok(l1_data) => l1_data,
+                    Err(e) => {
+                        error!("Could not fetch L1 data, {}", e);
+                        continue;
+                    }
+                };
+
+                let _ = sender.send(l1_data).await;
+
+                sleep(Duration::from_millis(loop_interval)).await;
+            },
+            _ = cancellation_token.cancelled() => {
+                return;
             }
-        };
-
-        let _ = sender.send(l1_data).await;
-
-        sleep(Duration::from_millis(loop_interval)).await;
+        }
     }
 }
 

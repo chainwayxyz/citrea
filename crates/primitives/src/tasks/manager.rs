@@ -1,7 +1,11 @@
 use std::future::Future;
+use std::time::Duration;
 
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
+
+const WAIT_DURATION: u64 = 5; // 5 seconds
 
 /// TaskManager manages tasks spawned using tokio and keeps
 /// track of handles so that these tasks are cancellable.
@@ -22,17 +26,24 @@ impl<T: Send + 'static> TaskManager<T> {
     }
 
     /// Spawn a new asynchronous task.
-    pub fn spawn(&mut self, future: impl Future<Output = T> + Send + 'static) {
-        let handle = tokio::spawn(future);
+    ///
+    /// Tasks are forced to accept a cancellation token so that they can be notified
+    /// about the cancellation using the passed token.
+    pub fn spawn<F, Fut>(&mut self, callback: F)
+    where
+        F: FnOnce(CancellationToken) -> Fut,
+        Fut: Future<Output = T> + Send + 'static,
+    {
+        let handle = tokio::spawn(callback(self.child_token()));
         self.handles.push(handle);
     }
 
-    /// Drastically abort all running tasks
-    pub fn abort(&self) {
+    /// Notify all running tasks to stop.
+    pub async fn abort(&self) {
         self.cancellation_token.cancel();
-        for handle in &self.handles {
-            handle.abort();
-        }
+
+        // provide tasks with some time to finish existing work
+        sleep(Duration::from_secs(WAIT_DURATION)).await;
     }
 
     /// Provides a child cancellation token.

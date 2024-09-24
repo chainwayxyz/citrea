@@ -179,42 +179,43 @@ where
             .layer(citrea_common::rpc::get_cors_layer())
             .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
-        self.task_manager.spawn(async move {
-            let server = ServerBuilder::default()
-                .max_connections(max_connections)
-                .max_subscriptions_per_connection(max_subscriptions_per_connection)
-                .max_request_body_size(max_request_body_size)
-                .max_response_body_size(max_response_body_size)
-                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-                .set_http_middleware(middleware)
-                .build([listen_address].as_ref())
-                .await;
+        self.task_manager
+            .spawn(move |cancellation_token| async move {
+                let server = ServerBuilder::default()
+                    .max_connections(max_connections)
+                    .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                    .max_request_body_size(max_request_body_size)
+                    .max_response_body_size(max_response_body_size)
+                    .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
+                    .set_http_middleware(middleware)
+                    .build([listen_address].as_ref())
+                    .await;
 
-            match server {
-                Ok(server) => {
-                    let bound_address = match server.local_addr() {
-                        Ok(address) => address,
-                        Err(e) => {
-                            error!("{}", e);
-                            return;
+                match server {
+                    Ok(server) => {
+                        let bound_address = match server.local_addr() {
+                            Ok(address) => address,
+                            Err(e) => {
+                                error!("{}", e);
+                                return;
+                            }
+                        };
+                        if let Some(channel) = channel {
+                            if let Err(e) = channel.send(bound_address) {
+                                error!("Could not send bound_address {}: {}", bound_address, e);
+                                return;
+                            }
                         }
-                    };
-                    if let Some(channel) = channel {
-                        if let Err(e) = channel.send(bound_address) {
-                            error!("Could not send bound_address {}: {}", bound_address, e);
-                            return;
-                        }
+                        info!("Starting RPC server at {} ", &bound_address);
+
+                        let _server_handle = server.start(methods);
+                        cancellation_token.cancelled().await;
                     }
-                    info!("Starting RPC server at {} ", &bound_address);
-
-                    let _server_handle = server.start(methods);
-                    futures::future::pending::<()>().await;
+                    Err(e) => {
+                        error!("Could not start RPC server: {}", e);
+                    }
                 }
-                Err(e) => {
-                    error!("Could not start RPC server: {}", e);
-                }
-            }
-        });
+            });
     }
 
     async fn process_l2_block(
@@ -325,22 +326,22 @@ where
         let accept_public_input_as_proven = self.accept_public_input_as_proven;
         let l1_block_cache = self.l1_block_cache.clone();
 
-        let cancellation_token = self.task_manager.child_token();
-        self.task_manager.spawn(async move {
-            let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(
-                ledger_db,
-                da_service,
-                sequencer_pub_key,
-                sequencer_da_pub_key,
-                prover_da_pub_key,
-                code_commitments_by_spec,
-                accept_public_input_as_proven,
-                l1_block_cache.clone(),
-            );
-            l1_block_handler
-                .run(start_l1_height, cancellation_token)
-                .await
-        });
+        self.task_manager
+            .spawn(move |cancellation_token| async move {
+                let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(
+                    ledger_db,
+                    da_service,
+                    sequencer_pub_key,
+                    sequencer_da_pub_key,
+                    prover_da_pub_key,
+                    code_commitments_by_spec,
+                    accept_public_input_as_proven,
+                    l1_block_cache.clone(),
+                );
+                l1_block_handler
+                    .run(start_l1_height, cancellation_token)
+                    .await
+            });
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2::<Da>(
@@ -397,7 +398,7 @@ where
                 },
                 _ = signal::ctrl_c() => {
                     info!("Shutting down");
-                    self.task_manager.abort();
+                    self.task_manager.abort().await;
                     return Ok(());
                 }
             }
