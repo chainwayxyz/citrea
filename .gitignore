@@ -25,3 +25,5 @@ resources/bitcoin/inscription_txs/
 adapters/solana/libyellowstone_grpc_geyser.dylib
 
 reveal_*.tx
+
+db

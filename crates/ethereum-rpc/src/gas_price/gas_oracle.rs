@@ -5,8 +5,8 @@
 
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::DEFAULT_GAS_PRICE;
 use parking_lot::Mutex;
-use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{BlockNumberOrTag, B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::{BlockTransactions, FeeHistory};
@@ -414,7 +414,7 @@ impl Default for GasPriceOracleResult {
     fn default() -> Self {
         Self {
             block_hash: B256::ZERO,
-            price: GWEI_TO_WEI as u128,
+            price: DEFAULT_GAS_PRICE,
         }
     }
 }
