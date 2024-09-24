@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::{BitcoinConfig, FullSequencerConfig};
 use crate::bitcoin_e2e::utils::get_genesis_path;
 
@@ -7,6 +9,7 @@ pub struct DockerConfig {
     pub image: String,
     pub cmd: Vec<String>,
     pub dir: String,
+    pub log_path: PathBuf,
 }
 
 impl From<&BitcoinConfig> for DockerConfig {
@@ -30,6 +33,7 @@ impl From<&BitcoinConfig> for DockerConfig {
                 .unwrap_or_else(|| "bitcoin/bitcoin:latest".to_string()),
             cmd: args,
             dir: format!("{}:/bitcoin/data", v.data_dir.display()),
+            log_path: v.data_dir.join("regtest").join("debug.log"),
         }
     }
 }
@@ -57,6 +61,7 @@ impl From<&FullSequencerConfig> for DockerConfig {
                 .unwrap_or_else(|| "citrea:latest".to_string()), // Default to local image
             cmd: args,
             dir: format!("{}:/sequencer/data", v.dir.display()),
+            log_path: v.dir.join("stdout"),
         }
     }
 }
