@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
-use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
+use citrea_common::cache::L1BlockCache;
+use citrea_common::da::get_da_block_at_height;
+use citrea_common::error::SyncError;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde::de::DeserializeOwned;
