@@ -5,9 +5,9 @@
 ![](resources/assets/banner.png)
 
 > [!WARNING]
-> Citrea is still work-in-progress as a testnet. While the devnet phase is successfully completed and it's now live on Bitcoin Testnet4, it has not been audited and many features are under heavy development. Citrea's proper integration with [Bitcoin Mainnet](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) are still ongoing. \
+> Citrea Testnet is now launched on top of Bitcoin Testnet4. While many key features are completed, Citrea's proper integration with [Bitcoin Mainnet](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) are still ongoing, and it is also going to be audited for the Mainnet. \
 > \
-> Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding testnet & mainnet phases of Citrea. \
+> Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding the next phases of Citrea. \
 > \
 > Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
 > \
