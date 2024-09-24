@@ -5,9 +5,10 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use bitcoin_da::helpers::compression::compress_blob;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::utils::{filter_out_proven_commitments, merge_state_diffs};
-use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_STATEDIFF_SIZE_PROOF_THRESHOLD};
+use citrea_primitives::{get_da_block_at_height, L1BlockCache, MAX_TXBODY_SIZE};
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -182,6 +183,10 @@ where
                 l1_block.header().height(),
             );
 
+            // Make sure all sequencer commitments are stored in ascending order.
+            // We sort before checking ranges to prevent substraction errors.
+            sequencer_commitments.sort();
+
             // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
@@ -196,9 +201,6 @@ where
             // otherwise we submit and prove with a probability of 1/proof_sampling_number
             let should_prove = self.prover_config.proof_sampling_number == 0
                 || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number) == 0;
-
-            // Make sure all sequencer commitments are stored in ascending order.
-            sequencer_commitments.sort();
 
             let (sequencer_commitments, preproven_commitments) =
                 filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
@@ -346,10 +348,10 @@ where
                 sequencer_commitment_state_diff.clone(),
             );
 
-            let serialized_state_diff = borsh::to_vec(&cumulative_state_diff)?;
+            let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
 
-            let state_diff_threshold_reached =
-                serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_PROOF_THRESHOLD;
+            // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
+            let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
 
             if state_diff_threshold_reached {
                 // We've exceeded the limit with the current commitments

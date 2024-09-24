@@ -84,6 +84,7 @@ impl RollupBlueprint for BitcoinRollup {
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
             storage.clone(),
+            ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,
             soft_confirmation_rx,
@@ -119,7 +120,7 @@ impl RollupBlueprint for BitcoinRollup {
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
+        let (tx, rx) = unbounded_channel::<Option<SenderWithNotifier<TxidWrapper>>>();
 
         let bitcoin_service = if require_wallet_check {
             BitcoinService::new_with_wallet_check(
@@ -143,9 +144,12 @@ impl RollupBlueprint for BitcoinRollup {
             .await?
         };
         let service = Arc::new(bitcoin_service);
-
-        Arc::clone(&service).spawn_da_queue(rx);
-
+        // until forced transactions are implemented,
+        // require_wallet_check is set false for full nodes.
+        if require_wallet_check {
+            // spawn_da_queue only for sequencer and prover
+            Arc::clone(&service).spawn_da_queue(rx);
+        }
         Ok(service)
     }
 

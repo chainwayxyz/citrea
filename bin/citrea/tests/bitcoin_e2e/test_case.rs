@@ -3,7 +3,6 @@
 
 use std::panic::{self};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
@@ -11,8 +10,8 @@ use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
 use bitcoincore_rpc::RpcApi;
 use citrea_sequencer::SequencerConfig;
+use futures::FutureExt;
 use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
-use tokio::task;
 
 use super::config::{
     default_rollup_config, BitcoinConfig, FullFullNodeConfig, FullProverConfig,
@@ -29,12 +28,12 @@ use crate::bitcoin_e2e::utils::{get_default_genesis_path, get_workspace_root};
 /// It creates a test framework with the associated configs, spawns required nodes, connects them,
 /// runs the test case, and performs cleanup afterwards. The `run` method handles any panics that
 /// might occur during test execution and takes care of cleaning up and stopping the child processes.
-pub struct TestCaseRunner<T: TestCase>(Arc<T>);
+pub struct TestCaseRunner<T: TestCase>(T);
 
 impl<T: TestCase> TestCaseRunner<T> {
     /// Creates a new TestCaseRunner with the given test case.
     pub fn new(test_case: T) -> Self {
-        Self(Arc::new(test_case))
+        Self(test_case)
     }
 
     pub async fn setup(&self, f: &mut TestFramework) -> Result<()> {
@@ -60,7 +59,7 @@ impl<T: TestCase> TestCaseRunner<T> {
     }
 
     /// Internal method to set up connect the nodes, wait for the nodes to be ready and run the test.
-    async fn run_test_case(&self, f: &mut TestFramework) -> Result<()> {
+    async fn run_test_case(&mut self, f: &mut TestFramework) -> Result<()> {
         f.bitcoin_nodes.connect_nodes().await?;
 
         if let Some(sequencer) = &f.sequencer {
@@ -72,34 +71,29 @@ impl<T: TestCase> TestCaseRunner<T> {
 
     /// Executes the test case, handling any panics and performing cleanup.
     ///
-    /// This method spawns a blocking task to run the test, sets up the framework,
-    /// executes the test, and ensures cleanup is performed even if a panic occurs.
-    pub async fn run(self) -> Result<()> {
-        let result = task::spawn_blocking(move || {
-            let mut framework = None;
-            let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-                futures::executor::block_on(async {
-                    framework = Some(TestFramework::new(Self::generate_test_config()?).await?);
-                    self.setup(framework.as_mut().unwrap()).await?;
-                    self.run_test_case(framework.as_mut().unwrap()).await
-                })
-            }));
+    /// This sets up the framework, executes the test, and ensures cleanup is performed even if a panic occurs.
+    pub async fn run(mut self) -> Result<()> {
+        let result = panic::AssertUnwindSafe(async {
+            let mut framework = TestFramework::new(Self::generate_test_config()?).await?;
+            self.setup(&mut framework).await?;
 
-            // Always attempt to stop the framework, even if a panic occurred
-            if let Some(mut f) = framework {
-                let _ = futures::executor::block_on(f.stop());
+            let test_result = self.run_test_case(&mut framework).await;
 
-                if result.is_err() {
-                    if let Err(e) = f.dump_log() {
-                        eprintln!("{e}")
-                    }
+            if test_result.is_err() {
+                if let Err(e) = framework.dump_log() {
+                    eprintln!("Error dumping log: {}", e);
                 }
             }
 
-            result
+            framework.stop().await?;
+
+            test_result
         })
-        .await
-        .expect("Task panicked");
+        .catch_unwind()
+        .await;
+
+        // Additional test cleanup
+        self.0.cleanup().await?;
 
         match result {
             Ok(Ok(())) => Ok(()),
@@ -159,7 +153,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D"
                             .to_string(),
                     ),
-                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    node_url: format!("http://{}/wallet/{}", da_config.node_url, node_kind),
                     tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
@@ -194,7 +188,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                         "75BAF964D074594600366E5B111A1DA8F86B2EFE2D22DA51C8D82126A0FCAC72"
                             .to_string(),
                     ),
-                    node_url: format!("{}/wallet/{}", da_config.node_url, node_kind),
+                    node_url: format!("http://{}/wallet/{}", da_config.node_url, node_kind),
                     tx_backup_dir: get_tx_backup_dir(),
                     ..da_config.clone()
                 },
@@ -217,7 +211,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             RollupConfig {
                 da: BitcoinServiceConfig {
                     node_url: format!(
-                        "{}/wallet/{}",
+                        "http://{}/wallet/{}",
                         da_config.node_url,
                         NodeKind::Bitcoin // Use default wallet
                     ),
@@ -309,7 +303,11 @@ pub trait TestCase: Send + Sync + 'static {
     ///
     /// # Arguments
     /// * `framework` - A reference to the TestFramework instance
-    async fn run_test(&self, framework: &TestFramework) -> Result<()>;
+    async fn run_test(&mut self, framework: &TestFramework) -> Result<()>;
+
+    async fn cleanup(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 fn create_dirs(base_dir: &Path) -> Result<[PathBuf; 6]> {

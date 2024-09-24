@@ -9,7 +9,7 @@ use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, Transaction
 use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::{Filter, LogResponse};
-use ethereum_rpc::CitreaStatus;
+use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -721,7 +721,7 @@ impl TestClient {
         block_number.saturating_to()
     }
 
-    pub(crate) async fn citrea_sync_status(&self) -> CitreaStatus {
+    pub(crate) async fn citrea_sync_status(&self) -> SyncStatus {
         self.http_client
             .request("citrea_syncStatus", rpc_params![])
             .await

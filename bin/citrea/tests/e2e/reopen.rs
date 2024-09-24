@@ -385,7 +385,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     wait_for_l1_block(&da_service, 4, None).await;
 
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 5, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 5, None).await?;
     // Contains the proof
     wait_for_l1_block(&da_service, 5, None).await;
 
@@ -505,7 +505,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     // Commitment is sent
     wait_for_l1_block(&da_service, 8, None).await;
     // wait here until we see from prover's rpc that it finished proving
-    wait_for_prover_l1_height(&prover_node_test_client, 9, None).await;
+    wait_for_prover_l1_height(&prover_node_test_client, 9, None).await?;
 
     // Should now have 8 blocks = 2 commitments of blocks 1-4 and 5-8
     // there is an extra soft confirmation due to the prover publishing a proof. This causes

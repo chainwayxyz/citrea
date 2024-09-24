@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_primitives::TEST_PRIVATE_KEY;
@@ -225,9 +226,9 @@ pub async fn wait_for_prover_l1_height(
     prover_client: &TestClient,
     num: u64,
     timeout: Option<Duration>,
-) {
+) -> anyhow::Result<()> {
     let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 300 seconds timeout
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover height {}", num);
         let latest_block = prover_client.ledger_get_last_scanned_l1_height().await;
@@ -237,11 +238,12 @@ pub async fn wait_for_prover_l1_height(
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest prover L1 height is {}", latest_block);
+            bail!("Timeout. Latest prover L1 height is {}", latest_block);
         }
 
         sleep(Duration::from_secs(1)).await;
     }
+    Ok(())
 }
 
 #[instrument(level = "debug", skip(da_service))]

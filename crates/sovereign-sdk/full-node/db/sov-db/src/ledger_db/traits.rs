@@ -2,14 +2,14 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, StateDiff};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
-    StoredSoftConfirmation, StoredStateTransition, StoredTransaction, TxNumber,
+    BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot, StoredSoftConfirmation,
+    StoredStateTransition,
 };
 
 /// Shared ledger operations
@@ -19,23 +19,6 @@ pub trait SharedLedgerOps {
         &self,
         batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Put transaction to db
-    fn put_transaction(
-        &self,
-        tx: &StoredTransaction,
-        tx_number: &TxNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Put event to db
-    fn put_event(
-        &self,
-        event: &Event,
-        event_number: &EventNumber,
-        tx_number: TxNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
@@ -150,12 +133,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 
     /// Get the most recent committed slot, if any
     fn get_head_slot(&self) -> Result<Option<(SlotNumber, StoredSlot)>>;
-
-    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    fn get_tx_range(&self, range: &std::ops::Range<TxNumber>) -> Result<Vec<StoredTransaction>>;
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;

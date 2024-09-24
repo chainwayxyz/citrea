@@ -51,7 +51,7 @@ impl Prover {
         })
     }
 
-    pub async fn wait_for_l1_height(&self, height: u64, timeout: Option<Duration>) {
+    pub async fn wait_for_l1_height(&self, height: u64, timeout: Option<Duration>) -> Result<()> {
         wait_for_prover_l1_height(&self.client, height, timeout).await
     }
 }

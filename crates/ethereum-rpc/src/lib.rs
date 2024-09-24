@@ -19,32 +19,40 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{FeeHistory, Index};
 use sequencer_client::SequencerClient;
 use serde_json::json;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use subscription::{handle_logs_subscription, handle_new_heads_subscription};
+use tokio::join;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SyncStatus {
+pub struct SyncValues {
     pub head_block_number: u64,
     pub synced_block_number: u64,
 }
-
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub enum LayerStatus {
+    Synced(u64),
+    Syncing(SyncValues),
+}
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub enum CitreaStatus {
-    Synced(u64),
-    Syncing(SyncStatus),
+pub struct SyncStatus {
+    pub l1_status: LayerStatus,
+    pub l2_status: LayerStatus,
 }
 
 pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     da_service: Arc<Da>,
     eth_rpc_config: EthRpcConfig,
     storage: C::Storage,
+    ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
     soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
 ) -> RpcModule<Ethereum<C, Da>> {
@@ -68,6 +76,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         #[cfg(feature = "local")]
         eth_signer,
         storage,
+        ledger_db,
         sequencer_client_url.map(SequencerClient::new),
         soft_confirmation_rx,
     ));
@@ -600,20 +609,19 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             },
         )?;
 
-        rpc.register_async_method::<Result<CitreaStatus, ErrorObjectOwned>, _, _>(
+        rpc.register_async_method::<Result<SyncStatus, ErrorObjectOwned>, _, _>(
             "citrea_syncStatus",
             |_, ethereum, _| async move {
                 info!("Full Node: citrea_syncStatus");
 
-                // sequencer client should send it
-                let block_number = ethereum
-                    .sequencer_client
-                    .as_ref()
-                    .unwrap()
-                    .block_number()
-                    .await;
-
-                let head_block_number = match block_number {
+                // sequencer client should send latest l2 height
+                // da service should send latest finalized l1 block header
+                let (sequencer_response, da_response) = join!(
+                    ethereum.sequencer_client.as_ref().unwrap().block_number(),
+                    ethereum.da_service.get_last_finalized_block_header()
+                );
+                // handle sequencer response
+                let l2_head_block_number = match sequencer_response {
                     Ok(block_number) => block_number,
                     Err(e) => match e {
                         jsonrpsee::core::client::Error::Call(e_owned) => return Err(e_owned),
@@ -621,26 +629,49 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     },
                 };
 
-                let evm = Evm::<C>::default();
-                let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+                // get l2 synced block number
 
-                let block =
-                    evm.get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set);
+                let head_soft_confirmation = ethereum.ledger_db.get_head_soft_confirmation();
 
-                let synced_block_number = match block {
-                    Ok(Some(block)) => block.header.number.unwrap(),
+                let l2_synced_block_number = match head_soft_confirmation {
+                    Ok(Some((height, _))) => height.0,
                     Ok(None) => 0u64,
-                    Err(e) => return Err(e),
+                    Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
                 };
 
-                if synced_block_number < head_block_number {
-                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Syncing(SyncStatus {
-                        synced_block_number,
-                        head_block_number,
-                    }))
+                // handle da service response
+                let l1_head_block_number = match da_response {
+                    Ok(header) => header.height(),
+                    Err(e) => return Err(to_jsonrpsee_error_object("DA_SERVICE_ERROR", e)),
+                };
+
+                // get l1 synced block number
+                let l1_synced_block_number = match ethereum.ledger_db.get_last_scanned_l1_height() {
+                    Ok(Some(slot_number)) => slot_number.0,
+                    Ok(None) => 0u64,
+                    Err(e) => return Err(to_jsonrpsee_error_object("LEDGER_DB_ERROR", e)),
+                };
+
+                let l1_status = if l1_synced_block_number < l1_head_block_number {
+                    LayerStatus::Syncing(SyncValues {
+                        synced_block_number: l1_synced_block_number,
+                        head_block_number: l1_head_block_number,
+                    })
                 } else {
-                    Ok::<CitreaStatus, ErrorObjectOwned>(CitreaStatus::Synced(head_block_number))
-                }
+                    LayerStatus::Synced(l1_head_block_number)
+                };
+                let l2_status = if l2_synced_block_number < l2_head_block_number {
+                    LayerStatus::Syncing(SyncValues {
+                        synced_block_number: l2_synced_block_number,
+                        head_block_number: l2_head_block_number,
+                    })
+                } else {
+                    LayerStatus::Synced(l2_head_block_number)
+                };
+                Ok::<SyncStatus, ErrorObjectOwned>(SyncStatus {
+                    l1_status,
+                    l2_status,
+                })
             },
         )?;
     }

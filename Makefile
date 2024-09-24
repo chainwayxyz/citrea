@@ -40,15 +40,14 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install --locked dprint
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
-	cargo install cargo-udeps
+	cargo install --locked cargo-udeps
 	cargo install flaky-finder
-	cargo install cargo-nextest --locked
+	cargo install --locked cargo-nextest
 	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall cargo-risczero@1.0.5 --no-confirm
+	cargo binstall --no-confirm cargo-risczero@1.0.5
 	cargo risczero install --version r0.1.79.0-2
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
-	cargo install cargo-llvm-cov
 
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
@@ -89,7 +88,7 @@ coverage-html: ## Coverage in HTML format
 docs:  ## Generates documentation locally
 	cargo doc --open
 
-set-git-hook: 
+set-git-hook:
 	git config core.hooksPath .githooks
 
 # Downloads and unpacks Ethereum Foundation tests in the `$(EF_TESTS_DIR)` directory.

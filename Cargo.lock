@@ -1217,6 +1217,7 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "brotli",
+ "citrea-primitives",
  "futures",
  "hex",
  "pin-project",
@@ -1269,20 +1270,22 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=fb809b0#fb809b0f3c203064e877fd289a046bb7ef2d6462"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=0ae498d#0ae498da2b6aa6e89b1a1bc9d484eb55919718ba"
 dependencies = [
  "async-trait",
  "bitcoincore-rpc-json",
  "jsonrpc-async",
  "log",
+ "reqwest 0.12.5",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
 name = "bitcoincore-rpc-json"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=fb809b0#fb809b0f3c203064e877fd289a046bb7ef2d6462"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=0ae498d#0ae498da2b6aa6e89b1a1bc9d484eb55919718ba"
 dependencies = [
  "bitcoin",
  "serde",
@@ -1857,6 +1860,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
+ "bitcoin-da",
  "borsh",
  "citrea-common",
  "citrea-primitives",
@@ -1917,6 +1921,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
+ "backoff",
  "borsh",
  "chrono",
  "citrea-common",
@@ -2757,6 +2762,7 @@ dependencies = [
  "sequencer-client",
  "serde",
  "serde_json",
+ "sov-db",
  "sov-modules-api",
  "sov-rollup-interface",
  "tokio",

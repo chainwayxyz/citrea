@@ -35,7 +35,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let prover = f.prover.as_ref().unwrap();
@@ -59,7 +59,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let finalized_height = da.get_finalized_height().await?;
 
         // wait here until we see from prover's rpc that it finished proving
-        prover.wait_for_l1_height(finalized_height, None).await;
+        prover.wait_for_l1_height(finalized_height, None).await?;
 
         let commitments = prover
             .client
@@ -113,7 +113,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
@@ -181,7 +181,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
