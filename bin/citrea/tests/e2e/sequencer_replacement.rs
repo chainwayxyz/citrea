@@ -35,10 +35,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let fullnode_db_dir = storage_dir.path().join("full-node").to_path_buf();
 
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 4,
-        ..Default::default()
-    };
+    let sequencer_config = SequencerConfig::default();
 
     let da_service = MockDaService::with_finality(MockAddress::from([0; 32]), 0, &da_db_dir);
     da_service.publish_test_block().await.unwrap();
@@ -177,10 +174,8 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
-    let mut sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 4,
-        ..Default::default()
-    };
+    let mut sequencer_config = SequencerConfig::default();
+
     sequencer_config.mempool_conf = SequencerMempoolConfig {
         max_account_slots: 100,
         ..Default::default()

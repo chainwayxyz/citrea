@@ -32,10 +32,8 @@ async fn full_node_verify_proof_and_store() {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 4,
-        ..Default::default()
-    };
+    let sequencer_config = SequencerConfig::default();
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,

@@ -37,7 +37,6 @@ impl TestCase for BasicProverTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             min_soft_confirmations_per_commitment: 10,
-            test_mode: true,
             ..Default::default()
         }
     }
@@ -129,7 +128,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             min_soft_confirmations_per_commitment: 10,
-            test_mode: true,
             ..Default::default()
         }
     }

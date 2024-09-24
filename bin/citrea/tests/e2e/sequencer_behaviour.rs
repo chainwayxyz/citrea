@@ -6,7 +6,6 @@ use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Encodable};
-use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
@@ -39,13 +38,10 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
-        private_key: TEST_PRIVATE_KEY.to_string(),
         min_soft_confirmations_per_commitment: 1000,
-        test_mode: true,
-        deposit_mempool_fetch_limit: 10,
-        mempool_conf: Default::default(),
         da_update_interval_ms: 500,
         block_production_interval_ms: 500,
+        ..Default::default()
     };
     let seq_task = tokio::spawn(async {
         start_rollup(
@@ -339,25 +335,26 @@ async fn test_gas_limit_too_high() {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let seq_task = tokio::spawn(async move {
+
+    // Increase max account slots to not stuck as spammer
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 1000,
+        deposit_mempool_fetch_limit: 100,
+        mempool_conf: SequencerMempoolConfig {
+            max_account_slots: tx_count * 2,
+            ..Default::default()
+        },
+        da_update_interval_ms: 1000,
+        block_production_interval_ms: 1000,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
             rollup_config,
-            // Increase max account slots to not stuck as spammer
-            Some(SequencerConfig {
-                private_key: TEST_PRIVATE_KEY.to_string(),
-                min_soft_confirmations_per_commitment: 1000,
-                test_mode: true,
-                deposit_mempool_fetch_limit: 100,
-                mempool_conf: SequencerMempoolConfig {
-                    max_account_slots: tx_count * 2,
-                    ..Default::default()
-                },
-                da_update_interval_ms: 1000,
-                block_production_interval_ms: 1000,
-            }),
+            Some(sequencer_config),
         )
         .await;
     });
@@ -605,16 +602,14 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
-        private_key: TEST_PRIVATE_KEY.to_string(),
         min_soft_confirmations_per_commitment: 1000,
-        test_mode: true,
-        deposit_mempool_fetch_limit: 10,
         mempool_conf: SequencerMempoolConfig {
             max_account_slots: 100,
             ..Default::default()
         },
         da_update_interval_ms: 1000,
         block_production_interval_ms: 500,
+        ..Default::default()
     };
     let seq_task = tokio::spawn(async {
         start_rollup(

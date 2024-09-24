@@ -62,10 +62,7 @@ async fn test_all_flow() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: 4,
-        ..Default::default()
-    };
+    let sequencer_config = SequencerConfig::default();
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let seq_task = tokio::spawn(async {
