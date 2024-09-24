@@ -150,9 +150,8 @@ where
         // We sort before checking ranges to prevent substraction errors.
         sequencer_commitments.sort();
 
-        // If the L2 range does not exist, we break off the local loop getting back to
-        // the outer loop / select to make room for other tasks to run.
-        // We retry the L1 block there as well.
+        // If the L2 range does not exist, we break off the current process call
+        // We retry the L1 block at a later tick.
         if !check_l2_range_exists(
             self.ledger_db.clone(),
             sequencer_commitments[0].l2_start_block_number,
