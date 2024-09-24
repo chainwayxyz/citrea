@@ -47,15 +47,13 @@ pub async fn start_rollup(
         panic!("Both sequencer and prover config cannot be set at the same time");
     }
 
-    if sequencer_config.is_some() {
+    if let Some(sequencer_config) = sequencer_config {
         warn!(
             "Starting sequencer node pub key: {:?}",
             DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
                 .unwrap()
                 .pub_key()
         );
-        let sequencer_config = sequencer_config.unwrap();
-
         let span = info_span!("Sequencer");
         let sequencer = CitreaRollupBlueprint::create_new_sequencer(
             &mock_demo_rollup,
@@ -71,13 +69,13 @@ pub async fn start_rollup(
             .instrument(span)
             .await
             .unwrap();
-    } else if rollup_prover_config.is_some() {
+    } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
         let rollup = CitreaRollupBlueprint::create_new_prover(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config,
-            rollup_prover_config.unwrap(),
+            rollup_prover_config,
         )
         .instrument(span.clone())
         .await
