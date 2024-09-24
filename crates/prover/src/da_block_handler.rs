@@ -9,7 +9,9 @@ use bitcoin_da::helpers::compression::compress_blob;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
-use citrea_common::utils::{filter_out_proven_commitments, merge_state_diffs};
+use citrea_common::utils::{
+    check_l2_range_exists, filter_out_proven_commitments, merge_state_diffs,
+};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
@@ -192,7 +194,8 @@ where
             // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
-            if !self.check_l2_range_exists(
+            if !check_l2_range_exists(
+                self.ledger_db.clone(),
                 sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {
@@ -307,18 +310,6 @@ where
             }
         });
         sequencer_commitments
-    }
-
-    fn check_l2_range_exists(&self, first_l2_height_of_l1: u64, last_l2_height_of_l1: u64) -> bool {
-        let ledger_db = &self.ledger_db.clone();
-        if let Ok(range) = ledger_db.clone().get_soft_confirmation_range(
-            &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
-        ) {
-            if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
-                return true;
-            }
-        }
-        false
     }
 
     fn break_sequencer_commitments_into_groups(

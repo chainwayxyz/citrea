@@ -8,6 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::error::SyncError;
+use citrea_common::utils::check_l2_range_exists;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde::de::DeserializeOwned;
@@ -61,7 +62,7 @@ where
     C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: NodeLedgerOps,
+    DB: NodeLedgerOps + Clone,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -136,7 +137,7 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
             .unwrap();
 
-        let (sequencer_commitments, zk_proofs) =
+        let (mut sequencer_commitments, zk_proofs) =
             match self.extract_relevant_l1_data(l1_block.clone()).await {
                 Ok(r) => r,
                 Err(e) => {
@@ -144,6 +145,21 @@ where
                     return;
                 }
             };
+
+        // Make sure all sequencer commitments are stored in ascending order.
+        // We sort before checking ranges to prevent substraction errors.
+        sequencer_commitments.sort();
+
+        // If the L2 range does not exist, we break off the local loop getting back to
+        // the outer loop / select to make room for other tasks to run.
+        // We retry the L1 block there as well.
+        if !check_l2_range_exists(
+            self.ledger_db.clone(),
+            sequencer_commitments[0].l2_start_block_number,
+            sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
+        ) {
+            return;
+        }
 
         for zk_proof in zk_proofs.clone().iter() {
             if let Err(e) = self
@@ -384,7 +400,7 @@ where
                 }
             };
 
-        commitments_on_da_slot.sort_unstable();
+        commitments_on_da_slot.sort();
 
         let excluded_commitment_indices = state_transition.preproven_commitments.clone();
         let filtered_commitments: Vec<SequencerCommitment> = commitments_on_da_slot

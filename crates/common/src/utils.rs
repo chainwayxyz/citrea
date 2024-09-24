@@ -74,3 +74,18 @@ pub fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
 
     Ok((filtered, skipped_commitments))
 }
+
+pub fn check_l2_range_exists<DB: SharedLedgerOps>(
+    ledger_db: DB,
+    first_l2_height_of_l1: u64,
+    last_l2_height_of_l1: u64,
+) -> bool {
+    if let Ok(range) = ledger_db.get_soft_confirmation_range(
+        &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
+    ) {
+        if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
+            return true;
+        }
+    }
+    false
+}
