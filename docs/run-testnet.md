@@ -137,8 +137,7 @@ If you don't have it, install it from [here](https://www.rust-lang.org/tools/ins
 
 #### Step 2.2: Clone the source code
 
-#TODO: we can checkout main also
-Let's clone the repository and checkout the latest tag:
+Clone the repository and checkout the latest tag:
 ```sh
 git clone https://github.com/chainwayxyz/citrea
 cd citrea
