@@ -25,14 +25,8 @@ use tokio::task::JoinHandle;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_rollup_config,
-    start_rollup,
-    tempdir_with_children,
-    wait_for_l1_block,
-    wait_for_l2_block,
-    wait_for_proof,
-    wait_for_prover_l1_height,
-    NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode,
 };
 use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
 
@@ -91,13 +85,9 @@ async fn test_all_flow() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config = create_default_rollup_config(
-        true,
-        &prover_db_dir,
-        &da_db_dir,
-        NodeMode::Prover(seq_port),
-    );
-    let prover_node_task = tokio::spawn(async move {
+    let rollup_config =
+        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
+    let prover_node_task = tokio::spawn(async {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -123,7 +113,7 @@ async fn test_all_flow() {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -383,7 +373,7 @@ async fn test_ledger_get_head_soft_confirmation() {
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -451,7 +441,7 @@ async fn initialize_test(
         &config.da_path,
         NodeMode::SequencerNode,
     );
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -473,7 +463,7 @@ async fn initialize_test(
         &config.da_path,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

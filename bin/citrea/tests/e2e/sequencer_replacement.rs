@@ -49,7 +49,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -72,7 +72,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -128,7 +128,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     // Start the full node as sequencer
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -195,7 +195,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let config1 = sequencer_config.clone();
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -272,7 +272,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -368,7 +368,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -390,7 +390,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -412,7 +412,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
         &da_db_dir,
         NodeMode::FullNode(full_node_port),
     );
-    let full_node_task_2 = tokio::spawn(async move {
+    let full_node_task_2 = tokio::spawn(async {
         start_rollup(
             full_node_port_tx_2,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

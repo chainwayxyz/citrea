@@ -109,7 +109,7 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let rollup_task = tokio::spawn(async move {
+    let rollup_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

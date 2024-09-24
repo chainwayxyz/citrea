@@ -25,7 +25,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
     };
-    tokio::spawn(async move {
+    tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,

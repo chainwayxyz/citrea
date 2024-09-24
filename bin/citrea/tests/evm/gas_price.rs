@@ -31,7 +31,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
         min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
     };
-    let rollup_task = tokio::spawn(async move {
+    let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,

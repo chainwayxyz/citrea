@@ -21,13 +21,13 @@ async fn initialize_test(
 ) -> (JoinHandle<()>, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let seq_task = tokio::spawn(async move {
-        let rollup_config =
-            create_default_rollup_config(true, &sequencer_path, &db_path, NodeMode::SequencerNode);
-        let sequencer_config = SequencerConfig {
-            min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            ..Default::default()
-        };
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_path, &db_path, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

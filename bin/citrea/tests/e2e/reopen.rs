@@ -58,7 +58,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         NodeMode::FullNode(seq_port),
     );
     // starting full node with db path
-    let rollup_task = tokio::spawn(async move {
+    let rollup_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -137,7 +137,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         NodeMode::FullNode(seq_port),
     );
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
-    let rollup_task = tokio::spawn(async move {
+    let rollup_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -305,7 +305,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
         min_soft_confirmations_per_commitment: 4,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

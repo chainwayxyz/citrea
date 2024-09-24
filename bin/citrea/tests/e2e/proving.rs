@@ -57,7 +57,7 @@ async fn full_node_verify_proof_and_store() {
     let rollup_config =
         create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
 
-    let prover_node_task = tokio::spawn(async move {
+    let prover_node_task = tokio::spawn(async {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -83,7 +83,7 @@ async fn full_node_verify_proof_and_store() {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

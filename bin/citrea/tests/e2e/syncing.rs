@@ -75,7 +75,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -272,7 +272,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         min_soft_confirmations_per_commitment: 4,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -290,7 +290,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
 
     let rollup_config =
         create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
-    let prover_node_task = tokio::spawn(async move {
+    let prover_node_task = tokio::spawn(async {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -435,7 +435,7 @@ async fn test_full_node_sync_status() {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -533,7 +533,7 @@ async fn test_healthcheck() {
         &da_db_dir,
         NodeMode::FullNode(seq_addr),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),

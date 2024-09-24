@@ -150,7 +150,7 @@ async fn test_sequencer_commitment_threshold() {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -373,7 +373,7 @@ async fn test_gas_limit_too_high() {
         &da_db_dir,
         NodeMode::FullNode(seq_port),
     );
-    let full_node_task = tokio::spawn(async move {
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -480,7 +480,7 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
         min_soft_confirmations_per_commitment: 1000,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -524,7 +524,7 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
         min_soft_confirmations_per_commitment: 1000,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
@@ -616,7 +616,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
         da_update_interval_ms: 1000,
         block_production_interval_ms: 500,
     };
-    let seq_task = tokio::spawn(async move {
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(
