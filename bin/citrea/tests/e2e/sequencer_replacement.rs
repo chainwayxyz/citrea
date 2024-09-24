@@ -174,10 +174,11 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
 
-    let mut sequencer_config = SequencerConfig::default();
-
-    sequencer_config.mempool_conf = SequencerMempoolConfig {
-        max_account_slots: 100,
+    let sequencer_config = SequencerConfig {
+        mempool_conf: SequencerMempoolConfig {
+            max_account_slots: 100,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
