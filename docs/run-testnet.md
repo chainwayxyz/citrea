@@ -149,6 +149,12 @@ git checkout $(git describe --tags `git rev-list --tags --max-count=1`)
 #### Step 2.3: Build Citrea
 If you wish to verify ZK-Proofs, then you'll need to compile our ZK VM binaries inside docker. To do so, follow instructions to install Docker: https://docs.docker.com/engine/install/
 
+Install development dependencies:
+
+```sh
+make install-dev-tools
+```
+
 Compile Citrea by running command:
 
 ```sh
