@@ -131,10 +131,11 @@ where
             .pending_l1_blocks
             .front()
             .expect("Just checked pending L1 blocks is not empty");
+        let l1_height = l1_block.header().height();
 
         // Set the l1 height of the l1 hash
         self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
+            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
         let (mut sequencer_commitments, zk_proofs) =
@@ -146,18 +147,20 @@ where
                 }
             };
 
-        // Make sure all sequencer commitments are stored in ascending order.
-        // We sort before checking ranges to prevent substraction errors.
-        sequencer_commitments.sort();
+        if !sequencer_commitments.is_empty() {
+            // Make sure all sequencer commitments are stored in ascending order.
+            // We sort before checking ranges to prevent substraction errors.
+            sequencer_commitments.sort();
 
-        // If the L2 range does not exist, we break off the current process call
-        // We retry the L1 block at a later tick.
-        if !check_l2_range_exists(
-            self.ledger_db.clone(),
-            sequencer_commitments[0].l2_start_block_number,
-            sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
-        ) {
-            return;
+            // If the L2 range does not exist, we break off the current process call
+            // We retry the L1 block at a later tick.
+            if !check_l2_range_exists(
+                self.ledger_db.clone(),
+                sequencer_commitments[0].l2_start_block_number,
+                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
+            ) {
+                return;
+            }
         }
 
         for zk_proof in zk_proofs.clone().iter() {
