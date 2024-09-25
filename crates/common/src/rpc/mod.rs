@@ -1,4 +1,6 @@
 //! Common RPC crate provides helper methods that are needed in rpc servers
+use std::time::Duration;
+
 use hyper::Method;
 use jsonrpsee::core::RegisterMethodError;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
@@ -7,7 +9,6 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::types::BatchNumber;
-use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 
 // Exit early if head_batch_num is below this threshold
