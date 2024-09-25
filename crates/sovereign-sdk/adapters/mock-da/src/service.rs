@@ -162,6 +162,10 @@ impl MockDaService {
     ) {
         loop {
             select! {
+                biased;
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
                 req = transaction_queue_receiver.recv() => {
                     if let Some(Some(req)) = req {
                         let res = self.send_transaction(req.da_data).await;
@@ -173,9 +177,6 @@ impl MockDaService {
                         tracing::debug!("Finalized MockHeader: {}", header);
                     }
                 },
-                _ = cancellation_token.cancelled() => {
-                    return;
-                }
             }
         }
     }

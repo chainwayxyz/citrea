@@ -1203,6 +1203,10 @@ async fn da_block_monitor<Da>(
 {
     loop {
         tokio::select! {
+            biased;
+            _ = cancellation_token.cancelled() => {
+                return;
+            }
             l1_data = get_da_block_data(da_service.clone()) => {
                 let l1_data = match l1_data {
                     Ok(l1_data) => l1_data,
@@ -1216,9 +1220,6 @@ async fn da_block_monitor<Da>(
 
                 sleep(Duration::from_millis(loop_interval)).await;
             },
-            _ = cancellation_token.cancelled() => {
-                return;
-            }
         }
     }
 }

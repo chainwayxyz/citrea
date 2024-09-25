@@ -110,6 +110,10 @@ where
 
         loop {
             select! {
+                biased;
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
                 _ = &mut l1_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
                     self.pending_l1_blocks.push_back(l1_block);
@@ -117,9 +121,6 @@ where
                 _ = interval.tick() => {
                     self.process_l1_block().await
                 },
-                _ = cancellation_token.cancelled() => {
-                    return;
-                }
             }
         }
     }

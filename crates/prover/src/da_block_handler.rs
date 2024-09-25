@@ -123,6 +123,10 @@ where
         interval.tick().await;
         loop {
             select! {
+                biased;
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
                 _ = &mut l1_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
                     self.pending_l1_blocks.push_back(l1_block);
@@ -132,9 +136,6 @@ where
                         error!("Could not process L1 block and generate proof: {:?}", e);
                     }
                 },
-                _ = cancellation_token.cancelled() => {
-                    return;
-                }
             }
         }
     }
