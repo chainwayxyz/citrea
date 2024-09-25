@@ -1812,6 +1812,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "citrea-pruning",
  "futures",
  "hex",
  "jsonrpsee",
@@ -1866,6 +1867,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "citrea-pruning",
  "citrea-stf",
  "futures",
  "hex",
@@ -1900,10 +1902,12 @@ dependencies = [
  "anyhow",
  "citrea-evm",
  "citrea-primitives",
+ "futures",
  "sov-db",
  "sov-modules-api",
  "tokio",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -1943,6 +1947,7 @@ dependencies = [
  "citrea-common",
  "citrea-evm",
  "citrea-primitives",
+ "citrea-pruning",
  "citrea-stf",
  "digest 0.10.7",
  "futures",

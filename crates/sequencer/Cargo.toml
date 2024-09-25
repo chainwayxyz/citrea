@@ -62,6 +62,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 citrea-common = { path = "../common" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
+citrea-pruning = { path = "../pruning" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
 
 [dev-dependencies]
