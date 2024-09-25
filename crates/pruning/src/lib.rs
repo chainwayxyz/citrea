@@ -66,6 +66,14 @@ where
     pub async fn run(mut self, cancellation_token: CancellationToken) {
         loop {
             select! {
+                biased;
+                _ = cancellation_token.cancelled() => {
+                    // Store the last pruned l2 height in ledger DB to be restored in the next initialization.
+                    if let Err(e) = self.ledger_db.set_last_pruned_l2_height(self.last_pruned_block) {
+                        error!("Failed to store last pruned L2 height {}: {:?}", self.last_pruned_block, e);
+                    }
+                    return;
+                }
                 current_l2_block = self.receiver.recv() => {
                     if let Ok(current_l2_block) = current_l2_block {
                         // Calculate the block at which pruning would be triggered.
@@ -78,13 +86,6 @@ where
                         }
                     }
                 },
-                _ = cancellation_token.cancelled() => {
-                    // Store the last pruned l2 height in ledger DB to be restored in the next initialization.
-                    if let Err(e) = self.ledger_db.set_last_pruned_l2_height(self.last_pruned_block) {
-                        error!("Failed to store last pruned L2 height {}: {:?}", self.last_pruned_block, e);
-                    }
-                    return;
-                }
             }
         }
     }
