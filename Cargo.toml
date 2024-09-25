@@ -5,6 +5,7 @@ members = [
   "bin/citrea",
   "crates/common",
   "crates/primitives",
+  "crates/pruning",
   "crates/bitcoin-da",
   "crates/evm",
   "crates/ethereum-rpc",
