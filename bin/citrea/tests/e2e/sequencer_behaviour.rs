@@ -132,13 +132,12 @@ async fn test_sequencer_commitment_threshold() {
     // Put a large number for commitment threshold
     let min_soft_confirmations_per_commitment = 1_000_000;
 
-    let mut sequencer_config = SequencerConfig {
+    let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment,
-        ..Default::default()
-    };
-
-    sequencer_config.mempool_conf = SequencerMempoolConfig {
-        max_account_slots: 4000,
+        mempool_conf: SequencerMempoolConfig {
+            max_account_slots: 4000,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -474,6 +473,7 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
         test_mode: false,
         da_update_interval_ms: 500,
         block_production_interval_ms: 250,
+        // set to something high, so that commitments don't produce mock da blocks
         min_soft_confirmations_per_commitment: 1000,
         ..Default::default()
     };
@@ -518,6 +518,7 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
         test_mode: false,
         da_update_interval_ms: 500,
         block_production_interval_ms: 250,
+        // set to something high, so that commitments don't produce mock da blocks
         min_soft_confirmations_per_commitment: 1000,
         ..Default::default()
     };
