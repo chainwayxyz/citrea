@@ -11,7 +11,7 @@ struct BasicSequencerTest;
 
 #[async_trait]
 impl TestCase for BasicSequencerTest {
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             anyhow::bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };

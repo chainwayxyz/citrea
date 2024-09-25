@@ -1,6 +1,7 @@
 use super::{BitcoinConfig, FullSequencerConfig};
 use crate::bitcoin_e2e::utils::get_genesis_path;
 
+#[derive(Debug)]
 pub struct DockerConfig {
     pub ports: Vec<u16>,
     pub image: String,

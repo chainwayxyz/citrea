@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::io::{stdout, Write};
 
+use super::config::DockerConfig;
+use super::node::SpawnOutput;
+use super::utils::generate_test_id;
+use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 use anyhow::{anyhow, Context, Result};
 use bollard::container::{Config, NetworkingConfig};
+use bollard::exec::{CreateExecOptions, StartExecOptions};
 use bollard::image::CreateImageOptions;
 use bollard::models::{EndpointSettings, PortBinding};
 use bollard::network::CreateNetworkOptions;
 use bollard::service::HostConfig;
 use bollard::Docker;
 use futures::StreamExt;
-
-use super::config::DockerConfig;
-use super::node::SpawnOutput;
-use super::utils::generate_test_id;
-use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 
 pub struct DockerEnv {
     pub docker: Docker,
@@ -52,6 +52,7 @@ impl DockerEnv {
     }
 
     pub async fn spawn(&self, config: DockerConfig) -> Result<SpawnOutput> {
+        println!("Spawning docker with config {config:#?}");
         let exposed_ports: HashMap<String, HashMap<(), ()>> = config
             .ports
             .iter()
@@ -127,6 +128,46 @@ impl DockerEnv {
             id: container.id,
             ip: ip_address,
         }))
+    }
+
+    pub async fn restart_bitcoind(
+        &self,
+        container_id: &str,
+        new_config: DockerConfig,
+    ) -> Result<()> {
+        println!("Restarting bitcoind");
+        let stop_options = CreateExecOptions {
+            cmd: Some(vec!["bitcoin-cli", "stop"]),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..Default::default()
+        };
+        let exec = self.docker.create_exec(container_id, stop_options).await?;
+        let _ = self.docker.start_exec(&exec.id, None).await?;
+
+        // TODO deterministic wait for shutdown
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+        // Run bitcoind with updated config
+        let mut start_cmd = vec!["bitcoind".to_string()];
+        start_cmd.extend(new_config.cmd.clone());
+
+        let start_options = CreateExecOptions {
+            cmd: Some(start_cmd),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..Default::default()
+        };
+        let exec = self.docker.create_exec(container_id, start_options).await?;
+        let start_exec_options = StartExecOptions {
+            detach: true,
+            ..Default::default()
+        };
+        self.docker
+            .start_exec(&exec.id, Some(start_exec_options))
+            .await?;
+
+        Ok(())
     }
 
     async fn ensure_image_exists(&self, image: &str) -> Result<()> {

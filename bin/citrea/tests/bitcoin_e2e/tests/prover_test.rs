@@ -42,7 +42,7 @@ impl TestCase for BasicProverTest {
         }
     }
 
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
@@ -134,7 +134,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };

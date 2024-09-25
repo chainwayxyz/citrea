@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context};
@@ -7,15 +8,18 @@ use async_trait::async_trait;
 use bitcoin::Address;
 use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
 use bitcoin_da::spec::blob::BlobWithSender;
+use bitcoincore_rpc::json::AddressType::Bech32m;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bollard::secret::ContainerStateStatusEnum;
 use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
 use tokio::process::Command;
+use tokio::sync::OnceCell;
 use tokio::time::sleep;
 
 use super::config::BitcoinConfig;
 use super::docker::DockerEnv;
 use super::framework::TestContext;
-use super::node::{LogProvider, Node, SpawnOutput};
+use super::node::{LogProvider, Node, Restart, SpawnOutput};
 use super::Result;
 use crate::bitcoin_e2e::node::NodeKind;
 
@@ -23,15 +27,16 @@ pub struct BitcoinNode {
     spawn_output: SpawnOutput,
     pub config: BitcoinConfig,
     client: Client,
-    gen_addr: Address,
+    gen_addr: OnceCell<Address>,
+    docker_env: Arc<Option<DockerEnv>>,
 }
 
 impl BitcoinNode {
-    pub async fn new(config: &BitcoinConfig, docker: &Option<DockerEnv>) -> Result<Self> {
-        let spawn_output = match docker {
-            Some(docker) => docker.spawn(config.into()).await?,
-            None => Self::spawn(config)?,
-        };
+    pub async fn new(config: &BitcoinConfig, docker: Arc<Option<DockerEnv>>) -> Result<Self> {
+        let spawn_output = match docker.as_ref() {
+            Some(docker) => docker.spawn(config.into()).await,
+            None => Self::spawn(config),
+        }?;
 
         let rpc_url = format!(
             "http://127.0.0.1:{}/wallet/{}",
@@ -45,28 +50,12 @@ impl BitcoinNode {
         .await
         .context("Failed to create RPC client")?;
 
-        wait_for_rpc_ready(&client, Duration::from_secs(60)).await?;
-        println!("bitcoin RPC is ready");
-
-        client
-            .create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
-            .await?;
-        client
-            .create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)
-            .await?;
-        client
-            .create_wallet(&NodeKind::Bitcoin.to_string(), None, None, None, None)
-            .await?;
-
-        let gen_addr = client
-            .get_new_address(None, Some(bitcoincore_rpc::json::AddressType::Bech32m))
-            .await?
-            .assume_checked();
         Ok(Self {
             spawn_output,
             config: config.clone(),
             client,
-            gen_addr,
+            gen_addr: OnceCell::new(),
+            docker_env: docker,
         })
     }
 
@@ -100,7 +89,7 @@ impl BitcoinNode {
         .context("Failed to create RPC client")?;
 
         let gen_addr = client
-            .get_new_address(None, Some(bitcoincore_rpc::json::AddressType::Bech32m))
+            .get_new_address(None, Some(Bech32m))
             .await?
             .assume_checked();
         client.generate_to_address(blocks, &gen_addr).await?;
@@ -120,6 +109,31 @@ impl BitcoinNode {
             REVEAL_BATCH_PROOF_PREFIX,
         ))
     }
+
+    async fn wait_for_shutdown(&self) -> Result<()> {
+        let timeout_duration = Duration::from_secs(30);
+        let start = std::time::Instant::now();
+
+        while start.elapsed() < timeout_duration {
+            if !self.is_process_running().await? {
+                println!("Bitcoin daemon has stopped successfully");
+                return Ok(());
+            }
+            sleep(Duration::from_millis(200)).await;
+        }
+
+        bail!("Timeout waiting for Bitcoin daemon to stop")
+    }
+
+    async fn is_process_running(&self) -> Result<bool> {
+        let data_dir = &self.config.data_dir;
+        let output = Command::new("pgrep")
+            .args(&["-f", &format!("bitcoind.*{}", data_dir.display())])
+            .output()
+            .await?;
+
+        Ok(output.status.success())
+    }
 }
 
 #[async_trait]
@@ -133,13 +147,24 @@ impl RpcApi for BitcoinNode {
     }
 
     // Override deprecated generate method.
-    // Uses node gen address and forward to `generate_to_address`
+    // Uses or lazy init gen_addr and forward to `generate_to_address`
     async fn generate(
         &self,
         block_num: u64,
         _maxtries: Option<u64>,
     ) -> bitcoincore_rpc::Result<Vec<bitcoin::BlockHash>> {
-        self.generate_to_address(block_num, &self.gen_addr).await
+        let addr = self
+            .gen_addr
+            .get_or_init(|| async {
+                self.client
+                    .get_new_address(None, Some(Bech32m))
+                    .await
+                    .expect("Failed to generate address")
+                    .assume_checked()
+            })
+            .await;
+
+        self.generate_to_address(block_num, addr).await
     }
 }
 
@@ -164,11 +189,15 @@ impl Node for BitcoinNode {
         &mut self.spawn_output
     }
 
-    async fn wait_for_ready(&self, timeout: Duration) -> Result<()> {
+    async fn wait_for_ready(&self, timeout: Option<Duration>) -> Result<()> {
         println!("Waiting for ready");
         let start = Instant::now();
+        let timeout = timeout.unwrap_or(Duration::from_secs(30));
         while start.elapsed() < timeout {
-            if wait_for_rpc_ready(&self.client, timeout).await.is_ok() {
+            if wait_for_rpc_ready(&self.client, Some(timeout))
+                .await
+                .is_ok()
+            {
                 return Ok(());
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -182,6 +211,63 @@ impl Node for BitcoinNode {
 
     fn env(&self) -> Vec<(&'static str, &'static str)> {
         self.config.env.clone()
+    }
+}
+
+impl Restart for BitcoinNode {
+    async fn wait_until_stopped(&mut self) -> Result<()> {
+        self.client.stop().await?;
+        self.stop().await?;
+
+        match &self.spawn_output {
+            SpawnOutput::Child(_) => self.wait_for_shutdown().await,
+            SpawnOutput::Container(output) => {
+                let Some(env) = self.docker_env.as_ref() else {
+                    bail!("Missing docker environment")
+                };
+
+                let start = Instant::now();
+                let timeout = Duration::from_secs(30);
+                while start.elapsed() < timeout {
+                    let info = env.docker.inspect_container(&output.id, None).await?;
+                    if let Some(state) = info.state {
+                        if let Some(status) = state.status {
+                            if status == ContainerStateStatusEnum::EXITED {
+                                return Ok(());
+                            }
+                        }
+                    }
+                    sleep(Duration::from_millis(200)).await;
+                }
+                bail!("Failed to stop within the specified timeout")
+            }
+        }
+    }
+
+    async fn restart(&mut self, config: Option<Self::Config>) -> Result<()> {
+        let new_config = config.unwrap_or(self.config.clone());
+
+        match self.docker_env.as_ref() {
+            Some(e) => {
+                let SpawnOutput::Container(existing_container) = &self.spawn_output else {
+                    bail!("Trying to restart a non-running container")
+                };
+                e.restart_bitcoind(&existing_container.id, (&new_config).into())
+                    .await?
+            }
+            None => {
+                self.wait_until_stopped().await?;
+                let spawn_output = Self::spawn(&new_config)?;
+                self.spawn_output = spawn_output;
+            }
+        }
+
+        // Update config to hold updated config
+        self.config = new_config;
+
+        self.wait_for_ready(None).await?;
+
+        Ok(())
     }
 }
 
@@ -206,7 +292,7 @@ impl BitcoinNodeCluster {
             inner: Vec::with_capacity(n_nodes),
         };
         for config in ctx.config.bitcoin.iter() {
-            let node = BitcoinNode::new(config, &ctx.docker).await?;
+            let node = BitcoinNode::new(config, Arc::clone(&ctx.docker)).await?;
             cluster.inner.push(node)
         }
 
@@ -268,8 +354,9 @@ impl BitcoinNodeCluster {
     }
 }
 
-async fn wait_for_rpc_ready(client: &Client, timeout: Duration) -> Result<()> {
+async fn wait_for_rpc_ready(client: &Client, timeout: Option<Duration>) -> Result<()> {
     let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(300));
     while start.elapsed() < timeout {
         match client.get_blockchain_info().await {
             Ok(_) => return Ok(()),

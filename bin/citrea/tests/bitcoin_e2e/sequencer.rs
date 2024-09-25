@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration, Instant};
 
 use super::config::{config_to_file, FullSequencerConfig, TestConfig};
 use super::framework::TestContext;
-use super::node::{L2Node, LogProvider, Node, NodeKind, SpawnOutput};
+use super::node::{LogProvider, Node, NodeKind, SpawnOutput};
 use super::utils::{get_citrea_path, get_stderr_path, get_stdout_path, retry};
 use super::Result;
 use crate::bitcoin_e2e::utils::get_genesis_path;
@@ -102,8 +102,9 @@ impl Node for Sequencer {
         &mut self.spawn_output
     }
 
-    async fn wait_for_ready(&self, timeout: Duration) -> Result<()> {
+    async fn wait_for_ready(&self, timeout: Option<Duration>) -> Result<()> {
         let start = Instant::now();
+        let timeout = timeout.unwrap_or(Duration::from_secs(30));
         while start.elapsed() < timeout {
             if self
                 .client
@@ -126,8 +127,6 @@ impl Node for Sequencer {
         self.config.env.clone()
     }
 }
-
-impl L2Node for Sequencer {}
 
 impl LogProvider for Sequencer {
     fn kind(&self) -> NodeKind {

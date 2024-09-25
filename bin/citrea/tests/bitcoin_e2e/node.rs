@@ -41,6 +41,7 @@ pub enum SpawnOutput {
     Child(Child),
     Container(ContainerSpawnOutput),
 }
+
 /// The Node trait defines the common interface shared between
 /// BitcoinNode, Prover, Sequencer and FullNode
 pub(crate) trait Node {
@@ -62,24 +63,20 @@ pub(crate) trait Node {
                 Ok(())
             }
             SpawnOutput::Container(ContainerSpawnOutput { id, .. }) => {
-                println!("Removing container {id}");
+                println!("Stopping container {id}");
                 let docker =
                     Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;
                 docker
                     .stop_container(id, Some(StopContainerOptions { t: 10 }))
                     .await
                     .context("Failed to stop Docker container")?;
-                docker
-                    .remove_container(id, None)
-                    .await
-                    .context("Failed to remove Docker container")?;
                 Ok(())
             }
         }
     }
 
     /// Wait for the node to be reachable by its client.
-    async fn wait_for_ready(&self, timeout: Duration) -> Result<()>;
+    async fn wait_for_ready(&self, timeout: Option<Duration>) -> Result<()>;
 
     fn client(&self) -> &Self::Client;
 
@@ -90,9 +87,21 @@ pub(crate) trait Node {
 }
 
 pub trait L2Node: Node<Client = TestClient> {
+    async fn wait_for_l2_height(&self, height: u64, timeout: Option<Duration>);
+}
+
+impl<T> L2Node for T
+where
+    T: Node<Client = TestClient>,
+{
     async fn wait_for_l2_height(&self, height: u64, timeout: Option<Duration>) {
         wait_for_l2_block(self.client(), height, timeout).await
     }
+}
+
+pub trait Restart: Node {
+    async fn wait_until_stopped(&mut self) -> Result<()>;
+    async fn restart(&mut self, new_config: Option<Self::Config>) -> Result<()>;
 }
 
 pub trait LogProvider: Node {

@@ -1,10 +1,13 @@
 use std::future::Future;
+use std::sync::Arc;
+
+use bitcoincore_rpc::RpcApi;
 
 use super::bitcoin::BitcoinNodeCluster;
 use super::config::TestConfig;
 use super::docker::DockerEnv;
 use super::full_node::FullNode;
-use super::node::{LogProvider, LogProviderErased, Node};
+use super::node::{LogProvider, LogProviderErased, Node, NodeKind};
 use super::sequencer::Sequencer;
 use super::Result;
 use crate::bitcoin_e2e::prover::Prover;
@@ -12,7 +15,16 @@ use crate::bitcoin_e2e::utils::tail_file;
 
 pub struct TestContext {
     pub config: TestConfig,
-    pub docker: Option<DockerEnv>,
+    pub docker: Arc<Option<DockerEnv>>,
+}
+
+impl TestContext {
+    fn new(config: TestConfig, docker: Option<DockerEnv>) -> Self {
+        Self {
+            config,
+            docker: Arc::new(docker),
+        }
+    }
 }
 
 pub struct TestFramework {
@@ -46,30 +58,43 @@ impl TestFramework {
             None
         };
 
-        let ctx = TestContext { config, docker };
+        let ctx = TestContext::new(config, docker);
 
         let bitcoin_nodes = BitcoinNodeCluster::new(&ctx).await?;
 
-        let sequencer =
-            create_optional(ctx.config.test_case.with_sequencer, Sequencer::new(&ctx)).await?;
+        // tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
-        let (prover, full_node) = tokio::try_join!(
-            create_optional(ctx.config.test_case.with_prover, Prover::new(&ctx)),
-            create_optional(ctx.config.test_case.with_full_node, FullNode::new(&ctx)),
-        )?;
-
-        let f = Self {
+        Ok(Self {
             bitcoin_nodes,
-            sequencer,
-            prover,
-            full_node,
+            sequencer: None,
+            prover: None,
+            full_node: None,
             ctx,
             show_logs: true,
             initial_da_height: 0,
-        };
+        })
+    }
 
-        f.show_log_paths();
-        Ok(f)
+    pub async fn init_nodes(&mut self) -> Result<()> {
+        // Has to initialize sequencer first since prover and full node depend on it
+        self.sequencer = create_optional(
+            self.ctx.config.test_case.with_sequencer,
+            Sequencer::new(&self.ctx),
+        )
+        .await?;
+
+        (self.prover, self.full_node) = tokio::try_join!(
+            create_optional(
+                self.ctx.config.test_case.with_prover,
+                Prover::new(&self.ctx)
+            ),
+            create_optional(
+                self.ctx.config.test_case.with_full_node,
+                FullNode::new(&self.ctx)
+            ),
+        )?;
+
+        Ok(())
     }
 
     fn get_nodes_as_log_provider(&self) -> Vec<&dyn LogProviderErased> {
@@ -134,11 +159,40 @@ impl TestFramework {
         let _ = self.bitcoin_nodes.stop_all().await;
         println!("Successfully stopped bitcoin nodes");
 
-        if let Some(docker) = &self.ctx.docker {
+        if let Some(docker) = self.ctx.docker.as_ref() {
             let _ = docker.cleanup().await;
             println!("Successfully cleaned docker");
         }
 
+        Ok(())
+    }
+
+    pub async fn fund_da_wallets(&mut self) -> Result<()> {
+        let da = self.bitcoin_nodes.get(0).unwrap();
+
+        da.wait_for_ready(None).await?;
+
+        da.create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
+            .await?;
+        da.create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)
+            .await?;
+        da.create_wallet(&NodeKind::Bitcoin.to_string(), None, None, None, None)
+            .await?;
+
+        let blocks_to_mature = 100;
+        let blocks_to_fund = 25;
+        if self.ctx.config.test_case.with_sequencer {
+            da.fund_wallet(NodeKind::Sequencer.to_string(), blocks_to_fund)
+                .await?;
+        }
+
+        if self.ctx.config.test_case.with_prover {
+            da.fund_wallet(NodeKind::Prover.to_string(), blocks_to_fund)
+                .await?;
+        }
+
+        da.generate(blocks_to_mature, None).await?;
+        self.initial_da_height = da.get_block_count().await?;
         Ok(())
     }
 }
