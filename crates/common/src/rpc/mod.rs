@@ -29,12 +29,12 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             )
         };
 
-        let head_batch = ledger_db
+        let Some((BatchNumber(head_batch_num), _)) = ledger_db
             .get_head_soft_confirmation()
-            .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?;
-
-        let (BatchNumber(head_batch_num), _) =
-            head_batch.ok_or_else(|| error("No blocks in the ledger"))?;
+            .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
+        else {
+            return Ok::<(), ErrorObjectOwned>(());
+        };
 
         // TODO: if the first blocks are not being produced properly, this might cause healthcheck to always return Ok
         if head_batch_num < BLOCK_NUM_THRESHOLD {
