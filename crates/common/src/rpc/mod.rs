@@ -11,68 +11,58 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::types::BatchNumber;
 use tower_http::cors::{Any, CorsLayer};
 
+// Exit early if head_batch_num is below this threshold
+const BLOCK_NUM_THRESHOLD: u64 = 2;
+
 /// Register the healthcheck rpc
 pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
     rpc_methods: &mut RpcModule<T>,
     ledger_db: LedgerDB,
 ) -> Result<(), RegisterMethodError> {
-    rpc_methods.register_async_method("health_check", move |_, _, _| {
-        let ledger_db = ledger_db.clone();
+    let mut rpc = RpcModule::new(ledger_db);
 
-        async move {
-            let head_batch = ledger_db.get_head_soft_confirmation().map_err(|err| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Failed to get head soft batch: {}", err)),
-                )
-            })?;
-            let head_batch_num: u64 = match head_batch {
-                Some((i, _)) => i.into(),
-                None => return Ok::<(), ErrorObjectOwned>(()),
-            };
-            // TODO: if the first blocks are not being produced properly, this might cause healthcheck to always return Ok
-            if head_batch_num < 2 {
-                return Ok::<(), ErrorObjectOwned>(());
-            }
+    rpc.register_async_method("health_check", |_, ledger_db, _| async move {
+        let error = |msg: &str| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(msg.to_string()),
+            )
+        };
 
-            let soft_batches = ledger_db
-                .get_soft_confirmation_range(
-                    &(BatchNumber(head_batch_num - 1)..BatchNumber(head_batch_num + 1)),
-                )
-                .map_err(|err| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("Failed to get soft batch range: {}", err)),
-                    )
-                })?;
-            let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
-            tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
+        let Some((BatchNumber(head_batch_num), _)) = ledger_db
+            .get_head_soft_confirmation()
+            .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
+        else {
+            return Ok::<(), ErrorObjectOwned>(());
+        };
 
-            let (new_head_batch_num, _) = ledger_db
-                .get_head_soft_confirmation()
-                .map_err(|err| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("Failed to get head soft batch: {}", err)),
-                    )
-                })?
-                .unwrap();
-            if new_head_batch_num > BatchNumber(head_batch_num) {
-                Ok::<(), ErrorObjectOwned>(())
-            } else {
-                Err(ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some("Block number is not increasing"),
-                ))
-            }
+        // TODO: if the first blocks are not being produced properly, this might cause healthcheck to always return Ok
+        if head_batch_num < BLOCK_NUM_THRESHOLD {
+            return Ok::<(), ErrorObjectOwned>(());
+        }
+
+        let soft_batches = ledger_db
+            .get_soft_confirmation_range(
+                &(BatchNumber(head_batch_num - 1)..BatchNumber(head_batch_num + 1)),
+            )
+            .map_err(|err| error(&format!("Failed to get soft batch range: {}", err)))?;
+
+        let block_time_s = (soft_batches[1].timestamp - soft_batches[0].timestamp).max(1);
+        tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
+
+        let (new_head_batch_num, _) = ledger_db
+            .get_head_soft_confirmation()
+            .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
+            .unwrap();
+        if new_head_batch_num > BatchNumber(head_batch_num) {
+            Ok::<(), ErrorObjectOwned>(())
+        } else {
+            Err(error("Block number is not increasing"))
         }
     })?;
 
-    Ok(())
+    rpc_methods.merge(rpc)
 }
 
 /// Returns health check proxy layer to be used as http middleware
