@@ -17,7 +17,7 @@ use sov_stf_runner::{
 mod hash_stf;
 
 use hash_stf::HashStf;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
@@ -133,7 +133,7 @@ fn initialize_runner(
         init_variant,
         code_commitments_by_spec,
         fork_manager,
-        mpsc::channel(1).0,
+        broadcast::channel(1).0,
     )
     .unwrap()
 }

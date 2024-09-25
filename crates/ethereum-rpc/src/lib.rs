@@ -25,7 +25,7 @@ use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tokio::join;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 use tracing::info;
 
@@ -53,7 +53,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
     storage: C::Storage,
     ledger_db: LedgerDB,
     sequencer_client_url: Option<String>,
-    soft_confirmation_rx: Option<mpsc::Receiver<u64>>,
+    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
 ) -> RpcModule<Ethereum<C, Da>> {
     // Unpack config
     let EthRpcConfig {

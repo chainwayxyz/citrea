@@ -8,7 +8,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
@@ -17,7 +17,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
     ledger_db: LedgerDB,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,
-    soft_confirmation_rx: Option<mpsc::Receiver<u64>>,
+    soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();

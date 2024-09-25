@@ -5,7 +5,7 @@ use futures::future;
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use reth_rpc_types::{BlockNumberOrTag, RichBlock};
 use sov_modules_api::WorkingSet;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio::task::JoinHandle;
 
 pub(crate) struct SubscriptionManager {
@@ -19,7 +19,7 @@ pub(crate) struct SubscriptionManager {
 impl SubscriptionManager {
     pub(crate) fn new<C: sov_modules_api::Context>(
         storage: C::Storage,
-        soft_confirmation_rx: mpsc::Receiver<u64>,
+        soft_confirmation_rx: broadcast::Receiver<u64>,
     ) -> Self {
         let (new_heads_tx, new_heads_rx) = mpsc::channel(16);
         let (logs_tx, logs_rx) = mpsc::channel(16);
@@ -132,12 +132,12 @@ pub async fn logs_notifier(
 
 pub async fn soft_confirmation_event_handler<C: sov_modules_api::Context>(
     storage: C::Storage,
-    mut soft_confirmation_rx: mpsc::Receiver<u64>,
+    mut soft_confirmation_rx: broadcast::Receiver<u64>,
     new_heads_tx: mpsc::Sender<RichBlock>,
     logs_tx: mpsc::Sender<Vec<LogResponse>>,
 ) {
     let evm = Evm::<C>::default();
-    while let Some(height) = soft_confirmation_rx.recv().await {
+    while let Ok(height) = soft_confirmation_rx.recv().await {
         let mut working_set = WorkingSet::<C>::new(storage.clone());
         let block = evm
             .get_block_by_number(

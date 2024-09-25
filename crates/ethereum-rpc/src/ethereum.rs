@@ -12,7 +12,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use tracing::instrument;
 
 use crate::gas_price::fee_history::FeeHistoryCacheConfig;
@@ -53,7 +53,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<SequencerClient>,
-        soft_confirmation_rx: Option<mpsc::Receiver<u64>>,
+        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Self {
         let evm = Evm::<C>::default();
         let gas_price_oracle =
