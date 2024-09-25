@@ -170,8 +170,6 @@ impl TestFramework {
     pub async fn fund_da_wallets(&mut self) -> Result<()> {
         let da = self.bitcoin_nodes.get(0).unwrap();
 
-        da.wait_for_ready(None).await?;
-
         da.create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
             .await?;
         da.create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)

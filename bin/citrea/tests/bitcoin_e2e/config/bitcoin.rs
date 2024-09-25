@@ -44,7 +44,7 @@ impl BitcoinConfig {
             format!("-rpcuser={}", self.rpc_user),
             format!("-rpcpassword={}", self.rpc_password),
             "-server".to_string(),
-            "-daemon".to_string(),
+            "-daemonwait".to_string(),
             "-txindex".to_string(),
             "-addresstype=bech32m".to_string(),
             "-debug=net".to_string(),
