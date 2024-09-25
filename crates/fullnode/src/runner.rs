@@ -150,7 +150,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,
-            task_manager: TaskManager::new(),
+            task_manager: TaskManager::default(),
         })
     }
 

@@ -158,7 +158,7 @@ where
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
-            task_manager: TaskManager::new(),
+            task_manager: TaskManager::default(),
         })
     }
 

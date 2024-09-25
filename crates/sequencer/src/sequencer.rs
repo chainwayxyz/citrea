@@ -169,7 +169,7 @@ where
         // Initialize the sequencer with the last state diff from DB.
         let last_state_diff = ledger_db.get_state_diff()?;
 
-        let task_manager = TaskManager::new();
+        let task_manager = TaskManager::default();
 
         Ok(Self {
             da_service,

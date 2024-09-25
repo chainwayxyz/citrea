@@ -17,14 +17,16 @@ pub struct TaskManager<T: Send> {
     cancellation_token: CancellationToken,
 }
 
-impl<T: Send + 'static> TaskManager<T> {
-    pub fn new() -> Self {
+impl<T: Send + 'static> Default for TaskManager<T> {
+    fn default() -> Self {
         Self {
             handles: vec![],
             cancellation_token: CancellationToken::new(),
         }
     }
+}
 
+impl<T: Send + 'static> TaskManager<T> {
     /// Spawn a new asynchronous task.
     ///
     /// Tasks are forced to accept a cancellation token so that they can be notified
