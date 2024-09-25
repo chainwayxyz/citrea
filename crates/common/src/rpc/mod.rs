@@ -47,7 +47,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             )
             .map_err(|err| error(&format!("Failed to get soft batch range: {}", err)))?;
 
-        let block_time_s = soft_batches[1].timestamp - soft_batches[0].timestamp;
+        let block_time_s = (soft_batches[1].timestamp - soft_batches[0].timestamp).max(1);
         tokio::time::sleep(Duration::from_millis(block_time_s * 1500)).await;
 
         let (new_head_batch_num, _) = ledger_db
