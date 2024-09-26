@@ -37,9 +37,9 @@ describe("RpcTests", function() {
         expect(typeof feeData.gasPrice).to.equal('bigint');
         expect(feeData.gasPrice > 0n).to.be.true;
         expect(typeof feeData.maxFeePerGas).to.equal('bigint');
-        expect(feeData.maxFeePerGas > 0n).to.be.true;
+        expect(feeData.maxFeePerGas > 0n).to.be.true; // base should be > 0 always
         expect(typeof feeData.maxPriorityFeePerGas).to.equal('bigint');
-        expect(feeData.maxPriorityFeePerGas > 0n).to.be.true;
+        expect(feeData.maxPriorityFeePerGas >= 0n).to.be.true; // for priority it can be 0
     });
 
     it("estimateGas returns a positive integer" , async function() {
