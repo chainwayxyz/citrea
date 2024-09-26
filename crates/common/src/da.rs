@@ -8,7 +8,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use tokio::sync::Mutex;
 
-use crate::L1BlockCache;
+use crate::cache::L1BlockCache;
 
 pub async fn get_da_block_at_height<Da: DaService>(
     da_service: &Arc<Da>,

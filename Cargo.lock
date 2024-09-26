@@ -1748,9 +1748,14 @@ dependencies = [
 name = "citrea-common"
 version = "0.5.0-rc.1"
 dependencies = [
+ "anyhow",
+ "backoff",
+ "citrea-primitives",
  "hyper 1.4.1",
  "jsonrpsee",
+ "lru",
  "sov-db",
+ "sov-rollup-interface",
  "tokio",
  "tower-http",
 ]
@@ -1843,11 +1848,8 @@ version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
- "backoff",
- "lru",
  "reth-primitives",
  "serde",
- "sov-db",
  "sov-rollup-interface",
  "tokio",
  "tracing",

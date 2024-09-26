@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
-use citrea_primitives::{get_da_block_at_height, L1BlockCache, SyncError};
+use citrea_common::cache::L1BlockCache;
+use citrea_common::da::get_da_block_at_height;
+use citrea_common::error::SyncError;
+use citrea_common::utils::check_l2_range_exists;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde::de::DeserializeOwned;
@@ -59,7 +62,7 @@ where
     C: Context,
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: NodeLedgerOps,
+    DB: NodeLedgerOps + Clone,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -128,13 +131,14 @@ where
             .pending_l1_blocks
             .front()
             .expect("Just checked pending L1 blocks is not empty");
+        let l1_height = l1_block.header().height();
 
         // Set the l1 height of the l1 hash
         self.ledger_db
-            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_block.header().height())
+            .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
-        let (sequencer_commitments, zk_proofs) =
+        let (mut sequencer_commitments, zk_proofs) =
             match self.extract_relevant_l1_data(l1_block.clone()).await {
                 Ok(r) => r,
                 Err(e) => {
@@ -142,6 +146,22 @@ where
                     return;
                 }
             };
+
+        if !sequencer_commitments.is_empty() {
+            // Make sure all sequencer commitments are stored in ascending order.
+            // We sort before checking ranges to prevent substraction errors.
+            sequencer_commitments.sort();
+
+            // If the L2 range does not exist, we break off the current process call
+            // We retry the L1 block at a later tick.
+            if !check_l2_range_exists(
+                self.ledger_db.clone(),
+                sequencer_commitments[0].l2_start_block_number,
+                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
+            ) {
+                return;
+            }
+        }
 
         for zk_proof in zk_proofs.clone().iter() {
             if let Err(e) = self
@@ -382,7 +402,7 @@ where
                 }
             };
 
-        commitments_on_da_slot.sort_unstable();
+        commitments_on_da_slot.sort();
 
         let excluded_commitment_indices = state_transition.preproven_commitments.clone();
         let filtered_commitments: Vec<SequencerCommitment> = commitments_on_da_slot
