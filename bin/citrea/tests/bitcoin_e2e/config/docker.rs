@@ -14,7 +14,6 @@ pub struct DockerConfig {
     pub ports: Vec<u16>,
     pub image: String,
     pub cmd: Vec<String>,
-    // pub dir: String,
     pub log_path: PathBuf,
     pub volume: VolumeConfig,
 }
@@ -37,7 +36,6 @@ impl From<&BitcoinConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "bitcoin/bitcoin:latest".to_string()),
             cmd: args,
-            // dir: format!("{}:/home/bitcoin/.bitcoin", v.data_dir.display()),
             log_path: v.data_dir.join("regtest").join("debug.log"),
             volume: VolumeConfig {
                 name: "bitcoin".to_string(),
@@ -69,7 +67,6 @@ impl From<&FullSequencerConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "citrea:latest".to_string()), // Default to local image
             cmd: args,
-            // dir: format!("{}:/sequencer/data", v.dir.display()),
             log_path: v.dir.join("stdout"),
             volume: VolumeConfig {
                 name: "sequencer".to_string(),
