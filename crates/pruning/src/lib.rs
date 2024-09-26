@@ -6,7 +6,7 @@ use sov_modules_api::default_context::DefaultContext;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{debug, error, info};
 
 /// Define pruning mode based on configuration and/or CLI arguments
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -67,6 +67,7 @@ where
 
     /// Prune everything
     pub async fn prune(&self, up_to_block: u64) {
+        info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
         let ledger_pruning_handle =
             tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
@@ -104,12 +105,14 @@ where
 }
 
 /// Prune evm
-pub fn prune_evm(_up_to_block: u64) {
+pub fn prune_evm(up_to_block: u64) {
+    debug!("Pruning EVM, up to L2 block {}", up_to_block);
     let _evm = Evm::<DefaultContext>::default();
     unimplemented!()
 }
 
 /// Prune ledger
-pub fn prune_ledger<DB: SharedLedgerOps>(_ledger_db: DB, _up_to_block: u64) {
+pub fn prune_ledger<DB: SharedLedgerOps>(_ledger_db: DB, up_to_block: u64) {
+    debug!("Pruning Ledger, up to L2 block {}", up_to_block);
     unimplemented!()
 }
