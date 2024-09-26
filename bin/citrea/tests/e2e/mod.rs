@@ -44,7 +44,7 @@ impl Default for TestConfig {
     fn default() -> Self {
         Self {
             seq_min_soft_confirmations:
-                TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, //?
+                TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
             deposit_mempool_fetch_limit: 10,
             sequencer_path: PathBuf::new(),
             fullnode_path: PathBuf::new(),
