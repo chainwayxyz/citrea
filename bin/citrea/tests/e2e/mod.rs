@@ -28,7 +28,9 @@ use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, wait_for_proof, wait_for_prover_l1_height, NodeMode,
 };
-use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
+use crate::{
+    TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+};
 
 struct TestConfig {
     seq_min_soft_confirmations: u64,
@@ -41,7 +43,8 @@ struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            seq_min_soft_confirmations: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+            seq_min_soft_confirmations:
+                TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, //?
             deposit_mempool_fetch_limit: 10,
             sequencer_path: PathBuf::new(),
             fullnode_path: PathBuf::new(),

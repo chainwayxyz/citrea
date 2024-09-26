@@ -11,7 +11,7 @@ use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
     wait_for_l2_block, NodeMode,
 };
-use crate::DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
+use crate::TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test(flavor = "multi_thread")]
@@ -33,7 +33,8 @@ async fn too_many_l2_block_per_l1_block() {
         NodeMode::SequencerNode,
     );
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        min_soft_confirmations_per_commitment:
+            TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
     };
     tokio::spawn(async {

@@ -16,7 +16,9 @@ use crate::test_client::TestClient;
 use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
+use crate::{
+    TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+};
 
 mod archival_state;
 mod fee;
@@ -36,10 +38,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let sequener_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        ..Default::default()
-    };
+    let sequener_config = SequencerConfig::default();
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,
@@ -91,7 +90,8 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        min_soft_confirmations_per_commitment:
+            TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
         ..Default::default()
     };
     let rollup_task = tokio::spawn(async {
@@ -127,10 +127,8 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        ..Default::default()
-    };
+    let sequencer_config = SequencerConfig::default();
+
     let rollup_task = tokio::spawn(async {
         start_rollup(
             port_tx,

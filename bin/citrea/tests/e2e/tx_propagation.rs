@@ -10,7 +10,7 @@ use crate::evm::init_test_rollup;
 use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
+use crate::TEST_DATA_GENESIS_PATH;
 
 /// Full node receives transaction from RPC.
 /// Sends it to the sequencer.
@@ -84,10 +84,8 @@ async fn test_get_transaction_by_hash() -> Result<(), anyhow::Error> {
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        ..Default::default()
-    };
+    let sequencer_config = SequencerConfig::default();
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,

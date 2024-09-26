@@ -13,7 +13,7 @@ use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
 use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
-use crate::{DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT, TEST_DATA_GENESIS_PATH};
+use crate::TEST_DATA_GENESIS_PATH;
 
 async fn initialize_test(
     sequencer_path: PathBuf,
@@ -23,10 +23,8 @@ async fn initialize_test(
 
     let rollup_config =
         create_default_rollup_config(true, &sequencer_path, &db_path, NodeMode::SequencerNode);
-    let sequencer_config = SequencerConfig {
-        min_soft_confirmations_per_commitment: DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-        ..Default::default()
-    };
+    let sequencer_config = SequencerConfig::default();
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
