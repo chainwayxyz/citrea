@@ -1,5 +1,6 @@
 use citrea_evm::Evm;
 use futures::future;
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_modules_api::default_context::DefaultContext;
 use tokio::select;
@@ -8,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 /// Define pruning mode based on configuration and/or CLI arguments
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum PruningMode {
     /// Pruner does not run in this case.
     Archive,
@@ -15,10 +17,23 @@ pub enum PruningMode {
     Pruned(PruningConfig),
 }
 
+impl Default for PruningMode {
+    fn default() -> Self {
+        PruningMode::Archive
+    }
+}
+
 /// A configuration type to define the behaviour of the pruner.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct PruningConfig {
     /// Defines the number of blocks from the tip of the chain to remove.
     pub distance: u64,
+}
+
+impl Default for PruningConfig {
+    fn default() -> Self {
+        Self { distance: 256 }
+    }
 }
 
 pub struct Pruner<DB>
