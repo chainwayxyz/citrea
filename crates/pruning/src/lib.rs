@@ -9,20 +9,15 @@ use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 /// Define pruning mode based on configuration and/or CLI arguments
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[serde(untagged)]
 pub enum PruningMode {
     /// Pruner does not run in this case.
+    #[default]
     Archive,
     /// Pruner is run based on config.
     Pruned { options: PruningConfig },
-}
-
-impl Default for PruningMode {
-    fn default() -> Self {
-        PruningMode::Archive
-    }
 }
 
 /// A configuration type to define the behaviour of the pruner.

@@ -177,6 +177,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             include_tx_body: true,
             accept_public_input_as_proven: Some(true),
             sync_blocks_count: Default::default(),
+            pruning_mode: Default::default(),
         });
 
         let prover_rollup = {

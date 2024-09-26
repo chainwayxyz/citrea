@@ -127,6 +127,7 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
+            pruning_mode: Default::default(),
         };
         assert_eq!(config, expected);
     }
