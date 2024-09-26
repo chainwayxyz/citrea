@@ -108,11 +108,11 @@ where
 pub fn prune_evm(up_to_block: u64) {
     debug!("Pruning EVM, up to L2 block {}", up_to_block);
     let _evm = Evm::<DefaultContext>::default();
-    unimplemented!()
+    // unimplemented!()
 }
 
 /// Prune ledger
 pub fn prune_ledger<DB: SharedLedgerOps>(_ledger_db: DB, up_to_block: u64) {
     debug!("Pruning Ledger, up to L2 block {}", up_to_block);
-    unimplemented!()
+    // unimplemented!()
 }
