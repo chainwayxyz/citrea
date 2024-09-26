@@ -224,6 +224,10 @@ impl Node for BitcoinNode {
     fn env(&self) -> Vec<(&'static str, &'static str)> {
         self.config.env.clone()
     }
+
+    fn config_mut(&mut self) -> &mut Self::Config {
+        &mut self.config
+    }
 }
 
 impl Restart for BitcoinNode {
@@ -250,10 +254,7 @@ impl Restart for BitcoinNode {
         }
     }
 
-    async fn restart(&mut self, config: Option<Self::Config>) -> Result<()> {
-        self.wait_until_stopped().await?;
-
-        // Update config to hold updated config
+    async fn start(&mut self, config: Option<Self::Config>) -> Result<()> {
         if let Some(config) = config {
             self.config = config
         }

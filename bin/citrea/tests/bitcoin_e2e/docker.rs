@@ -2,10 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::io::{stdout, Write};
 use std::path::PathBuf;
 
-use super::config::DockerConfig;
-use super::node::SpawnOutput;
-use super::utils::generate_test_id;
-use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 use anyhow::{anyhow, Context, Result};
 use bollard::container::{Config, LogOutput, LogsOptions, NetworkingConfig};
 use bollard::image::CreateImageOptions;
@@ -19,6 +15,11 @@ use futures::StreamExt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
+
+use super::config::DockerConfig;
+use super::node::SpawnOutput;
+use super::utils::generate_test_id;
+use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 
 pub struct DockerEnv {
     pub docker: Docker,

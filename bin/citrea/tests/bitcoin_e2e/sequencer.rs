@@ -126,6 +126,10 @@ impl Node for Sequencer {
     fn env(&self) -> Vec<(&'static str, &'static str)> {
         self.config.env.clone()
     }
+
+    fn config_mut(&mut self) -> &mut Self::Config {
+        &mut self.config
+    }
 }
 
 impl LogProvider for Sequencer {
