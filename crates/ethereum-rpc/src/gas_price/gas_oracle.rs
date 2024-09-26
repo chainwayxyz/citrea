@@ -6,7 +6,6 @@
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use parking_lot::Mutex;
-use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{BlockNumberOrTag, B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::{BlockTransactions, FeeHistory};
@@ -414,7 +413,8 @@ impl Default for GasPriceOracleResult {
     fn default() -> Self {
         Self {
             block_hash: B256::ZERO,
-            price: GWEI_TO_WEI as u128,
+            // Defaults to 0 so that priority fee is low when there are no txs to calculate a median tip
+            price: 0_u128,
         }
     }
 }
