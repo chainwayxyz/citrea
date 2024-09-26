@@ -16,7 +16,7 @@ network = "testnet"
 tx_backup_dir = ""
 
 [storage]
-path = "./db"
+path = "resources/dbs"
 
 # comment out if you want to set custom max open files
 # if you leave it like this, it will use the system limit
