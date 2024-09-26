@@ -8,6 +8,9 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
+#[cfg(test)]
+mod tests;
+
 /// Define pruning mode based on configuration and/or CLI arguments
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
