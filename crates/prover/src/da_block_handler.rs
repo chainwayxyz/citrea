@@ -310,7 +310,7 @@ where
     fn check_l2_range_exists(&self, first_l2_height_of_l1: u64, last_l2_height_of_l1: u64) -> bool {
         let ledger_db = &self.ledger_db.clone();
         if let Ok(range) = ledger_db.clone().get_soft_confirmation_range(
-            &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
+            &(BatchNumber(first_l2_height_of_l1)..=BatchNumber(last_l2_height_of_l1)),
         ) {
             if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
                 return true;
@@ -458,7 +458,7 @@ where
             let end_l2 = sequencer_commitment.l2_end_block_number;
             let soft_confirmations_in_commitment = match self
                 .ledger_db
-                .get_soft_confirmation_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
+                .get_soft_confirmation_range(&(BatchNumber(start_l2)..=BatchNumber(end_l2)))
             {
                 Ok(soft_confirmations) => soft_confirmations,
                 Err(e) => {

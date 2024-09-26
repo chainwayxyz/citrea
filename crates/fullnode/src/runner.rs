@@ -420,7 +420,7 @@ async fn sync_l2<Da>(
             match retry_backoff(exponential_backoff.clone(), || async move {
                 match inner_client
                     .get_soft_confirmation_range::<Da::Spec>(
-                        l2_height..l2_height + sync_blocks_count,
+                        l2_height..=l2_height + sync_blocks_count - 1,
                     )
                     .await
                 {

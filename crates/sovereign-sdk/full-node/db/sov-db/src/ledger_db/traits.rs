@@ -97,7 +97,7 @@ pub trait SharedLedgerOps {
     /// directly via rpc.
     fn get_soft_confirmation_range(
         &self,
-        range: &std::ops::Range<BatchNumber>,
+        range: &std::ops::RangeInclusive<BatchNumber>,
     ) -> Result<Vec<StoredSoftConfirmation>>;
 
     /// Gets all soft confirmations by numbers
