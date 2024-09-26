@@ -1,5 +1,4 @@
 use core::num::NonZeroU16;
-use std::path::PathBuf;
 
 use sha2::{Digest, Sha256};
 
@@ -99,13 +98,4 @@ pub fn calculate_sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::default();
     hasher.update(input);
     hasher.finalize().into()
-}
-
-pub fn get_workspace_root() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .ancestors()
-        .nth(2)
-        .expect("Failed to find workspace root")
-        .to_path_buf()
 }

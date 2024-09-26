@@ -11,7 +11,84 @@ env:
 
 jobs:
 
-  x86_64_binary_extraction:
+  validate_DA_ID_format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate EXPECTED_BITCOIN_DA_ID format
+        run: |
+          echo "Raw EXPECTED_BITCOIN_DA_ID value:"
+          echo "$EXPECTED_BITCOIN_DA_ID"
+          
+          echo "Length of EXPECTED_BITCOIN_DA_ID: ${#EXPECTED_BITCOIN_DA_ID}"
+          
+          if [ -z "${EXPECTED_BITCOIN_DA_ID// }" ]; then
+            echo "Error: EXPECTED_BITCOIN_DA_ID is not set, empty, or contains only spaces"
+            exit 1
+          fi
+          
+          # Remove any trailing newline or carriage return
+          EXPECTED_BITCOIN_DA_ID=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -d '\n\r')
+          
+          # Count commas and spaces
+          comma_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ',' | wc -c)
+          space_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ' ' | wc -c)
+          
+          echo "Number of commas: $comma_count"
+          echo "Number of spaces: $space_count"
+          
+          # Split the string into an array and trim each element
+          IFS=', ' read -ra raw_numbers <<< "$EXPECTED_BITCOIN_DA_ID"
+          numbers=()
+          for num in "${raw_numbers[@]}"; do
+            trimmed_num=$(echo "$num" | tr -d '[:space:]')  # Remove all whitespace
+            numbers+=("$trimmed_num")
+          done
+          
+          echo "Number of elements after splitting and trimming: ${#numbers[@]}"
+          
+          # Check if there are exactly 8 numbers
+          if [ ${#numbers[@]} -ne 8 ]; then
+            echo "Error: EXPECTED_BITCOIN_DA_ID should contain exactly 8 numbers"
+            echo "Actual number of elements: ${#numbers[@]}"
+            exit 1
+          fi
+          
+          # Check if all numbers are valid u32
+          for i in "${!numbers[@]}"; do
+            num=${numbers[$i]}
+            echo "Checking number $((i+1)): '$num'"
+            echo "Hex representation: $(echo -n "$num" | xxd -p)"
+            if ! [[ $num =~ ^[0-9]+$ ]]; then
+              echo "Error: '$num' is not composed of digits only"
+              exit 1
+            fi
+            if [ $num -gt 4294967295 ]; then
+              echo "Error: '$num' is greater than 4294967295"
+              exit 1
+            fi
+          done
+          
+          # Reconstruct the trimmed DA_ID
+          trimmed_da_id=$(IFS=', '; echo "${numbers[*]}")
+          
+          # Final check
+          if [ $comma_count -eq 7 ] && [ $space_count -eq 7 ] && [ ${#numbers[@]} -eq 8 ]; then
+            echo "EXPECTED_BITCOIN_DA_ID is valid:"
+            echo "- Contains 7 commas"
+            echo "- Contains 7 spaces"
+            echo "- Contains 8 valid u32 numbers"
+            echo "Original value: $EXPECTED_BITCOIN_DA_ID"
+            echo "Trimmed value: $trimmed_da_id"
+          else
+            echo "Error: EXPECTED_BITCOIN_DA_ID format is incorrect"
+            echo "- Comma count: $comma_count (should be 7)"
+            echo "- Space count: $space_count (should be 7)"
+            echo "- Number count: ${#numbers[@]} (should be 8)"
+            exit 1
+          fi
+
+  linux_amd64_binary_extraction:
+    needs: validate_DA_ID_format
     runs-on: ubicloud-standard-30
     steps:
       - name: Checkout
@@ -25,18 +102,22 @@ jobs:
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup install 1.79.0
+          rustup default 1.79.0
 
       - name: Install Cargo Binstall
         run: |
           source $HOME/.cargo/env
-          cargo install cargo-binstall
+          cargo install --version 1.7.0 cargo-binstall
 
-      - name: Install Cargo Risczero
+      - name: Install cargo-risczero
         run: |
-          cargo binstall -y cargo-risczero
-          cargo risczero install --version v2024-04-22.0
-          # TODO: do below on testnet launch
-          # curl -L https://risczero.com/install | bash; source /home/runner/.bashrc; rzup -v 1.0.5;
+          cargo binstall cargo-risczero@1.0.5 --no-confirm
+
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
         env:
@@ -48,22 +129,26 @@ jobs:
         id: check-id
         run: |
           RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
-
-          if echo "$RESULT" | grep -q "${{ env.EXPECTED_BITCOIN_DA_ID }}"; then
+          EXPECTED_BITCOIN_DA_ID=$(echo "${{ env.EXPECTED_BITCOIN_DA_ID }}" | tr -d '\n\r')
+          if echo "$RESULT" | grep -q "$EXPECTED_BITCOIN_DA_ID"; then
             echo "Check passed successfully."
-          else
+            echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+              
+          else      
             echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
             exit 1
           fi
 
-      - name: Upload x86_64 Binary
+      - name: Upload linux-amd64 Binary
         uses: actions/upload-artifact@v4
         with:
-          name: citrea_${{ github.ref_name }}_x86_64
+          name: citrea-${{ github.ref_name }}-linux-amd64
           path: target/release/citrea
 
   osx_arm64_binary_extraction:
+    needs: validate_DA_ID_format
     runs-on: self-hosted-citrea-osx-arm64
     steps:
       - name: Checkout
@@ -72,18 +157,20 @@ jobs:
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup install 1.79.0
+          rustup default 1.79.0
 
       - name: Install Cargo Binstall
         run: |
           source $HOME/.cargo/env
-          cargo install cargo-binstall
-
-      - name: Install Cargo Risczero
+          cargo install --version 1.7.0 cargo-binstall
+      - name: Install cargo-risczero
         run: |
-          source $HOME/.cargo/env
-          cargo binstall -y cargo-risczero
-          cargo risczero install --version v2024-04-22.0
-
+          cargo binstall cargo-risczero@1.0.5 --no-confirm
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
           REPR_GUEST_BUILD: 1
@@ -95,55 +182,58 @@ jobs:
         id: check-id
         run: |
           RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
-          
-          if echo "$RESULT" | grep -q "${{ env.EXPECTED_BITCOIN_DA_ID }}"; then
+          EXPECTED_BITCOIN_DA_ID=$(echo "${{ env.EXPECTED_BITCOIN_DA_ID }}" | tr -d '\n\r')
+          if echo "$RESULT" | grep -q "$EXPECTED_BITCOIN_DA_ID"; then
             echo "Check passed successfully."
+            echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+              
           else      
             echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
             exit 1
           fi
 
-      - name: Upload osx_arm64 Binary
+      - name: Upload osx-arm64 Binary
         uses: actions/upload-artifact@v4
         with:
-          name: citrea_${{ github.ref_name }}_osx_arm64
+          name: citrea-${{ github.ref_name }}-osx-arm64
           path: target/release/citrea
 
   release:
-    needs: [ x86_64_binary_extraction, osx_arm64_binary_extraction ]
+    needs: [ linux_amd64_binary_extraction, osx_arm64_binary_extraction ]
     runs-on: ubuntu-latest
     steps:
-      - name: Download x86_64 Binary
+      - name: Download linux-amd64 Binary
         uses: actions/download-artifact@v4
         with:
-          name: citrea_${{ github.ref_name }}_x86_64
+          name: citrea-${{ github.ref_name }}-linux-amd64
           path: release
 
       - name: rename file
         run: |
-          mv release/citrea release/citrea_${{ github.ref_name }}_x86_64
+          mv release/citrea release/citrea-${{ github.ref_name }}-linux-amd64
 
       - name: Download OSX ARM64 Binary
         uses: actions/download-artifact@v4
         with:
-          name: citrea_${{ github.ref_name }}_osx_arm64
+          name: citrea-${{ github.ref_name }}-osx-arm64
           path: release
 
       - name: rename file
         run: |
-            mv release/citrea release/citrea_${{ github.ref_name }}_osx_arm64
+            mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/citrea_${{ github.ref_name }}_osx_arm64
-            release/citrea_${{ github.ref_name }}_x86_64
+            release/citrea-${{ github.ref_name }}-osx-arm64
+            release/citrea-${{ github.ref_name }}-linux-amd64
           name: Release ${{ github.ref_name }}
           body: |
             This is the release for version ${{ github.ref_name }}.
             
             It includes:
-            - citrea_${{ github.ref_name }}_x86_64
-            - citrea_${{ github.ref_name }}_osx_arm64
+            - citrea-${{ github.ref_name }}-linux-amd64
+            - citrea-${{ github.ref_name }}-osx-arm64

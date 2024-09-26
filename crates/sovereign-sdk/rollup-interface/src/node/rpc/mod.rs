@@ -368,8 +368,6 @@ pub struct TxResponse<Tx> {
     /// The hex encoded transaction hash.
     #[serde(with = "utils::rpc_hex")]
     pub hash: [u8; 32],
-    /// The range of events occurring in this transaction.
-    pub event_range: core::ops::Range<u64>,
     /// The transaction body, if stored by the rollup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<HexTx>,
@@ -441,8 +439,8 @@ pub trait LedgerRpcProvider {
         soft_confirmation_receipt: u64,
     ) -> Result<SoftConfirmationStatus, anyhow::Error>;
 
-    /// (Prover) returns the last scanned L1 height (for sequencer commitments)
-    fn get_prover_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error>;
+    /// Returns the last scanned L1 height (for sequencer commitments)
+    fn get_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error>;
 
     /// Returns the slot number of a given hash
     fn get_slot_number_by_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error>;

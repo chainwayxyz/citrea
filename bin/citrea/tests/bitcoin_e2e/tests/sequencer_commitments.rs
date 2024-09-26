@@ -35,7 +35,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let prover = f.prover.as_ref().unwrap();
@@ -54,12 +54,12 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         da.wait_mempool_len(1, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH + 1, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
         // wait here until we see from prover's rpc that it finished proving
-        prover.wait_for_l1_height(finalized_height, None).await;
+        prover.wait_for_l1_height(finalized_height, None).await?;
 
         let commitments = prover
             .client
@@ -113,7 +113,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
@@ -133,7 +133,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         da.wait_mempool_len(1, None).await?;
 
         // Generate enough block to finalize
-        da.generate(FINALITY_DEPTH + 1, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         full_node
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
@@ -176,12 +176,12 @@ struct SequencerSendCommitmentsToDaTest;
 impl TestCase for SequencerSendCommitmentsToDaTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
+            min_soft_confirmations_per_commitment: 12,
             ..Default::default()
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
@@ -197,7 +197,8 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .wait_for_l2_height(min_soft_confirmations_per_commitment - 1, None)
             .await;
 
-        da.generate(FINALITY_DEPTH + 1, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -213,18 +214,23 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         // Publish one more L2 block and send commitment
         sequencer.client.send_publish_batch_request().await;
+
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(
+                min_soft_confirmations_per_commitment + FINALITY_DEPTH - 1,
+                None,
+            )
             .await;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH + 1, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let start_l2_block = 1;
-        let end_l2_block = 4;
+        let end_l2_block = 19;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
@@ -233,16 +239,19 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             sequencer.client.send_publish_batch_request().await;
         }
         sequencer
-            .wait_for_l2_height(min_soft_confirmations_per_commitment * 2, None)
+            .wait_for_l2_height(
+                end_l2_block + min_soft_confirmations_per_commitment + FINALITY_DEPTH - 2,
+                None,
+            )
             .await;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH + 1, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         let start_l2_block = end_l2_block + 1;
-        let end_l2_block = start_l2_block + 4;
+        let end_l2_block = end_l2_block + 12;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;

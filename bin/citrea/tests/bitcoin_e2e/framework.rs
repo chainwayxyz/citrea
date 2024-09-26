@@ -105,8 +105,8 @@ impl TestFramework {
         println!("Dumping logs:");
 
         for node in self.get_nodes_as_log_provider() {
-            println!("{} logs (last 25 lines):", node.kind());
-            if let Err(e) = tail_file(&node.log_path(), 25) {
+            println!("{} logs (last 300 lines):", node.kind());
+            if let Err(e) = tail_file(&node.log_path(), 300) {
                 eprint!("{e}");
             }
         }

@@ -1,0 +1,63 @@
+[public_keys]
+sequencer_public_key = "4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1"
+sequencer_da_pub_key = "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b"
+prover_da_pub_key = "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42"
+
+[da]
+# put in the url of your Bitcoin node
+node_url = "http://0.0.0.0:18443"
+
+#  put in the username and password of your Bitcoin node
+node_username = "citrea"
+node_password = "citrea"
+
+# leave this as is
+network = "testnet"
+tx_backup_dir = ""
+
+[storage]
+# make sure the following path relative to the directory in which you're
+# running citrea exists.
+path = "resources/dbs"
+
+# comment out if you want to set custom max open files
+# if you leave it like this, it will use the system limit
+# db_max_open_files = 5000
+
+[rpc]
+# the host and port to bind the rpc server for
+bind_host = "0.0.0.0"
+bind_port = 8080
+
+# for below if you don't want to use default values
+# comment out and set to desired value
+
+# max connections are deafult to 100
+# max_connections = 100
+
+# max request body size is default to 10MB
+# max_request_body_size = 1048576
+
+# max response body size is default to 10MB
+# max_response_body_size = 1048576
+
+# max batch rpc requests count it default to 50
+# batch_requests_limit = 50
+
+#  subscriptions are enabled by default
+# enable_subscriptions = true
+
+# max subscriptions per connection is default to 100
+# max_subscriptions_per_connection = 100
+
+[runner]
+sequencer_client_url = "https://rpc.testnet.citrea.xyz"
+
+# if you want to store full soft confirmations in your node
+# set this to true
+include_tx_body = false
+
+# speed up sync by increasing the number of blocks we request per batch.
+# this value should be at most equal to `batch_requests_limit` set by the RPC node
+# being used.
+# sync_blocks_count = 20

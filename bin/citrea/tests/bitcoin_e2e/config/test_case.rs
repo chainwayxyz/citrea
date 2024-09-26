@@ -3,6 +3,42 @@ use std::time::Duration;
 
 use tempfile::TempDir;
 
+#[derive(Clone, Default)]
+pub struct TestCaseEnv {
+    pub test: Vec<(&'static str, &'static str)>,
+    pub full_node: Vec<(&'static str, &'static str)>,
+    pub sequencer: Vec<(&'static str, &'static str)>,
+    pub prover: Vec<(&'static str, &'static str)>,
+    pub bitcoin: Vec<(&'static str, &'static str)>,
+}
+
+impl TestCaseEnv {
+    // Base env that should apply to every test cases
+    fn base_env() -> Vec<(&'static str, &'static str)> {
+        vec![("NO_COLOR", "1")]
+    }
+
+    fn test_env(&self) -> Vec<(&'static str, &'static str)> {
+        [Self::base_env(), self.test.clone()].concat()
+    }
+
+    pub fn sequencer(&self) -> Vec<(&'static str, &'static str)> {
+        [self.test_env(), self.sequencer.clone()].concat()
+    }
+
+    pub fn prover(&self) -> Vec<(&'static str, &'static str)> {
+        [self.test_env(), self.prover.clone()].concat()
+    }
+
+    pub fn full_node(&self) -> Vec<(&'static str, &'static str)> {
+        [self.test_env(), self.full_node.clone()].concat()
+    }
+
+    pub fn bitcoin(&self) -> Vec<(&'static str, &'static str)> {
+        [self.test_env(), self.bitcoin.clone()].concat()
+    }
+}
+
 #[derive(Clone)]
 pub struct TestCaseConfig {
     pub num_nodes: usize,

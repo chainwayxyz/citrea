@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Stdio;
 
 use anyhow::Context;
@@ -29,7 +29,7 @@ impl Sequencer {
             sequencer: config, ..
         } = &ctx.config;
 
-        let spawn_output = Self::spawn(config, &config.dir)?;
+        let spawn_output = Self::spawn(config)?;
 
         let socket_addr = SocketAddr::new(
             config
@@ -55,7 +55,7 @@ impl Sequencer {
     }
 
     pub fn min_soft_confirmations_per_commitment(&self) -> u64 {
-        self.config.sequencer.min_soft_confirmations_per_commitment
+        self.config.node.min_soft_confirmations_per_commitment
     }
 }
 
@@ -63,8 +63,9 @@ impl Node for Sequencer {
     type Config = FullSequencerConfig;
     type Client = TestClient;
 
-    fn spawn(config: &Self::Config, dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config) -> Result<SpawnOutput> {
         let citrea = get_citrea_path();
+        let dir = &config.dir;
 
         let stdout_file =
             File::create(get_stdout_path(dir)).context("Failed to create stdout file")?;
@@ -72,7 +73,7 @@ impl Node for Sequencer {
             File::create(get_stderr_path(dir)).context("Failed to create stderr file")?;
 
         let config_path = dir.join("sequencer_config.toml");
-        config_to_file(&config.sequencer, &config_path)?;
+        config_to_file(&config.node, &config_path)?;
 
         let rollup_config_path = dir.join("sequencer_rollup_config.toml");
         config_to_file(&config.rollup, &rollup_config_path)?;
@@ -88,6 +89,7 @@ impl Node for Sequencer {
             .arg(get_genesis_path(
                 dir.parent().expect("Couldn't get parent dir"),
             ))
+            .envs(config.env.clone())
             .stdout(Stdio::from(stdout_file))
             .stderr(Stdio::from(stderr_file))
             .kill_on_drop(true)
@@ -115,8 +117,13 @@ impl Node for Sequencer {
         }
         anyhow::bail!("Sequencer failed to become ready within the specified timeout")
     }
+
     fn client(&self) -> &Self::Client {
         &self.client
+    }
+
+    fn env(&self) -> Vec<(&'static str, &'static str)> {
+        self.config.env.clone()
     }
 }
 

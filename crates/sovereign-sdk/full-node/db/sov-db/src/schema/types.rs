@@ -178,8 +178,6 @@ pub struct StoredSoftConfirmation {
     pub hash: DbHash,
     /// The hash of the previous batch
     pub prev_hash: DbHash,
-    /// The range of transactions which occurred in this batch.
-    pub tx_range: std::ops::Range<TxNumber>,
     /// The transactions which occurred in this batch.
     pub txs: Vec<StoredTransaction>,
     /// Deposit data coming from the L1 chain
@@ -267,8 +265,6 @@ pub struct StoredBatch {
 pub struct StoredTransaction {
     /// The hash of the transaction.
     pub hash: DbHash,
-    /// The range of event-numbers emitted by this transaction.
-    pub events: std::ops::Range<EventNumber>,
     /// The serialized transaction data, if the rollup decides to store it.
     pub body: Option<Vec<u8>>,
 }
@@ -278,7 +274,6 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
     fn try_from(value: StoredTransaction) -> Result<Self, Self::Error> {
         Ok(Self {
             hash: value.hash,
-            event_range: value.events.start.into()..value.events.end.into(),
             body: value.body.map(HexTx::from),
             phantom_data: PhantomData,
         })
@@ -288,12 +283,9 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
 /// Split a `TransactionReceipt` into a `StoredTransaction` and a list of `Event`s for storage in the database.
 pub fn split_tx_for_storage<R: Serialize>(
     tx: TransactionReceipt<R>,
-    event_offset: u64,
 ) -> (StoredTransaction, Vec<Event>) {
-    let event_range = EventNumber(event_offset)..EventNumber(event_offset + tx.events.len() as u64);
     let tx_for_storage = StoredTransaction {
         hash: tx.tx_hash,
-        events: event_range,
         body: tx.body_to_save,
     };
     (tx_for_storage, tx.events)
@@ -378,7 +370,6 @@ pub mod arbitrary {
         fn arbitrary(u: &mut ::arbitrary::Unstructured<'a>) -> ::arbitrary::Result<Self> {
             Ok(StoredTransaction {
                 hash: u.arbitrary()?,
-                events: u.arbitrary()?,
                 body: u.arbitrary()?,
             })
         }

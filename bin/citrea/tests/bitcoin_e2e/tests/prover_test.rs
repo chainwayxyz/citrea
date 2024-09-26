@@ -3,18 +3,19 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin::secp256k1::generate_keypair;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
-use hex::ToHex;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::services::da::SenderWithNotifier;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::NodeKind;
 use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
+use crate::bitcoin_e2e::utils::get_tx_backup_dir;
 use crate::bitcoin_e2e::Result;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
@@ -41,7 +42,7 @@ impl TestCase for BasicProverTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
@@ -64,24 +65,28 @@ impl TestCase for BasicProverTest {
         let seq_height0 = sequencer.client.eth_block_number().await;
         assert_eq!(seq_height0, 0);
 
-        for _ in 0..10 {
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
-        prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await;
+        prover.wait_for_l1_height(finalized_height, None).await?;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
-            .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
+            .wait_for_zkproofs(
+                finalized_height + FINALITY_DEPTH,
+                Some(Duration::from_secs(120)),
+            )
             .await
             .unwrap();
 
@@ -106,7 +111,10 @@ impl TestCase for BasicProverTest {
     }
 }
 
-struct SkipPreprovenCommitmentsTest;
+#[derive(Default)]
+struct SkipPreprovenCommitmentsTest {
+    tx: Option<UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>>,
+}
 
 #[async_trait]
 impl TestCase for SkipPreprovenCommitmentsTest {
@@ -114,7 +122,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         TestCaseConfig {
             with_prover: true,
             with_full_node: true,
-            docker: true,
             ..Default::default()
         }
     }
@@ -127,7 +134,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
@@ -146,11 +153,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         let _initial_height = f.initial_da_height;
 
-        let (secret_key, _public_key) = generate_keypair(&mut rand::thread_rng());
-        let secret_key = secret_key.secret_bytes().encode_hex();
-        // let key_pair = Keypair::from_secret_key(&secp, &secret_key);
-        // let mut buf = [0u8; constants::SECRET_KEY_SIZE * 2];
-        // to_hex(&self.secret_bytes(), &mut buf).expect("fixed-size hex serialization");
         let da_config = &f.bitcoin_nodes.get(0).unwrap().config;
         let bitcoin_da_service_config = BitcoinServiceConfig {
             node_url: format!(
@@ -161,9 +163,21 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             node_username: da_config.rpc_user.clone(),
             node_password: da_config.rpc_password.clone(),
             network: bitcoin::Network::Regtest,
-            da_private_key: Some(secret_key),
+            da_private_key: Some(
+                // This is the private key used by the sequencer.
+                // This is because the prover has a check to make sure that the commitment was
+                // submitted by the sequencer and NOT any other key. Which means that arbitrary keys
+                // CANNOT submit preproven commitments.
+                // Using the sequencer DA private key means that we simulate the fact that the sequencer
+                // somehow resubmitted the same commitment.
+                "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D".to_owned(),
+            ),
+            tx_backup_dir: get_tx_backup_dir(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        // Keep sender for cleanup
+        self.tx = Some(tx.clone());
+
         let bitcoin_da_service = Arc::new(
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
@@ -171,7 +185,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                     reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
                     reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
                 },
-                tx,
+                tx.clone(),
             )
             .await
             .unwrap(),
@@ -184,26 +198,31 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let seq_height0 = sequencer.client.eth_block_number().await;
         assert_eq!(seq_height0, 0);
 
-        for _ in 0..10 {
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await;
         }
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         let finalized_height = da.get_finalized_height().await?;
-        println!("FINALIZED HEIGHT: {}", finalized_height);
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await;
+            .await?;
 
-        da.generate(5, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
-            .wait_for_zkproofs(finalized_height + 5, Some(Duration::from_secs(120)))
+            .wait_for_zkproofs(
+                finalized_height + FINALITY_DEPTH,
+                Some(Duration::from_secs(120)),
+            )
             .await
             .unwrap();
 
@@ -214,13 +233,21 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .preproven_commitments
             .is_empty());
 
+        // Make sure the mempool is mined.
+        da.wait_mempool_len(0, None).await?;
+
         // Fetch the commitment created from the previous L1 range
-        let commitments: Vec<SequencerCommitment> = sequencer
+        let commitments: Vec<SequencerCommitment> = full_node
             .client
             .ledger_get_sequencer_commitments_on_slot_by_number(finalized_height)
             .await
-            .unwrap()
-            .unwrap()
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Failed to get sequencer commitments at {}",
+                    finalized_height
+                )
+            })
+            .unwrap_or_else(|| panic!("No sequencer commitments found at {}", finalized_height))
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
@@ -229,6 +256,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             })
             .collect();
 
+        // Send the same commitment that was already proven.
         let fee_sat_per_vbyte = bitcoin_da_service.get_fee_rate().await.unwrap();
         bitcoin_da_service
             .send_transaction_with_fee_rate(
@@ -239,11 +267,34 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .await
             .unwrap();
 
-        da.generate(5, None).await?;
+        // Wait for the duplicate commitment transaction to be accepted.
+        da.wait_mempool_len(2, None).await?;
+
+        // Trigger a new commitment.
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await;
+        }
+
+        // Wait for the sequencer commitment to be submitted & accepted.
+        da.wait_mempool_len(4, None).await?;
+
+        da.generate(FINALITY_DEPTH, None).await?;
+
+        let finalized_height = da.get_finalized_height().await?;
 
         prover
-            .wait_for_l1_height(FINALITY_DEPTH + 1, Some(Duration::from_secs(300)))
-            .await;
+            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
+            .await?;
+
+        da.generate(FINALITY_DEPTH, None).await?;
+
+        let proofs = full_node
+            .wait_for_zkproofs(
+                finalized_height + FINALITY_DEPTH,
+                Some(Duration::from_secs(120)),
+            )
+            .await
+            .unwrap();
 
         assert_eq!(
             proofs
@@ -257,6 +308,14 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         Ok(())
     }
+
+    async fn cleanup(&self) -> Result<()> {
+        // Send shutdown message to da queue
+        if let Some(tx) = &self.tx {
+            tx.send(None).unwrap();
+        }
+        Ok(())
+    }
 }
 
 #[tokio::test]
@@ -264,10 +323,9 @@ async fn basic_prover_test() -> Result<()> {
     TestCaseRunner::new(BasicProverTest).run().await
 }
 
-#[ignore]
 #[tokio::test]
 async fn prover_skips_preproven_commitments_test() -> Result<()> {
-    TestCaseRunner::new(SkipPreprovenCommitmentsTest)
+    TestCaseRunner::new(SkipPreprovenCommitmentsTest::default())
         .run()
         .await
 }

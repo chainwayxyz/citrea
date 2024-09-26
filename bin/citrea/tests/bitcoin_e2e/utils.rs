@@ -138,3 +138,12 @@ pub fn tail_file(path: &Path, lines: usize) -> Result<()> {
 
     Ok(())
 }
+
+pub fn get_tx_backup_dir() -> String {
+    let workspace_root = get_workspace_root();
+    let mut path = workspace_root.to_path_buf();
+    path.push("resources");
+    path.push("bitcoin");
+    path.push("inscription_txs");
+    path.to_str().expect("Failed to convert path").to_string()
+}

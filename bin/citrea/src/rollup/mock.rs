@@ -75,6 +75,7 @@ impl RollupBlueprint for MockDemoRollup {
         crate::eth::register_ethereum::<Self::DaService>(
             da_service.clone(),
             storage.clone(),
+            ledger_db.clone(),
             &mut rpc_methods,
             sequencer_client_url,
             soft_confirmation_rx,
@@ -94,6 +95,7 @@ impl RollupBlueprint for MockDemoRollup {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
+        _require_wallet_check: bool,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(
             rollup_config.da.sender_address,

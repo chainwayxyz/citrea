@@ -50,7 +50,7 @@ const CODE_KEY_SIZE: usize = 39;
 /// The L1 fee overhead is to compensate for the data written to da that is not accounted for in the diff size
 /// It is calculated by measuring the state diff we write to da in a single batch every 10 minutes which is about 300 soft confirmations
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
-pub const L1_FEE_OVERHEAD: usize = 4;
+pub const L1_FEE_OVERHEAD: usize = 3;
 
 /// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
 /// So we calculate the state diff created by a single transaction and use that to charge user
@@ -433,6 +433,7 @@ fn calc_diff_size<EXT, DB: Database>(
     let InnerEvmContext {
         journaled_state,
         env,
+        db,
         ..
     } = &mut context.evm.inner;
 
@@ -521,8 +522,7 @@ fn calc_diff_size<EXT, DB: Database>(
             let n_slots = account.storage.len();
             diff_size += (STORAGE_KEY_SIZE + 1) * n_slots;
             diff_size += (KEY_KEY_SIZE + 1) * n_slots;
-            // account_code:
-            diff_size += CODE_KEY_SIZE + 1;
+            // We don't delete account_code.
             continue;
         }
 
@@ -557,9 +557,13 @@ fn calc_diff_size<EXT, DB: Database>(
             let account = &state[addr];
 
             if let Some(code) = account.info.code.as_ref() {
-                // if code is eoa code
-                diff_size += CODE_KEY_SIZE;
-                diff_size += code.len();
+                // Don't charge for account code if it is already in DB.
+                let db_code = db.code_by_hash(account.info.code_hash)?;
+                if db_code.is_empty() {
+                    // if code is eoa code
+                    diff_size += CODE_KEY_SIZE;
+                    diff_size += code.len();
+                }
             } else {
                 native_warn!(
                     "Code must exist for account when calculating diff: {}",

@@ -23,7 +23,7 @@ impl TestCase for MempoolAcceptTest {
         }
     }
 
-    async fn run_test(&self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
@@ -37,7 +37,7 @@ impl TestCase for MempoolAcceptTest {
             .wait_for_l2_height(min_soft_conf_per_commitment, None)
             .await;
 
-        da.generate(FINALITY_DEPTH + 1, None).await?;
+        da.generate(FINALITY_DEPTH, None).await?;
 
         // TODO find the right assertions here
         // Should be either 2 or 0

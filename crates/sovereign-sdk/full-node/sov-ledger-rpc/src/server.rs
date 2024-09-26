@@ -75,9 +75,9 @@ where
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
-    rpc.register_blocking_method("prover_getLastScannedL1Slot", move |_, ledger, _| {
+    rpc.register_blocking_method("ledger_getLastScannedL1Hieght", move |_, ledger, _| {
         ledger
-            .get_prover_last_scanned_l1_height()
+            .get_last_scanned_l1_height()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 

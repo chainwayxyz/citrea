@@ -1,10 +1,11 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::sync::{Arc, RwLock};
+use std::ops::DerefMut;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
+use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
@@ -77,7 +78,7 @@ impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
 // the prover will reject new jobs.
 pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
-    prover_state: Arc<RwLock<ProverState<StateRoot, Witness, Da::Spec>>>,
+    prover_state: Arc<Mutex<ProverState<StateRoot, Witness, Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
 }
@@ -105,7 +106,7 @@ where
                 .build()
                 .map_err(|e| anyhow!(e))?,
 
-            prover_state: Arc::new(RwLock::new(ProverState {
+            prover_state: Arc::new(Mutex::new(ProverState {
                 prover_status: Default::default(),
                 pending_tasks_count: Default::default(),
             })),
@@ -119,7 +120,7 @@ where
         let header_hash = state_transition_data.da_block_header_of_commitments.hash();
         let data = ProverStatus::WitnessSubmitted(state_transition_data);
 
-        let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
+        let mut prover_state = self.prover_state.lock();
         let entry = prover_state.prover_status.entry(header_hash);
 
         match entry {
@@ -134,7 +135,7 @@ where
     pub(crate) fn start_proving<Vm, V>(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        config: Arc<ProofGenConfig<V, Da, Vm>>,
+        config: Arc<Mutex<ProofGenConfig<V, Da, Vm>>>,
         mut vm: Vm,
         zk_storage: V::PreState,
     ) -> Result<ProofProcessingStatus, ProverServiceError>
@@ -144,7 +145,7 @@ where
         V::PreState: Send + Sync + 'static,
     {
         let prover_state_clone = self.prover_state.clone();
-        let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
+        let mut prover_state = self.prover_state.lock();
 
         let prover_status = prover_state
             .remove(&block_header_hash)
@@ -162,8 +163,7 @@ where
                         tracing::debug_span!("guest_execution").in_scope(|| {
                             let proof = make_proof(vm, config, zk_storage);
 
-                            let mut prover_state =
-                                prover_state_clone.write().expect("Lock was poisoned");
+                            let mut prover_state = prover_state_clone.lock();
 
                             prover_state.set_to_proved(block_header_hash, proof);
                             prover_state.dec_task_count();
@@ -193,7 +193,7 @@ where
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
-        let mut prover_state = self.prover_state.write().unwrap();
+        let mut prover_state = self.prover_state.lock();
 
         let status = prover_state.get_prover_status(block_header_hash.clone());
 
@@ -220,7 +220,7 @@ where
 
 fn make_proof<V, Vm, Da>(
     mut vm: Vm,
-    config: Arc<ProofGenConfig<V, Da, Vm>>,
+    config: Arc<Mutex<ProofGenConfig<V, Da, Vm>>>,
     zk_storage: V::PreState,
 ) -> Result<Proof, anyhow::Error>
 where
@@ -229,17 +229,13 @@ where
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
     V::PreState: Send + Sync + 'static,
 {
-    match config.deref() {
+    let mut config = config.lock();
+    match config.deref_mut() {
         ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
-        ProofGenConfig::Simulate(verifier) => {
-            let _ = verifier;
-            let _ = zk_storage;
-            unimplemented!("Simulate is not implemented yet");
-            //verifier
-            // .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
-            // .map(|_| Proof::PublicInput(Vec::default()))
-            // .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        }
+        ProofGenConfig::Simulate(ref mut verifier) => verifier
+            .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
+            .map(|_| Proof::PublicInput(Vec::default()))
+            .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         ProofGenConfig::Execute => vm.run(false),
         ProofGenConfig::Prover => vm.run(true),
     }

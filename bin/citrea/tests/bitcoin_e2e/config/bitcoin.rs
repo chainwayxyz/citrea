@@ -13,6 +13,7 @@ pub struct BitcoinConfig {
     pub extra_args: Vec<&'static str>,
     pub network: Network,
     pub docker_image: Option<String>,
+    pub env: Vec<(&'static str, &'static str)>,
 }
 
 impl Default for BitcoinConfig {
@@ -25,9 +26,10 @@ impl Default for BitcoinConfig {
             data_dir: TempDir::new()
                 .expect("Failed to create temporary directory")
                 .into_path(),
-            extra_args: vec![],
+            extra_args: Vec::new(),
             network: Network::Regtest,
             docker_image: Some("bitcoin/bitcoin:latest".to_string()),
+            env: Vec::new(),
         }
     }
 }
@@ -45,6 +47,8 @@ impl BitcoinConfig {
             "-daemon".to_string(),
             "-txindex".to_string(),
             "-addresstype=bech32m".to_string(),
+            "-debug=net".to_string(),
+            "-debug=rpc".to_string(),
         ]
     }
 

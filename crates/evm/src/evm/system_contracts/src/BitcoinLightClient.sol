@@ -43,7 +43,7 @@ contract BitcoinLightClient is IBitcoinLightClient {
         blockHashes[_blockNumber] = _blockHash;
         blockNumber = _blockNumber + 1;
         witnessRoots[_blockHash] = _witnessRoot;
-        emit BlockInfoAdded(blockNumber, _blockHash, _witnessRoot);
+        emit BlockInfoAdded(_blockNumber, _blockHash, _witnessRoot);
     }
 
     /// @param _blockNumber Number of the block to get the hash for

@@ -2,14 +2,14 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, StateDiff};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, EventNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
-    StoredSoftConfirmation, StoredStateTransition, StoredTransaction, TxNumber,
+    BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot, StoredSoftConfirmation,
+    StoredStateTransition,
 };
 
 /// Shared ledger operations
@@ -19,23 +19,6 @@ pub trait SharedLedgerOps {
         &self,
         batch: &StoredSoftConfirmation,
         batch_number: &BatchNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Put transaction to db
-    fn put_transaction(
-        &self,
-        tx: &StoredTransaction,
-        tx_number: &TxNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Put event to db
-    fn put_event(
-        &self,
-        event: &Event,
-        event_number: &EventNumber,
-        tx_number: TxNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
@@ -114,7 +97,7 @@ pub trait SharedLedgerOps {
     /// directly via rpc.
     fn get_soft_confirmation_range(
         &self,
-        range: &std::ops::Range<BatchNumber>,
+        range: &std::ops::RangeInclusive<BatchNumber>,
     ) -> Result<Vec<StoredSoftConfirmation>>;
 
     /// Gets all soft confirmations by numbers
@@ -130,6 +113,12 @@ pub trait SharedLedgerOps {
     /// Get the most recent committed batch
     /// Returns L2 height.
     fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
+
+    /// Get the last scanned slot
+    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
+
+    /// Set the last scanned slot
+    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
 }
 
 /// Node ledger operations
@@ -145,25 +134,12 @@ pub trait NodeLedgerOps: SharedLedgerOps {
     /// Get the most recent committed slot, if any
     fn get_head_slot(&self) -> Result<Option<(SlotNumber, StoredSlot)>>;
 
-    /// Gets all transactions with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    fn get_tx_range(&self, range: &std::ops::Range<TxNumber>) -> Result<Vec<StoredTransaction>>;
-
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
 }
 
 /// Prover ledger operations
 pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
-    /// Get the last scanned slot by the prover
-    fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
-
-    /// Set the last scanned slot by the prover
-    /// Called by the prover.
-    fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
-
     /// Get the witness by L2 height
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
 

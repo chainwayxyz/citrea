@@ -4,6 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_stf::verifier::StateTransitionVerifier;
+use parking_lot::Mutex;
 use prover::Prover;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -31,7 +32,7 @@ where
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
 {
     vm: Vm,
-    prover_config: Arc<ProofGenConfig<V, Da, Vm>>,
+    prover_config: Arc<Mutex<ProofGenConfig<V, Da, Vm>>>,
 
     zk_storage: V::PreState,
     prover_state: Prover<StateRoot, Witness, Da>,
@@ -92,7 +93,7 @@ where
             }
         }
 
-        let prover_config = Arc::new(config);
+        let prover_config = Arc::new(Mutex::new(config));
 
         Ok(Self {
             vm,

@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::ops::RangeInclusive;
 
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::{ClientT, Error};
@@ -51,13 +51,13 @@ impl SequencerClient {
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn get_soft_confirmation_range<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
-        range: Range<u64>,
+        range: RangeInclusive<u64>,
     ) -> anyhow::Result<Vec<Option<GetSoftConfirmationResponse>>> {
         let res: Result<Vec<Option<GetSoftConfirmationResponse>>, Error> = self
             .client
             .request(
                 "ledger_getSoftConfirmationRange",
-                rpc_params![range.start, range.end],
+                rpc_params![range.start(), range.end()],
             )
             .await;
 
@@ -104,7 +104,7 @@ impl SequencerClient {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSoftConfirmationResponse {
-    l2_height: u64,
+    pub l2_height: u64,
     #[serde(with = "hex::serde")]
     pub hash: SoftConfirmationHash,
     #[serde(with = "hex::serde")]

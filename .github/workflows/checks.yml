@@ -40,13 +40,20 @@ name: Checks
 
 on:
   workflow_dispatch:
+    inputs:
+      custom_name:
+        description: 'Custom run name (optional)'
+        required: false
+        type: string
   merge_group:
     types: ["checks_requested"]
   push:
-    branches: ["nightly", "main"]
+    branches: ["nightly", "devnet-freeze", "main"]
   pull_request:
-    branches: ["nightly", "main"]
+    branches: ["nightly", "devnet-freeze", "main"]
     types: [opened, synchronize, reopened, ready_for_review]
+
+run-name: ${{ inputs.custom_name || github.event.pull_request.title || github.sha }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -59,9 +66,48 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Except in `nightly` and `stable` branches! Any cancelled job will cause the
   # CI run to fail, and we want to keep a clean history for major branches.
-  cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/main') }}
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/nightly') && (github.ref != 'refs/heads/devnet-freeze') && (github.ref != 'refs/heads/main') }}
 
 jobs:
+  build:
+    name: build
+    runs-on: ubicloud-standard-30
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build citrea
+        run: make build-release
+        env:
+          REPR_GUEST_BUILD: 1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: citrea-build
+          path: |
+            target/release/citrea
+            target/release/**/methods.rs
+          retention-days: 1
+
   check:
     name: check
     runs-on: ubicloud-standard-16
@@ -78,23 +124,27 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          override: true
           components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
         env:
-          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
       - name: Run lint
         run: |
-          if ! SKIP_GUEST_BUILD=1 make lint ; then
+          if ! make lint ; then
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
             exit 1
           fi
+        env:
+          SKIP_GUEST_BUILD: 1
 
   udeps:
     name: udeps
@@ -116,14 +166,18 @@ jobs:
           override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
         env:
-          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
+          SKIP_GUEST_BUILD: 1
         uses: aig787/cargo-udeps-action@v1
         with:
           version: "latest"
@@ -151,10 +205,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
         env:
-          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
         uses: actions/cache@v3
@@ -166,6 +223,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
           USE_DOCKER: "true"
+          SHORT_PREFIX: 1
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -175,31 +233,28 @@ jobs:
 
   uniswap:
     runs-on: ubicloud-standard-16
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-      - uses: dcarbone/install-jq-action@v2
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
-        env:
-          XDG_CONFIG_HOME: "."
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build citrea
-        run: make build
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: citrea-build
+          path: target/release
+      - name: Make citrea executable
+        run: chmod +x target/release/citrea
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/uniswap
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
@@ -221,31 +276,27 @@ jobs:
 
   web3_py:
     runs-on: ubicloud-standard-16
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: dcarbone/install-jq-action@v2
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
-        env:
-          XDG_CONFIG_HOME: "."
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/cache@v3
+      - name: Download artifact
+        uses: actions/download-artifact@v3
         with:
-          key: ${{ runner.os }}-${{ github.job }}-${{ github.head_ref }}
-          path: ./target
-      - name: Build citrea
-        run: make build
+          name: citrea-build
+          path: target/release
+      - name: Make citrea executable
+        run: chmod +x target/release/citrea
       - name: Install dependencies
         working-directory: ./bin/citrea/tests/evm/web3_py
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           # ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/web3_py
@@ -253,35 +304,33 @@ jobs:
 
   ethers_js:
     runs-on: ubicloud-standard-16
+    needs: build
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-      - uses: dcarbone/install-jq-action@v2
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
-        env:
-          XDG_CONFIG_HOME: "."
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build citrea
-        run: make build
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: citrea-build
+          path: target/release
+      - name: Make citrea executable
+        run: chmod +x target/release/citrea
       - name: Install node dependencies
         working-directory: ./bin/citrea/tests/evm/ethers_js
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          RUST_LOG=off ./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/ethers_js
+          npm install
           npx mocha test.js
+          cd ../../../../..
 
   check_no_std:
     runs-on: ubicloud-standard-4
@@ -323,18 +372,16 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.79.0
-        with:
-          override: true
-          components: rustfmt, clippy
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: curl -L https://risczero.com/install | bash; source ~/.bashrc; ./.risc0/bin/rzup -v 1.0.5;
+      - name: Install cargo-risczero
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-risczero@1.0.5
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
         env:
-          XDG_CONFIG_HOME: "."
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build citrea
-        run: make build
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
@@ -346,10 +393,10 @@ jobs:
         run: make test
         env:
           RUST_BACKTRACE: 1
-          REPR_GUEST_BUILD: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
           USE_DOCKER: "true"
+          SHORT_PREFIX: 1
 
   system-contracts:
     strategy:
@@ -405,3 +452,105 @@ jobs:
       - name: Run check_genesis.sh
         run: ./.github/scripts/check_genesis.sh
         shell: bash
+
+  validate_and_check_DA_ID:
+    runs-on: ubicloud-standard-2
+    needs: build
+    env:
+      EXPECTED_BITCOIN_DA_ID: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Validate EXPECTED_BITCOIN_DA_ID format
+        run: |
+          echo "Raw EXPECTED_BITCOIN_DA_ID value:"
+          echo "$EXPECTED_BITCOIN_DA_ID"
+
+          echo "Length of EXPECTED_BITCOIN_DA_ID: ${#EXPECTED_BITCOIN_DA_ID}"
+
+          if [ -z "${EXPECTED_BITCOIN_DA_ID// }" ]; then
+            echo "Error: EXPECTED_BITCOIN_DA_ID is not set, empty, or contains only spaces"
+            exit 1
+          fi
+
+          # Remove any trailing newline or carriage return
+          EXPECTED_BITCOIN_DA_ID=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -d '\n\r')
+
+          # Count commas and spaces
+          comma_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ',' | wc -c)
+          space_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ' ' | wc -c)
+
+          echo "Number of commas: $comma_count"
+          echo "Number of spaces: $space_count"
+
+          # Split the string into an array and trim each element
+          IFS=', ' read -ra raw_numbers <<< "$EXPECTED_BITCOIN_DA_ID"
+          numbers=()
+          for num in "${raw_numbers[@]}"; do
+            trimmed_num=$(echo "$num" | tr -d '[:space:]')  # Remove all whitespace
+            numbers+=("$trimmed_num")
+          done
+
+          echo "Number of elements after splitting and trimming: ${#numbers[@]}"
+
+          # Check if there are exactly 8 numbers
+          if [ ${#numbers[@]} -ne 8 ]; then
+            echo "Error: EXPECTED_BITCOIN_DA_ID should contain exactly 8 numbers"
+            echo "Actual number of elements: ${#numbers[@]}"
+            exit 1
+          fi
+
+          # Check if all numbers are valid u32
+          for i in "${!numbers[@]}"; do
+            num=${numbers[$i]}
+            echo "Checking number $((i+1)): '$num'"
+            echo "Hex representation: $(echo -n "$num" | xxd -p)"
+            if ! [[ $num =~ ^[0-9]+$ ]]; then
+              echo "Error: '$num' is not composed of digits only"
+              exit 1
+            fi
+            if [ $num -gt 4294967295 ]; then
+              echo "Error: '$num' is greater than 4294967295"
+              exit 1
+            fi
+          done
+
+          # Reconstruct the trimmed DA_ID
+          trimmed_da_id=$(IFS=', '; echo "${numbers[*]}")
+
+          # Final check
+          if [ $comma_count -eq 7 ] && [ $space_count -eq 7 ] && [ ${#numbers[@]} -eq 8 ]; then
+            echo "EXPECTED_BITCOIN_DA_ID is valid:"
+            echo "- Contains 7 commas"
+            echo "- Contains 7 spaces"
+            echo "- Contains 8 valid u32 numbers"
+            echo "Original value: $EXPECTED_BITCOIN_DA_ID"
+            echo "Trimmed value: $trimmed_da_id"
+          else
+            echo "Error: EXPECTED_BITCOIN_DA_ID format is incorrect"
+            echo "- Comma count: $comma_count (should be 7)"
+            echo "- Space count: $space_count (should be 7)"
+            echo "- Number count: ${#numbers[@]} (should be 8)"
+            exit 1
+          fi
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: citrea-build
+          path: target/release
+
+      - name: Check BITCOIN_DA_ID
+        id: check-id
+        run: |
+          RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
+          EXPECTED_BITCOIN_DA_ID=$(echo "${{ env.EXPECTED_BITCOIN_DA_ID }}" | tr -d '\n\r')
+          if echo "$RESULT" | grep -q "$EXPECTED_BITCOIN_DA_ID"; then
+            echo "Check passed successfully."
+            echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+
+          else
+            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+            exit 1
+          fi

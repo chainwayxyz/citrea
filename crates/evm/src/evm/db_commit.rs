@@ -39,10 +39,9 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 }
                 db_account.keys.clear(self.working_set);
 
-                // clear code
-                if let Some(code_hash) = info.code_hash {
-                    self.code.delete(&code_hash, self.working_set);
-                }
+                // Do not clear account.code, because there
+                // may exist duplicate contracts with the same code.
+                // self.code.delete(...) <- DONT DO THIS
 
                 self.accounts.delete(&address, self.working_set);
                 continue;
@@ -52,9 +51,14 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             if let Some(ref code) = account_info.code {
                 if !code.is_empty() {
-                    // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
-                    self.code
-                        .set(&account_info.code_hash, code, self.working_set);
+                    let exists_in_db = self
+                        .code
+                        .get(&account_info.code_hash, self.working_set)
+                        .is_some();
+                    if !exists_in_db {
+                        self.code
+                            .set(&account_info.code_hash, code, self.working_set);
+                    }
                 }
             }
 

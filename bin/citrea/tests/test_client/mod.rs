@@ -9,7 +9,7 @@ use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, Transaction
 use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use citrea_evm::{Filter, LogResponse};
-use ethereum_rpc::CitreaStatus;
+use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
@@ -322,14 +322,10 @@ impl TestClient {
     pub(crate) async fn eth_get_balance(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<U256, Box<dyn std::error::Error>> {
-        let block_number = match block_number {
-            Some(block_number) => block_number,
-            None => BlockNumberOrTag::Latest,
-        };
         self.http_client
-            .request("eth_getBalance", rpc_params![address, block_number])
+            .request("eth_getBalance", rpc_params![address, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -338,13 +334,10 @@ impl TestClient {
         &self,
         address: Address,
         index: U256,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<U256, Box<dyn std::error::Error>> {
         self.http_client
-            .request(
-                "eth_getStorageAt",
-                rpc_params![address, index, block_number],
-            )
+            .request("eth_getStorageAt", rpc_params![address, index, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -352,10 +345,10 @@ impl TestClient {
     pub(crate) async fn eth_get_code(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
         self.http_client
-            .request("eth_getCode", rpc_params![address, block_number])
+            .request("eth_getCode", rpc_params![address, block_id])
             .await
             .map_err(|e| e.into())
     }
@@ -363,14 +356,11 @@ impl TestClient {
     pub(crate) async fn eth_get_transaction_count(
         &self,
         address: Address,
-        block_number: Option<BlockNumberOrTag>,
+        block_id: Option<BlockId>,
     ) -> Result<u64, Box<dyn std::error::Error>> {
         match self
             .http_client
-            .request::<U64, _>(
-                "eth_getTransactionCount",
-                rpc_params![address, block_number],
-            )
+            .request::<U64, _>("eth_getTransactionCount", rpc_params![address, block_id])
             .await
         {
             Ok(count) => Ok(count.saturating_to()),
@@ -526,9 +516,9 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn prover_get_last_scanned_l1_height(&self) -> u64 {
+    pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
         self.http_client
-            .request("prover_getLastScannedL1Slot", rpc_params![])
+            .request("ledger_getLastScannedL1Hieght", rpc_params![])
             .await
             .unwrap()
     }
@@ -731,7 +721,7 @@ impl TestClient {
         block_number.saturating_to()
     }
 
-    pub(crate) async fn citrea_sync_status(&self) -> CitreaStatus {
+    pub(crate) async fn citrea_sync_status(&self) -> SyncStatus {
         self.http_client
             .request("citrea_syncStatus", rpc_params![])
             .await

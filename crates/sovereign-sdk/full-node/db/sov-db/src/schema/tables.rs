@@ -30,14 +30,13 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::stf::{Event, EventKey, StateDiff};
+use sov_rollup_interface::stf::StateDiff;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber, JmtValue, L2HeightRange,
-    SlotNumber, StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation,
-    StoredTransaction, StoredVerifiedProof, TxNumber,
+    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, JmtValue, L2HeightRange, SlotNumber,
+    StateKey, StoredBatch, StoredProof, StoredSlot, StoredSoftConfirmation, StoredVerifiedProof,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -64,10 +63,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     ProverLastScannedSlot::table_name(),
     BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
-    TxByHash::table_name(),
-    TxByNumber::table_name(),
-    EventByKey::table_name(),
-    EventByNumber::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
     VerifiedProofsBySlotNumber::table_name(),
@@ -279,6 +274,9 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Prover uses this table to store the last slot it scanned
+    /// Full node also uses this table to store the last slot it scanned
+    /// However, we don't rename here to avoid breaking changes on deployed nodes
+    /// and prover.
     (ProverLastScannedSlot) () => SlotNumber
 );
 
@@ -290,26 +288,6 @@ define_table_with_seek_key_codec!(
 define_table_with_default_codec!(
     /// Check whether a block is finalized
     (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
-);
-
-define_table_with_seek_key_codec!(
-    /// The primary source for transaction data
-    (TxByNumber) TxNumber => StoredTransaction
-);
-
-define_table_with_default_codec!(
-    /// A "secondary index" for transaction data by hash
-    (TxByHash) DbHash => TxNumber
-);
-
-define_table_with_seek_key_codec!(
-    /// The primary store for event data
-    (EventByNumber) EventNumber => Event
-);
-
-define_table_with_default_codec!(
-    /// A "secondary index" for event data by key
-    (EventByKey) (EventKey, TxNumber, EventNumber) => ()
 );
 
 define_table_without_codec!(

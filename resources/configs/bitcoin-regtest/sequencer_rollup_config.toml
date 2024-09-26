@@ -12,6 +12,8 @@ node_username = ""
 node_password = ""
 network = "regtest"
 da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
+tx_backup_dir = "resources/bitcoin/inscription_txs"
+
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
 path = "resources/dbs/sequencer-db"

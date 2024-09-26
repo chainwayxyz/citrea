@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context};
@@ -30,7 +30,7 @@ impl BitcoinNode {
     pub async fn new(config: &BitcoinConfig, docker: &Option<DockerEnv>) -> Result<Self> {
         let spawn_output = match docker {
             Some(docker) => docker.spawn(config.into()).await?,
-            None => Self::spawn(config, &PathBuf::default())?,
+            None => Self::spawn(config)?,
         };
 
         let rpc_url = format!(
@@ -108,7 +108,7 @@ impl BitcoinNode {
     }
 
     pub async fn get_finalized_height(&self) -> Result<u64> {
-        Ok(self.get_block_count().await? - FINALITY_DEPTH)
+        Ok(self.get_block_count().await? - FINALITY_DEPTH + 1)
     }
 
     pub async fn get_relevant_blobs_from_block(&self, height: u64) -> Result<Vec<BlobWithSender>> {
@@ -147,13 +147,14 @@ impl Node for BitcoinNode {
     type Config = BitcoinConfig;
     type Client = Client;
 
-    fn spawn(config: &Self::Config, _dir: &Path) -> Result<SpawnOutput> {
+    fn spawn(config: &Self::Config) -> Result<SpawnOutput> {
         let args = config.args();
         println!("Running bitcoind with args : {args:?}");
 
         Command::new("bitcoind")
             .args(&args)
             .kill_on_drop(true)
+            .envs(config.env.clone())
             .spawn()
             .context("Failed to spawn bitcoind process")
             .map(SpawnOutput::Child)
@@ -177,6 +178,10 @@ impl Node for BitcoinNode {
 
     fn client(&self) -> &Self::Client {
         &self.client
+    }
+
+    fn env(&self) -> Vec<(&'static str, &'static str)> {
+        self.config.env.clone()
     }
 }
 

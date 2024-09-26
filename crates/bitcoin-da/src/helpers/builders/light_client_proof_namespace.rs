@@ -1,6 +1,7 @@
 use core::result::Result::Ok;
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
@@ -14,6 +15,7 @@ use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
 use bitcoin::{Address, Network, Transaction};
+use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -21,9 +23,7 @@ use super::{
     build_commit_transaction, build_reveal_transaction, get_size_reveal,
     sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal, TxWithId,
 };
-use crate::helpers::get_workspace_root;
 use crate::spec::utxo::UTXO;
-use crate::MAX_TXBODY_SIZE;
 
 /// This is a list of light client tx we need to send to DA
 #[derive(Serialize)]
@@ -41,13 +41,7 @@ pub(crate) enum LightClientTxs {
 }
 
 impl TxListWithReveal for LightClientTxs {
-    fn write_to_file(&self) -> Result<(), anyhow::Error> {
-        let ws_root = get_workspace_root();
-        let mut path = ws_root.to_path_buf();
-        path.push("resources");
-        path.push("bitcoin");
-        path.push("inscription_txs");
-
+    fn write_to_file(&self, mut path: PathBuf) -> Result<(), anyhow::Error> {
         match self {
             Self::Complete { commit, reveal } => {
                 path.push(format!(

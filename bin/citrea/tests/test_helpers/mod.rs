@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_primitives::TEST_PRIVATE_KEY;
@@ -156,6 +157,7 @@ pub fn create_default_rollup_config(
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),
+                sync_blocks_count: 10,
             }),
             NodeMode::SequencerNode => None,
         },
@@ -163,7 +165,6 @@ pub fn create_default_rollup_config(
             sender_address: MockAddress::from([0; 32]),
             db_path: da_path.to_path_buf(),
         },
-        sync_blocks_count: 10,
     }
 }
 
@@ -225,23 +226,24 @@ pub async fn wait_for_prover_l1_height(
     prover_client: &TestClient,
     num: u64,
     timeout: Option<Duration>,
-) {
+) -> anyhow::Result<()> {
     let start = SystemTime::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 300 seconds timeout
+    let timeout = timeout.unwrap_or(Duration::from_secs(DEFAULT_PROOF_WAIT_DURATION)); // Default 600 seconds timeout
     loop {
         debug!("Waiting for prover height {}", num);
-        let latest_block = prover_client.prover_get_last_scanned_l1_height().await;
+        let latest_block = prover_client.ledger_get_last_scanned_l1_height().await;
         if latest_block >= num {
             break;
         }
 
         let now = SystemTime::now();
         if start + timeout <= now {
-            panic!("Timeout. Latest prover L1 height is {}", latest_block);
+            bail!("Timeout. Latest prover L1 height is {}", latest_block);
         }
 
         sleep(Duration::from_secs(1)).await;
     }
+    Ok(())
 }
 
 #[instrument(level = "debug", skip(da_service))]

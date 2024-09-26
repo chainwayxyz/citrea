@@ -35,13 +35,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of a zkVM program.
-    type Vm: ZkvmHost + Zkvm + Send;
+    type Vm: ZkvmHost + Zkvm + Send + Sync;
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;
 
     /// Context for Native environment.
-    type NativeContext: Context;
+    type NativeContext: Context + Sync + Send;
 
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
@@ -57,11 +57,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Prover service.
     type ProverService: ProverService<
-        Self::Vm,
-        StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
-        Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
-        DaService = Self::DaService,
-    >;
+            Self::Vm,
+            StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
+            Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
+            DaService = Self::DaService,
+        > + Send
+        + Sync
+        + 'static;
 
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
@@ -107,6 +109,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_da_service(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
+        require_wallet_check: bool,
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].

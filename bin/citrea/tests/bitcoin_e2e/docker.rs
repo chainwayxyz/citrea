@@ -1,14 +1,18 @@
 use std::collections::HashMap;
 use std::io::{stdout, Write};
+use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
-use bollard::container::{Config, NetworkingConfig};
+use bollard::container::{Config, LogOutput, LogsOptions, NetworkingConfig};
 use bollard::image::CreateImageOptions;
 use bollard::models::{EndpointSettings, PortBinding};
 use bollard::network::CreateNetworkOptions;
 use bollard::service::HostConfig;
 use bollard::Docker;
 use futures::StreamExt;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+use tokio::task::JoinHandle;
 
 use super::config::DockerConfig;
 use super::node::SpawnOutput;
@@ -75,7 +79,7 @@ impl DockerEnv {
         let mut network_config = HashMap::new();
         network_config.insert(self.network_id.clone(), EndpointSettings::default());
 
-        let config = Config {
+        let container_config = Config {
             image: Some(config.image),
             cmd: Some(config.cmd),
             exposed_ports: Some(exposed_ports),
@@ -91,7 +95,7 @@ impl DockerEnv {
             ..Default::default()
         };
 
-        let image = config
+        let image = container_config
             .image
             .as_ref()
             .context("Image not specified in config")?;
@@ -102,7 +106,7 @@ impl DockerEnv {
 
         let container = self
             .docker
-            .create_container::<String, String>(None, config)
+            .create_container::<String, String>(None, container_config)
             .await
             .map_err(|e| anyhow!("Failed to create Docker container {e}"))?;
 
@@ -122,6 +126,11 @@ impl DockerEnv {
                     .and_then(|network| network.ip_address.clone())
             })
             .context("Failed to get container IP address")?;
+
+        // Extract container logs to host
+        // This spawns a background task to continuously stream logs from the container.
+        // The task will run until the container is stopped or removed during cleanup.
+        Self::extract_container_logs(self.docker.clone(), container.id.clone(), config.log_path);
 
         Ok(SpawnOutput::Container(ContainerSpawnOutput {
             id: container.id,
@@ -181,5 +190,43 @@ impl DockerEnv {
 
         self.docker.remove_network(&self.network_name).await?;
         Ok(())
+    }
+
+    fn extract_container_logs(
+        docker: Docker,
+        container_id: String,
+        log_path: PathBuf,
+    ) -> JoinHandle<Result<()>> {
+        tokio::spawn(async move {
+            if let Some(parent) = log_path.parent() {
+                tokio::fs::create_dir_all(parent)
+                    .await
+                    .context("Failed to create log directory")?;
+            }
+            let mut log_file = File::create(log_path)
+                .await
+                .context("Failed to create log file")?;
+            let mut log_stream = docker.logs::<String>(
+                &container_id,
+                Some(LogsOptions {
+                    follow: true,
+                    stdout: true,
+                    stderr: true,
+                    ..Default::default()
+                }),
+            );
+
+            while let Some(Ok(log_output)) = log_stream.next().await {
+                let log_line = match log_output {
+                    LogOutput::Console { message } | LogOutput::StdOut { message } => message,
+                    _ => continue,
+                };
+                log_file
+                    .write_all(&log_line)
+                    .await
+                    .context("Failed to write log line")?;
+            }
+            Ok(())
+        })
     }
 }
