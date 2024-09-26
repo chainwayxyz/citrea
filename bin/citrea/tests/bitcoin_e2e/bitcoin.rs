@@ -125,7 +125,7 @@ impl BitcoinNode {
     async fn is_process_running(&self) -> Result<bool> {
         let data_dir = &self.config.data_dir;
         let output = Command::new("pgrep")
-            .args(&["-f", &format!("bitcoind.*{}", data_dir.display())])
+            .args(["-f", &format!("bitcoind.*{}", data_dir.display())])
             .output()
             .await?;
 

@@ -133,7 +133,7 @@ where
         if let Some(new_config) = new_config {
             *config = new_config
         }
-        *self.spawn_output() = Self::spawn(&config)?;
+        *self.spawn_output() = Self::spawn(config)?;
         self.wait_for_ready(None).await
     }
 }
