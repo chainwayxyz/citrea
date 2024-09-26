@@ -75,7 +75,7 @@ impl TestCase for RestartBitcoinTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get_mut(0).unwrap();
-        // Add txindex flag to check that restart takes correctly into account the extra args
+        // Add txindex flag to check that restart takes into account the extra args
         let new_conf = BitcoinConfig {
             extra_args: vec!["-txindex=1"],
             ..da.config.clone()
