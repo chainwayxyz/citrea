@@ -79,7 +79,7 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<Vec<Option<SoftConfirmationResponse>>, anyhow::Error> {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
-            end - start < MAX_BATCHES_PER_REQUEST,
+            end - start <= MAX_BATCHES_PER_REQUEST,
             "requested batch range too large. Max: {}",
             MAX_BATCHES_PER_REQUEST
         );
