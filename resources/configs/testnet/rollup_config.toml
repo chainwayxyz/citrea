@@ -54,3 +54,8 @@ sequencer_client_url = "https://rpc.testnet.citrea.xyz"
 # if you want to store full soft confirmations in your node
 # set this to true
 include_tx_body = false
+
+# speed up sync by increasing the number of blocks we request per batch.
+# this value should be at most equal to `batch_requests_limit` set by the RPC node
+# being used.
+# sync_blocks_count = 20
