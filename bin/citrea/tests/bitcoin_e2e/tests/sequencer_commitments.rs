@@ -29,10 +29,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
-            ..Default::default()
-        }
+        SequencerConfig::default()
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -107,10 +104,7 @@ impl TestCase for LedgerGetCommitmentsTest {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
-            ..Default::default()
-        }
+        SequencerConfig::default()
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {

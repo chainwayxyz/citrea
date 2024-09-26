@@ -6,7 +6,6 @@ use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Encodable};
-use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
@@ -17,13 +16,10 @@ use crate::e2e::{copy_dir_recursive, initialize_test, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
-    create_default_sequencer_config, start_rollup, tempdir_with_children, wait_for_commitment,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
     wait_for_l1_block, wait_for_l2_block, NodeMode,
 };
-use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    TEST_DATA_GENESIS_PATH,
-};
+use crate::TEST_DATA_GENESIS_PATH;
 
 /// Run the sequencer.
 /// Create some blocks.
@@ -39,29 +35,21 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 1000,
+        da_update_interval_ms: 500,
+        block_production_interval_ms: 500,
+        ..Default::default()
+    };
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            Some(SequencerConfig {
-                private_key: TEST_PRIVATE_KEY.to_string(),
-                min_soft_confirmations_per_commitment: 1000,
-                test_mode: true,
-                deposit_mempool_fetch_limit: 10,
-                mempool_conf: Default::default(),
-                da_update_interval_ms: 500,
-                block_production_interval_ms: 500,
-            }),
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -143,31 +131,27 @@ async fn test_sequencer_commitment_threshold() {
 
     // Put a large number for commitment threshold
     let min_soft_confirmations_per_commitment = 1_000_000;
-    let mut sequencer_config =
-        create_default_sequencer_config(min_soft_confirmations_per_commitment, Some(true), 10);
 
-    sequencer_config.mempool_conf = SequencerMempoolConfig {
-        max_account_slots: 4000,
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment,
+        mempool_conf: SequencerMempoolConfig {
+            max_account_slots: 4000,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async move {
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            min_soft_confirmations_per_commitment,
-            true,
-            None,
+            rollup_config,
             Some(sequencer_config),
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
         )
         .await;
     });
@@ -348,33 +332,28 @@ async fn test_gas_limit_too_high() {
     let tx_count = (target_gas_limit - system_txs_gas_used).div_ceil(transfer_gas_limit);
     let addr = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
 
-    let seq_da_dir = da_db_dir.clone();
-    let seq_task = tokio::spawn(async move {
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+
+    // Increase max account slots to not stuck as spammer
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 1000,
+        deposit_mempool_fetch_limit: 100,
+        mempool_conf: SequencerMempoolConfig {
+            max_account_slots: tx_count * 2,
+            ..Default::default()
+        },
+        da_update_interval_ms: 1000,
+        block_production_interval_ms: 1000,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            seq_da_dir,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            // Increase max account slots to not stuck as spammer
-            Some(SequencerConfig {
-                private_key: TEST_PRIVATE_KEY.to_string(),
-                min_soft_confirmations_per_commitment: 1000,
-                test_mode: true,
-                deposit_mempool_fetch_limit: 100,
-                mempool_conf: SequencerMempoolConfig {
-                    max_account_slots: tx_count * 2,
-                    ..Default::default()
-                },
-                da_update_interval_ms: 1000,
-                block_production_interval_ms: 1000,
-            }),
-            Some(true),
-            100,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -384,21 +363,19 @@ async fn test_gas_limit_too_high() {
 
     let (full_node_port_tx, full_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
-    let full_node_task = tokio::spawn(async move {
+    let rollup_config = create_default_rollup_config(
+        true,
+        &full_node_db_dir,
+        &da_db_dir,
+        NodeMode::FullNode(seq_port),
+    );
+    let full_node_task = tokio::spawn(async {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::FullNode(seq_port),
-            full_node_db_dir,
-            da_db_dir_cloned,
-            1000,
-            true,
+            rollup_config,
             None,
-            None,
-            Some(true),
-            100,
         )
         .await;
     });
@@ -490,29 +467,23 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let sequencer_db_dir_cloned = sequencer_db_dir.clone();
-    let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async move {
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
+        test_mode: false,
+        da_update_interval_ms: 500,
+        block_production_interval_ms: 250,
+        // set to something high, so that commitments don't produce mock da blocks
+        min_soft_confirmations_per_commitment: 1000,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir_cloned,
-            da_db_dir_cloned,
-            // set to something high, so that commitments don't produce mock da blocks
-            1000,
-            true,
-            None,
-            Some(SequencerConfig {
-                test_mode: false,
-                da_update_interval_ms: 500,
-                block_production_interval_ms: 250,
-                min_soft_confirmations_per_commitment: 1000,
-                ..Default::default()
-            }),
-            Some(false),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -540,28 +511,24 @@ async fn test_sequencer_fills_empty_blocks_for_missed_da_blocks() -> Result<(), 
     );
 
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
-    let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async move {
+
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
+        test_mode: false,
+        da_update_interval_ms: 500,
+        block_production_interval_ms: 250,
+        // set to something high, so that commitments don't produce mock da blocks
+        min_soft_confirmations_per_commitment: 1000,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            // set to something high, so that commitments don't produce mock da blocks
-            1000,
-            true,
-            None,
-            Some(SequencerConfig {
-                test_mode: false,
-                da_update_interval_ms: 500,
-                block_production_interval_ms: 250,
-                min_soft_confirmations_per_commitment: 1000,
-                ..Default::default()
-            }),
-            Some(false),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
@@ -633,35 +600,27 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let da_db_dir_cloned = da_db_dir.clone();
-    let seq_task = tokio::spawn(async move {
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 1000,
+        mempool_conf: SequencerMempoolConfig {
+            max_account_slots: 100,
+            ..Default::default()
+        },
+        da_update_interval_ms: 1000,
+        block_production_interval_ms: 500,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(
                 "../../resources/test-data/integration-tests-low-block-gas-limit",
             ),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            4,
-            true,
-            None,
-            // Increase max account slots to not stuck as spammer
-            Some(SequencerConfig {
-                private_key: TEST_PRIVATE_KEY.to_string(),
-                min_soft_confirmations_per_commitment: 1000,
-                test_mode: true,
-                deposit_mempool_fetch_limit: 10,
-                mempool_conf: SequencerMempoolConfig {
-                    max_account_slots: 100,
-                    ..Default::default()
-                },
-                da_update_interval_ms: 1000,
-                block_production_interval_ms: 500,
-            }),
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });

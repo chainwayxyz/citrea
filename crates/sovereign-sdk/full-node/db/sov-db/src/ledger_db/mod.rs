@@ -398,9 +398,11 @@ impl SharedLedgerOps for LedgerDB {
     #[instrument(level = "trace", skip(self), err)]
     fn get_soft_confirmation_range(
         &self,
-        range: &std::ops::Range<BatchNumber>,
+        range: &std::ops::RangeInclusive<BatchNumber>,
     ) -> Result<Vec<StoredSoftConfirmation>, anyhow::Error> {
-        self.get_data_range::<SoftConfirmationByNumber, _, _>(range)
+        let start = *range.start();
+        let end = BatchNumber(range.end().0 + 1);
+        self.get_data_range::<SoftConfirmationByNumber, _, _>(&(start..end))
     }
 
     /// Gets all soft confirmations by numbers

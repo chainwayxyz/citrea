@@ -269,7 +269,6 @@ impl DockerEnv {
                     .await
                     .context("Failed to write log line")?;
             }
-            println!("Done extracing logs");
             Ok(())
         })
     }

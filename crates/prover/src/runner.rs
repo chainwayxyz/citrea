@@ -7,8 +7,9 @@ use std::time::Duration;
 use anyhow::bail;
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use citrea_common::cache::L1BlockCache;
+use citrea_common::da::get_da_block_at_height;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
@@ -436,7 +437,7 @@ async fn sync_l2<Da>(
             match retry_backoff(exponential_backoff.clone(), || async move {
                 let soft_confirmations = inner_client
                     .get_soft_confirmation_range::<Da::Spec>(
-                        l2_height..l2_height + sync_blocks_count,
+                        l2_height..=l2_height + sync_blocks_count - 1,
                     )
                     .await;
 

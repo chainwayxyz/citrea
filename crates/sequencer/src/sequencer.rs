@@ -8,10 +8,10 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::BorshDeserialize;
+use citrea_common::utils::merge_state_diffs;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
@@ -673,12 +673,9 @@ where
         self.ledger_db.set_state_diff(vec![])?;
         self.last_state_diff = vec![];
 
-        // calculate exclusive range end
-        let range_end = BatchNumber(l2_end.0 + 1); // cannnot add u64 to BatchNumber directly
-
         let soft_confirmation_hashes = self
             .ledger_db
-            .get_soft_confirmation_range(&(l2_start..range_end))?
+            .get_soft_confirmation_range(&(l2_start..=l2_end))?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
