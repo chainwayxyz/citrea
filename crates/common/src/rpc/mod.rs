@@ -1,12 +1,15 @@
 //! Common RPC crate provides helper methods that are needed in rpc servers
 use std::time::Duration;
 
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use hyper::Method;
 use jsonrpsee::core::RegisterMethodError;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
+use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::RpcModule;
+use jsonrpsee::types::{ErrorObjectOwned, Request};
+use jsonrpsee::{MethodResponse, RpcModule};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::types::BatchNumber;
 use tower_http::cors::{Any, CorsLayer};
@@ -76,4 +79,34 @@ pub fn get_cors_layer() -> CorsLayer {
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_origin(Any)
         .allow_headers(Any)
+}
+
+#[derive(Clone)]
+pub struct Logger<S>(pub S);
+
+impl<'a, S> RpcServiceT<'a> for Logger<S>
+where
+    S: RpcServiceT<'a> + Send + Sync + Clone + 'a,
+{
+    type Future = BoxFuture<'a, MethodResponse>;
+
+    fn call(&self, req: Request<'a>) -> Self::Future {
+        let req_id = req.id();
+        let req_method = req.method_name().to_string();
+
+        tracing::info!(id = ?req_id, method = ?req_method, params = ?req.params().as_str(), "rpc_request");
+
+        let service = self.0.clone();
+        async move {
+            let resp = service.call(req).await;
+            if resp.is_success() {
+                tracing::info!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
+            } else {
+                tracing::warn!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error");
+            }
+
+            resp
+        }
+        .boxed()
+    }
 }

@@ -17,7 +17,7 @@ use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
-use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
+use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
@@ -212,6 +212,7 @@ where
 
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
+        let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
 
         let _handle = tokio::spawn(async move {
             let server = ServerBuilder::default()
@@ -221,6 +222,7 @@ where
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .set_http_middleware(middleware)
+                .set_rpc_middleware(rpc_middleware)
                 .build([listen_address].as_ref())
                 .await;
 
