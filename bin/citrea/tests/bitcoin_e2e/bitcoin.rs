@@ -10,8 +10,8 @@ use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
 use bitcoin_da::spec::blob::BlobWithSender;
 use bitcoincore_rpc::json::AddressType::Bech32m;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use bollard::secret::ContainerStateStatusEnum;
 use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
+use futures::TryStreamExt;
 use tokio::process::Command;
 use tokio::sync::OnceCell;
 use tokio::time::sleep;
@@ -33,10 +33,7 @@ pub struct BitcoinNode {
 
 impl BitcoinNode {
     pub async fn new(config: &BitcoinConfig, docker: Arc<Option<DockerEnv>>) -> Result<Self> {
-        let spawn_output = match docker.as_ref() {
-            Some(docker) => docker.spawn(config.into()).await,
-            None => Self::spawn(config),
-        }?;
+        let spawn_output = Self::spawn(config, &docker).await?;
 
         let rpc_url = format!(
             "http://127.0.0.1:{}/wallet/{}",
@@ -134,6 +131,21 @@ impl BitcoinNode {
 
         Ok(output.status.success())
     }
+
+    // Infallible, discard already loaded errors
+    async fn load_wallets(&self) {
+        let _ = self.load_wallet(&NodeKind::Bitcoin.to_string()).await;
+        let _ = self.load_wallet(&NodeKind::Sequencer.to_string()).await;
+        let _ = self.load_wallet(&NodeKind::Prover.to_string()).await;
+    }
+
+    // Switch this over to Node signature once we add support for docker to citrea nodes
+    async fn spawn(config: &BitcoinConfig, docker: &Arc<Option<DockerEnv>>) -> Result<SpawnOutput> {
+        match docker.as_ref() {
+            Some(docker) => docker.spawn(config.into()).await,
+            None => <Self as Node>::spawn(config),
+        }
+    }
 }
 
 #[async_trait]
@@ -225,47 +237,32 @@ impl Restart for BitcoinNode {
                 let Some(env) = self.docker_env.as_ref() else {
                     bail!("Missing docker environment")
                 };
+                env.docker.stop_container(&output.id, None).await?;
 
-                let start = Instant::now();
-                let timeout = Duration::from_secs(30);
-                while start.elapsed() < timeout {
-                    let info = env.docker.inspect_container(&output.id, None).await?;
-                    if let Some(state) = info.state {
-                        if let Some(status) = state.status {
-                            if status == ContainerStateStatusEnum::EXITED {
-                                return Ok(());
-                            }
-                        }
-                    }
-                    sleep(Duration::from_millis(200)).await;
-                }
-                bail!("Failed to stop within the specified timeout")
+                env.docker
+                    .wait_container::<String>(&output.id, None)
+                    .try_collect::<Vec<_>>()
+                    .await?;
+                env.docker.remove_container(&output.id, None).await?;
+                println!("Docker container {} succesfully removed", output.id);
+                Ok(())
             }
         }
     }
 
     async fn restart(&mut self, config: Option<Self::Config>) -> Result<()> {
-        let new_config = config.unwrap_or(self.config.clone());
-
-        match self.docker_env.as_ref() {
-            Some(e) => {
-                let SpawnOutput::Container(existing_container) = &self.spawn_output else {
-                    bail!("Trying to restart a non-running container")
-                };
-                e.restart_bitcoind(&existing_container.id, (&new_config).into())
-                    .await?
-            }
-            None => {
-                self.wait_until_stopped().await?;
-                let spawn_output = Self::spawn(&new_config)?;
-                self.spawn_output = spawn_output;
-            }
-        }
+        self.wait_until_stopped().await?;
 
         // Update config to hold updated config
-        self.config = new_config;
+        if let Some(config) = config {
+            self.config = config
+        }
+        self.spawn_output = Self::spawn(&self.config, &self.docker_env).await?;
 
         self.wait_for_ready(None).await?;
+
+        // Reload wallets after restart
+        self.load_wallets().await;
 
         Ok(())
     }
@@ -313,7 +310,6 @@ impl BitcoinNodeCluster {
             let mut heights = HashSet::new();
             for node in &self.inner {
                 let height = node.get_block_count().await?;
-                println!("height : {height}");
                 heights.insert(height);
             }
 

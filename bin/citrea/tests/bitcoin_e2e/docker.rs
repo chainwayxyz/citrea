@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{stdout, Write};
 use std::path::PathBuf;
 
@@ -8,11 +8,12 @@ use super::utils::generate_test_id;
 use crate::bitcoin_e2e::node::ContainerSpawnOutput;
 use anyhow::{anyhow, Context, Result};
 use bollard::container::{Config, LogOutput, LogsOptions, NetworkingConfig};
-use bollard::exec::{CreateExecOptions, StartExecOptions};
 use bollard::image::CreateImageOptions;
-use bollard::models::{EndpointSettings, PortBinding};
+use bollard::models::{EndpointSettings, Mount, PortBinding};
 use bollard::network::CreateNetworkOptions;
+use bollard::secret::MountTypeEnum;
 use bollard::service::HostConfig;
+use bollard::volume::CreateVolumeOptions;
 use bollard::Docker;
 use futures::StreamExt;
 use tokio::fs::File;
@@ -23,6 +24,8 @@ pub struct DockerEnv {
     pub docker: Docker,
     pub network_id: String,
     pub network_name: String,
+    id: String,
+    volumes: HashSet<String>,
 }
 
 impl DockerEnv {
@@ -31,11 +34,35 @@ impl DockerEnv {
             Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;
         let test_id = generate_test_id();
         let (network_id, network_name) = Self::create_network(&docker, &test_id).await?;
+        let volumes = Self::create_volumes(&docker, &test_id).await?;
+
         Ok(Self {
             docker,
             network_id,
             network_name,
+            id: test_id,
+            volumes,
         })
+    }
+
+    async fn create_volumes(docker: &Docker, test_case_id: &str) -> Result<HashSet<String>> {
+        let mut volumes = HashSet::new();
+
+        for name in ["bitcoin"] {
+            let volume_name = format!("{name}-{test_case_id}");
+            docker
+                .create_volume(CreateVolumeOptions {
+                    name: volume_name.clone(),
+                    driver: "local".to_string(),
+                    driver_opts: HashMap::new(),
+                    labels: HashMap::new(),
+                })
+                .await?;
+
+            volumes.insert(volume_name);
+        }
+
+        Ok(volumes)
     }
 
     async fn create_network(docker: &Docker, test_case_id: &str) -> Result<(String, String)> {
@@ -80,13 +107,22 @@ impl DockerEnv {
         let mut network_config = HashMap::new();
         network_config.insert(self.network_id.clone(), EndpointSettings::default());
 
+        let volume_name = format!("{}-{}", config.volume.name, self.id);
+        let mount = Mount {
+            target: Some(config.volume.target.clone()),
+            source: Some(volume_name),
+            typ: Some(MountTypeEnum::VOLUME),
+            ..Default::default()
+        };
+
         let container_config = Config {
             image: Some(config.image),
             cmd: Some(config.cmd),
             exposed_ports: Some(exposed_ports),
             host_config: Some(HostConfig {
                 port_bindings: Some(port_bindings),
-                binds: Some(vec![config.dir]),
+                // binds: Some(vec![config.dir]),
+                mounts: Some(vec![mount]),
                 ..Default::default()
             }),
             networking_config: Some(NetworkingConfig {
@@ -103,7 +139,7 @@ impl DockerEnv {
         self.ensure_image_exists(image).await?;
 
         // println!("options :{options:?}");
-        // println!("config :{config:?}");
+        // println!("config :{container_config:?}");
 
         let container = self
             .docker
@@ -137,46 +173,6 @@ impl DockerEnv {
             id: container.id,
             ip: ip_address,
         }))
-    }
-
-    pub async fn restart_bitcoind(
-        &self,
-        container_id: &str,
-        new_config: DockerConfig,
-    ) -> Result<()> {
-        println!("Restarting bitcoind");
-        let stop_options = CreateExecOptions {
-            cmd: Some(vec!["bitcoin-cli", "stop"]),
-            attach_stdout: Some(true),
-            attach_stderr: Some(true),
-            ..Default::default()
-        };
-        let exec = self.docker.create_exec(container_id, stop_options).await?;
-        let _ = self.docker.start_exec(&exec.id, None).await?;
-
-        // TODO deterministic wait for shutdown
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-        // Run bitcoind with updated config
-        let mut start_cmd = vec!["bitcoind".to_string()];
-        start_cmd.extend(new_config.cmd.clone());
-
-        let start_options = CreateExecOptions {
-            cmd: Some(start_cmd),
-            attach_stdout: Some(true),
-            attach_stderr: Some(true),
-            ..Default::default()
-        };
-        let exec = self.docker.create_exec(container_id, start_options).await?;
-        let start_exec_options = StartExecOptions {
-            detach: true,
-            ..Default::default()
-        };
-        self.docker
-            .start_exec(&exec.id, Some(start_exec_options))
-            .await?;
-
-        Ok(())
     }
 
     async fn ensure_image_exists(&self, image: &str) -> Result<()> {
@@ -230,6 +226,11 @@ impl DockerEnv {
         }
 
         self.docker.remove_network(&self.network_name).await?;
+
+        for volume_name in &self.volumes {
+            self.docker.remove_volume(volume_name, None).await?;
+        }
+
         Ok(())
     }
 
@@ -267,6 +268,7 @@ impl DockerEnv {
                     .await
                     .context("Failed to write log line")?;
             }
+            println!("Done extracing logs");
             Ok(())
         })
     }

@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoincore_rpc::json::IndexStatus;
 use bitcoincore_rpc::RpcApi;
 
 use crate::bitcoin_e2e::config::{BitcoinConfig, TestCaseConfig};
@@ -18,7 +19,6 @@ impl TestCase for BasicSyncTest {
         TestCaseConfig {
             num_nodes: 2,
             timeout: Duration::from_secs(60),
-            docker: true,
             ..Default::default()
         }
     }
@@ -50,33 +50,57 @@ impl TestCase for BasicSyncTest {
         // Assert that nodes are in sync
         assert_eq!(height0, height1, "Block heights don't match");
 
-        self.test_node_restart(f).await?;
         Ok(())
     }
 }
 
-impl BasicSyncTest {
-    async fn test_node_restart(&self, f: &mut TestFramework) -> Result<()> {
-        let da0 = f.bitcoin_nodes.get_mut(0).unwrap();
-        let new_conf = BitcoinConfig {
+struct RestartBitcoinTest;
+
+#[async_trait]
+impl TestCase for RestartBitcoinTest {
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
             extra_args: vec!["-txindex=0"],
-            ..da0.config.clone()
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get_mut(0).unwrap();
+        // Add txindex flag to check that restart takes correctly into account the extra args
+        let new_conf = BitcoinConfig {
+            extra_args: vec!["-txindex=1"],
+            ..da.config.clone()
         };
 
-        let height = da0.get_block_count().await?;
-        println!("height before {height}");
-        da0.restart(Some(new_conf)).await?;
-        let height = da0.get_block_count().await?;
-        println!("height after {height}");
+        let block_before = da.get_block_count().await?;
+        let info = da.get_index_info().await?;
 
-        da0.generate(5, None).await?;
-        let height = da0.get_block_count().await?;
-        println!("height after 5 {height}");
+        assert_eq!(info.txindex, None);
+
+        // Restart node with txindex
+        da.restart(Some(new_conf)).await?;
+
+        let block_after = da.get_block_count().await?;
+        let info = da.get_index_info().await?;
+
+        assert!(matches!(
+            info.txindex,
+            Some(IndexStatus { synced: true, .. })
+        ));
+        // Assert that state is kept between restarts
+        assert_eq!(block_before, block_after);
+
         Ok(())
     }
 }
 
 #[tokio::test]
-async fn basic_sync_test() -> Result<()> {
+async fn test_basic_sync() -> Result<()> {
     TestCaseRunner::new(BasicSyncTest).run().await
+}
+
+#[tokio::test]
+async fn test_restart_bitcoin() -> Result<()> {
+    TestCaseRunner::new(RestartBitcoinTest).run().await
 }

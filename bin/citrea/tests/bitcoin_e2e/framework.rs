@@ -129,9 +129,13 @@ impl TestFramework {
     pub fn dump_log(&self) -> Result<()> {
         println!("Dumping logs:");
 
+        let n_lines = std::env::var("TAIL_N_LINES")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(25);
         for node in self.get_nodes_as_log_provider() {
-            println!("{} logs (last 300 lines):", node.kind());
-            if let Err(e) = tail_file(&node.log_path(), 300) {
+            println!("{} logs (last {n_lines} lines):", node.kind());
+            if let Err(e) = tail_file(&node.log_path(), n_lines) {
                 eprint!("{e}");
             }
         }
@@ -170,6 +174,8 @@ impl TestFramework {
     pub async fn fund_da_wallets(&mut self) -> Result<()> {
         let da = self.bitcoin_nodes.get(0).unwrap();
 
+        da.wait_for_ready(None).await?;
+
         da.create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
             .await?;
         da.create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)
@@ -188,6 +194,8 @@ impl TestFramework {
             da.fund_wallet(NodeKind::Prover.to_string(), blocks_to_fund)
                 .await?;
         }
+        da.fund_wallet(NodeKind::Bitcoin.to_string(), blocks_to_fund)
+            .await?;
 
         da.generate(blocks_to_mature, None).await?;
         self.initial_da_height = da.get_block_count().await?;
