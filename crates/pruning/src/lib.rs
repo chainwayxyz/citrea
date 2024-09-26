@@ -10,11 +10,13 @@ use tracing::error;
 
 /// Define pruning mode based on configuration and/or CLI arguments
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+#[serde(untagged)]
 pub enum PruningMode {
     /// Pruner does not run in this case.
     Archive,
     /// Pruner is run based on config.
-    Pruned(PruningConfig),
+    Pruned { options: PruningConfig },
 }
 
 impl Default for PruningMode {

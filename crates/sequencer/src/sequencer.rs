@@ -14,7 +14,7 @@ use citrea_primitives::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
-use citrea_pruning::{Pruner, PruningConfig};
+use citrea_pruning::{Pruner, PruningMode};
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -819,15 +819,18 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        let pruner = Pruner::<DB>::new(
-            PruningConfig { distance: 10 },
-            self.ledger_db.get_last_pruned_l2_height()?.unwrap_or(0),
-            self.soft_confirmation_tx.subscribe(),
-            self.ledger_db.clone(),
-        );
+        if let PruningMode::Pruned { options } = &self.config.pruning_mode {
+            let pruner = Pruner::<DB>::new(
+                options.clone(),
+                self.ledger_db.get_last_pruned_l2_height()?.unwrap_or(0),
+                self.soft_confirmation_tx.subscribe(),
+                self.ledger_db.clone(),
+            );
 
-        self.task_manager
-            .spawn(|cancellation_token| pruner.run(cancellation_token));
+            debug!("Starting pruner");
+            self.task_manager
+                .spawn(|cancellation_token| pruner.run(cancellation_token));
+        }
 
         if self.batch_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
