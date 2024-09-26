@@ -16,6 +16,8 @@ network = "testnet"
 tx_backup_dir = ""
 
 [storage]
+# make sure the following path relative to the directory in which you're
+# running citrea exists.
 path = "resources/dbs"
 
 # comment out if you want to set custom max open files
