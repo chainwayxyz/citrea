@@ -272,7 +272,7 @@ where
         // and compare the root with the one from the ledger
         let stored_soft_confirmations: Vec<StoredSoftConfirmation> =
             self.ledger_db.get_soft_confirmation_range(
-                &(BatchNumber(start_l2_height)..BatchNumber(end_l2_height + 1)),
+                &(BatchNumber(start_l2_height)..=BatchNumber(end_l2_height)),
             )?;
 
         // Make sure that the number of stored soft confirmations is equal to the range's length.

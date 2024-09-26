@@ -81,7 +81,7 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
     last_l2_height_of_l1: u64,
 ) -> bool {
     if let Ok(range) = ledger_db.get_soft_confirmation_range(
-        &(BatchNumber(first_l2_height_of_l1)..BatchNumber(last_l2_height_of_l1 + 1)),
+        &(BatchNumber(first_l2_height_of_l1)..=BatchNumber(last_l2_height_of_l1)),
     ) {
         if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
             return true;

@@ -673,12 +673,9 @@ where
         self.ledger_db.set_state_diff(vec![])?;
         self.last_state_diff = vec![];
 
-        // calculate exclusive range end
-        let range_end = BatchNumber(l2_end.0 + 1); // cannnot add u64 to BatchNumber directly
-
         let soft_confirmation_hashes = self
             .ledger_db
-            .get_soft_confirmation_range(&(l2_start..range_end))?
+            .get_soft_confirmation_range(&(l2_start..=l2_end))?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();

@@ -451,7 +451,7 @@ where
             let end_l2 = sequencer_commitment.l2_end_block_number;
             let soft_confirmations_in_commitment = match self
                 .ledger_db
-                .get_soft_confirmation_range(&(BatchNumber(start_l2)..BatchNumber(end_l2 + 1)))
+                .get_soft_confirmation_range(&(BatchNumber(start_l2)..=BatchNumber(end_l2)))
             {
                 Ok(soft_confirmations) => soft_confirmations,
                 Err(e) => {

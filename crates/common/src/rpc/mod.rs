@@ -44,7 +44,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
 
         let soft_batches = ledger_db
             .get_soft_confirmation_range(
-                &(BatchNumber(head_batch_num - 1)..BatchNumber(head_batch_num + 1)),
+                &(BatchNumber(head_batch_num - 1)..=BatchNumber(head_batch_num)),
             )
             .map_err(|err| error(&format!("Failed to get soft batch range: {}", err)))?;
 
