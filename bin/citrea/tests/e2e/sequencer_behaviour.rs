@@ -12,7 +12,7 @@ use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use tokio::time::sleep;
 
-use crate::e2e::{copy_dir_recursive, initialize_test, TestConfig};
+use crate::e2e::{initialize_test, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_client::TestClient;
 use crate::test_helpers::{
