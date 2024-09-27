@@ -81,7 +81,7 @@ pub fn get_cors_layer() -> CorsLayer {
         .allow_headers(Any)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Logger<S>(pub S);
 
 impl<'a, S> RpcServiceT<'a> for Logger<S>
