@@ -28,7 +28,6 @@ use subscription::{handle_logs_subscription, handle_new_heads_subscription};
 use tokio::join;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
-use tracing::info;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -93,13 +92,10 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     enable_subscriptions: bool,
 ) -> Result<(), jsonrpsee::core::RegisterMethodError> {
     rpc.register_async_method("web3_clientVersion", |_, ethereum, _| async move {
-        info!("eth module: web3_clientVersion");
-
         Ok::<_, ErrorObjectOwned>(ethereum.web3_client_version.clone())
     })?;
 
     rpc.register_blocking_method("web3_sha3", move |params, _, _| {
-        info!("eth module: web3_sha3");
         let data: Bytes = params.one()?;
 
         let hash = B256::from_slice(keccak256(&data).as_slice());
@@ -108,7 +104,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_blocking_method("eth_gasPrice", move |_, ethereum, _| {
-        info!("eth module: eth_gasPrice");
         let price = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -121,7 +116,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_blocking_method("eth_maxFeePerGas", move |_, ethereum, _| {
-        info!("eth module: eth_maxFeePerGas");
         let max_fee_per_gas = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -134,7 +128,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_blocking_method("eth_maxPriorityFeePerGas", move |_, ethereum, _| {
-        info!("eth module: eth_maxPriorityFeePerGas");
         let max_priority_fee = {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
 
@@ -147,7 +140,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     })?;
 
     rpc.register_blocking_method("eth_feeHistory", move |params, ethereum, _| {
-        info!("eth module: eth_feeHistory");
         let mut params = params.sequence();
 
         let block_count: Index = params.next()?;
@@ -173,15 +165,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     #[cfg(feature = "local")]
     rpc.register_async_method("eth_accounts", |_, ethereum, _| async move {
-        info!("eth module: eth_accounts");
-
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
     })?;
 
     // #[cfg(feature = "local")]
     // rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
-    //     info!("eth module: eth_sendTransaction");
-
     //     let mut transaction_request: TransactionRequest = parameters.one().unwrap();
 
     //     let evm = Evm::<C>::default();
@@ -405,8 +393,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc.register_blocking_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _>(
         "debug_traceBlockByHash",
         move |parameters, ethereum, _| {
-            info!("eth module: debug_traceBlockByHash");
-
             let mut params = parameters.sequence();
 
             let block_hash: B256 = params.next()?;
@@ -429,8 +415,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc.register_blocking_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _>(
         "debug_traceBlockByNumber",
         move |parameters, ethereum, _| {
-            info!("eth module: debug_traceBlockByNumber");
-
             let mut params = parameters.sequence();
 
             let block_number: BlockNumberOrTag = params.next()?;
@@ -457,8 +441,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             // else; calls the debug_trace_transaction_block function in evm
             // that function traces the entire block, returns all the traces to here
             // then we put them into cache and return the trace of the requested transaction
-            info!(params = ?parameters, "eth module: debug_traceTransaction");
-
             let mut params = parameters.sequence();
 
             let tx_hash: B256 = params.next()?;
@@ -493,8 +475,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     )?;
 
     rpc.register_async_method("txpool_content", |_, _, _| async move {
-        info!("eth module: txpool_content");
-
         // This is a simple mock for serde.
         let json = json!({
             "pending": {},
@@ -507,8 +487,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     rpc.register_async_method(
         "eth_getUncleByBlockHashAndIndex",
         |parameters, _, _| async move {
-            info!("eth module: eth_getUncleByBlockHashAndIndex");
-
             let mut params = parameters.sequence();
 
             let _block_hash: String = params.next()?;
@@ -524,7 +502,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         rpc.register_async_method::<Result<B256, ErrorObjectOwned>, _, _>(
             "eth_sendRawTransaction",
             |parameters, ethereum, _| async move {
-                info!(params = ?parameters, "Full Node: eth_sendRawTransaction");
                 // send this directly to the sequencer
                 let data: Bytes = parameters.one()?;
                 // sequencer client should send it
@@ -551,10 +528,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 let mut params = parameters.sequence();
                 let hash: B256 = params.next()?;
                 let mempool_only: Result<Option<bool>, ErrorObjectOwned> = params.optional_next();
-                info!(
-                    "Full Node: eth_getTransactionByHash({}, {:?})",
-                    hash, mempool_only
-                );
 
                 // check if mempool_only parameter was given what was its value
                 match mempool_only {
@@ -612,8 +585,6 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         rpc.register_async_method::<Result<SyncStatus, ErrorObjectOwned>, _, _>(
             "citrea_syncStatus",
             |_, ethereum, _| async move {
-                info!("Full Node: citrea_syncStatus");
-
                 // sequencer client should send latest l2 height
                 // da service should send latest finalized l1 block header
                 let (sequencer_response, da_response) = join!(

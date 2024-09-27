@@ -28,7 +28,7 @@ impl SequencerClient {
     }
 
     /// Gets l2 block given l2 height
-    #[instrument(level = "trace", skip(self), err, ret)]
+    #[instrument(level = "trace", skip(self), ret)]
     pub async fn get_soft_confirmation<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         num: u64,
@@ -48,7 +48,7 @@ impl SequencerClient {
     }
 
     /// Gets l2 blocks given a range
-    #[instrument(level = "trace", skip(self), err, ret)]
+    #[instrument(level = "trace", skip(self), ret)]
     pub async fn get_soft_confirmation_range<DaSpec: sov_rollup_interface::da::DaSpec>(
         &self,
         range: RangeInclusive<u64>,
@@ -71,7 +71,7 @@ impl SequencerClient {
     }
 
     /// Gets l2 block height
-    #[instrument(level = "trace", skip(self), err, ret)]
+    #[instrument(level = "trace", skip(self), ret)]
     pub async fn block_number(&self) -> Result<u64, Error> {
         self.client
             .request("ledger_getHeadSoftConfirmationHeight", rpc_params![])
@@ -79,14 +79,14 @@ impl SequencerClient {
     }
 
     /// Sends raw tx to sequencer
-    #[instrument(level = "trace", skip_all, err, ret)]
+    #[instrument(level = "trace", skip_all, ret)]
     pub async fn send_raw_tx(&self, tx: Bytes) -> Result<B256, Error> {
         self.client
             .request("eth_sendRawTransaction", rpc_params![tx])
             .await
     }
 
-    #[instrument(level = "trace", skip(self), err, ret)]
+    #[instrument(level = "trace", skip(self), ret)]
     pub async fn get_tx_by_hash(
         &self,
         tx_hash: B256,
