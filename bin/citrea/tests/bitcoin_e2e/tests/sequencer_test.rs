@@ -106,7 +106,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
             last_used_l1_height = soft_confirmation.da_slot_height;
         }
 
-        assert_eq!(last_used_l1_height, initial_l1_height + 10 + 3);
+        let tip = da.get_block_count().await?;
+        assert_eq!(last_used_l1_height, tip);
 
         Ok(())
     }
