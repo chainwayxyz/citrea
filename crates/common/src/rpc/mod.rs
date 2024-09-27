@@ -94,13 +94,13 @@ where
         let req_id = req.id();
         let req_method = req.method_name().to_string();
 
-        tracing::info!(id = ?req_id, method = ?req_method, params = ?req.params().as_str(), "rpc_request");
+        tracing::debug!(id = ?req_id, method = ?req_method, params = ?req.params().as_str(), "rpc_request");
 
         let service = self.0.clone();
         async move {
             let resp = service.call(req).await;
             if resp.is_success() {
-                tracing::info!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
+                tracing::debug!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_success");
             } else {
                 tracing::warn!(id = ?req_id, method = ?req_method, result = ?resp.as_result(), "rpc_error");
             }
