@@ -19,7 +19,12 @@ pub struct TestContext {
 }
 
 impl TestContext {
-    fn new(config: TestConfig, docker: Option<DockerEnv>) -> Self {
+    async fn new(config: TestConfig) -> Self {
+        let docker = if config.test_case.docker {
+            Some(DockerEnv::new(config.test_case.n_nodes).await.unwrap())
+        } else {
+            None
+        };
         Self {
             config,
             docker: Arc::new(docker),
@@ -48,22 +53,15 @@ async fn create_optional<T>(pred: bool, f: impl Future<Output = Result<T>>) -> R
 impl TestFramework {
     pub async fn new(config: TestConfig) -> Result<Self> {
         anyhow::ensure!(
-            config.test_case.num_nodes > 0,
+            config.test_case.n_nodes > 0,
             "At least one bitcoin node has to be running"
         );
 
-        let docker = if config.test_case.docker {
-            Some(DockerEnv::new().await?)
-        } else {
-            None
-        };
-
-        let ctx = TestContext::new(config, docker);
+        let ctx = TestContext::new(config).await;
 
         let bitcoin_nodes = BitcoinNodeCluster::new(&ctx).await?;
 
         // tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-
         Ok(Self {
             bitcoin_nodes,
             sequencer: None,
@@ -173,8 +171,6 @@ impl TestFramework {
 
     pub async fn fund_da_wallets(&mut self) -> Result<()> {
         let da = self.bitcoin_nodes.get(0).unwrap();
-
-        da.wait_for_ready(None).await?;
 
         da.create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
             .await?;

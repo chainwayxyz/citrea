@@ -110,7 +110,7 @@ impl<T: TestCase> TestCaseRunner<T> {
         copy_genesis_dir(&test_case.genesis_dir, &genesis_dir)?;
 
         let mut bitcoin_confs = vec![];
-        for i in 0..test_case.num_nodes {
+        for i in 0..test_case.n_nodes {
             let data_dir = bitcoin_dir.join(i.to_string());
             std::fs::create_dir_all(&data_dir)
                 .with_context(|| format!("Failed to create {} directory", data_dir.display()))?;
@@ -123,6 +123,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 rpc_port,
                 data_dir,
                 env: env.bitcoin().clone(),
+                idx: i,
                 ..bitcoin.clone()
             })
         }

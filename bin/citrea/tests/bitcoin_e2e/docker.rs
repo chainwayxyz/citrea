@@ -30,12 +30,12 @@ pub struct DockerEnv {
 }
 
 impl DockerEnv {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(n_nodes: usize) -> Result<Self> {
         let docker =
             Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;
         let test_id = generate_test_id();
         let (network_id, network_name) = Self::create_network(&docker, &test_id).await?;
-        let volumes = Self::create_volumes(&docker, &test_id).await?;
+        let volumes = Self::create_volumes(&docker, &test_id, n_nodes).await?;
 
         Ok(Self {
             docker,
@@ -46,21 +46,28 @@ impl DockerEnv {
         })
     }
 
-    async fn create_volumes(docker: &Docker, test_case_id: &str) -> Result<HashSet<String>> {
+    async fn create_volumes(
+        docker: &Docker,
+        test_case_id: &str,
+        n_nodes: usize,
+    ) -> Result<HashSet<String>> {
+        let volume_configs = vec![("bitcoin", n_nodes)];
         let mut volumes = HashSet::new();
 
-        for name in ["bitcoin"] {
-            let volume_name = format!("{name}-{test_case_id}");
-            docker
-                .create_volume(CreateVolumeOptions {
-                    name: volume_name.clone(),
-                    driver: "local".to_string(),
-                    driver_opts: HashMap::new(),
-                    labels: HashMap::new(),
-                })
-                .await?;
+        for (name, n) in volume_configs {
+            for i in 0..n {
+                let volume_name = format!("{name}-{i}-{test_case_id}");
+                docker
+                    .create_volume(CreateVolumeOptions {
+                        name: volume_name.clone(),
+                        driver: "local".to_string(),
+                        driver_opts: HashMap::new(),
+                        labels: HashMap::new(),
+                    })
+                    .await?;
 
-            volumes.insert(volume_name);
+                volumes.insert(volume_name);
+            }
         }
 
         Ok(volumes)

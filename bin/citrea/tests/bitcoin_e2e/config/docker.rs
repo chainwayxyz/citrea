@@ -38,7 +38,7 @@ impl From<&BitcoinConfig> for DockerConfig {
             cmd: args,
             log_path: v.data_dir.join("regtest").join("debug.log"),
             volume: VolumeConfig {
-                name: "bitcoin".to_string(),
+                name: format!("bitcoin-{}", v.idx),
                 target: "/home/bitcoin/.bitcoin".to_string(),
             },
         }

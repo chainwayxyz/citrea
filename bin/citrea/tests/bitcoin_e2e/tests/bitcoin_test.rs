@@ -18,7 +18,7 @@ impl TestCase for BasicSyncTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_sequencer: false,
-            num_nodes: 2,
+            n_nodes: 2,
             timeout: Duration::from_secs(60),
             ..Default::default()
         }
