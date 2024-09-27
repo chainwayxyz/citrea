@@ -51,7 +51,6 @@ impl BitcoinConfig {
             "-addresstype=bech32m".to_string(),
             "-debug=net".to_string(),
             "-debug=rpc".to_string(),
-            "-fallbackfee=0.000001".to_string(),
         ]
     }
 
