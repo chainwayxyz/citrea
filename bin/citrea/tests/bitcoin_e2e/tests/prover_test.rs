@@ -125,13 +125,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
-    fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
-            ..Default::default()
-        }
-    }
-
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
