@@ -2,6 +2,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin_da::spec::BitcoinSpec;
 use bitcoincore_rpc::RpcApi;
+use citrea_sequencer::SequencerConfig;
 
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::{L2Node, Restart};
@@ -51,6 +52,13 @@ struct SequencerMissedDaBlocksTest;
 
 #[async_trait]
 impl TestCase for SequencerMissedDaBlocksTest {
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: 1000,
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
@@ -106,8 +114,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
             last_used_l1_height = soft_confirmation.da_slot_height;
         }
 
-        let tip = da.get_block_count().await?;
-        assert_eq!(last_used_l1_height, tip);
+        let finalized_height = da.get_finalized_height().await?;
+        assert_eq!(last_used_l1_height, finalized_height);
 
         Ok(())
     }
