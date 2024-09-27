@@ -127,7 +127,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 10,
+            min_soft_confirmations_per_commitment: 4,
             ..Default::default()
         }
     }
