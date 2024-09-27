@@ -83,7 +83,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         // Restart the sequencer
         sequencer.start(None).await?;
 
-        for _ in 0..3 {
+        for _ in 0..10 {
             sequencer.client.send_publish_batch_request().await;
         }
 
