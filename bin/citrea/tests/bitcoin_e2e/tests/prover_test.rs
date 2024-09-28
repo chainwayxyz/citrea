@@ -41,7 +41,7 @@ impl TestCase for BasicProverTest {
         }
     }
 
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
@@ -125,14 +125,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
-    fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 10,
-            ..Default::default()
-        }
-    }
-
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let Some(sequencer) = &f.sequencer else {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };

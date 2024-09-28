@@ -1,13 +1,15 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{stdout, Write};
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use bollard::container::{Config, LogOutput, LogsOptions, NetworkingConfig};
 use bollard::image::CreateImageOptions;
-use bollard::models::{EndpointSettings, PortBinding};
+use bollard::models::{EndpointSettings, Mount, PortBinding};
 use bollard::network::CreateNetworkOptions;
+use bollard::secret::MountTypeEnum;
 use bollard::service::HostConfig;
+use bollard::volume::CreateVolumeOptions;
 use bollard::Docker;
 use futures::StreamExt;
 use tokio::fs::File;
@@ -23,19 +25,52 @@ pub struct DockerEnv {
     pub docker: Docker,
     pub network_id: String,
     pub network_name: String,
+    id: String,
+    volumes: HashSet<String>,
 }
 
 impl DockerEnv {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(n_nodes: usize) -> Result<Self> {
         let docker =
             Docker::connect_with_local_defaults().context("Failed to connect to Docker")?;
         let test_id = generate_test_id();
         let (network_id, network_name) = Self::create_network(&docker, &test_id).await?;
+        let volumes = Self::create_volumes(&docker, &test_id, n_nodes).await?;
+
         Ok(Self {
             docker,
             network_id,
             network_name,
+            id: test_id,
+            volumes,
         })
+    }
+
+    async fn create_volumes(
+        docker: &Docker,
+        test_case_id: &str,
+        n_nodes: usize,
+    ) -> Result<HashSet<String>> {
+        let volume_configs = vec![("bitcoin", n_nodes)];
+        let mut volumes = HashSet::new();
+
+        for (name, n) in volume_configs {
+            for i in 0..n {
+                let volume_name = format!("{name}-{i}-{test_case_id}");
+                docker
+                    .create_volume(CreateVolumeOptions {
+                        name: volume_name.clone(),
+                        driver: "local".to_string(),
+                        driver_opts: HashMap::new(),
+                        labels: HashMap::new(),
+                    })
+                    .await?;
+
+                volumes.insert(volume_name);
+            }
+        }
+
+        Ok(volumes)
     }
 
     async fn create_network(docker: &Docker, test_case_id: &str) -> Result<(String, String)> {
@@ -56,6 +91,7 @@ impl DockerEnv {
     }
 
     pub async fn spawn(&self, config: DockerConfig) -> Result<SpawnOutput> {
+        println!("Spawning docker with config {config:#?}");
         let exposed_ports: HashMap<String, HashMap<(), ()>> = config
             .ports
             .iter()
@@ -79,13 +115,22 @@ impl DockerEnv {
         let mut network_config = HashMap::new();
         network_config.insert(self.network_id.clone(), EndpointSettings::default());
 
+        let volume_name = format!("{}-{}", config.volume.name, self.id);
+        let mount = Mount {
+            target: Some(config.volume.target.clone()),
+            source: Some(volume_name),
+            typ: Some(MountTypeEnum::VOLUME),
+            ..Default::default()
+        };
+
         let container_config = Config {
             image: Some(config.image),
             cmd: Some(config.cmd),
             exposed_ports: Some(exposed_ports),
             host_config: Some(HostConfig {
                 port_bindings: Some(port_bindings),
-                binds: Some(vec![config.dir]),
+                // binds: Some(vec![config.dir]),
+                mounts: Some(vec![mount]),
                 ..Default::default()
             }),
             networking_config: Some(NetworkingConfig {
@@ -102,7 +147,7 @@ impl DockerEnv {
         self.ensure_image_exists(image).await?;
 
         // println!("options :{options:?}");
-        // println!("config :{config:?}");
+        // println!("config :{container_config:?}");
 
         let container = self
             .docker
@@ -189,6 +234,11 @@ impl DockerEnv {
         }
 
         self.docker.remove_network(&self.network_name).await?;
+
+        for volume_name in &self.volumes {
+            self.docker.remove_volume(volume_name, None).await?;
+        }
+
         Ok(())
     }
 

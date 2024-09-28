@@ -1,10 +1,13 @@
 use std::future::Future;
+use std::sync::Arc;
+
+use bitcoincore_rpc::RpcApi;
 
 use super::bitcoin::BitcoinNodeCluster;
 use super::config::TestConfig;
 use super::docker::DockerEnv;
 use super::full_node::FullNode;
-use super::node::{LogProvider, LogProviderErased, Node};
+use super::node::{LogProvider, LogProviderErased, Node, NodeKind};
 use super::sequencer::Sequencer;
 use super::Result;
 use crate::bitcoin_e2e::prover::Prover;
@@ -12,7 +15,21 @@ use crate::bitcoin_e2e::utils::tail_file;
 
 pub struct TestContext {
     pub config: TestConfig,
-    pub docker: Option<DockerEnv>,
+    pub docker: Arc<Option<DockerEnv>>,
+}
+
+impl TestContext {
+    async fn new(config: TestConfig) -> Self {
+        let docker = if config.test_case.docker {
+            Some(DockerEnv::new(config.test_case.n_nodes).await.unwrap())
+        } else {
+            None
+        };
+        Self {
+            config,
+            docker: Arc::new(docker),
+        }
+    }
 }
 
 pub struct TestFramework {
@@ -36,40 +53,46 @@ async fn create_optional<T>(pred: bool, f: impl Future<Output = Result<T>>) -> R
 impl TestFramework {
     pub async fn new(config: TestConfig) -> Result<Self> {
         anyhow::ensure!(
-            config.test_case.num_nodes > 0,
+            config.test_case.n_nodes > 0,
             "At least one bitcoin node has to be running"
         );
 
-        let docker = if config.test_case.docker {
-            Some(DockerEnv::new().await?)
-        } else {
-            None
-        };
-
-        let ctx = TestContext { config, docker };
+        let ctx = TestContext::new(config).await;
 
         let bitcoin_nodes = BitcoinNodeCluster::new(&ctx).await?;
 
-        let sequencer =
-            create_optional(ctx.config.test_case.with_sequencer, Sequencer::new(&ctx)).await?;
-
-        let (prover, full_node) = tokio::try_join!(
-            create_optional(ctx.config.test_case.with_prover, Prover::new(&ctx)),
-            create_optional(ctx.config.test_case.with_full_node, FullNode::new(&ctx)),
-        )?;
-
-        let f = Self {
+        // tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        Ok(Self {
             bitcoin_nodes,
-            sequencer,
-            prover,
-            full_node,
+            sequencer: None,
+            prover: None,
+            full_node: None,
             ctx,
             show_logs: true,
             initial_da_height: 0,
-        };
+        })
+    }
 
-        f.show_log_paths();
-        Ok(f)
+    pub async fn init_nodes(&mut self) -> Result<()> {
+        // Has to initialize sequencer first since prover and full node depend on it
+        self.sequencer = create_optional(
+            self.ctx.config.test_case.with_sequencer,
+            Sequencer::new(&self.ctx),
+        )
+        .await?;
+
+        (self.prover, self.full_node) = tokio::try_join!(
+            create_optional(
+                self.ctx.config.test_case.with_prover,
+                Prover::new(&self.ctx)
+            ),
+            create_optional(
+                self.ctx.config.test_case.with_full_node,
+                FullNode::new(&self.ctx)
+            ),
+        )?;
+
+        Ok(())
     }
 
     fn get_nodes_as_log_provider(&self) -> Vec<&dyn LogProviderErased> {
@@ -104,9 +127,13 @@ impl TestFramework {
     pub fn dump_log(&self) -> Result<()> {
         println!("Dumping logs:");
 
+        let n_lines = std::env::var("TAIL_N_LINES")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(25);
         for node in self.get_nodes_as_log_provider() {
-            println!("{} logs (last 300 lines):", node.kind());
-            if let Err(e) = tail_file(&node.log_path(), 300) {
+            println!("{} logs (last {n_lines} lines):", node.kind());
+            if let Err(e) = tail_file(&node.log_path(), n_lines) {
                 eprint!("{e}");
             }
         }
@@ -134,11 +161,40 @@ impl TestFramework {
         let _ = self.bitcoin_nodes.stop_all().await;
         println!("Successfully stopped bitcoin nodes");
 
-        if let Some(docker) = &self.ctx.docker {
+        if let Some(docker) = self.ctx.docker.as_ref() {
             let _ = docker.cleanup().await;
             println!("Successfully cleaned docker");
         }
 
+        Ok(())
+    }
+
+    pub async fn fund_da_wallets(&mut self) -> Result<()> {
+        let da = self.bitcoin_nodes.get(0).unwrap();
+
+        da.create_wallet(&NodeKind::Sequencer.to_string(), None, None, None, None)
+            .await?;
+        da.create_wallet(&NodeKind::Prover.to_string(), None, None, None, None)
+            .await?;
+        da.create_wallet(&NodeKind::Bitcoin.to_string(), None, None, None, None)
+            .await?;
+
+        let blocks_to_mature = 100;
+        let blocks_to_fund = 25;
+        if self.ctx.config.test_case.with_sequencer {
+            da.fund_wallet(NodeKind::Sequencer.to_string(), blocks_to_fund)
+                .await?;
+        }
+
+        if self.ctx.config.test_case.with_prover {
+            da.fund_wallet(NodeKind::Prover.to_string(), blocks_to_fund)
+                .await?;
+        }
+        da.fund_wallet(NodeKind::Bitcoin.to_string(), blocks_to_fund)
+            .await?;
+
+        da.generate(blocks_to_mature, None).await?;
+        self.initial_da_height = da.get_block_count().await?;
         Ok(())
     }
 }
