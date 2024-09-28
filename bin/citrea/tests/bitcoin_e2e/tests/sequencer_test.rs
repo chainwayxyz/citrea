@@ -64,11 +64,6 @@ impl TestCase for SequencerMissedDaBlocksTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
 
         let initial_l1_height = da.get_finalized_height().await?;
-        println!("initial_l1_height : {:?}", initial_l1_height);
-        println!(
-            "da.get_block_count().await? : {:?}",
-            da.get_block_count().await?
-        );
 
         // Create initial DA blocks
         da.generate(3, None).await?;
@@ -107,7 +102,6 @@ impl TestCase for SequencerMissedDaBlocksTest {
                 .await
                 .unwrap();
 
-            println!("i {i}, soft_confirmation : {:?}", soft_confirmation);
             if i == 1 {
                 assert_eq!(soft_confirmation.da_slot_height, last_used_l1_height);
             } else {
@@ -118,15 +112,9 @@ impl TestCase for SequencerMissedDaBlocksTest {
             }
 
             last_used_l1_height = soft_confirmation.da_slot_height;
-            println!("i {i}, last_used_l1_height : {:?}", last_used_l1_height);
         }
 
         let finalized_height = da.get_finalized_height().await?;
-        println!("finalized_height at end : {:?}", finalized_height);
-        println!(
-            "da.get_block_count().await? at end: {:?}",
-            da.get_block_count().await?
-        );
         assert_eq!(last_used_l1_height, finalized_height);
 
         Ok(())
