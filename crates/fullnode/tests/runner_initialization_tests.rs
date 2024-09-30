@@ -89,7 +89,7 @@ fn initialize_runner(
             include_tx_body: true,
             accept_public_input_as_proven: None,
             sync_blocks_count: 10,
-            pruning_mode: Default::default(),
+            pruning_config: None,
         }),
         da: MockDaConfig {
             sender_address: address,

@@ -10,7 +10,7 @@ use backoff::future::retry as retry_backoff;
 use citrea_primitives::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::{get_da_block_at_height, L1BlockCache};
-use citrea_pruning::{Pruner, PruningMode};
+use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
@@ -69,7 +69,7 @@ where
     sync_blocks_count: u64,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
-    pruning_mode: PruningMode,
+    pruning_config: Option<PruningConfig>,
     task_manager: TaskManager<()>,
 }
 
@@ -160,7 +160,7 @@ where
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
-            pruning_mode: runner_config.pruning_mode,
+            pruning_config: runner_config.pruning_config,
             task_manager: TaskManager::default(),
         })
     }
@@ -233,9 +233,9 @@ where
         let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
             .map_or(0u64, |v| v.parse().unwrap_or(0));
 
-        if let PruningMode::Pruned { options } = &self.pruning_mode {
+        if let Some(config) = &self.pruning_config {
             let pruner = Pruner::<DB>::new(
-                options.clone(),
+                config.clone(),
                 self.ledger_db.get_last_pruned_l2_height()?.unwrap_or(0),
                 self.soft_confirmation_tx.subscribe(),
                 self.ledger_db.clone(),

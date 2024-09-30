@@ -4,7 +4,8 @@ test_mode = false
 deposit_mempool_fetch_limit = 10
 block_production_interval_ms = 1000
 da_update_interval_ms = 2000
-# pruning_mode.options.distance = 10
+
+# pruning_config.distance = 10
 
 [mempool_conf] # Mempool Configuration - https://github.com/ledgerwatch/erigon/wiki/Transaction-Pool-Design
 pending_tx_limit = 100000

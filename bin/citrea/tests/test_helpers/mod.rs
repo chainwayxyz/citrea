@@ -158,7 +158,7 @@ pub fn create_default_rollup_config(
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),
                 sync_blocks_count: 10,
-                pruning_mode: Default::default(),
+                pruning_config: None,
             }),
             NodeMode::SequencerNode => None,
         },
@@ -182,7 +182,7 @@ pub fn create_default_sequencer_config(
         mempool_conf: Default::default(),
         da_update_interval_ms: 500,
         block_production_interval_ms: 500, // since running in test mode, we can set this to a lower value
-        pruning_mode: Default::default(),
+        pruning_config: None,
     }
 }
 
