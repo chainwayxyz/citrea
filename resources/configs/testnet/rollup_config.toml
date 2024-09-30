@@ -16,7 +16,9 @@ network = "testnet"
 tx_backup_dir = ""
 
 [storage]
-path = "./db"
+# make sure the following path relative to the directory in which you're
+# running citrea exists.
+path = "resources/dbs"
 
 # comment out if you want to set custom max open files
 # if you leave it like this, it will use the system limit
@@ -54,3 +56,8 @@ sequencer_client_url = "https://rpc.testnet.citrea.xyz"
 # if you want to store full soft confirmations in your node
 # set this to true
 include_tx_body = false
+
+# speed up sync by increasing the number of blocks we request per batch.
+# this value should be at most equal to `batch_requests_limit` set by the RPC node
+# being used.
+# sync_blocks_count = 20

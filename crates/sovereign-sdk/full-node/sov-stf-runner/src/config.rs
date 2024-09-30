@@ -131,6 +131,8 @@ pub struct ProverConfig {
     pub proving_mode: ProverGuestRunConfig,
     /// Average number of commitments to prove
     pub proof_sampling_number: usize,
+    /// If true prover will try to recover ongoing proving sessions
+    pub enable_reocvery: bool,
 }
 
 impl Default for ProverConfig {
@@ -138,6 +140,7 @@ impl Default for ProverConfig {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
+            enable_reocvery: true,
         }
     }
 }
@@ -244,6 +247,7 @@ mod tests {
         let config = r#"
             proving_mode = "skip"
             proof_sampling_number = 500
+            enable_reocvery = true
         "#;
 
         let config_file = create_config_from(config);
@@ -252,6 +256,7 @@ mod tests {
         let expected = ProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
+            enable_reocvery: true,
         };
         assert_eq!(config, expected);
     }

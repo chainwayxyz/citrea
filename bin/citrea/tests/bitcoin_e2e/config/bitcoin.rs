@@ -14,6 +14,7 @@ pub struct BitcoinConfig {
     pub network: Network,
     pub docker_image: Option<String>,
     pub env: Vec<(&'static str, &'static str)>,
+    pub idx: usize,
 }
 
 impl Default for BitcoinConfig {
@@ -30,6 +31,7 @@ impl Default for BitcoinConfig {
             network: Network::Regtest,
             docker_image: Some("bitcoin/bitcoin:latest".to_string()),
             env: Vec::new(),
+            idx: 0,
         }
     }
 }
@@ -44,7 +46,7 @@ impl BitcoinConfig {
             format!("-rpcuser={}", self.rpc_user),
             format!("-rpcpassword={}", self.rpc_password),
             "-server".to_string(),
-            "-daemon".to_string(),
+            "-daemonwait".to_string(),
             "-txindex".to_string(),
             "-addresstype=bech32m".to_string(),
             "-debug=net".to_string(),

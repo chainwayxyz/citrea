@@ -41,7 +41,7 @@ impl TestCaseEnv {
 
 #[derive(Clone)]
 pub struct TestCaseConfig {
-    pub num_nodes: usize,
+    pub n_nodes: usize,
     pub with_sequencer: bool,
     pub with_full_node: bool,
     pub with_prover: bool,
@@ -58,7 +58,7 @@ pub struct TestCaseConfig {
 impl Default for TestCaseConfig {
     fn default() -> Self {
         TestCaseConfig {
-            num_nodes: 1,
+            n_nodes: 1,
             with_sequencer: true,
             with_prover: false,
             with_full_node: false,

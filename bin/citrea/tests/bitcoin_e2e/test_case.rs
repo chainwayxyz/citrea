@@ -8,7 +8,6 @@ use std::time::Duration;
 use anyhow::{bail, Context};
 use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
-use bitcoincore_rpc::RpcApi;
 use citrea_sequencer::SequencerConfig;
 use futures::FutureExt;
 use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
@@ -36,36 +35,25 @@ impl<T: TestCase> TestCaseRunner<T> {
         Self(test_case)
     }
 
-    pub async fn setup(&self, f: &mut TestFramework) -> Result<()> {
-        let bitcoin_node = f.bitcoin_nodes.get(0).unwrap();
-        let blocks_to_mature = 100;
-        let blocks_to_fund = 25;
-        if f.sequencer.is_some() {
-            bitcoin_node
-                .fund_wallet(NodeKind::Sequencer.to_string(), blocks_to_fund)
-                .await?;
-        }
-
-        if f.prover.is_some() {
-            bitcoin_node
-                .fund_wallet(NodeKind::Prover.to_string(), blocks_to_fund)
-                .await?;
-        }
-
-        bitcoin_node.generate(blocks_to_mature, None).await?;
-
-        f.initial_da_height = bitcoin_node.get_block_count().await?;
-        Ok(())
-    }
-
-    /// Internal method to set up connect the nodes, wait for the nodes to be ready and run the test.
-    async fn run_test_case(&mut self, f: &mut TestFramework) -> Result<()> {
+    /// Internal method to fund the wallets, connect the nodes, wait for them to be ready.
+    async fn prepare(&self, f: &mut TestFramework) -> Result<()> {
+        f.fund_da_wallets().await?;
+        f.init_nodes().await?;
+        f.show_log_paths();
         f.bitcoin_nodes.connect_nodes().await?;
 
         if let Some(sequencer) = &f.sequencer {
-            sequencer.wait_for_ready(Duration::from_secs(5)).await?;
+            sequencer
+                .wait_for_ready(Some(Duration::from_secs(5)))
+                .await?;
         }
 
+        Ok(())
+    }
+
+    async fn run_test_case(&mut self, f: &mut TestFramework) -> Result<()> {
+        self.prepare(f).await?;
+        self.0.setup(f).await?;
         self.0.run_test(f).await
     }
 
@@ -75,8 +63,6 @@ impl<T: TestCase> TestCaseRunner<T> {
     pub async fn run(mut self) -> Result<()> {
         let result = panic::AssertUnwindSafe(async {
             let mut framework = TestFramework::new(Self::generate_test_config()?).await?;
-            self.setup(&mut framework).await?;
-
             let test_result = self.run_test_case(&mut framework).await;
 
             if test_result.is_err() {
@@ -124,7 +110,7 @@ impl<T: TestCase> TestCaseRunner<T> {
         copy_genesis_dir(&test_case.genesis_dir, &genesis_dir)?;
 
         let mut bitcoin_confs = vec![];
-        for i in 0..test_case.num_nodes {
+        for i in 0..test_case.n_nodes {
             let data_dir = bitcoin_dir.join(i.to_string());
             std::fs::create_dir_all(&data_dir)
                 .with_context(|| format!("Failed to create {} directory", data_dir.display()))?;
@@ -137,6 +123,7 @@ impl<T: TestCase> TestCaseRunner<T> {
                 rpc_port,
                 data_dir,
                 env: env.bitcoin().clone(),
+                idx: i,
                 ..bitcoin.clone()
             })
         }
@@ -176,7 +163,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             ),
             include_tx_body: true,
             accept_public_input_as_proven: Some(true),
-            sync_blocks_count: Default::default(),
+            sync_blocks_count: 10,
         });
 
         let prover_rollup = {
@@ -296,6 +283,12 @@ pub trait TestCase: Send + Sync + 'static {
         ProverConfig::default()
     }
 
+    /// Returns the test setup
+    /// Override this method to add custom initialization logic
+    async fn setup(&self, _framework: &mut TestFramework) -> Result<()> {
+        Ok(())
+    }
+
     /// Implements the actual test logic.
     ///
     /// This method is where the test case should be implemented. It receives
@@ -303,7 +296,7 @@ pub trait TestCase: Send + Sync + 'static {
     ///
     /// # Arguments
     /// * `framework` - A reference to the TestFramework instance
-    async fn run_test(&mut self, framework: &TestFramework) -> Result<()>;
+    async fn run_test(&mut self, framework: &mut TestFramework) -> Result<()>;
 
     async fn cleanup(&self) -> Result<()> {
         Ok(())

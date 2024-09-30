@@ -29,7 +29,7 @@ Sequencer RPC is accessible at `127.0.0.1:12345`
 _Optional_: Run full node on Mock DA:
 
 ```sh
-./target/debug/citrea --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --genesis-paths resources/test-data/demo-tests/mock
+./target/debug/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/
 ```
 
 Full node RPC is accessible at `127.0.0.1:12346`
