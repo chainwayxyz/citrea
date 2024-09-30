@@ -1751,6 +1751,7 @@ dependencies = [
  "anyhow",
  "backoff",
  "citrea-primitives",
+ "futures",
  "hyper 1.4.1",
  "jsonrpsee",
  "lru",
@@ -1758,6 +1759,7 @@ dependencies = [
  "sov-rollup-interface",
  "tokio",
  "tower-http",
+ "tracing",
 ]
 
 [[package]]

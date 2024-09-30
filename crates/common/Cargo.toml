@@ -14,11 +14,13 @@ resolver = "2"
 # 3rd-party deps
 anyhow = { workspace = true }
 backoff = { workspace = true }
+futures = { workspace = true }
 hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lru = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
+tracing = { workspace = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }

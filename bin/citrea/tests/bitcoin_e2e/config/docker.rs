@@ -3,12 +3,19 @@ use std::path::PathBuf;
 use super::{BitcoinConfig, FullSequencerConfig};
 use crate::bitcoin_e2e::utils::get_genesis_path;
 
+#[derive(Debug)]
+pub struct VolumeConfig {
+    pub name: String,
+    pub target: String,
+}
+
+#[derive(Debug)]
 pub struct DockerConfig {
     pub ports: Vec<u16>,
     pub image: String,
     pub cmd: Vec<String>,
-    pub dir: String,
     pub log_path: PathBuf,
+    pub volume: VolumeConfig,
 }
 
 impl From<&BitcoinConfig> for DockerConfig {
@@ -17,13 +24,11 @@ impl From<&BitcoinConfig> for DockerConfig {
 
         // Docker specific args
         args.extend([
-            "-datadir=/bitcoin/data".to_string(),
             "-rpcallowip=0.0.0.0/0".to_string(),
             "-rpcbind=0.0.0.0".to_string(),
-            "-daemon=0".to_string(),
+            "-daemonwait=0".to_string(),
         ]);
 
-        println!("Running bitcoind with args : {args:?}");
         Self {
             ports: vec![v.rpc_port, v.p2p_port],
             image: v
@@ -31,8 +36,11 @@ impl From<&BitcoinConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "bitcoin/bitcoin:latest".to_string()),
             cmd: args,
-            dir: format!("{}:/bitcoin/data", v.data_dir.display()),
             log_path: v.data_dir.join("regtest").join("debug.log"),
+            volume: VolumeConfig {
+                name: format!("bitcoin-{}", v.idx),
+                target: "/home/bitcoin/.bitcoin".to_string(),
+            },
         }
     }
 }
@@ -59,8 +67,11 @@ impl From<&FullSequencerConfig> for DockerConfig {
                 .clone()
                 .unwrap_or_else(|| "citrea:latest".to_string()), // Default to local image
             cmd: args,
-            dir: format!("{}:/sequencer/data", v.dir.display()),
             log_path: v.dir.join("stdout"),
+            volume: VolumeConfig {
+                name: "sequencer".to_string(),
+                target: "/sequencer/data".to_string(),
+            },
         }
     }
 }

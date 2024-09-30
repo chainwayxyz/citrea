@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 // use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
@@ -12,11 +13,10 @@ use reth_rpc_types::trace::geth::{
 use serde_json::{self, json};
 
 use crate::evm::make_test_client;
-use crate::test_helpers::{start_rollup, tempdir_with_children, NodeMode};
-use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    TEST_DATA_GENESIS_PATH,
+use crate::test_helpers::{
+    create_default_rollup_config, start_rollup, tempdir_with_children, NodeMode,
 };
+use crate::TEST_DATA_GENESIS_PATH;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,22 +25,19 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
-    let da_db_dir_cloned = da_db_dir.clone();
+
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig::default();
+
     let rollup_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });

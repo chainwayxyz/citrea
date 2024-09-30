@@ -164,6 +164,9 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Returns an L2 state diff
     fn get_l2_state_diff(&self, l2_height: BatchNumber) -> Result<Option<StateDiff>>;
+
+    /// Clears all pending proving sessions
+    fn clear_pending_proving_sessions(&self) -> Result<()>;
 }
 
 /// Ledger operations for the prover service
