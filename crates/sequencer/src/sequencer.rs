@@ -942,12 +942,14 @@ where
                             // This is mainly to make sure we account for the execution time to
                             // achieve consistent 2-second block production.
                             let parent_block_exec_time = instant.elapsed();
+                            let mut next_block_production_duration = target_block_time
+                                .checked_sub(parent_block_exec_time)
+                                .unwrap_or_default();
+                            if next_block_production_duration.is_zero() {
+                                next_block_production_duration = target_block_time;
+                            }
 
-                            block_production_tick = tokio::time::interval(
-                                target_block_time
-                                    .checked_sub(parent_block_exec_time)
-                                    .unwrap_or_default(),
-                            );
+                            block_production_tick = tokio::time::interval(next_block_production_duration);
                             block_production_tick.tick().await;
 
                             last_used_l1_height = l1_block_number;
