@@ -62,6 +62,7 @@ async fn full_node_verify_proof_and_store() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
+                enable_reocvery: true,
             }),
             rollup_config,
             None,
