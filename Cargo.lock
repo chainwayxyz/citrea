@@ -2754,6 +2754,7 @@ dependencies = [
  "borsh",
  "citrea-evm",
  "citrea-primitives",
+ "futures",
  "jsonrpsee",
  "parking_lot",
  "proptest",
