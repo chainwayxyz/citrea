@@ -109,8 +109,15 @@ where
     }
 
     pub async fn run(mut self, start_l1_height: u64) {
-        if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
-            error!("Failed to recover ongoing proving sessions: {:?}", e);
+        if self.prover_config.enable_reocvery {
+            if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
+                error!("Failed to recover ongoing proving sessions: {:?}", e);
+            }
+        } else {
+            // If recovery is disabled, clear pending proving sessions
+            self.ledger_db
+                .clear_pending_proving_sessions()
+                .expect("Failed to clear pending proving sessions");
         }
 
         let (l1_tx, mut l1_rx) = mpsc::channel(1);

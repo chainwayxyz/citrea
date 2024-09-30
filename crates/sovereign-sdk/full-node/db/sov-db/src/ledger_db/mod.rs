@@ -533,6 +533,22 @@ impl ProverLedgerOps for LedgerDB {
     fn get_l2_state_diff(&self, l2_height: BatchNumber) -> anyhow::Result<Option<StateDiff>> {
         self.db.get::<ProverStateDiffs>(&l2_height)
     }
+
+    #[instrument(level = "trace", skip(self), err)]
+    fn clear_pending_proving_sessions(&self) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        let mut iter = self.db.iter::<PendingProvingSessions>()?;
+        iter.seek_to_first();
+
+        for item in iter {
+            let item = item?;
+            schema_batch.delete::<PendingProvingSessions>(&item.key)?;
+        }
+
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
 }
 
 impl ProvingServiceLedgerOps for LedgerDB {
