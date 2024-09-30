@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
@@ -7,9 +8,10 @@ use tokio::time::sleep;
 use crate::evm::make_test_client;
 // use citrea::initialize_logging;
 use crate::test_helpers::{
-    start_rollup, tempdir_with_children, wait_for_l1_block, wait_for_l2_block, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
+    wait_for_l2_block, NodeMode,
 };
-use crate::{DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT};
+use crate::TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT;
 
 /// Transaction with equal nonce to last tx should not be accepted by mempool.
 #[tokio::test(flavor = "multi_thread")]
@@ -23,22 +25,27 @@ async fn too_many_l2_block_per_l1_block() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let da_db_dir_cloned = da_db_dir.clone();
-    tokio::spawn(async move {
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir_cloned,
+        NodeMode::SequencerNode,
+    );
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment:
+            TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
+        ..Default::default()
+    };
+    tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(
                 "../../resources/test-data/integration-tests-low-max-l2-blocks-per-l1",
             ),
             None,
-            NodeMode::SequencerNode,
-            sequencer_db_dir,
-            da_db_dir_cloned,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });
