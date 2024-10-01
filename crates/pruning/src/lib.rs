@@ -85,7 +85,7 @@ where
                         // decide to prune the previous `self.config.distance` blocks.
                         let trigger_block = (self.last_pruned_block + self.config.distance) + 1;
                         if current_l2_block >=trigger_block {
-                            self.prune(current_l2_block - self.config.distance).await;
+                            self.prune(self.last_pruned_block + self.config.distance).await;
                             self.last_pruned_block += self.config.distance;
                         }
                     }
