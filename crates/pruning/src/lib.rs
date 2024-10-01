@@ -33,7 +33,7 @@ where
     /// The last block number which was pruned.
     last_pruned_block: u64,
     /// A channel receiver which gets notified of new L2 blocks.
-    receiver: broadcast::Receiver<u64>,
+    l2_receiver: broadcast::Receiver<u64>,
     /// Access to ledger tables.
     ledger_db: DB,
 }
@@ -45,13 +45,13 @@ where
     pub fn new(
         config: PruningConfig,
         last_pruned_block: u64,
-        receiver: broadcast::Receiver<u64>,
+        l2_receiver: broadcast::Receiver<u64>,
         ledger_db: DB,
     ) -> Self {
         Self {
             config,
             last_pruned_block,
-            receiver,
+            l2_receiver,
             ledger_db,
         }
     }
@@ -81,7 +81,7 @@ where
                     }
                     return;
                 }
-                current_l2_block = self.receiver.recv() => {
+                current_l2_block = self.l2_receiver.recv() => {
                     if let Ok(current_l2_block) = current_l2_block {
                         // Calculate the block at which pruning would be triggered.
                         // This is allowing `self.config.distance` blocks to be produced before we
