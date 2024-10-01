@@ -1857,7 +1857,6 @@ dependencies = [
  "serde",
  "sov-rollup-interface",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 

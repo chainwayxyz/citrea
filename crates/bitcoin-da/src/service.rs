@@ -1046,6 +1046,7 @@ mod tests {
         .expect("Error initialazing BitcoinService");
 
         let da_service = Arc::new(da_service);
+        // da_service.clone().spawn_da_queue(_rx);
         #[allow(clippy::let_and_return)]
         da_service
     }
