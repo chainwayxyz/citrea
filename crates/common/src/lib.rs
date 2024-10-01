@@ -5,4 +5,5 @@ pub mod cache;
 pub mod da;
 pub mod error;
 pub mod rpc;
+pub mod tasks;
 pub mod utils;

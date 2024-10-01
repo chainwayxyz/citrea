@@ -442,7 +442,9 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          # https://github.com/foundry-rs/foundry/releases/tag/nightly-25f24e677a6a32a62512ad4f561995589ac2c7dc
+          # This is the latest version known to work for us
+          version: nightly-25f24e677a6a32a62512ad4f561995589ac2c7dc
 
       - name: Set up Python
         uses: actions/setup-python@v4
