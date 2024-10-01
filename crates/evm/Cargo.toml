@@ -15,6 +15,7 @@ readme = "README.md"
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, features = ["macros"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", optional = true }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 citrea-primitives = { path = "../primitives" }
 
