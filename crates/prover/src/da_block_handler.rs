@@ -110,7 +110,7 @@ where
     }
 
     pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
-        if self.prover_config.enable_reocvery {
+        if self.prover_config.enable_recovery {
             if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
                 error!("Failed to recover ongoing proving sessions: {:?}", e);
             }
