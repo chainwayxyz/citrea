@@ -64,9 +64,7 @@ where
             tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
         let evm_pruning_handle = tokio::task::spawn_blocking(move || prune_evm(up_to_block));
 
-        println!("Waiting for pruning task");
         future::join_all([ledger_pruning_handle, evm_pruning_handle]).await;
-        println!("Finished pruning");
     }
 
     pub async fn run(mut self, cancellation_token: CancellationToken) {
@@ -74,7 +72,6 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
-                    println!("Stopping pruner");
                     // Store the last pruned l2 height in ledger DB to be restored in the next initialization.
                     if let Err(e) = self.ledger_db.set_last_pruned_l2_height(self.last_pruned_block) {
                         error!("Failed to store last pruned L2 height {}: {:?}", self.last_pruned_block, e);
