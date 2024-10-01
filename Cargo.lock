@@ -1758,6 +1758,7 @@ dependencies = [
  "sov-db",
  "sov-rollup-interface",
  "tokio",
+ "tokio-util",
  "tower-http",
  "tracing",
 ]
@@ -1855,7 +1856,6 @@ dependencies = [
  "serde",
  "sov-rollup-interface",
  "tokio",
- "tokio-util",
  "tracing",
 ]
 

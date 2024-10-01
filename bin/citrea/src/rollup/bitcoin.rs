@@ -148,7 +148,7 @@ impl RollupBlueprint for BitcoinRollup {
         // require_wallet_check is set false for full nodes.
         if require_wallet_check {
             // run only for sequencer and prover
-            Arc::clone(&service).run(rx);
+            Arc::clone(&service).spawn_da_queue(rx);
         }
         Ok(service)
     }
