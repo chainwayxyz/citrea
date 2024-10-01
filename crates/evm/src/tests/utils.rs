@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use lazy_static::lazy_static;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::B256;
@@ -7,6 +9,7 @@ use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::spec::SpecId;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_stf_runner::read_json_file;
 
 use crate::{Evm, EvmConfig};
 
@@ -102,4 +105,13 @@ pub(crate) fn commit(
     storage.commit(&authenticated_node_batch, &accessory_log);
 
     root.0
+}
+
+/// Loads the genesis configuration from the give path and pushes the accounts to the evm config
+pub(crate) fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
+    let mut genesis_config: EvmConfig = read_json_file(Path::new(
+        path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
+    ))
+    .expect("Failed to read genesis configuration");
+    config.data.append(&mut genesis_config.data);
 }

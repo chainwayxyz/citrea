@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::Path;
 use std::str::FromStr;
 
 use alloy_primitives::LogData;
@@ -12,7 +11,6 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
-use sov_stf_runner::read_json_file;
 
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
@@ -25,8 +23,8 @@ use crate::tests::call_tests::{
     publish_event_message,
 };
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::get_evm;
-use crate::{AccountData, EvmConfig, BASE_FEE_VAULT, L1_FEE_VAULT, SYSTEM_SIGNER};
+use crate::tests::utils::{config_push_contracts, get_evm};
+use crate::{AccountData, BASE_FEE_VAULT, L1_FEE_VAULT, SYSTEM_SIGNER};
 
 type C = DefaultContext;
 
@@ -812,13 +810,4 @@ fn test_change_upgrade_owner() {
         )
         .unwrap()
     );
-}
-
-/// Loads the genesis configuration from the give path and pushes the accounts to the evm config
-pub fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
-    let mut genesis_config: EvmConfig = read_json_file(Path::new(
-        path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
-    ))
-    .expect("Failed to read genesis configuration");
-    config.data.append(&mut genesis_config.data);
 }
