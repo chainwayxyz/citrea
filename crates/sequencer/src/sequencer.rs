@@ -48,7 +48,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{sleep, Instant};
+use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::commitment_controller;
