@@ -8,18 +8,18 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::BorshDeserialize;
+use citrea_common::tasks::manager::TaskManager;
+use citrea_common::utils::merge_state_diffs;
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use citrea_primitives::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::utils::merge_state_diffs;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_pruning::Pruner;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
-use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
+use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
@@ -51,7 +51,7 @@ use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig};
 use tokio::signal;
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{sleep, Instant};
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
@@ -220,6 +220,7 @@ where
 
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
+        let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
 
         self.task_manager.spawn(|cancellation_token| async move {
             let server = ServerBuilder::default()
@@ -229,6 +230,7 @@ where
                 .max_response_body_size(max_response_body_size)
                 .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                 .set_http_middleware(middleware)
+                .set_rpc_middleware(rpc_middleware)
                 .build([listen_address].as_ref())
                 .await;
 
@@ -681,12 +683,9 @@ where
         self.ledger_db.set_state_diff(vec![])?;
         self.last_state_diff = vec![];
 
-        // calculate exclusive range end
-        let range_end = BatchNumber(l2_end.0 + 1); // cannnot add u64 to BatchNumber directly
-
         let soft_confirmation_hashes = self
             .ledger_db
-            .get_soft_confirmation_range(&(l2_start..range_end))?
+            .get_soft_confirmation_range(&(l2_start..=l2_end))?
             .iter()
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
@@ -958,22 +957,8 @@ where
                     }
 
 
-                    let instant = Instant::now();
                     match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l1_block_number, state_diff_threshold_reached)) => {
-                            // Set the next iteration's wait time to produce a block based on the
-                            // previous block's execution time.
-                            // This is mainly to make sure we account for the execution time to
-                            // achieve consistent 2-second block production.
-                            let parent_block_exec_time = instant.elapsed();
-
-                            block_production_tick = tokio::time::interval(
-                                target_block_time
-                                    .checked_sub(parent_block_exec_time)
-                                    .unwrap_or_default(),
-                            );
-                            block_production_tick.tick().await;
-
                             last_used_l1_height = l1_block_number;
 
                             if da_commitment_tx.unbounded_send(state_diff_threshold_reached).is_err() {

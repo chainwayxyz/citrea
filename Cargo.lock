@@ -1748,11 +1748,19 @@ dependencies = [
 name = "citrea-common"
 version = "0.5.0-rc.1"
 dependencies = [
+ "anyhow",
+ "backoff",
+ "citrea-primitives",
+ "futures",
  "hyper 1.4.1",
  "jsonrpsee",
+ "lru",
  "sov-db",
+ "sov-rollup-interface",
  "tokio",
+ "tokio-util",
  "tower-http",
+ "tracing",
 ]
 
 [[package]]
@@ -1845,11 +1853,8 @@ version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
- "backoff",
- "lru",
  "reth-primitives",
  "serde",
- "sov-db",
  "sov-rollup-interface",
  "tokio",
  "tokio-util",

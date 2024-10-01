@@ -1,4 +1,4 @@
-use crate::types::BlockNumber;
+use citrea_primitives::types::BlockNumber;
 
 #[derive(Debug)]
 pub enum SyncError {

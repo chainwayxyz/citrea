@@ -29,13 +29,10 @@ impl TestCase for LedgerGetCommitmentsProverTest {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
-            ..Default::default()
-        }
+        SequencerConfig::default()
     }
 
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let prover = f.prover.as_ref().unwrap();
@@ -107,13 +104,10 @@ impl TestCase for LedgerGetCommitmentsTest {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            min_soft_confirmations_per_commitment: 4,
-            ..Default::default()
-        }
+        SequencerConfig::default()
     }
 
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
@@ -181,7 +175,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         }
     }
 
-    async fn run_test(&mut self, f: &TestFramework) -> Result<()> {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 

@@ -3,17 +3,17 @@ use std::str::FromStr;
 
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
+use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;
 use crate::test_client::{TestClient, MAX_FEE_PER_GAS};
-use crate::test_helpers::{start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode};
-use crate::{
-    DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT, DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-    TEST_DATA_GENESIS_PATH,
+use crate::test_helpers::{
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
+use crate::TEST_DATA_GENESIS_PATH;
 
 async fn initialize_test(
     sequencer_path: PathBuf,
@@ -21,20 +21,17 @@ async fn initialize_test(
 ) -> (JoinHandle<()>, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_path, &db_path, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig::default();
+
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
-            NodeMode::SequencerNode,
-            sequencer_path,
-            db_path,
-            DEFAULT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
-            true,
-            None,
-            None,
-            Some(true),
-            DEFAULT_DEPOSIT_MEMPOOL_FETCH_LIMIT,
+            rollup_config,
+            Some(sequencer_config),
         )
         .await;
     });

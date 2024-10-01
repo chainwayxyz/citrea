@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
@@ -33,93 +33,74 @@ pub enum NodeMode {
     Prover(SocketAddr),
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<ProverConfig>,
-    node_mode: NodeMode,
-    rollup_db_path: PathBuf,
-    da_db_path: PathBuf,
-    min_soft_confirmations_per_commitment: u64,
-    include_tx_body: bool,
-    rollup_config: Option<FullNodeConfig<MockDaConfig>>,
+    rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
-    test_mode: Option<bool>,
-    deposit_mempool_fetch_limit: usize,
 ) {
     // create rollup config default creator function and use them here for the configs
-    let rollup_config = rollup_config.unwrap_or_else(|| {
-        create_default_rollup_config(include_tx_body, &rollup_db_path, &da_db_path, node_mode)
-    });
 
     let mock_demo_rollup = MockDemoRollup {};
 
-    match node_mode {
-        NodeMode::FullNode(_) => {
-            let span = info_span!("FullNode");
-            let rollup = CitreaRollupBlueprint::create_new_rollup(
-                &mock_demo_rollup,
-                &rt_genesis_paths,
-                rollup_config.clone(),
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
-            rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
-                .instrument(span)
-                .await
-                .unwrap();
-        }
-        NodeMode::Prover(_) => {
-            let span = info_span!("Prover");
-            let rollup = CitreaRollupBlueprint::create_new_prover(
-                &mock_demo_rollup,
-                &rt_genesis_paths,
-                rollup_config,
-                rollup_prover_config.unwrap(),
-            )
-            .instrument(span.clone())
-            .await
-            .unwrap();
-            rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
-                .instrument(span)
-                .await
-                .unwrap();
-        }
-        NodeMode::SequencerNode => {
-            warn!(
-                "Starting sequencer node pub key: {:?}",
-                DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
-                    .unwrap()
-                    .pub_key()
-            );
-            let sequencer_config = sequencer_config.unwrap_or_else(|| {
-                create_default_sequencer_config(
-                    min_soft_confirmations_per_commitment,
-                    test_mode,
-                    deposit_mempool_fetch_limit,
-                )
-            });
+    if sequencer_config.is_some() && rollup_prover_config.is_some() {
+        panic!("Both sequencer and prover config cannot be set at the same time");
+    }
 
-            let span = info_span!("Sequencer");
-            let sequencer_rollup = CitreaRollupBlueprint::create_new_sequencer(
-                &mock_demo_rollup,
-                &rt_genesis_paths,
-                rollup_config.clone(),
-                sequencer_config,
-            )
-            .instrument(span.clone())
+    if let Some(sequencer_config) = sequencer_config {
+        warn!(
+            "Starting sequencer node pub key: {:?}",
+            DefaultPrivateKey::from_hex(TEST_PRIVATE_KEY)
+                .unwrap()
+                .pub_key()
+        );
+        let span = info_span!("Sequencer");
+        let sequencer = CitreaRollupBlueprint::create_new_sequencer(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config.clone(),
+            sequencer_config,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        sequencer
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
             .await
             .unwrap();
-            sequencer_rollup
-                .run_and_report_rpc_port(Some(rpc_reporting_channel))
-                .instrument(span)
-                .await
-                .unwrap();
-        }
+    } else if let Some(rollup_prover_config) = rollup_prover_config {
+        let span = info_span!("Prover");
+        let rollup = CitreaRollupBlueprint::create_new_prover(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config,
+            rollup_prover_config,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        rollup
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
+            .await
+            .unwrap();
+    } else {
+        let span = info_span!("FullNode");
+        let rollup = CitreaRollupBlueprint::create_new_rollup(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config.clone(),
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        rollup
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
+            .await
+            .unwrap();
     }
 }
 
@@ -166,23 +147,6 @@ pub fn create_default_rollup_config(
             sender_address: MockAddress::from([0; 32]),
             db_path: da_path.to_path_buf(),
         },
-    }
-}
-
-pub fn create_default_sequencer_config(
-    min_soft_confirmations_per_commitment: u64,
-    test_mode: Option<bool>,
-    deposit_mempool_fetch_limit: usize,
-) -> SequencerConfig {
-    SequencerConfig {
-        private_key: TEST_PRIVATE_KEY.to_string(),
-        min_soft_confirmations_per_commitment,
-        test_mode: test_mode.unwrap_or(false),
-        deposit_mempool_fetch_limit,
-        mempool_conf: Default::default(),
-        da_update_interval_ms: 500,
-        block_production_interval_ms: 500, // since running in test mode, we can set this to a lower value
-        pruning_config: None,
     }
 }
 

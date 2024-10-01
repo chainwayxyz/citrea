@@ -5,12 +5,13 @@ use std::sync::Arc;
 use anyhow::bail;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use citrea_primitives::manager::TaskManager;
+use citrea_common::cache::L1BlockCache;
+use citrea_common::da::get_da_block_at_height;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::{get_da_block_at_height, L1BlockCache};
 use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
-use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
+use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
@@ -181,6 +182,7 @@ where
         let middleware = tower::ServiceBuilder::new()
             .layer(citrea_common::rpc::get_cors_layer())
             .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
+        let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
 
         self.task_manager
             .spawn(move |cancellation_token| async move {
@@ -191,6 +193,7 @@ where
                     .max_response_body_size(max_response_body_size)
                     .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
                     .set_http_middleware(middleware)
+                    .set_rpc_middleware(rpc_middleware)
                     .build([listen_address].as_ref())
                     .await;
 
@@ -447,7 +450,7 @@ async fn sync_l2<Da>(
             match retry_backoff(exponential_backoff.clone(), || async move {
                 match inner_client
                     .get_soft_confirmation_range::<Da::Spec>(
-                        l2_height..l2_height + sync_blocks_count,
+                        l2_height..=l2_height + sync_blocks_count - 1,
                     )
                     .await
                 {

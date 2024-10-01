@@ -8,14 +8,11 @@ publish = false
 
 [dependencies]
 # Sov SDK deps
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 alloy-eips = { workspace = true }
 anyhow = { workspace = true }
-backoff = { workspace = true, optional = true }
-lru = { workspace = true, optional = true }
 reth-primitives = { workspace = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
@@ -28,12 +25,9 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 
 [features]
 native = [
-  "dep:backoff",
-  "dep:lru",
   "dep:serde",
   "dep:tokio",
   "dep:tokio-util",
   "dep:tracing",
   "sov-rollup-interface/native",
-  "sov-db",
 ]

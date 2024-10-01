@@ -176,7 +176,7 @@ impl BitcoinService {
         })
     }
 
-    pub fn run(
+    pub fn spawn_da_queue(
         self: Arc<Self>,
         mut rx: UnboundedReceiver<Option<SenderWithNotifier<TxidWrapper>>>,
     ) {
@@ -1077,7 +1077,7 @@ mod tests {
 
         let da_service = Arc::new(da_service);
 
-        da_service.clone().run(rx);
+        da_service.clone().spawn_da_queue(rx);
 
         da_service
     }
@@ -1109,7 +1109,7 @@ mod tests {
 
         let da_service = Arc::new(da_service);
 
-        da_service.clone().run(rx);
+        da_service.clone().spawn_da_queue(rx);
 
         da_service
     }
