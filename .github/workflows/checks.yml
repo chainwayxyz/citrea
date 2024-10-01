@@ -256,7 +256,6 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
@@ -298,7 +297,6 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          # ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/web3_py
           python test.py
 
