@@ -25,11 +25,11 @@ use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 /// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
-const DB_ACCOUNT_SIZE_EOA: usize = 42;
+pub(crate) const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
 /// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
-const DB_ACCOUNT_KEY_SIZE: usize = 27;
+pub(crate) const DB_ACCOUNT_KEY_SIZE: usize = 27;
 
 /// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
 const STORAGE_KEY_SIZE: usize = 59;
@@ -70,9 +70,9 @@ Let's consider a batch of 1 block with the following transactions:
     If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
 */
 /// Nonce and balance are stored together so we use single constant
-const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
+pub(crate) const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
-const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
+pub(crate) const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {

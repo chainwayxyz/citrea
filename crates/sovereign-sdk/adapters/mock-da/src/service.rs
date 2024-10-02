@@ -502,8 +502,8 @@ impl DaService for MockDaService {
     }
 
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        // Mock constant
-        Ok(10_u128)
+        // Mock constant, use min possible in bitcoin
+        Ok(2500000000_u128)
     }
 
     async fn get_block_by_hash(
