@@ -48,7 +48,8 @@ where
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: ProverConfig,
-    prover_service: Arc<Ps>,
+    batch_prover_service: Arc<Ps>,
+    light_client_prover_service: Arc<Ps>,
     ledger_db: DB,
     da_service: Arc<Da>,
     sequencer_pub_key: Vec<u8>,
@@ -79,7 +80,8 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         prover_config: ProverConfig,
-        prover_service: Arc<Ps>,
+        batch_prover_service: Arc<Ps>,
+        light_client_prover_service: Arc<Ps>,
         ledger_db: DB,
         da_service: Arc<Da>,
         sequencer_pub_key: Vec<u8>,
@@ -90,7 +92,8 @@ where
     ) -> Self {
         Self {
             prover_config,
-            prover_service,
+            batch_prover_service,
+            light_client_prover_service,
             ledger_db,
             da_service,
             sequencer_pub_key,
@@ -152,116 +155,18 @@ where
                 )
                 .unwrap();
 
-            let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
-                self.da_service.extract_relevant_blobs(l1_block);
+            // TODO: we handle these two together
+            // we might want to have two different da block handlers
+            // that have their on last_scanned tables etc.
 
-            // if we don't do this, the zk circuit can't read the sequencer commitments
-            da_data.iter_mut().for_each(|blob| {
-                blob.full_data();
-            });
-            let mut sequencer_commitments: Vec<SequencerCommitment> =
-                self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
-
-            if sequencer_commitments.is_empty() {
-                info!("No sequencer commitment found at height {}", l1_height,);
-                self.ledger_db
-                    .set_last_scanned_l1_height(SlotNumber(l1_height))
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "Failed to put prover last scanned l1 height in the ledger db {}",
-                            l1_height
-                        )
-                    });
-
-                self.pending_l1_blocks.pop_front();
-                continue;
+            if let Err(e) = self.handle_sequencer_commitments_on_da(&l1_block).await {
+                error!("Failed to handle sequencer commitments on DA: {:?}", e);
+                continue; // we'll retry later
             }
 
-            info!(
-                "Processing {} sequencer commitments at height {}",
-                sequencer_commitments.len(),
-                l1_block.header().height(),
-            );
-
-            // Make sure all sequencer commitments are stored in ascending order.
-            // We sort before checking ranges to prevent substraction errors.
-            sequencer_commitments.sort();
-
-            // If the L2 range does not exist, we break off the local loop getting back to
-            // the outer loop / select to make room for other tasks to run.
-            // We retry the L1 block there as well.
-            if !self.check_l2_range_exists(
-                sequencer_commitments[0].l2_start_block_number,
-                sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
-            ) {
-                break;
-            }
-
-            // if proof_sampling_number is 0, then we always prove and submit
-            // otherwise we submit and prove with a probability of 1/proof_sampling_number
-            let should_prove = self.prover_config.proof_sampling_number == 0
-                || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number) == 0;
-
-            let (sequencer_commitments, preproven_commitments) =
-                filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
-
-            if sequencer_commitments.is_empty() {
-                info!(
-                    "All sequencer commitments are duplicates from a former DA block {}",
-                    l1_height
-                );
-                self.ledger_db
-                    .set_last_scanned_l1_height(SlotNumber(l1_height))
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "Failed to put prover last scanned l1 height in the ledger db {}",
-                            l1_height
-                        )
-                    });
-
-                self.pending_l1_blocks.pop_front();
-                continue;
-            }
-
-            let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
-                l1_block.header().clone();
-
-            let hash = da_block_header_of_commitments.hash();
-
-            if should_prove {
-                let sequencer_commitments_groups =
-                    self.break_sequencer_commitments_into_groups(&sequencer_commitments)?;
-
-                let submitted_proofs = self
-                    .ledger_db
-                    .get_proofs_by_l1_height(l1_height)?
-                    .unwrap_or(vec![]);
-                for sequencer_commitment_range in sequencer_commitments_groups {
-                    // There is no ongoing bonsai session to recover
-                    let transition_data: StateTransitionData<StateRoot, Witness, Da::Spec> = self
-                        .create_state_transition_data(
-                            &sequencer_commitments,
-                            sequencer_commitment_range,
-                            &preproven_commitments,
-                            da_block_header_of_commitments.clone(),
-                            da_data.clone(),
-                            l1_block,
-                        )
-                        .await?;
-
-                    // check if transition data is already proven by crash recovery
-                    if !self.state_transition_already_proven(&transition_data, &submitted_proofs) {
-                        self.prove_state_transition(
-                            transition_data,
-                            self.skip_submission_until_l1,
-                            l1_height,
-                            hash.clone(),
-                        )
-                        .await?;
-                    }
-
-                    self.save_commitments(&sequencer_commitments, l1_height);
-                }
+            if let Err(e) = self.handle_batch_proofs_on_da(&l1_block).await {
+                error!("Failed to handle batch proofs on DA: {:?}", e);
+                continue; // we'll retry later
             }
 
             if let Err(e) = self
@@ -276,6 +181,116 @@ where
 
             self.pending_l1_blocks.pop_front();
         }
+        Ok(())
+    }
+
+    async fn handle_sequencer_commitments_on_da(
+        &self,
+        l1_block: &<Da as DaService>::FilteredBlock,
+    ) -> anyhow::Result<()> {
+        let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
+            self.da_service.extract_relevant_blobs(l1_block);
+
+        // if we don't do this, the zk circuit can't read the sequencer commitments
+        da_data.iter_mut().for_each(|blob| {
+            blob.full_data();
+        });
+        let mut sequencer_commitments: Vec<SequencerCommitment> =
+            self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
+
+        let l1_height = l1_block.header().height();
+
+        if sequencer_commitments.is_empty() {
+            info!("No sequencer commitment found at height {}", l1_height,);
+
+            return Ok(());
+        }
+
+        info!(
+            "Processing {} sequencer commitments at height {}",
+            sequencer_commitments.len(),
+            l1_block.header().height(),
+        );
+
+        // Make sure all sequencer commitments are stored in ascending order.
+        // We sort before checking ranges to prevent substraction errors.
+        sequencer_commitments.sort();
+
+        // If the L2 range does not exist, we break off the local loop getting back to
+        // the outer loop / select to make room for other tasks to run.
+        // We retry the L1 block there as well.
+        if !self.check_l2_range_exists(
+            sequencer_commitments[0].l2_start_block_number,
+            sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
+        ) {
+            return Err(anyhow!("L2 range does not exist for sequencer commitments"));
+        }
+
+        // if proof_sampling_number is 0, then we always prove and submit
+        // otherwise we submit and prove with a probability of 1/proof_sampling_number
+        let should_prove = self.prover_config.proof_sampling_number == 0
+            || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number) == 0;
+
+        let (sequencer_commitments, preproven_commitments) =
+            filter_out_proven_commitments(&self.ledger_db, &sequencer_commitments)?;
+
+        if sequencer_commitments.is_empty() {
+            info!(
+                "All sequencer commitments are duplicates from a former DA block {}",
+                l1_height
+            );
+
+            return Ok(());
+        }
+
+        let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
+            l1_block.header().clone();
+
+        let hash = da_block_header_of_commitments.hash();
+
+        if should_prove {
+            let sequencer_commitments_groups =
+                self.break_sequencer_commitments_into_groups(&sequencer_commitments)?;
+
+            let submitted_proofs = self
+                .ledger_db
+                .get_proofs_by_l1_height(l1_height)?
+                .unwrap_or(vec![]);
+            for sequencer_commitment_range in sequencer_commitments_groups {
+                // There is no ongoing bonsai session to recover
+                let transition_data: StateTransitionData<StateRoot, Witness, Da::Spec> = self
+                    .create_state_transition_data(
+                        &sequencer_commitments,
+                        sequencer_commitment_range,
+                        &preproven_commitments,
+                        da_block_header_of_commitments.clone(),
+                        da_data.clone(),
+                        l1_block,
+                    )
+                    .await?;
+
+                // check if transition data is already proven by crash recovery
+                if !self.state_transition_already_proven(&transition_data, &submitted_proofs) {
+                    self.prove_state_transition(
+                        transition_data,
+                        self.skip_submission_until_l1,
+                        l1_height,
+                        hash.clone(),
+                    )
+                    .await?;
+                }
+
+                self.save_commitments(&sequencer_commitments, l1_height);
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_batch_proofs_on_da(
+        &self,
+        l1_block: &<Da as DaService>::FilteredBlock,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -544,7 +559,7 @@ where
         transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
         hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<(), anyhow::Error> {
-        let prover_service = self.prover_service.as_ref();
+        let prover_service = self.batch_prover_service.as_ref();
 
         prover_service.submit_witness(transition_data).await;
 
@@ -663,7 +678,7 @@ where
     }
 
     async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<(), anyhow::Error> {
-        let prover_service = self.prover_service.as_ref();
+        let prover_service = self.batch_prover_service.as_ref();
         let results = prover_service
             .recover_proving_sessions_and_send_to_da(&self.da_service)
             .await?;

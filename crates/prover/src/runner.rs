@@ -244,7 +244,8 @@ where
 
         let ledger_db = self.ledger_db.clone();
         let prover_config = self.prover_config.clone().unwrap();
-        let prover_service = self.batch_prover_service.clone();
+        let batch_prover_service = self.batch_prover_service.clone();
+        let light_client_prover_service = self.light_client_prover_service.clone();
         let da_service = self.da_service.clone();
         let sequencer_pub_key = self.sequencer_pub_key.clone();
         let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
@@ -255,7 +256,8 @@ where
             let l1_block_handler =
                 L1BlockHandler::<Vm, Da, Ps, DB, Stf::StateRoot, Stf::Witness>::new(
                     prover_config,
-                    prover_service,
+                    batch_prover_service,
+                    light_client_prover_service,
                     ledger_db,
                     da_service,
                     sequencer_pub_key,
