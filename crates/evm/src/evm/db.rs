@@ -1,4 +1,4 @@
-use reth_primitives::{Address, Bytes, B256};
+use reth_primitives::{Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::{Database, DatabaseRef};
 use sov_modules_api::{StateMapAccessor, WorkingSet};
