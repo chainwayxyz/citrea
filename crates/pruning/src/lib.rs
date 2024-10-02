@@ -93,7 +93,7 @@ where
                     if let Ok(current_l2_block) = current_l2_block {
                         if let Some(up_to_block) = self.criteria.should_prune(self.last_pruned_block, current_l2_block) {
                             self.prune(up_to_block).await;
-                            self.last_pruned_block += self.config.distance;
+                            self.last_pruned_block = up_to_block;
                         }
                     }
                 },
