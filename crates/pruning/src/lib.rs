@@ -32,8 +32,6 @@ pub struct Pruner<DB>
 where
     DB: SharedLedgerOps,
 {
-    /// config
-    config: PruningConfig,
     /// The last block number which was pruned.
     last_pruned_block: u64,
     /// A channel receiver which gets notified of new L2 blocks.
