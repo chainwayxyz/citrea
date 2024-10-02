@@ -1,4 +1,4 @@
-use reth_primitives::{Address, B256};
+use reth_primitives::{Address, Bytes, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::{Database, DatabaseRef};
 use sov_modules_api::{StateMapAccessor, WorkingSet};
@@ -91,15 +91,28 @@ impl<'a, C: sov_modules_api::Context> DatabaseRef for EvmDb<'a, C> {
 
     fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
         let db_account = self.accounts.get(&address, self.working_set);
-        Ok(db_account.map(|acc| acc.into()))
+        Ok(db_account.map(Into::into))
     }
 
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        todo!()
+        Ok(self
+            .code
+            .get(&code_hash, self.working_set)
+            .unwrap_or_default())
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        todo!()
+        let storage_value: U256 = if self.accounts.get(&address, self.working_set).is_some() {
+            let db_account = DbAccount::new(address);
+            db_account
+                .storage
+                .get(&index, self.working_set)
+                .unwrap_or_default()
+        } else {
+            U256::default()
+        };
+
+        Ok(storage_value)
     }
 
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
