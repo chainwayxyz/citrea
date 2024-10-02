@@ -19,3 +19,4 @@ EXPOSE 8545
 
 
 ENTRYPOINT ["sh", "-c", "./target/release/citrea --genesis-paths ./resources/genesis/mock-dockerized --rollup-config-path ./resources/configs/mock-dockerized/rollup_config.toml --sequencer-config-path ./resources/configs/mock-dockerized/sequencer_config.toml"]
+

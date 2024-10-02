@@ -34,7 +34,7 @@ impl<S: RollupBlueprint> FullNode<S> {
     }
 
     /// Only run the rpc.
-    pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
+    pub async fn run_rpc(mut self) -> Result<(), anyhow::Error> {
         self.runner.start_rpc_server(self.rpc_methods, None).await;
         Ok(())
     }

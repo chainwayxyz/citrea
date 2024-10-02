@@ -256,7 +256,6 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/uniswap
           npx hardhat run --network citrea scripts/01_deploy.js
           npx hardhat run --network citrea scripts/02_swap.js
@@ -298,7 +297,6 @@ jobs:
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
-          # ./resources/configs/mock-dockerized/publish_da_block.sh &
           cd ./bin/citrea/tests/evm/web3_py
           python test.py
 
@@ -442,7 +440,9 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          # https://github.com/foundry-rs/foundry/releases/tag/nightly-25f24e677a6a32a62512ad4f561995589ac2c7dc
+          # This is the latest version known to work for us
+          version: nightly-25f24e677a6a32a62512ad4f561995589ac2c7dc
 
       - name: Set up Python
         uses: actions/setup-python@v4

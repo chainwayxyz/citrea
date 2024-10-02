@@ -7,6 +7,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
@@ -25,9 +26,9 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::{InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig};
-use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
+use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
@@ -65,6 +66,7 @@ where
     sync_blocks_count: u64,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    task_manager: TaskManager<()>,
 }
 
 impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
@@ -149,12 +151,13 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,
+            task_manager: TaskManager::default(),
         })
     }
 
     /// Starts a RPC server with provided rpc methods.
     pub async fn start_rpc_server(
-        &self,
+        &mut self,
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) {
@@ -178,43 +181,44 @@ where
             .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
         let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
 
-        let _handle = tokio::spawn(async move {
-            let server = ServerBuilder::default()
-                .max_connections(max_connections)
-                .max_subscriptions_per_connection(max_subscriptions_per_connection)
-                .max_request_body_size(max_request_body_size)
-                .max_response_body_size(max_response_body_size)
-                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-                .set_http_middleware(middleware)
-                .set_rpc_middleware(rpc_middleware)
-                .build([listen_address].as_ref())
-                .await;
+        self.task_manager
+            .spawn(move |cancellation_token| async move {
+                let server = ServerBuilder::default()
+                    .max_connections(max_connections)
+                    .max_subscriptions_per_connection(max_subscriptions_per_connection)
+                    .max_request_body_size(max_request_body_size)
+                    .max_response_body_size(max_response_body_size)
+                    .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
+                    .set_http_middleware(middleware)
+                    .set_rpc_middleware(rpc_middleware)
+                    .build([listen_address].as_ref())
+                    .await;
 
-            match server {
-                Ok(server) => {
-                    let bound_address = match server.local_addr() {
-                        Ok(address) => address,
-                        Err(e) => {
-                            error!("{}", e);
-                            return;
+                match server {
+                    Ok(server) => {
+                        let bound_address = match server.local_addr() {
+                            Ok(address) => address,
+                            Err(e) => {
+                                error!("{}", e);
+                                return;
+                            }
+                        };
+                        if let Some(channel) = channel {
+                            if let Err(e) = channel.send(bound_address) {
+                                error!("Could not send bound_address {}: {}", bound_address, e);
+                                return;
+                            }
                         }
-                    };
-                    if let Some(channel) = channel {
-                        if let Err(e) = channel.send(bound_address) {
-                            error!("Could not send bound_address {}: {}", bound_address, e);
-                            return;
-                        }
+                        info!("Starting RPC server at {} ", &bound_address);
+
+                        let _server_handle = server.start(methods);
+                        cancellation_token.cancelled().await;
                     }
-                    info!("Starting RPC server at {} ", &bound_address);
-
-                    let _server_handle = server.start(methods);
-                    futures::future::pending::<()>().await;
+                    Err(e) => {
+                        error!("Could not start RPC server: {}", e);
+                    }
                 }
-                Err(e) => {
-                    error!("Could not start RPC server: {}", e);
-                }
-            }
-        });
+            });
     }
 
     async fn process_l2_block(
@@ -325,19 +329,22 @@ where
         let accept_public_input_as_proven = self.accept_public_input_as_proven;
         let l1_block_cache = self.l1_block_cache.clone();
 
-        tokio::spawn(async move {
-            let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(
-                ledger_db,
-                da_service,
-                sequencer_pub_key,
-                sequencer_da_pub_key,
-                prover_da_pub_key,
-                code_commitments_by_spec,
-                accept_public_input_as_proven,
-                l1_block_cache.clone(),
-            );
-            l1_block_handler.run(start_l1_height).await
-        });
+        self.task_manager
+            .spawn(move |cancellation_token| async move {
+                let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(
+                    ledger_db,
+                    da_service,
+                    sequencer_pub_key,
+                    sequencer_da_pub_key,
+                    prover_da_pub_key,
+                    code_commitments_by_spec,
+                    accept_public_input_as_proven,
+                    l1_block_cache.clone(),
+                );
+                l1_block_handler
+                    .run(start_l1_height, cancellation_token)
+                    .await
+            });
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2::<Da>(
@@ -392,6 +399,11 @@ where
                         }
                     }
                 },
+                _ = signal::ctrl_c() => {
+                    info!("Shutting down");
+                    self.task_manager.abort().await;
+                    return Ok(());
+                }
             }
         }
     }
