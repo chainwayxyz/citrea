@@ -1,13 +1,17 @@
-use citrea_evm::Evm;
+use criteria::DistanceCriteria;
 use futures::future;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::SharedLedgerOps;
-use sov_modules_api::default_context::DefaultContext;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
+use crate::criteria::Criteria;
+use crate::pruners::{prune_evm, prune_ledger};
+
+mod criteria;
+mod pruners;
 #[cfg(test)]
 mod tests;
 
@@ -36,6 +40,8 @@ where
     l2_receiver: broadcast::Receiver<u64>,
     /// Access to ledger tables.
     ledger_db: DB,
+    /// Criteria to decide pruning
+    criteria: Box<dyn Criteria + Send + Sync>,
 }
 
 impl<DB> Pruner<DB>
@@ -48,11 +54,16 @@ where
         l2_receiver: broadcast::Receiver<u64>,
         ledger_db: DB,
     ) -> Self {
+        // distance is the only criteria implemented at the moment.
+        let criteria = Box::new(DistanceCriteria {
+            distance: config.distance,
+        });
         Self {
             config,
             last_pruned_block,
             l2_receiver,
             ledger_db,
+            criteria,
         }
     }
 
@@ -80,12 +91,8 @@ where
                 }
                 current_l2_block = self.l2_receiver.recv() => {
                     if let Ok(current_l2_block) = current_l2_block {
-                        // Calculate the block at which pruning would be triggered.
-                        // This is allowing `self.config.distance` blocks to be produced before we
-                        // decide to prune the previous `self.config.distance` blocks.
-                        let trigger_block = (self.last_pruned_block + self.config.distance) + 1;
-                        if current_l2_block >=trigger_block {
-                            self.prune(self.last_pruned_block + self.config.distance).await;
+                        if let Some(up_to_block) = self.criteria.should_prune(self.last_pruned_block, current_l2_block) {
+                            self.prune(up_to_block).await;
                             self.last_pruned_block += self.config.distance;
                         }
                     }
@@ -93,17 +100,4 @@ where
             }
         }
     }
-}
-
-/// Prune evm
-pub fn prune_evm(up_to_block: u64) {
-    debug!("Pruning EVM, up to L2 block {}", up_to_block);
-    let _evm = Evm::<DefaultContext>::default();
-    // unimplemented!()
-}
-
-/// Prune ledger
-pub fn prune_ledger<DB: SharedLedgerOps>(_ledger_db: DB, up_to_block: u64) {
-    debug!("Pruning Ledger, up to L2 block {}", up_to_block);
-    // unimplemented!()
 }
