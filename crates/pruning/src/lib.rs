@@ -57,7 +57,6 @@ where
             distance: config.distance,
         });
         Self {
-            config,
             last_pruned_block,
             l2_receiver,
             ledger_db,
