@@ -226,7 +226,7 @@ fn transfer_initial_token() {
     assert_eq!("v3", String::from_utf8(val.value().to_vec()).unwrap());
 
     working_set.unset_archival_version();
-    let mut accessory_state = working_set.accessory_state();
+    let accessory_state = working_set.accessory_state();
     let val = accessory_state.get(&StorageKey::from("k")).unwrap();
     assert_eq!("v2", String::from_utf8(val.value().to_vec()).unwrap());
 }
