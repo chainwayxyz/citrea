@@ -839,23 +839,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "citrea-bitcoin-prover"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "bitcoin-da",
- "citrea-primitives",
- "citrea-stf",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-risc0-adapter",
- "sov-rollup-interface",
- "sov-state",
-]
-
-[[package]]
 name = "citrea-evm"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -873,6 +856,23 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
+]
+
+[[package]]
+name = "citrea-light-client-prover"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "bitcoin-da",
+ "citrea-primitives",
+ "citrea-stf",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "sov-state",
 ]
 
 [[package]]

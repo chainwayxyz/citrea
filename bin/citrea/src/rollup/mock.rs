@@ -131,6 +131,16 @@ impl RollupBlueprint for MockDemoRollup {
         .expect("Should be able to instantiate prover service")
     }
 
+    async fn create_light_client_prover_service(
+        &self,
+        prover_config: ProverConfig,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
+        _da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService {
+        todo!()
+    }
+
     fn create_storage_manager(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
