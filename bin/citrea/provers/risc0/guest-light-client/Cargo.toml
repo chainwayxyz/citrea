@@ -19,7 +19,7 @@ sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module
 sov-risc0-adapter = { path = "../../../../../crates/sovereign-sdk/adapters/risc0" }
 sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
 sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
-ark_groth16 = "0.4.0"
+# ark-groth16 = "0.4.0"
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }

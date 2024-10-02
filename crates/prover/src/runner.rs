@@ -56,7 +56,8 @@ where
     state_root: StateRoot<Stf, Vm, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
-    prover_service: Arc<Ps>,
+    batch_prover_service: Arc<Ps>,
+    light_client_prover_service: Arc<Ps>,
     sequencer_client: SequencerClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -103,7 +104,8 @@ where
         stf: Stf,
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
-        prover_service: Arc<Ps>,
+        batch_prover_service: Arc<Ps>,
+        light_client_prover_service: Arc<Ps>,
         prover_config: Option<ProverConfig>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
@@ -145,7 +147,8 @@ where
             state_root: prev_state_root,
             batch_hash: prev_batch_hash,
             rpc_config,
-            prover_service,
+            batch_prover_service,
+            light_client_prover_service,
             sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
@@ -241,7 +244,7 @@ where
 
         let ledger_db = self.ledger_db.clone();
         let prover_config = self.prover_config.clone().unwrap();
-        let prover_service = self.prover_service.clone();
+        let prover_service = self.batch_prover_service.clone();
         let da_service = self.da_service.clone();
         let sequencer_pub_key = self.sequencer_pub_key.clone();
         let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();

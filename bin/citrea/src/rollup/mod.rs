@@ -252,8 +252,17 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
-        let prover_service = self
-            .create_prover_service(
+        let batch_prover_service = self
+            .create_batch_prover_service(
+                prover_config.clone(),
+                &rollup_config,
+                &da_service,
+                ledger_db.clone(),
+            )
+            .await;
+
+        let light_client_prover_service = self
+            .create_light_client_prover_service(
                 prover_config.clone(),
                 &rollup_config,
                 &da_service,
@@ -332,7 +341,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             native_stf,
             storage_manager,
             init_variant,
-            Arc::new(prover_service),
+            Arc::new(batch_prover_service),
+            Arc::new(light_client_prover_service),
             Some(prover_config),
             code_commitments_by_spec,
             fork_manager,

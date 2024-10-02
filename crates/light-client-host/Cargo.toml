@@ -15,6 +15,7 @@ description = "An adapter allowing Citrea to connect with Bonsai"
 anyhow = { workspace = true }
 backoff = { workspace = true }
 bincode = { workspace = true }
+bitcoin-da = { path = "../bitcoin-da" }
 bonsai-sdk = { workspace = true }
 borsh = { workspace = true }
 bytemuck = "1.13.1"
@@ -29,7 +30,6 @@ serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tracing = { workspace = true }
-bitcoin-da = { path = "../bitcoin-da" }
 
 sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0" }
 

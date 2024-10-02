@@ -154,7 +154,7 @@ impl RollupBlueprint for BitcoinRollup {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn create_prover_service(
+    async fn create_batch_prover_service(
         &self,
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
@@ -163,6 +163,39 @@ impl RollupBlueprint for BitcoinRollup {
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
             citrea_risc0::BITCOIN_DA_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db.clone(),
+        );
+        let zk_stf = StfBlueprint::new();
+        let zk_storage = ZkStorage::new();
+
+        let da_verifier = BitcoinVerifier::new(RollupParams {
+            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+        });
+
+        ParallelProverService::new_with_default_workers(
+            vm,
+            zk_stf,
+            da_verifier,
+            prover_config,
+            zk_storage,
+            ledger_db,
+        )
+        .expect("Should be able to instantiate prover service")
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    async fn create_light_client_prover_service(
+        &self,
+        prover_config: ProverConfig,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
+        _da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService {
+        let vm = Risc0BonsaiHost::new(
+            citrea_risc0::LIGHT_CLIENT_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
             ledger_db.clone(),
