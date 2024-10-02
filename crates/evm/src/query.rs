@@ -73,7 +73,7 @@ impl EstimatedTxExpenses {
     /// Return total estimated gas used including evm gas and L1 fee.
     pub(crate) fn gas_with_l1_overhead(&self) -> U256 {
         // Actually not an L1 fee but l1_fee / base_fee.
-        let l1_fee_overhead = U256::from(1).max(self.l1_fee.div_ceil(self.base_fee)); // assume 1 gwei priority fee
+        let l1_fee_overhead = U256::from(1).max(self.l1_fee.div_ceil(self.base_fee));
         l1_fee_overhead + U256::from(self.gas_used)
     }
 }
