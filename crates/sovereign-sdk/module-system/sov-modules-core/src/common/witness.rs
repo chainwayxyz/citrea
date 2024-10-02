@@ -20,11 +20,11 @@ pub trait Witness: Default + BorshDeserialize + Serialize + DeserializeOwned {
     ///
     /// This method **SHOULD** only be called from the native execution
     /// environment.
-    fn add_hint<T: BorshSerialize>(&mut self, hint: T);
+    fn add_hint<T: BorshSerialize>(&self, hint: T);
 
     /// Retrieves a "hint" from the witness value.
-    fn get_hint<T: BorshDeserialize>(&mut self) -> T;
+    fn get_hint<T: BorshDeserialize>(&self) -> T;
 
     /// Adds all hints from `rhs` to `self`.
-    fn merge(&mut self, rhs: &mut Self);
+    fn merge(&self, rhs: &Self);
 }

@@ -190,7 +190,7 @@ mod as_kernel_map {
             )
         }
 
-        fn get<Q>(&self, key: &Q, working_set: &mut KernelWorkingSet<'a, C>) -> Option<V>
+        fn get<Q>(&self, key: &Q, working_set: &KernelWorkingSet<'a, C>) -> Option<V>
         where
             Codec: StateCodec,
             <Codec as StateCodec>::KeyCodec: sov_modules_core::EncodeKeyLike<Q, u64>,

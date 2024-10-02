@@ -84,7 +84,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         &self,
         key: &StorageKey,
         version: Option<Version>,
-        witness: &mut Self::Witness,
+        witness: &Self::Witness,
     ) -> Option<StorageValue> {
         let val = self.read_value(key, version);
         witness.add_hint(val.clone());

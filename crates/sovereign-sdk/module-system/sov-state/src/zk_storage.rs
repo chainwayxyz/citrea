@@ -48,7 +48,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         &self,
         _key: &StorageKey,
         _version: Option<u64>,
-        witness: &mut Self::Witness,
+        witness: &Self::Witness,
     ) -> Option<StorageValue> {
         witness.get_hint()
     }
