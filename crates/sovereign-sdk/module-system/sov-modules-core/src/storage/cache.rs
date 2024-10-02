@@ -2,6 +2,7 @@
 
 use alloc::collections::btree_map::{BTreeMap, Entry};
 use alloc::vec::Vec;
+use core::cell::RefCell;
 use core::fmt;
 
 use sov_rollup_interface::RefCount;
@@ -361,9 +362,9 @@ impl CacheLog {
 #[derive(Default)]
 pub struct StorageInternalCache {
     /// Transaction cache.
-    pub tx_cache: CacheLog,
+    pub tx_cache: RefCell<CacheLog>,
     /// Ordered reads and writes.
-    pub ordered_db_reads: Vec<(CacheKey, Option<CacheValue>)>,
+    pub ordered_db_reads: RefCell<Vec<(CacheKey, Option<CacheValue>)>>,
     /// Version for versioned usage with cache
     pub version: Option<u64>,
 }
@@ -410,36 +411,43 @@ impl StorageInternalCache {
     pub fn set(&mut self, key: &StorageKey, value: StorageValue) {
         let cache_key = key.to_cache_key_version(self.version);
         let cache_value = value.into_cache_value();
-        self.tx_cache.add_write(cache_key, Some(cache_value));
+        self.tx_cache
+            .borrow_mut()
+            .add_write(cache_key, Some(cache_value));
     }
 
     /// Deletes a keyed value from the cache.
     pub fn delete(&mut self, key: &StorageKey) {
         let cache_key = key.to_cache_key_version(self.version);
-        self.tx_cache.add_write(cache_key, None);
+        self.tx_cache.borrow_mut().add_write(cache_key, None);
     }
 
     fn get_value_from_cache(&self, cache_key: &CacheKey) -> ValueExists {
-        self.tx_cache.get_value(cache_key)
+        self.tx_cache.borrow().get_value(cache_key)
     }
 
     /// Merges the provided `StorageInternalCache` into this one.
     pub fn merge_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_left(rhs.tx_cache)
+        self.tx_cache.borrow_mut().merge_left(rhs.tx_cache.take())
     }
 
     /// Merges the reads of the provided `StorageInternalCache` into this one.
     pub fn merge_reads_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_reads_left(rhs.tx_cache)
+        self.tx_cache
+            .borrow_mut()
+            .merge_reads_left(rhs.tx_cache.take())
     }
 
     /// Merges the writes of the provided `StorageInternalCache` into this one.
     pub fn merge_writes_left(&mut self, rhs: Self) -> Result<(), MergeError> {
-        self.tx_cache.merge_writes_left(rhs.tx_cache)
+        self.tx_cache
+            .borrow_mut()
+            .merge_writes_left(rhs.tx_cache.take())
     }
 
     fn add_read(&self, key: CacheKey, value: Option<CacheValue>) {
         self.tx_cache
+            .borrow_mut()
             .add_read(key.clone(), value.clone())
             // It is ok to panic here, we must guarantee that the cache is consistent.
             .unwrap_or_else(|e| panic!("Inconsistent read from the cache: {e:?}"));
@@ -460,10 +468,10 @@ pub struct OrderedReadsAndWrites {
 impl From<StorageInternalCache> for OrderedReadsAndWrites {
     fn from(val: StorageInternalCache) -> Self {
         // Because BTreeMap is used there is no need to sort writes by key. It is already sorted.
-        let writes = val.tx_cache.take_writes();
+        let writes = val.tx_cache.take().take_writes();
 
         Self {
-            ordered_reads: val.ordered_db_reads,
+            ordered_reads: val.ordered_db_reads.borrow().clone(),
             ordered_writes: writes,
         }
     }
