@@ -53,11 +53,11 @@ impl Witness for ArrayWitness {
 
 impl BorshSerialize for ArrayWitness {
     fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let hints = self.hints.lock().unwrap();
         borsh::BorshSerialize::serialize(
             &self.next_idx.load(std::sync::atomic::Ordering::Relaxed),
             writer,
         )?;
+        let hints = self.hints.lock().unwrap();
         borsh::BorshSerialize::serialize(&*hints, writer)?;
         Ok(())
     }
