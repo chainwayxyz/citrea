@@ -6,7 +6,6 @@ use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
@@ -38,9 +37,8 @@ use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::DbAccount;
-use crate::handler::TxInfo;
 use crate::handler::{
-    ACCOUNT_DISCOUNTED_PERCENTAGE, DB_ACCOUNT_KEY_SIZE, DB_ACCOUNT_SIZE_EOA,
+    TxInfo, ACCOUNT_DISCOUNTED_PERCENTAGE, DB_ACCOUNT_KEY_SIZE, DB_ACCOUNT_SIZE_EOA,
     NONCE_DISCOUNTED_PERCENTAGE,
 };
 use crate::rpc_helpers::*;
