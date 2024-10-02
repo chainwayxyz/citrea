@@ -9,7 +9,6 @@ members = [
   "crates/evm",
   "crates/ethereum-rpc",
   "crates/fullnode",
-  "crates/light-client-host",
   "crates/risc0-bonsai",
   "crates/sequencer",
   "crates/sequencer-client",
