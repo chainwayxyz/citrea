@@ -17,8 +17,10 @@ fn main() {
 
                 let elf = r#"
                 pub const BITCOIN_DA_ELF: &[u8] = &[];
+                pub const LIGHT_CLIENT_ELF: &[u8] = &[];
                 pub const MOCK_DA_ELF: &[u8] = &[];
                 pub const BITCOIN_DA_ID: [u32; 8] = [0u32; 8];
+                pub const LIGHT_CLIENT_ID: [u32; 8] = [0u32; 8];
                 pub const MOCK_DA_ID: [u32; 8] = [0u32; 8];
                 "#;
 

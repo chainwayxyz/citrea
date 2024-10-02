@@ -9,7 +9,8 @@ use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
 use crate::helpers::parsers::{
-    parse_batch_proof_transaction, ParsedBatchProofTransaction, VerifyParsed,
+    parse_batch_proof_transaction, ParsedBatchProofTransaction, ParsedLightClientTransaction,
+    VerifyParsed,
 };
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::spec::BitcoinSpec;
@@ -238,6 +239,13 @@ impl DaVerifier for BitcoinVerifier {
         })
     }
 }
+
+// impl BitcoinVerifier {
+//     fn verify_batch_proofs(&self, batch_proofs: &[ParsedLightClientTransaction]) -> bool {
+
+//         return true;
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

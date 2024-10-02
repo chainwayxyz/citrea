@@ -1838,6 +1838,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-light-client-host"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "bincode",
+ "bitcoin-da",
+ "bonsai-sdk",
+ "borsh",
+ "bytemuck",
+ "hex",
+ "once_cell",
+ "parking_lot",
+ "risc0-circuit-rv32im",
+ "risc0-zkp",
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "serde",
+ "sov-db",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "tracing",
+]
+
+[[package]]
 name = "citrea-primitives"
 version = "0.5.0-rc.1"
 dependencies = [

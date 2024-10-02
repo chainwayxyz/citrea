@@ -10,7 +10,7 @@ resolver = "2"
 risc0-build = { workspace = true }
 
 [package.metadata.risc0]
-methods = ["guest-mock", "guest-bitcoin"]
+methods = ["guest-mock", "guest-bitcoin", "guest-light-client"]
 
 [features]
 bench = []

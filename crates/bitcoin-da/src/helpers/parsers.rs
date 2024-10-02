@@ -12,7 +12,6 @@ use thiserror::Error;
 
 use super::calculate_sha256;
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub enum ParsedLightClientTransaction {
     /// Kind 0

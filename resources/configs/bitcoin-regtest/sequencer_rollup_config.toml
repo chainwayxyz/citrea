@@ -4,12 +4,11 @@ sequencer_da_pub_key = ""
 prover_da_pub_key = ""
 
 [da]
+node_url = "http://127.0.0.1:18443/wallet/admin"
 # fill here
-node_url = ""
+node_username = "admin"
 # fill here
-node_username = ""
-# fill here
-node_password = ""
+node_password = "admin"
 network = "regtest"
 da_private_key = "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262"
 tx_backup_dir = "resources/bitcoin/inscription_txs"
