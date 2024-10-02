@@ -29,7 +29,7 @@ pub(crate) const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
 /// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
-pub(crate) const DB_ACCOUNT_KEY_SIZE: usize = 27;
+const DB_ACCOUNT_KEY_SIZE: usize = 27;
 
 /// Storage key is 59 bytes because of sov sdk prefix ("Evm/s/")
 const STORAGE_KEY_SIZE: usize = 59;
@@ -70,9 +70,9 @@ Let's consider a batch of 1 block with the following transactions:
     If every user pays 0.75 of the balance state diff they created, the total balance state diff will be covered
 */
 /// Nonce and balance are stored together so we use single constant
-pub(crate) const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
+const NONCE_DISCOUNTED_PERCENTAGE: usize = 55;
 const STORAGE_DISCOUNTED_PERCENTAGE: usize = 66;
-pub(crate) const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
+const ACCOUNT_DISCOUNTED_PERCENTAGE: usize = 29;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct TxInfo {
@@ -526,9 +526,6 @@ fn calc_diff_size<EXT, DB: Database>(
             continue;
         }
 
-        // Apply size of address of changed account
-        diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
-
         // Apply size of account_info
         if account.account_info_changed || account.code_changed {
             let db_account_size = {
@@ -541,8 +538,10 @@ fn calc_diff_size<EXT, DB: Database>(
             };
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size +=
-                (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100;
+            diff_size += amount_to_increase_diff_size_on_account_info_change(db_account_size);
+        } else {
+            // Apply only size of address of changed account if info is not changed
+            diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
         }
 
         // Apply size of changed slots
@@ -617,4 +616,9 @@ fn decrease_caller_balance<EXT, DB: Database>(
 ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
     let address = context.evm.env.tx.caller;
     change_balance(context, amount, false, address)
+}
+
+pub(crate) fn amount_to_increase_diff_size_on_account_info_change(db_account_size: usize) -> usize {
+    DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
+        + (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100
 }

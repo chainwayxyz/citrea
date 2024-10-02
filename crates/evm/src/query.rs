@@ -38,8 +38,7 @@ use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::DbAccount;
 use crate::handler::{
-    TxInfo, ACCOUNT_DISCOUNTED_PERCENTAGE, DB_ACCOUNT_KEY_SIZE, DB_ACCOUNT_SIZE_EOA,
-    NONCE_DISCOUNTED_PERCENTAGE,
+    amount_to_increase_diff_size_on_account_info_change, TxInfo, DB_ACCOUNT_SIZE_EOA,
 };
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
@@ -889,11 +888,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             if tx_env.value.is_zero() {
                                 // Calculation taken from diff size calculation in handler.rs
                                 let balance_diff_size =
-                                    (DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
-                                        as u64
-                                        + ((DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE)
-                                            * NONCE_DISCOUNTED_PERCENTAGE
-                                            / 100) as u64;
+                                    amount_to_increase_diff_size_on_account_info_change(
+                                        DB_ACCOUNT_SIZE_EOA,
+                                    );
 
                                 diff_size += balance_diff_size;
                                 l1_fee = l1_fee.saturating_add(
