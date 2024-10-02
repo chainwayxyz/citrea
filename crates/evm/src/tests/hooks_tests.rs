@@ -180,14 +180,14 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
 
     assert_eq!(
         evm.transaction_hashes
-            .get(&tx1_hash, &mut working_set.accessory_state())
+            .get(&tx1_hash, &working_set.accessory_state())
             .unwrap(),
         0
     );
 
     assert_eq!(
         evm.transaction_hashes
-            .get(&tx2_hash, &mut working_set.accessory_state())
+            .get(&tx2_hash, &working_set.accessory_state())
             .unwrap(),
         1
     );
@@ -336,7 +336,7 @@ fn finalize_hook_creates_final_block() {
 
     assert_eq!(
         evm.block_hashes
-            .get(&block.header.hash(), &mut accessory_state)
+            .get(&block.header.hash(), &accessory_state)
             .unwrap(),
         2u64
     );
@@ -377,7 +377,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     for i in 0..2 {
         assert_eq!(
             evm.latest_block_hashes
-                .get(&U256::from(i), &mut working_set)
+                .get(&U256::from(i), &working_set)
                 .unwrap(),
             evm.blocks
                 .get(i, &mut working_set.accessory_state())
@@ -389,7 +389,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(2), &mut working_set)
+        .get(&U256::from(2), &working_set)
         .is_none());
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
@@ -445,7 +445,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
     // not 0 and 1
     assert_eq!(
         evm.latest_block_hashes
-            .get(&U256::from(256), &mut working_set)
+            .get(&U256::from(256), &working_set)
             .unwrap(),
         evm.blocks
             .get(256, &mut working_set.accessory_state())
@@ -456,18 +456,18 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(0), &mut working_set)
+        .get(&U256::from(0), &working_set)
         .is_none());
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(1), &mut working_set)
+        .get(&U256::from(1), &working_set)
         .is_none());
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(258), &mut working_set)
+        .get(&U256::from(258), &working_set)
         .is_none());
     assert!(evm
         .latest_block_hashes
-        .get(&U256::from(2), &mut working_set)
+        .get(&U256::from(2), &working_set)
         .is_some());
 }

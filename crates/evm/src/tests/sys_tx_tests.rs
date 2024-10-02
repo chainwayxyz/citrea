@@ -116,7 +116,7 @@ fn test_sys_bitcoin_light_client() {
     let l1_fee_rate = 1;
     let l2_height = 2;
 
-    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
+    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.balance, U256::from(0));
     assert_eq!(system_account.nonce, 3);
@@ -197,7 +197,7 @@ fn test_sys_bitcoin_light_client() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &mut working_set).unwrap();
+    let system_account = evm.accounts.get(&SYSTEM_SIGNER, &working_set).unwrap();
     // The system caller balance is unchanged(if exists)/or should be 0
     assert_eq!(system_account.balance, U256::from(0));
     assert_eq!(system_account.nonce, 4);
@@ -243,8 +243,8 @@ fn test_sys_bitcoin_light_client() {
             },
         ]
     );
-    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &working_set).unwrap();
+    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &working_set).unwrap();
 
     assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
     assert_eq!(l1_fee_vault.balance, U256::from(479 + L1_FEE_OVERHEAD));
@@ -486,10 +486,7 @@ fn test_bridge() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let recipient_address = address!("0101010101010101010101010101010101010101");
-    let recipient_account = evm
-        .accounts
-        .get(&recipient_address, &mut working_set)
-        .unwrap();
+    let recipient_account = evm.accounts.get(&recipient_address, &working_set).unwrap();
 
     assert_eq!(
         recipient_account.balance,

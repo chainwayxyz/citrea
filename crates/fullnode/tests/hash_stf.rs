@@ -186,7 +186,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         let mut hasher = sha2::Sha256::new();
 
         let hash_key = HashStf::<Cond>::hash_key();
-        let existing_cache = storage.get(&hash_key, None, &mut witness).unwrap();
+        let existing_cache = storage.get(&hash_key, None, &witness).unwrap();
         tracing::debug!(
             "HashStf provided_state_root={:?}, saved={:?}",
             pre_state_root,

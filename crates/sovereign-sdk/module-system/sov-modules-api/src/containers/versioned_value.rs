@@ -352,7 +352,7 @@ mod tests {
             use crate::StateMapAccessor;
             let mut kernel_state = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
             value.set(&2, &100, &mut kernel_state);
-            assert_eq!(value.get(&2, &mut kernel_state), Some(100));
+            assert_eq!(value.get(&2, &kernel_state), Some(100));
             value.set_current(&17, &mut kernel_state);
         }
 

@@ -72,17 +72,11 @@ fn genesis_data() {
 
     let account = &TEST_CONFIG.data[0];
 
-    let db_account = evm
-        .accounts
-        .get(&account.address, &mut working_set)
-        .unwrap();
+    let db_account = evm.accounts.get(&account.address, &working_set).unwrap();
 
     let contract = &TEST_CONFIG.data[1];
 
-    let contract_account = evm
-        .accounts
-        .get(&contract.address, &mut working_set)
-        .unwrap();
+    let contract_account = evm.accounts.get(&contract.address, &working_set).unwrap();
 
     let contract_storage1 = evm
         .get_storage_at(contract.address, U256::from(0), None, &mut working_set)
@@ -190,7 +184,7 @@ fn genesis_block() {
 
     let block_number = evm
         .block_hashes
-        .get(&GENESIS_HASH, &mut accessory_state)
+        .get(&GENESIS_HASH, &accessory_state)
         .unwrap();
 
     let block = evm

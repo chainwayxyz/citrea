@@ -127,7 +127,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // if block hash is not known, return None
         let block_number = match self
             .block_hashes
-            .get(&block_hash, &mut working_set.accessory_state())
+            .get(&block_hash, &working_set.accessory_state())
         {
             Some(block_number) => block_number,
             None => return Ok(None),
@@ -238,7 +238,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             BlockId::Hash(block_hash) => {
                 let block_number = match self
                     .block_hashes
-                    .get(&block_hash.block_hash, &mut working_set.accessory_state())
+                    .get(&block_hash.block_hash, &working_set.accessory_state())
                 {
                     Some(block_number) => block_number,
                     None => return Ok(None), // if hash is unknown, return None
@@ -374,7 +374,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         let mut accessory_state = working_set.accessory_state();
 
-        let block_number = match self.block_hashes.get(&block_hash, &mut accessory_state) {
+        let block_number = match self.block_hashes.get(&block_hash, &accessory_state) {
             Some(block_number) => block_number,
             None => return Ok(None),
         };
@@ -468,7 +468,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<AnyTransactionReceipt>> {
         let mut accessory_state = working_set.accessory_state();
 
-        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+        let tx_number = self.transaction_hashes.get(&hash, &accessory_state);
 
         let receipt = tx_number.map(|number| {
             let tx = self
@@ -1117,7 +1117,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
         let mut accessory_state = working_set.accessory_state();
 
-        let tx_number = self.transaction_hashes.get(&hash, &mut accessory_state);
+        let tx_number = self.transaction_hashes.get(&hash, &accessory_state);
 
         let transaction = tx_number.map(|number| {
             let tx = self
@@ -1227,7 +1227,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             FilterBlockOption::AtBlockHash(block_hash) => {
                 let block_number = match self
                     .block_hashes
-                    .get(&block_hash, &mut working_set.accessory_state())
+                    .get(&block_hash, &working_set.accessory_state())
                 {
                     Some(block_number) => block_number,
                     None => {
@@ -1500,7 +1500,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Option<u64> {
         let block_number = self
             .block_hashes
-            .get(&block_hash, &mut working_set.accessory_state());
+            .get(&block_hash, &working_set.accessory_state());
         block_number
     }
 

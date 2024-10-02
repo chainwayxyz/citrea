@@ -953,11 +953,11 @@ mod tests {
 
         assert_eq!(
             Some(value_from(2).into()),
-            storage_c.get(&key_from(1).into(), None, &mut witness)
+            storage_c.get(&key_from(1).into(), None, &witness)
         );
         assert_eq!(
             Some(value_from(4).into()),
-            storage_c.get(&key_from(3).into(), None, &mut witness)
+            storage_c.get(&key_from(3).into(), None, &witness)
         );
         assert_eq!(
             Some(value_from(40).into()),
@@ -1304,11 +1304,11 @@ mod tests {
         // Storage K
         assert_eq!(
             Some(value_from(7).into()),
-            storage_k.get(&key_from(1).into(), None, &mut witness)
+            storage_k.get(&key_from(1).into(), None, &witness)
         );
-        assert_eq!(None, storage_k.get(&key_from(2).into(), None, &mut witness));
-        assert_eq!(None, storage_k.get(&key_from(3).into(), None, &mut witness));
-        assert_eq!(None, storage_k.get(&key_from(4).into(), None, &mut witness));
+        assert_eq!(None, storage_k.get(&key_from(2).into(), None, &witness));
+        assert_eq!(None, storage_k.get(&key_from(3).into(), None, &witness));
+        assert_eq!(None, storage_k.get(&key_from(4).into(), None, &witness));
         assert_eq!(None, storage_k.get_accessory(&key_from(1).into(), None));
         assert_eq!(None, storage_k.get_accessory(&key_from(2).into(), None));
         assert_eq!(
@@ -1355,7 +1355,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             Some(value_from(6).into()),
-            storage_last.get(&key_from(3).into(), None, &mut witness)
+            storage_last.get(&key_from(3).into(), None, &witness)
         );
         assert_eq!(
             Some(value_from(50).into()),

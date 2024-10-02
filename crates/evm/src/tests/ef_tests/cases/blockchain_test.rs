@@ -243,16 +243,14 @@ impl Case for BlockchainTestCase {
                     (Some(state), None) => {
                         // Validate accounts in the state against the provider's database.
                         for (&address, account) in state.iter() {
-                            if let Some(account_state) =
-                                evm.accounts.get(&address, &mut working_set)
-                            {
+                            if let Some(account_state) = evm.accounts.get(&address, &working_set) {
                                 assert_eq!(U256::from(account_state.nonce), account.nonce);
                                 assert_eq!(account_state.balance, account.balance);
                                 assert_eq!(*account_state.code_hash.unwrap(), **account.code);
                                 let db_account = DbAccount::new(address);
                                 for (key, value) in account.storage.iter() {
                                     assert_eq!(
-                                        db_account.storage.get(key, &mut working_set),
+                                        db_account.storage.get(key, &working_set),
                                         Some(value).copied()
                                     );
                                 }

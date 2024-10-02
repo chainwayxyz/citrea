@@ -102,7 +102,7 @@ fn test_state_map_with_remove() {
         assert_eq!(state_map.remove(&key, &mut working_set).unwrap(), value);
 
         working_set = after_remove.execute(working_set, storage.clone());
-        assert!(state_map.get(&key, &mut working_set).is_none());
+        assert!(state_map.get(&key, &working_set).is_none());
     }
 }
 
@@ -120,7 +120,7 @@ fn test_state_map_with_delete() {
         state_map.delete(&key, &mut working_set);
 
         working_set = after_delete.execute(working_set, storage.clone());
-        assert!(state_map.get(&key, &mut working_set).is_none());
+        assert!(state_map.get(&key, &working_set).is_none());
     }
 }
 

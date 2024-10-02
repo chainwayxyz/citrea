@@ -99,7 +99,7 @@ fn call_multiple_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let account_info = evm.accounts.get(&contract_addr, &mut working_set).unwrap();
+    let account_info = evm.accounts.get(&contract_addr, &working_set).unwrap();
 
     // Make sure the contract db account size is 75 bytes
     let db_account_len = bcs::to_bytes(&account_info)
@@ -109,7 +109,7 @@ fn call_multiple_test() {
 
     let eoa_account_info = evm
         .accounts
-        .get(&dev_signer1.address(), &mut working_set)
+        .get(&dev_signer1.address(), &working_set)
         .unwrap();
     // Make sure the eoa db account size is 42 bytes
     let db_account_len = bcs::to_bytes(&eoa_account_info)
@@ -117,10 +117,7 @@ fn call_multiple_test() {
         .len();
     assert_eq!(db_account_len, 42);
     let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
-        .unwrap();
+    let storage_value = db_account.storage.get(&U256::ZERO, &working_set).unwrap();
 
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
@@ -240,10 +237,7 @@ fn call_test() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let db_account = DbAccount::new(contract_addr);
-    let storage_value = db_account
-        .storage
-        .get(&U256::ZERO, &mut working_set)
-        .unwrap();
+    let storage_value = db_account.storage.get(&U256::ZERO, &working_set).unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
@@ -400,7 +394,7 @@ fn self_destruct_test() {
 
     let contract_info = evm
         .accounts
-        .get(&contract_addr, &mut working_set)
+        .get(&contract_addr, &working_set)
         .expect("contract address should exist");
 
     // Test if we managed to send money to ocntract
@@ -412,7 +406,7 @@ fn self_destruct_test() {
     assert_eq!(
         db_contract
             .storage
-            .get(&U256::from(0), &mut working_set)
+            .get(&U256::from(0), &working_set)
             .unwrap(),
         U256::from(123)
     );
@@ -463,11 +457,11 @@ fn self_destruct_test() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     // we now delete destructed accounts from storage
-    assert_eq!(evm.accounts.get(&contract_addr, &mut working_set), None);
+    assert_eq!(evm.accounts.get(&contract_addr, &working_set), None);
 
     let die_to_acc = evm
         .accounts
-        .get(&die_to_address, &mut working_set)
+        .get(&die_to_address, &working_set)
         .expect("die to address should exist");
 
     let receipts = evm
@@ -484,10 +478,7 @@ fn self_destruct_test() {
     let db_account = DbAccount::new(contract_addr);
 
     // the storage should be empty
-    assert_eq!(
-        db_account.storage.get(&U256::from(0), &mut working_set),
-        None
-    );
+    assert_eq!(db_account.storage.get(&U256::from(0), &working_set), None);
 
     // the keys should be empty
     assert_eq!(db_account.keys.len(&mut working_set), 0);
@@ -958,16 +949,13 @@ fn test_l1_fee_success() {
 
         let db_account = evm
             .accounts
-            .get(&dev_signer.address(), &mut working_set)
+            .get(&dev_signer.address(), &working_set)
             .unwrap();
 
-        let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-        let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+        let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &working_set).unwrap();
+        let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &working_set).unwrap();
 
-        let coinbase_account = evm
-            .accounts
-            .get(&config.coinbase, &mut working_set)
-            .unwrap();
+        let coinbase_account = evm.accounts.get(&config.coinbase, &working_set).unwrap();
         assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
         assert_eq!(db_account.balance, expected_balance);
@@ -1070,7 +1058,7 @@ fn test_l1_fee_not_enough_funds() {
 
     let db_account = evm
         .accounts
-        .get(&dev_signer.address(), &mut working_set)
+        .get(&dev_signer.address(), &working_set)
         .unwrap();
 
     // The account balance is unchanged
@@ -1078,7 +1066,7 @@ fn test_l1_fee_not_enough_funds() {
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase was not created
-    let db_coinbase = evm.accounts.get(&config.coinbase, &mut working_set);
+    let db_coinbase = evm.accounts.get(&config.coinbase, &working_set);
     assert!(db_coinbase.is_none());
 }
 
@@ -1180,7 +1168,7 @@ fn test_l1_fee_halt() {
 
     let db_account = evm
         .accounts
-        .get(&dev_signer.address(), &mut working_set)
+        .get(&dev_signer.address(), &working_set)
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
@@ -1195,8 +1183,8 @@ fn test_l1_fee_halt() {
         )
     );
 
-    let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+    let base_fee_valut = evm.accounts.get(&BASE_FEE_VAULT, &working_set).unwrap();
+    let l1_fee_valut = evm.accounts.get(&L1_FEE_VAULT, &working_set).unwrap();
 
     assert_eq!(base_fee_valut.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
