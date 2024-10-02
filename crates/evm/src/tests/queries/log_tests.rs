@@ -12,9 +12,10 @@ use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::LogsContract;
-use crate::tests::call_tests::{create_contract_message, get_evm_config, publish_event_message};
 use crate::tests::queries::init_evm;
-use crate::tests::utils::get_evm;
+use crate::tests::utils::{
+    create_contract_message, get_evm, get_evm_config, publish_event_message,
+};
 use crate::{Filter, FilterBlockOption, FilterSet};
 
 type C = DefaultContext;

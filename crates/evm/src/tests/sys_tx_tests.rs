@@ -18,12 +18,11 @@ use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
 use crate::system_contracts::{Bridge, ProxyAdmin};
-use crate::tests::call_tests::{
-    create_contract_message, create_contract_message_with_fee, get_evm_config_starting_base_fee,
-    publish_event_message,
-};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{config_push_contracts, get_evm};
+use crate::tests::utils::{
+    config_push_contracts, create_contract_message, create_contract_message_with_fee, get_evm,
+    get_evm_config_starting_base_fee, publish_event_message,
+};
 use crate::{AccountData, BASE_FEE_VAULT, L1_FEE_VAULT, SYSTEM_SIGNER};
 
 type C = DefaultContext;
