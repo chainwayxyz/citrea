@@ -113,7 +113,16 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
-    async fn create_prover_service(
+    async fn create_batch_prover_service(
+        &self,
+        prover_config: ProverConfig,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService;
+
+    /// Creates instance of [`ProverService`] for light client proof production.
+    async fn create_light_client_prover_service(
         &self,
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
