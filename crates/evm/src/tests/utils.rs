@@ -111,7 +111,7 @@ pub(crate) fn commit(
     root.0
 }
 
-/// Loads the genesis configuration from the give path and pushes the accounts to the evm config
+/// Loads the genesis configuration from the given path and pushes the accounts to the evm config
 pub(crate) fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
     let mut genesis_config: EvmConfig = read_json_file(Path::new(
         path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
