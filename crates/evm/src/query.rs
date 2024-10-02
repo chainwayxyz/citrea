@@ -6,7 +6,6 @@ use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use jsonrpsee::core::RpcResult;
-use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
     Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
@@ -38,7 +37,10 @@ use crate::evm::call::prepare_call_env;
 use crate::evm::db::EvmDb;
 use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::evm::DbAccount;
-use crate::handler::TxInfo;
+use crate::handler::{
+    TxInfo, ACCOUNT_DISCOUNTED_PERCENTAGE, DB_ACCOUNT_KEY_SIZE, DB_ACCOUNT_SIZE_EOA,
+    NONCE_DISCOUNTED_PERCENTAGE,
+};
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
@@ -71,8 +73,7 @@ impl EstimatedTxExpenses {
     /// Return total estimated gas used including evm gas and L1 fee.
     pub(crate) fn gas_with_l1_overhead(&self) -> U256 {
         // Actually not an L1 fee but l1_fee / base_fee.
-        let l1_fee_overhead =
-            U256::from(1).max(self.l1_fee / (self.base_fee + U256::from(GWEI_TO_WEI))); // assume 1 gwei priority fee
+        let l1_fee_overhead = U256::from(1).max(self.l1_fee.div_ceil(self.base_fee));
         l1_fee_overhead + U256::from(self.gas_used)
     }
 }
@@ -879,11 +880,31 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
                     if let Ok((res, tx_info)) = res {
                         if res.result.is_success() {
+                            // If value is zero we should add extra balance transfer diff size assuming the first estimate gas was done by metamask
+                            // we do this because on metamask when trying to send max amount to an address it will send 2 estimate_gas requests
+                            // One with 0 value and the other with the remaining balance that extract from the current balance after the gas fee is deducted
+                            // This causes the diff size to be lower than the actual diff size, and the tx to fail due to not enough l1 fee
+                            let mut diff_size = tx_info.l1_diff_size;
+                            let mut l1_fee = tx_info.l1_fee;
+                            if tx_env.value.is_zero() {
+                                // Calculation taken from diff size calculation in handler.rs
+                                let balance_diff_size =
+                                    (DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100)
+                                        as u64
+                                        + ((DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE)
+                                            * NONCE_DISCOUNTED_PERCENTAGE
+                                            / 100) as u64;
+
+                                diff_size += balance_diff_size;
+                                l1_fee = l1_fee.saturating_add(
+                                    U256::from(l1_fee_rate) * (U256::from(balance_diff_size)),
+                                );
+                            }
                             return Ok(EstimatedTxExpenses {
                                 gas_used: U64::from(MIN_TRANSACTION_GAS),
                                 base_fee: env_base_fee,
-                                l1_fee: tx_info.l1_fee,
-                                l1_diff_size: tx_info.l1_diff_size,
+                                l1_fee,
+                                l1_diff_size: diff_size,
                             });
                         }
                     }
