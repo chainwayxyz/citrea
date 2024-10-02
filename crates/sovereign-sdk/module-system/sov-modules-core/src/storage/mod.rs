@@ -214,7 +214,7 @@ pub trait Storage: Clone {
         &self,
         key: &StorageKey,
         version: Option<Version>,
-        witness: &mut Self::Witness,
+        witness: &Self::Witness,
     ) -> Option<StorageValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.

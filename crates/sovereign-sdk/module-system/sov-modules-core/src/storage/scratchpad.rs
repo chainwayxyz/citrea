@@ -19,7 +19,7 @@ use crate::Version;
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
     /// Get a value from the storage.
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue>;
+    fn get(&self, key: &StorageKey) -> Option<StorageValue>;
 
     /// Replaces a storage value.
     fn set(&mut self, key: &StorageKey, value: StorageValue);
@@ -58,7 +58,7 @@ pub trait StateReaderAndWriter {
     }
 
     /// Get a decoded value from the storage.
-    fn get_decoded<V, Codec>(&mut self, storage_key: &StorageKey, codec: &Codec) -> Option<V>
+    fn get_decoded<V, Codec>(&self, storage_key: &StorageKey, codec: &Codec) -> Option<V>
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateValueCodec<V>,
@@ -74,7 +74,7 @@ pub trait StateReaderAndWriter {
 
     /// Get a value from the storage.
     fn get_value<Q, K, V, Codec>(
-        &mut self,
+        &self,
         prefix: &Prefix,
         storage_key: &Q,
         codec: &Codec,
@@ -187,8 +187,8 @@ impl<S: Storage> fmt::Debug for Delta<S> {
 }
 
 impl<S: Storage> StateReaderAndWriter for Delta<S> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        self.cache.get_or_fetch(key, &self.inner, &mut self.witness)
+    fn get(&self, key: &StorageKey) -> Option<StorageValue> {
+        self.cache.get_or_fetch(key, &self.inner, &self.witness)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
@@ -244,7 +244,7 @@ impl<S: Storage> AccessoryDelta<S> {
 }
 
 impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&self, key: &StorageKey) -> Option<StorageValue> {
         let cache_key = key.to_cache_key_version(self.writes.version);
         if let Some(value) = self.writes.cache.get(&cache_key) {
             return value.clone().map(Into::into);
@@ -465,10 +465,10 @@ impl<C: Context> WorkingSet<C> {
 }
 
 impl<C: Context> StateReaderAndWriter for WorkingSet<C> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        match &mut self.archival_working_set {
+    fn get(&self, key: &StorageKey) -> Option<StorageValue> {
+        match &self.archival_working_set {
             None => self.delta.get(key),
-            Some(ref mut archival_working_set) => archival_working_set.get(key),
+            Some(archival_working_set) => archival_working_set.get(key),
         }
     }
 
@@ -494,13 +494,13 @@ pub struct AccessoryWorkingSet<'a, C: Context> {
 }
 
 impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&self, key: &StorageKey) -> Option<StorageValue> {
         if !cfg!(feature = "native") {
             None
         } else {
-            match &mut self.ws.archival_accessory_working_set {
+            match &self.ws.archival_accessory_working_set {
                 None => self.ws.accessory_delta.get(key),
-                Some(ref mut archival_working_set) => archival_working_set.get(key),
+                Some(archival_working_set) => archival_working_set.get(key),
             }
         }
     }
@@ -559,7 +559,7 @@ pub mod archival_state {
     }
 
     impl<C: Context> StateReaderAndWriter for ArchivalJmtWorkingSet<C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&self, key: &StorageKey) -> Option<StorageValue> {
             self.delta.get(key)
         }
 
@@ -573,7 +573,7 @@ pub mod archival_state {
     }
 
     impl<C: Context> StateReaderAndWriter for ArchivalAccessoryWorkingSet<C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&self, key: &StorageKey) -> Option<StorageValue> {
             if !cfg!(feature = "native") {
                 None
             } else {
@@ -624,7 +624,7 @@ pub mod kernel_state {
     }
 
     impl<'a, C: Context> StateReaderAndWriter for VersionedWorkingSet<'a, C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&self, key: &StorageKey) -> Option<StorageValue> {
             self.ws.delta.get(key)
         }
 
@@ -680,7 +680,7 @@ pub mod kernel_state {
     }
 
     impl<'a, C: Context> StateReaderAndWriter for KernelWorkingSet<'a, C> {
-        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        fn get(&self, key: &StorageKey) -> Option<StorageValue> {
             self.inner.delta.get(key)
         }
 
@@ -738,7 +738,7 @@ where
 }
 
 impl<T: StateReaderAndWriter> StateReaderAndWriter for RevertableWriter<T> {
-    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+    fn get(&self, key: &StorageKey) -> Option<StorageValue> {
         if let Some(value) = self.writes.get(&key.to_cache_key_version(self.version)) {
             value.as_ref().cloned().map(Into::into)
         } else {

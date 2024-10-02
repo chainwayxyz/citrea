@@ -70,7 +70,7 @@ where
     ///     map.get(&key[..], ws)
     /// }
     /// ```
-    fn get<Q>(&self, key: &Q, working_set: &mut W) -> Option<V>
+    fn get<Q>(&self, key: &Q, working_set: &W) -> Option<V>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeKeyLike<Q, K>,

@@ -379,10 +379,10 @@ impl StorageInternalCache {
 
     /// Gets a value from the cache or reads it from the provided `ValueReader`.
     pub fn get_or_fetch<S: Storage>(
-        &mut self,
+        &self,
         key: &StorageKey,
         value_reader: &S,
-        witness: &mut S::Witness,
+        witness: &S::Witness,
     ) -> Option<StorageValue> {
         let cache_key = key.to_cache_key_version(self.version);
         let cache_value = self.get_value_from_cache(&cache_key);
@@ -438,12 +438,12 @@ impl StorageInternalCache {
         self.tx_cache.merge_writes_left(rhs.tx_cache)
     }
 
-    fn add_read(&mut self, key: CacheKey, value: Option<CacheValue>) {
+    fn add_read(&self, key: CacheKey, value: Option<CacheValue>) {
         self.tx_cache
             .add_read(key.clone(), value.clone())
             // It is ok to panic here, we must guarantee that the cache is consistent.
             .unwrap_or_else(|e| panic!("Inconsistent read from the cache: {e:?}"));
-        self.ordered_db_reads.push((key, value))
+        self.ordered_db_reads.borrow_mut().push((key, value));
     }
 }
 
