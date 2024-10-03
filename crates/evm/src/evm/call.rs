@@ -5,7 +5,7 @@ use std::cmp::min;
 use reth_primitives::{TxKind, B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
-use revm::primitives::{TransactTo, TxEnv};
+use revm::primitives::TxEnv;
 
 use crate::caller_gas_allowance;
 use crate::primitive_types::BlockEnv;
@@ -227,15 +227,6 @@ pub(crate) fn prepare_call_env(
         gas_limit = min(gas_limit, max_gas_limit);
     }
 
-    let to = if let Some(kind) = to {
-        match kind {
-            TxKind::Create => TransactTo::Create,
-            TxKind::Call(address) => TransactTo::Call(address),
-        }
-    } else {
-        TransactTo::Create
-    };
-
     let env = TxEnv {
         gas_price,
         nonce,
@@ -245,7 +236,7 @@ pub(crate) fn prepare_call_env(
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
         caller: from.unwrap_or_default(),
         gas_priority_fee: max_priority_fee_per_gas,
-        transact_to: to,
+        transact_to: to.unwrap_or(TxKind::Create),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
         access_list: access_list.unwrap_or_default().to_vec(),
