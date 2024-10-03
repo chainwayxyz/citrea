@@ -42,13 +42,6 @@ pub struct ParsedAggregate {
     pub public_key: Vec<u8>,
 }
 
-impl ParsedAggregate {
-    pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
-        use bitcoin::hashes::Hash;
-        self.body.chunks_exact(32).map(Txid::from_slice).collect()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
     pub body: Vec<u8>,
@@ -355,9 +348,6 @@ mod light_client {
             let instr = read_instr(instructions)?;
             match instr {
                 PushBytes(chunk) => {
-                    if chunk.len() != 32 {
-                        return Err(ParserError::UnexpectedOpcode);
-                    }
                     chunks.push(chunk)
                 }
                 Op(OP_ENDIF) => break,
@@ -375,7 +365,7 @@ mod light_client {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let body_size: usize = 32 * chunks.len();
+        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
         let mut body = Vec::with_capacity(body_size);
         for chunk in chunks {
             body.extend_from_slice(chunk.as_bytes());

@@ -201,10 +201,8 @@ where
             .extract_relevant_proofs(&l1_block, &self.prover_da_pub_key)
             .await?
             .into_iter()
-            .for_each(|data| match data {
-                DaDataLightClient::ZKProof(proof) => {
-                    zk_proofs.push(proof);
-                }
+            .for_each(|proof| {
+                zk_proofs.push(proof);
             });
 
         self.da_service

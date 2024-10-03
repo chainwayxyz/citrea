@@ -426,7 +426,7 @@ impl DaService for MockDaService {
         let blob = match da_data {
             DaData::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
-                let data = DaDataLightClient::ZKProof(proof);
+                let data = DaDataLightClient::Complete(proof);
                 borsh::to_vec(&data).unwrap()
             }
             DaData::SequencerCommitment(seq_comm) => {
@@ -608,7 +608,9 @@ mod tests {
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
             let retrieved_data = DaDataLightClient::try_from_slice(&retrieved_data).unwrap();
-            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+                panic!("unexpected type");
+            };
             assert_eq!(proof, retrieved_proof);
 
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
@@ -676,7 +678,9 @@ mod tests {
             let proof = Proof::Full(blob);
             let retrieved_data = fetched_block.blobs[0].full_data();
             let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
-            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+                panic!("unexpected type");
+            };
             assert_eq!(proof, retrieved_proof);
 
             let head_block_header = da.get_head_block_header().await.unwrap();
