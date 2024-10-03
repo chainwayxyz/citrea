@@ -3,9 +3,9 @@
 
 # include source files
 !/bin
-!/resources/configs
 !/crates
-!/resources/hive
+!/resources/configs
+!/resources
 !Cargo.lock
 !Cargo.toml
 !deny.toml
@@ -15,6 +15,7 @@
 !packages_to_publish.yml
 !rust-toolchain.toml
 !rustfmt.toml
+!/da-db
 
 # include for vergen constants
 !/.git
