@@ -2,7 +2,7 @@
 
 use std::cmp::min;
 
-use reth_primitives::{TxKind, B256, U256};
+use reth_primitives::{B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::TxEnv;
@@ -236,7 +236,7 @@ pub(crate) fn prepare_call_env(
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
         caller: from.unwrap_or_default(),
         gas_priority_fee: max_priority_fee_per_gas,
-        transact_to: to.unwrap_or(TxKind::Create),
+        transact_to: to.unwrap_or_default(),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
         access_list: access_list.unwrap_or_default().to_vec(),
