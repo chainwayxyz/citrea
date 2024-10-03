@@ -767,7 +767,6 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-state",
- "sov-stf-runner",
  "thiserror",
 ]
 
