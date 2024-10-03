@@ -4,7 +4,6 @@
 # include source files
 !/bin
 !/crates
-!/resources/configs
 !/resources
 !Cargo.lock
 !Cargo.toml
