@@ -793,7 +793,7 @@ impl DaService for BitcoinService {
                         let DaDataLightClient::Chunk(chunk) = data else {
                             anyhow::bail!("{}: Chunk: unexpected kind", tx_id);
                         };
-                        body.extend(part.body);
+                        body.extend(chunk);
                     }
                     ParsedLightClientTransaction::Complete(_)
                     | ParsedLightClientTransaction::Aggregate(_) => {
@@ -813,7 +813,7 @@ impl DaService for BitcoinService {
         proofs.sort_by_key(|b| b.0);
 
         let mut result = Vec::new();
-        for (_i, tx_id, proof) in proofs {
+        for (_i, _tx_id, proof) in proofs {
             result.push(proof);
         }
         Ok(result)
