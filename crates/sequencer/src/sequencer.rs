@@ -14,7 +14,6 @@ use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
-use citrea_pruning::Pruner;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -818,19 +817,6 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        if let Some(pruning_config) = &self.config.pruning_config {
-            let pruner = Pruner::<DB>::new(
-                pruning_config.clone(),
-                self.ledger_db.get_last_pruned_l2_height()?.unwrap_or(0),
-                self.soft_confirmation_tx.subscribe(),
-                self.ledger_db.clone(),
-            );
-
-            debug!("Starting pruner");
-            self.task_manager
-                .spawn(|cancellation_token| pruner.run(cancellation_token));
-        }
-
         if self.batch_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
             self.resubmit_pending_commitments().await?;

@@ -1,4 +1,3 @@
-use citrea_pruning::PruningConfig;
 use serde::{Deserialize, Serialize};
 
 /// Rollup Configuration
@@ -18,8 +17,6 @@ pub struct SequencerConfig {
     pub da_update_interval_ms: u64,
     /// Block production interval in ms
     pub block_production_interval_ms: u64,
-    /// Pruning config
-    pub pruning_config: Option<PruningConfig>,
 }
 
 impl Default for SequencerConfig {
@@ -33,7 +30,6 @@ impl Default for SequencerConfig {
             block_production_interval_ms: 100,
             da_update_interval_ms: 100,
             mempool_conf: Default::default(),
-            pruning_config: None,
         }
     }
 }
@@ -127,7 +123,6 @@ mod tests {
             },
             da_update_interval_ms: 1000,
             block_production_interval_ms: 1000,
-            pruning_config: None,
         };
         assert_eq!(config, expected);
     }

@@ -13,7 +13,6 @@ repository.workspace = true
 bitcoin-da = { path = "../bitcoin-da" }
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
-citrea-pruning = { path = "../pruning" }
 citrea-stf = { path = "../citrea-stf" }
 sequencer-client = { path = "../sequencer-client" }
 
