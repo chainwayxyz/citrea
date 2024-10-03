@@ -25,7 +25,7 @@ use crate::system_events::SYSTEM_SIGNER;
 use crate::{BASE_FEE_VAULT, L1_FEE_VAULT};
 
 /// Eoa size is reduced because code_hash for eoas are None on state diff, converted to empty Keccak  internally for evm operations
-pub(crate) const DB_ACCOUNT_SIZE_EOA: usize = 42;
+const DB_ACCOUNT_SIZE_EOA: usize = 42;
 const DB_ACCOUNT_SIZE_CONTRACT: usize = 75;
 
 /// Normally db account key is: 6 bytes of prefix ("Evm/a/") + 1 byte for size of remaining data + 20 bytes of address = 27 bytes
@@ -538,7 +538,7 @@ fn calc_diff_size<EXT, DB: Database>(
             };
             // Account size is added because when any of those changes the db account is written to the state
             // because these fields are part of the account info and not state values
-            diff_size += amount_to_increase_diff_size_on_account_info_change(db_account_size);
+            diff_size += diff_size_on_account_info_change(Some(db_account_size));
         } else {
             // Apply only size of address of changed account if info is not changed
             diff_size += DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100;
@@ -618,7 +618,9 @@ fn decrease_caller_balance<EXT, DB: Database>(
     change_balance(context, amount, false, address)
 }
 
-pub(crate) fn amount_to_increase_diff_size_on_account_info_change(db_account_size: usize) -> usize {
+pub(crate) fn diff_size_on_account_info_change(db_account_size: Option<usize>) -> usize {
     DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
-        + (db_account_size + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100
+        + (db_account_size.unwrap_or(DB_ACCOUNT_SIZE_EOA) + DB_ACCOUNT_KEY_SIZE)
+            * NONCE_DISCOUNTED_PERCENTAGE
+            / 100
 }
