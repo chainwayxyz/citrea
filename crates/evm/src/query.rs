@@ -885,7 +885,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             let mut l1_fee = tx_info.l1_fee;
                             if tx_env.value.is_zero() {
                                 // Calculation taken from diff size calculation in handler.rs
-                                let balance_diff_size = diff_size_on_account_info_change(None);
+                                let balance_diff_size =
+                                    diff_size_on_account_info_change(None) as u64;
 
                                 diff_size += balance_diff_size;
                                 l1_fee = l1_fee.saturating_add(
