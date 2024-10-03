@@ -1,13 +1,11 @@
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::spec::BitcoinSpec;
 use bitcoincore_rpc::RpcApi;
-use citrea_sequencer::SequencerConfig;
-
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::{L2Node, Restart};
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
+use citrea_e2e::config::SequencerConfig;
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::Restart;
+use citrea_e2e::Result;
 
 struct BasicSequencerTest;
 
@@ -28,7 +26,7 @@ impl TestCase for BasicSequencerTest {
         sequencer.client.send_publish_batch_request().await;
         da.generate(1, None).await?;
 
-        sequencer.wait_for_l2_height(1, None).await;
+        sequencer.client.wait_for_l2_block(1, None).await?;
         let seq_height1 = sequencer.client.eth_block_number().await;
         assert_eq!(seq_height1, 1);
 
@@ -98,7 +96,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         for i in 1..=head_soft_confirmation_height {
             let soft_confirmation = sequencer
                 .client
-                .ledger_get_soft_confirmation_by_number::<BitcoinSpec>(i)
+                .ledger_get_soft_confirmation_by_number(i)
                 .await
                 .unwrap();
 

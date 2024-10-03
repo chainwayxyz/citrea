@@ -2,11 +2,11 @@ use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoin_e2e::config::BitcoinConfig;
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::L2Node;
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
+use citrea_e2e::config::BitcoinConfig;
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::L2Node;
+use citrea_e2e::Result;
 
 struct MempoolAcceptTest;
 

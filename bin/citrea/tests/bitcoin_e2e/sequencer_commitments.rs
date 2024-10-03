@@ -9,13 +9,13 @@ use rs_merkle::MerkleTree;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::DaData;
 
-use crate::bitcoin_e2e::bitcoin::BitcoinNode;
-use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::L2Node;
-use crate::bitcoin_e2e::sequencer::Sequencer;
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
+use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::sequencer::Sequencer;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::L2Node;
+use citrea_e2e::Result;
 
 struct LedgerGetCommitmentsProverTest;
 

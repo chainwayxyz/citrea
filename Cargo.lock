@@ -86,9 +86,11 @@ dependencies = [
  "alloy-consensus",
  "alloy-core",
  "alloy-eips",
+ "alloy-genesis",
  "alloy-provider",
  "alloy-rpc-client",
  "alloy-rpc-types",
+ "alloy-serde",
  "alloy-signer",
  "alloy-signer-local",
  "alloy-transport",
@@ -127,7 +129,27 @@ version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "529fc6310dc1126c8de51c376cbc59c79c7f662bd742be7dc67055d5421a81b4"
 dependencies = [
+ "alloy-dyn-abi",
+ "alloy-json-abi",
  "alloy-primitives",
+ "alloy-sol-types",
+]
+
+[[package]]
+name = "alloy-dyn-abi"
+version = "0.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413902aa18a97569e60f679c23f46a18db1656d87ab4d4e49d0e1e52042f66df"
+dependencies = [
+ "alloy-json-abi",
+ "alloy-primitives",
+ "alloy-sol-type-parser",
+ "alloy-sol-types",
+ "const-hex",
+ "itoa",
+ "serde",
+ "serde_json",
+ "winnow 0.6.13",
 ]
 
 [[package]]
@@ -167,6 +189,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-type-parser",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -263,6 +286,7 @@ dependencies = [
  "futures-utils-wasm",
  "lru",
  "pin-project",
+ "reqwest 0.12.5",
  "serde",
  "serde_json",
  "tokio",
@@ -304,6 +328,7 @@ dependencies = [
  "futures",
  "hyper-util",
  "pin-project",
+ "reqwest 0.12.5",
  "serde",
  "serde_json",
  "tokio",
@@ -585,6 +610,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.4.1",
  "hyper-util",
+ "reqwest 0.12.5",
  "serde_json",
  "tower",
  "tracing",
@@ -1217,7 +1243,7 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "brotli",
- "citrea-primitives",
+ "citrea-primitives 0.5.0-rc.1",
  "futures",
  "hex",
  "pin-project",
@@ -1225,7 +1251,33 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "bitcoin-da"
+version = "0.1.0"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backoff",
+ "bitcoin",
+ "bitcoincore-rpc",
+ "borsh",
+ "brotli",
+ "citrea-primitives 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "futures",
+ "hex",
+ "pin-project",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
  "tokio",
  "tracing",
@@ -1691,27 +1743,25 @@ dependencies = [
  "async-trait",
  "bincode",
  "bitcoin",
- "bitcoin-da",
+ "bitcoin-da 0.1.0",
  "bitcoincore-rpc",
- "bollard",
  "borsh",
- "citrea-common",
- "citrea-evm",
+ "citrea-common 0.5.0-rc.1",
+ "citrea-e2e",
+ "citrea-evm 0.5.0-rc.1",
  "citrea-fullnode",
- "citrea-primitives",
+ "citrea-primitives 0.5.0-rc.1",
  "citrea-prover",
  "citrea-risc0-bonsai-adapter",
- "citrea-sequencer",
- "citrea-stf",
+ "citrea-sequencer 0.5.0-rc.1",
+ "citrea-stf 0.5.0-rc.1",
  "clap",
  "ethereum-rpc",
- "futures",
  "hex",
  "jsonrpsee",
  "log",
  "log-panics",
  "proptest",
- "rand 0.8.5",
  "regex",
  "reqwest 0.12.5",
  "reth-primitives",
@@ -1726,20 +1776,19 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "soft-confirmation-rule-enforcer",
- "sov-db",
- "sov-ledger-rpc",
+ "soft-confirmation-rule-enforcer 0.5.0-rc.1",
+ "sov-db 0.5.0-rc.1",
+ "sov-ledger-rpc 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
- "sov-modules-rollup-blueprint",
- "sov-modules-stf-blueprint",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
- "sov-stf-runner",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-rollup-blueprint 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
  "tempfile",
  "tokio",
- "toml",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]
@@ -1750,17 +1799,69 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "backoff",
- "citrea-primitives",
+ "citrea-primitives 0.5.0-rc.1",
  "futures",
  "hyper 1.4.1",
  "jsonrpsee",
  "lru",
- "sov-db",
- "sov-rollup-interface",
+ "sov-db 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tokio",
  "tokio-util",
  "tower-http",
  "tracing",
+]
+
+[[package]]
+name = "citrea-common"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "backoff",
+ "citrea-primitives 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "futures",
+ "hyper 1.4.1",
+ "jsonrpsee",
+ "lru",
+ "sov-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
+name = "citrea-e2e"
+version = "0.1.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "bitcoin",
+ "bitcoin-da 0.1.0 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "bitcoincore-rpc",
+ "bollard",
+ "citrea-primitives 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "citrea-sequencer 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "futures",
+ "jsonrpsee",
+ "log",
+ "rand 0.8.5",
+ "reqwest 0.12.5",
+ "reth-primitives",
+ "reth-rpc-eth-types",
+ "reth-rpc-types",
+ "serde",
+ "serde_json",
+ "sov-ledger-rpc 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-stf-runner 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "tempfile",
+ "tokio",
+ "toml",
+ "which",
 ]
 
 [[package]]
@@ -1777,7 +1878,7 @@ dependencies = [
  "bcs",
  "borsh",
  "bytes",
- "citrea-primitives",
+ "citrea-primitives 0.5.0-rc.1",
  "clap",
  "hex",
  "itertools 0.13.0",
@@ -1800,15 +1901,50 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
  "thiserror",
  "tracing",
  "tracing-subscriber 0.3.18",
  "walkdir",
+]
+
+[[package]]
+name = "citrea-evm"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-sol-types",
+ "anyhow",
+ "borsh",
+ "citrea-primitives 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "clap",
+ "hex",
+ "itertools 0.13.0",
+ "jsonrpsee",
+ "reth-primitives",
+ "reth-provider",
+ "reth-rpc-eth-types",
+ "reth-rpc-server-types",
+ "reth-rpc-types",
+ "reth-rpc-types-compat",
+ "revm",
+ "revm-inspectors",
+ "schemars",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -1818,8 +1954,8 @@ dependencies = [
  "anyhow",
  "backoff",
  "borsh",
- "citrea-common",
- "citrea-primitives",
+ "citrea-common 0.5.0-rc.1",
+ "citrea-primitives 0.5.0-rc.1",
  "futures",
  "hex",
  "jsonrpsee",
@@ -1829,16 +1965,16 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-db",
+ "sov-db 0.5.0-rc.1",
  "sov-mock-da",
  "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-rollup-blueprint",
- "sov-modules-stf-blueprint",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
- "sov-stf-runner",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-rollup-blueprint 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -1854,7 +1990,21 @@ dependencies = [
  "anyhow",
  "reth-primitives",
  "serde",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "citrea-primitives"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "alloy-eips",
+ "anyhow",
+ "reth-primitives",
+ "serde",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tokio",
  "tracing",
 ]
@@ -1866,11 +2016,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
- "bitcoin-da",
+ "bitcoin-da 0.1.0",
  "borsh",
- "citrea-common",
- "citrea-primitives",
- "citrea-stf",
+ "citrea-common 0.5.0-rc.1",
+ "citrea-primitives 0.5.0-rc.1",
+ "citrea-stf 0.5.0-rc.1",
  "futures",
  "hex",
  "jsonrpsee",
@@ -1882,14 +2032,14 @@ dependencies = [
  "sequencer-client",
  "serde",
  "sha2",
- "sov-db",
+ "sov-db 0.5.0-rc.1",
  "sov-mock-da",
  "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-rollup-blueprint",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface",
- "sov-stf-runner",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-rollup-blueprint 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -1915,9 +2065,9 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
- "sov-db",
+ "sov-db 0.5.0-rc.1",
  "sov-risc0-adapter",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tracing",
 ]
 
@@ -1931,10 +2081,10 @@ dependencies = [
  "backoff",
  "borsh",
  "chrono",
- "citrea-common",
- "citrea-evm",
- "citrea-primitives",
- "citrea-stf",
+ "citrea-common 0.5.0-rc.1",
+ "citrea-evm 0.5.0-rc.1",
+ "citrea-primitives 0.5.0-rc.1",
+ "citrea-stf 0.5.0-rc.1",
  "digest 0.10.7",
  "futures",
  "hex",
@@ -1956,16 +2106,68 @@ dependencies = [
  "schnellru",
  "serde",
  "serde_json",
- "soft-confirmation-rule-enforcer",
- "sov-accounts",
- "sov-db",
- "sov-modules-api",
- "sov-modules-rollup-blueprint",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface",
- "sov-state",
- "sov-stf-runner",
+ "soft-confirmation-rule-enforcer 0.5.0-rc.1",
+ "sov-accounts 0.5.0-rc.1",
+ "sov-db 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-rollup-blueprint 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
  "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
+name = "citrea-sequencer"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "alloy-rlp",
+ "alloy-sol-types",
+ "anyhow",
+ "backoff",
+ "borsh",
+ "chrono",
+ "citrea-common 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "citrea-evm 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "citrea-primitives 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "citrea-stf 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "digest 0.10.7",
+ "futures",
+ "hex",
+ "hyper 1.4.1",
+ "jsonrpsee",
+ "parking_lot",
+ "reth-chainspec",
+ "reth-db",
+ "reth-primitives",
+ "reth-provider",
+ "reth-rpc-eth-types",
+ "reth-rpc-types",
+ "reth-rpc-types-compat",
+ "reth-tasks",
+ "reth-transaction-pool",
+ "reth-trie",
+ "revm",
+ "rs_merkle",
+ "schnellru",
+ "serde",
+ "serde_json",
+ "soft-confirmation-rule-enforcer 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-accounts 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-rollup-blueprint 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-stf-blueprint 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-stf-runner 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tokio",
  "tokio-util",
  "tower",
@@ -1979,21 +2181,46 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
- "citrea-evm",
- "citrea-primitives",
+ "citrea-evm 0.5.0-rc.1",
+ "citrea-primitives 0.5.0-rc.1",
  "clap",
  "hex",
  "jsonrpsee",
  "secp256k1",
  "serde",
  "serde_json",
- "soft-confirmation-rule-enforcer",
- "sov-accounts",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface",
- "sov-state",
- "sov-stf-runner",
+ "soft-confirmation-rule-enforcer 0.5.0-rc.1",
+ "sov-accounts 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
+ "tracing",
+]
+
+[[package]]
+name = "citrea-stf"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "citrea-evm 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "citrea-primitives 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "clap",
+ "hex",
+ "jsonrpsee",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "soft-confirmation-rule-enforcer 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-accounts 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-stf-blueprint 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-stf-runner 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tracing",
 ]
 
@@ -2400,7 +2627,7 @@ dependencies = [
  "sha2",
  "sov-mock-da",
  "sov-mock-zkvm",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
 ]
 
 [[package]]
@@ -2409,7 +2636,7 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
- "citrea-evm",
+ "citrea-evm 0.5.0-rc.1",
  "clap",
  "hex",
  "jsonrpsee",
@@ -2418,16 +2645,16 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "soft-confirmation-rule-enforcer",
- "sov-accounts",
- "sov-bank",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
+ "soft-confirmation-rule-enforcer 0.5.0-rc.1",
+ "sov-accounts 0.5.0-rc.1",
+ "sov-bank 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
  "sov-sequencer-registry",
- "sov-state",
- "sov-stf-runner",
+ "sov-state 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
  "sov-value-setter",
  "tempfile",
  "tokio",
@@ -2756,8 +2983,8 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "borsh",
- "citrea-evm",
- "citrea-primitives",
+ "citrea-evm 0.5.0-rc.1",
+ "citrea-primitives 0.5.0-rc.1",
  "futures",
  "jsonrpsee",
  "parking_lot",
@@ -2771,9 +2998,9 @@ dependencies = [
  "sequencer-client",
  "serde",
  "serde_json",
- "sov-db",
- "sov-modules-api",
- "sov-rollup-interface",
+ "sov-db 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tokio",
  "tracing",
 ]
@@ -2879,6 +3106,21 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
+name = "foreign-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
+dependencies = [
+ "foreign-types-shared",
+]
+
+[[package]]
+name = "foreign-types-shared"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
 name = "form_urlencoded"
@@ -3435,6 +3677,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-tls"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
+dependencies = [
+ "bytes",
+ "http-body-util",
+ "hyper 1.4.1",
+ "hyper-util",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+ "tower-service",
+]
+
+[[package]]
 name = "hyper-util"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3747,11 +4005,11 @@ dependencies = [
  "borsh",
  "jsonrpsee",
  "serde",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-schema-db",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-schema-db 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
 ]
 
@@ -4456,12 +4714,29 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-bank",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-bank 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "native-tls"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8614eb2c83d59d1c8cc974dd3f920198647674a0a035e1af1fa58707e317466"
+dependencies = [
+ "libc",
+ "log",
+ "openssl",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "security-framework",
+ "security-framework-sys",
+ "tempfile",
 ]
 
 [[package]]
@@ -4694,10 +4969,48 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
+name = "openssl"
+version = "0.10.66"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9529f4786b70a3e8c61e11179af17ab6188ad8d0ded78c5529441ed39d4bd9c1"
+dependencies = [
+ "bitflags 2.6.0",
+ "cfg-if",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-macros",
+ "openssl-sys",
+]
+
+[[package]]
+name = "openssl-macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
+
+[[package]]
+name = "openssl-sys"
+version = "0.9.103"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
 
 [[package]]
 name = "option-ext"
@@ -5344,11 +5657,13 @@ dependencies = [
  "http-body-util",
  "hyper 1.4.1",
  "hyper-rustls 0.27.2",
+ "hyper-tls",
  "hyper-util",
  "ipnet",
  "js-sys",
  "log",
  "mime",
+ "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -5361,6 +5676,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper 1.0.1",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls 0.26.0",
  "tokio-util",
  "tower-service",
@@ -7017,14 +7333,14 @@ name = "sequencer-client"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "citrea-primitives",
+ "citrea-primitives 0.5.0-rc.1",
  "hex",
  "jsonrpsee",
  "reth-primitives",
  "reth-rpc-types",
  "serde",
  "serde_json",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tokio",
  "tracing",
 ]
@@ -7295,11 +7611,26 @@ dependencies = [
  "lazy_static",
  "serde",
  "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "soft-confirmation-rule-enforcer"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "jsonrpsee",
+ "serde",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tracing",
 ]
 
@@ -7326,9 +7657,9 @@ dependencies = [
  "borsh",
  "jsonrpsee",
  "serde",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
 ]
 
@@ -7346,10 +7677,27 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-accounts"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "clap",
+ "jsonrpsee",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
 ]
 
@@ -7364,11 +7712,28 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-bank",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-bank 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-bank"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "clap",
+ "jsonrpsee",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
 ]
 
@@ -7384,11 +7749,28 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
- "sov-accounts",
- "sov-bank",
+ "sov-accounts 0.5.0-rc.1",
+ "sov-bank 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
+ "sov-modules-api 0.5.0-rc.1",
  "tempfile",
+]
+
+[[package]]
+name = "sov-cli"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "directories",
+ "hex",
+ "jsonrpsee",
+ "serde",
+ "serde_json",
+ "sov-accounts 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-bank 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
 ]
 
 [[package]]
@@ -7397,11 +7779,11 @@ version = "0.5.0-rc.1"
 dependencies = [
  "borsh",
  "proptest",
- "sov-bank",
+ "sov-bank 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "sov-value-setter",
 ]
 
@@ -7424,9 +7806,29 @@ dependencies = [
  "rocksdb",
  "serde",
  "sha2",
- "sov-rollup-interface",
- "sov-schema-db",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-schema-db 0.5.0-rc.1",
  "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sov-db"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh",
+ "byteorder",
+ "hex",
+ "jmt",
+ "rlimit",
+ "rocksdb",
+ "serde",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-schema-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tokio",
  "tracing",
 ]
@@ -7440,11 +7842,24 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
- "sov-db",
- "sov-modules-api",
- "sov-rollup-interface",
+ "sov-db 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "sov-ledger-rpc"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "futures",
+ "jsonrpsee",
+ "serde",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
 ]
 
 [[package]]
@@ -7463,7 +7878,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -7479,18 +7894,18 @@ dependencies = [
  "bincode",
  "borsh",
  "serde",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
 ]
 
 [[package]]
 name = "sov-module-schemas"
 version = "0.5.0-rc.1"
 dependencies = [
- "sov-accounts",
- "sov-bank",
+ "sov-accounts 0.5.0-rc.1",
+ "sov-bank 0.5.0-rc.1",
  "sov-mock-da",
  "sov-mock-zkvm",
- "sov-modules-api",
+ "sov-modules-api 0.5.0-rc.1",
  "sov-prover-incentives",
  "sov-sequencer-registry",
  "sov-value-setter",
@@ -7518,15 +7933,42 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-db",
+ "sov-db 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
- "sov-modules-core",
- "sov-modules-macros",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-core 0.5.0-rc.1",
+ "sov-modules-macros 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-modules-api"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "bech32 0.9.1",
+ "borsh",
+ "clap",
+ "derive_more",
+ "ed25519-dalek",
+ "hex",
+ "jmt",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sov-modules-core 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-macros 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-prover-storage-manager 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
 ]
 
@@ -7549,12 +7991,31 @@ dependencies = [
  "serde_json",
  "sha2",
  "sov-mock-da",
- "sov-modules-api",
- "sov-modules-core",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-core 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-modules-core"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "bech32 0.9.1",
+ "borsh",
+ "derive_more",
+ "digest 0.10.7",
+ "hex",
+ "jmt",
+ "schemars",
+ "serde",
+ "sha2",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
 ]
 
@@ -7570,12 +8031,26 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "sov-modules-api",
- "sov-modules-core",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-core 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "syn 1.0.109",
  "trybuild",
+]
+
+[[package]]
+name = "sov-modules-macros"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "jsonrpsee",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -7589,14 +8064,38 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
- "sov-cli",
- "sov-db",
- "sov-ledger-rpc",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface",
- "sov-state",
- "sov-stf-runner",
+ "sov-cli 0.5.0-rc.1",
+ "sov-db 0.5.0-rc.1",
+ "sov-ledger-rpc 0.5.0-rc.1",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-modules-stf-blueprint 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
+ "sov-stf-runner 0.5.0-rc.1",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sov-modules-rollup-blueprint"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "hex",
+ "jsonrpsee",
+ "serde",
+ "serde_json",
+ "sov-cli 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-ledger-rpc 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-stf-blueprint 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-stf-runner 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tokio",
  "tracing",
 ]
@@ -7615,11 +8114,31 @@ dependencies = [
  "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
- "sov-modules-api",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "sov-zk-cycle-macros",
  "sov-zk-cycle-utils",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "sov-modules-stf-blueprint"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "hex",
+ "itertools 0.13.0",
+ "jmt",
+ "jsonrpsee",
+ "rs_merkle",
+ "serde",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
  "tracing",
 ]
@@ -7634,12 +8153,12 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-bank",
+ "sov-bank 0.5.0-rc.1",
  "sov-mock-da",
  "sov-mock-zkvm",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
 ]
 
@@ -7651,12 +8170,25 @@ dependencies = [
  "criterion",
  "rand 0.8.5",
  "sha2",
- "sov-db",
+ "sov-db 0.5.0-rc.1",
  "sov-mock-da",
- "sov-rollup-interface",
- "sov-schema-db",
- "sov-state",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-schema-db 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "sov-prover-storage-manager"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "sov-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-schema-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-state 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "tracing",
 ]
 
@@ -7675,7 +8207,7 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
  "sov-zk-cycle-utils",
 ]
 
@@ -7690,10 +8222,10 @@ dependencies = [
  "futures",
  "hex",
  "serde",
- "sov-bank",
+ "sov-bank 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
- "sov-rollup-interface",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
  "tokio",
 ]
 
@@ -7720,6 +8252,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-rollup-interface"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "bytes",
+ "digest 0.10.7",
+ "futures",
+ "hex",
+ "proptest",
+ "serde",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sov-schema-db"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -7730,8 +8282,22 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "rocksdb",
- "sov-schema-db",
+ "sov-schema-db 0.5.0-rc.1",
  "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sov-schema-db"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "prometheus",
+ "rocksdb",
  "thiserror",
  "tokio",
  "tracing",
@@ -7753,12 +8319,12 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-bank",
+ "sov-bank 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
  "sov-sequencer-registry",
- "sov-state",
+ "sov-state 0.5.0-rc.1",
  "sov-zk-cycle-macros",
  "sov-zk-cycle-utils",
  "tempfile",
@@ -7781,11 +8347,30 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-db",
- "sov-modules-core",
- "sov-rollup-interface",
+ "sov-db 0.5.0-rc.1",
+ "sov-modules-core 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
  "sov-zk-cycle-macros",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-state"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "borsh",
+ "hex",
+ "jmt",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sov-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-core 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
 ]
 
@@ -7804,13 +8389,38 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-db",
+ "sov-db 0.5.0-rc.1",
  "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-rollup-interface",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tower",
+ "tracing",
+]
+
+[[package]]
+name = "sov-stf-runner"
+version = "0.5.0-rc.1"
+source = "git+https://github.com/chainwayxyz/citrea?rev=82bf52d#82bf52d067c1886d92c55c141c8fc062b1931164"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "futures",
+ "hex",
+ "hyper 1.4.1",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sov-db 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-modules-api 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "thiserror",
  "tokio",
  "toml",
@@ -7829,9 +8439,9 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
  "thiserror",
 ]
@@ -7847,9 +8457,9 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
+ "sov-modules-api 0.5.0-rc.1",
+ "sov-prover-storage-manager 0.5.0-rc.1",
+ "sov-state 0.5.0-rc.1",
  "tempfile",
  "thiserror",
 ]
@@ -8253,6 +8863,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.72",
+]
+
+[[package]]
+name = "tokio-native-tls"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+dependencies = [
+ "native-tls",
+ "tokio",
 ]
 
 [[package]]
