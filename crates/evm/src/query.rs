@@ -510,7 +510,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => BlockNumberOrTag::Latest,
         };
 
-        let (mut block_env, mut cfg_env) = {
+        let (block_env, mut cfg_env) = {
             let block = self
                 .get_sealed_block_by_number(Some(block_number), working_set)?
                 .ok_or(EthApiError::UnknownBlockNumber)?;
@@ -525,9 +525,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             (block_env, cfg_env)
         };
 
-        // set higher block gas limit than usual
-        // but still cap it to prevent DoS
-        block_env.gas_limit = 100_000_000;
+        match block_number {
+            BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
+            _ => {
+                set_state_to_end_of_evm_block(block_env.number, working_set);
+            }
+        };
 
         let mut evm_db = self.get_db(working_set);
         let tx_env = prepare_call_env(
@@ -581,7 +584,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<AccessListWithGasUsed> {
         let mut request = request.clone();
 
-        let (l1_fee_rate, mut block_env, mut cfg_env) = {
+        let (l1_fee_rate, block_env, mut cfg_env) = {
             let block = self
                 .get_sealed_block_by_number(block_number, working_set)?
                 .ok_or(EthApiError::UnknownBlockNumber)?;
@@ -602,10 +605,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 set_state_to_end_of_evm_block(block_env.number, working_set);
             }
         };
-
-        // set higher block gas limit than usual
-        // but still cap it to prevent DoS
-        block_env.gas_limit = 100_000_000;
 
         // we want to disable this in eth_createAccessList, since this is common practice used by
         // other node impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
