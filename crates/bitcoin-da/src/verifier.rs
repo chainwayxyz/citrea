@@ -335,11 +335,6 @@ impl DaVerifier for BitcoinVerifier {
                         }
                     }
                     ParsedLightClientTransaction::Chunk(_chunk) => {
-                        let blob = blobs_iter.next();
-
-                        if blob.is_none() {
-                            return Err(ValidationError::ValidBlobNotFoundInBlobs);
-                        }
                         // ignore
                     }
                 }
