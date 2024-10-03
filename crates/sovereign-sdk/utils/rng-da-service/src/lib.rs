@@ -17,6 +17,7 @@ use sov_rollup_interface::da::{
     BlockHeaderTrait, DaData, DaDataLightClient, DaSpec, DaVerifier, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::zk::Proof;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 
@@ -174,7 +175,7 @@ impl DaService for RngDaService {
         &self,
         _block: &Self::FilteredBlock,
         _prover_pk: &[u8],
-    ) -> anyhow::Result<Vec<DaDataLightClient>> {
+    ) -> anyhow::Result<Vec<Proof>> {
         unimplemented!()
     }
 
