@@ -12,6 +12,7 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaSpec, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
+use sov_rollup_interface::zk::Proof;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
@@ -444,11 +445,18 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _prover_pk: &[u8],
-    ) -> anyhow::Result<Vec<DaDataLightClient>> {
+    ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
         for mut b in block.blobs.clone() {
             if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
-                res.push(r)
+                match r {
+                    DaDataLightClient::Complete(proof) => {
+                        res.push(proof);
+                    }
+                    _ => {
+                        panic!("Unexpected type");
+                    }
+                }
             }
         }
         Ok(res)
@@ -470,7 +478,7 @@ impl DaService for MockDaService {
         let blob = match da_data {
             DaData::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
-                let data = DaDataLightClient::ZKProof(proof);
+                let data = DaDataLightClient::Complete(proof);
                 borsh::to_vec(&data).unwrap()
             }
             DaData::SequencerCommitment(seq_comm) => {
@@ -653,7 +661,9 @@ mod tests {
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
             let retrieved_data = DaDataLightClient::try_from_slice(&retrieved_data).unwrap();
-            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+                panic!("unexpected type");
+            };
             assert_eq!(proof, retrieved_proof);
 
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
@@ -721,7 +731,9 @@ mod tests {
             let proof = Proof::Full(blob);
             let retrieved_data = fetched_block.blobs[0].full_data();
             let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
-            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+                panic!("unexpected type");
+            };
             assert_eq!(proof, retrieved_proof);
 
             let head_block_header = da.get_head_block_header().await.unwrap();
