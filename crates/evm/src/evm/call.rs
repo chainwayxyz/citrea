@@ -270,7 +270,7 @@ pub(crate) fn prepare_call_env(
         request.max_priority_fee_per_gas = None;
     }
 
-    create_txn_env(&block_env, request.clone(), Some(cap_to_balance))
+    create_txn_env(block_env, request.clone(), Some(cap_to_balance))
 }
 
 #[cfg(test)]
