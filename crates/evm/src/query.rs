@@ -616,21 +616,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> RpcResult<AccessListWithGasUsed> {
         let mut request = request.clone();
 
-        let (l1_fee_rate, mut block_env, block_num) = {
-            let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                Some(block) => block,
-                None => return Err(EthApiError::UnknownBlockNumber.into()),
-            };
-            let l1_fee_rate = block.l1_fee_rate;
+        let (l1_fee_rate, mut block_env) = {
+            let block = self
+                .get_sealed_block_by_number(block_number, working_set)?
+                .ok_or(EthApiError::UnknownBlockNumber)?;
             let block_env = BlockEnv::from(&block);
-
-            (l1_fee_rate, block_env, block.header.number)
+            (block.l1_fee_rate, block_env)
         };
 
         match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
             _ => {
-                set_state_to_end_of_evm_block(block_num, working_set);
+                set_state_to_end_of_evm_block(block_env.number, working_set);
             }
         };
 
@@ -725,21 +722,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let (l1_fee_rate, block_env, block_num) = {
-            let block = match self.get_sealed_block_by_number(block_number, working_set)? {
-                Some(block) => block,
-                None => return Err(EthApiError::UnknownBlockNumber.into()),
-            };
-            let l1_fee_rate = block.l1_fee_rate;
+        let (l1_fee_rate, block_env) = {
+            let block = self
+                .get_sealed_block_by_number(block_number, working_set)?
+                .ok_or(EthApiError::UnknownBlockNumber)?;
             let block_env = BlockEnv::from(&block);
-
-            (l1_fee_rate, block_env, block.header.number)
+            (block.l1_fee_rate, block_env)
         };
 
         match block_number {
             None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
             _ => {
-                set_state_to_end_of_evm_block(block_num, working_set);
+                set_state_to_end_of_evm_block(block_env.number, working_set);
             }
         };
 
