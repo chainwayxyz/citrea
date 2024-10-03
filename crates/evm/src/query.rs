@@ -536,7 +536,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &mut request.clone(),
             evm_db
                 .basic(request.from.unwrap_or_default())
-                .unwrap()
+                .map_err(EthApiError::from)?
                 .unwrap_or_default()
                 .balance,
         )?;
