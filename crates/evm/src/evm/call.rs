@@ -5,7 +5,7 @@ use std::cmp::min;
 use reth_primitives::{B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
-use revm::primitives::TxEnv;
+use revm::primitives::{CfgEnvWithHandlerCfg, TxEnv};
 
 use crate::caller_gas_allowance;
 use crate::primitive_types::BlockEnv;
@@ -151,9 +151,7 @@ impl CallFees {
     }
 }
 
-// https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
-// if from_balance is None, gas capping will not be applied
-pub(crate) fn prepare_call_env(
+pub(crate) fn create_txn_env(
     block_env: &BlockEnv,
     request: TransactionRequest,
     cap_to_balance: Option<U256>,
@@ -172,21 +170,6 @@ pub(crate) fn prepare_call_env(
         chain_id,
         ..
     } = request;
-    let mut gas_price = gas_price.map(U256::from);
-    let mut max_fee_per_gas = max_fee_per_gas.map(U256::from);
-    let mut max_priority_fee_per_gas = max_priority_fee_per_gas.map(U256::from);
-    let gas = gas.map(U256::from);
-
-    // TODO: write hardhat and unit tests for this
-    if max_fee_per_gas == Some(U256::ZERO) {
-        max_fee_per_gas = None;
-    }
-    if gas_price == Some(U256::ZERO) {
-        gas_price = None;
-    }
-    if max_priority_fee_per_gas == Some(U256::ZERO) {
-        max_priority_fee_per_gas = None;
-    }
 
     let CallFees {
         max_priority_fee_per_gas,
@@ -194,9 +177,9 @@ pub(crate) fn prepare_call_env(
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
         max_fee_per_blob_gas: _,
     } = CallFees::ensure_fees(
-        gas_price,
-        max_fee_per_gas,
-        max_priority_fee_per_gas,
+        gas_price.map(U256::from),
+        max_fee_per_gas.map(U256::from),
+        max_priority_fee_per_gas.map(U256::from),
         U256::from(block_env.basefee),
         // EIP-4844 related fields
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -205,9 +188,11 @@ pub(crate) fn prepare_call_env(
         None,
     )?;
 
+    // set gas limit initially to block gas limit
     let mut gas_limit = U256::from(block_env.gas_limit);
+    let request_gas_limit = gas.map(U256::from);
 
-    if let Some(request_gas_limit) = gas {
+    if let Some(request_gas_limit) = request_gas_limit {
         // gas limit is set by user in the request
         // we must make sure it does not exceed the block gas limit
         // otherwise there is a DoS vector
@@ -248,6 +233,44 @@ pub(crate) fn prepare_call_env(
     };
 
     Ok(env)
+}
+
+// https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
+// if from_balance is None, gas capping will not be applied
+pub(crate) fn prepare_call_env(
+    block_env: &BlockEnv,
+    cfg_env: &mut CfgEnvWithHandlerCfg,
+    request: &mut TransactionRequest,
+    cap_to_balance: U256,
+) -> EthResult<TxEnv> {
+    // we want to disable this in eth_call, since this is common practice used by other node
+    // impls and providers <https://github.com/foundry-rs/foundry/issues/4388>
+    cfg_env.disable_block_gas_limit = true;
+
+    // Disabled because eth_call is sometimes used with eoa senders
+    // See <https://github.com/paradigmxyz/reth/issues/1959>
+    cfg_env.disable_eip3607 = true;
+
+    // The basefee should be ignored for eth_call
+    // See:
+    // <https://github.com/ethereum/go-ethereum/blob/ee8e83fa5f6cb261dad2ed0a7bbcde4930c41e6c/internal/ethapi/api.go#L985>
+    cfg_env.disable_base_fee = true;
+
+    // set nonce to None so that the correct nonce is chosen by the EVM
+    request.nonce = None;
+
+    // TODO: write hardhat and unit tests for this
+    if request.max_fee_per_gas == Some(0) {
+        request.max_fee_per_gas = None;
+    }
+    if request.gas_price == Some(0) {
+        request.gas_price = None;
+    }
+    if request.max_priority_fee_per_gas == Some(0) {
+        request.max_priority_fee_per_gas = None;
+    }
+
+    create_txn_env(&block_env, request.clone(), Some(cap_to_balance))
 }
 
 #[cfg(test)]
