@@ -832,14 +832,16 @@ impl<C: sov_modules_api::Context> Evm<C> {
         tx_env: &mut TxEnv,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
-        let request_gas = request.gas;
+        let request_gas_limit = request.gas;
         let request_gas_price = request.gas_price;
-        let env_gas_limit = block_env.gas_limit.into();
-        let env_base_fee = U256::from(block_env.basefee);
+        let block_env_gas_limit = block_env.gas_limit.into();
+        let block_env_base_fee = U256::from(block_env.basefee);
 
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
-        let mut highest_gas_limit = request.gas.unwrap_or(env_gas_limit);
+        let mut highest_gas_limit = request_gas_limit
+            .map(|req_gas_limit| req_gas_limit.max(block_env_gas_limit))
+            .unwrap_or(block_env_gas_limit);
 
         let account = self
             .accounts
@@ -888,7 +890,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             }
                             return Ok(EstimatedTxExpenses {
                                 gas_used: U64::from(MIN_TRANSACTION_GAS),
-                                base_fee: env_base_fee,
+                                base_fee: block_env_base_fee,
                                 l1_fee,
                                 l1_diff_size: diff_size,
                             });
@@ -930,7 +932,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         {
             // if price or limit was included in the request then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
-            if request_gas.is_some() || request_gas_price.is_some() {
+            if request_gas_limit.is_some() || request_gas_price.is_some() {
                 let evm_db = self.get_db(working_set);
                 return Err(map_out_of_gas_err(
                     block_env,
@@ -954,7 +956,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 ExecutionResult::Revert { output, .. } => {
                     // if price or limit was included in the request then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
-                    return if request_gas.is_some() || request_gas_price.is_some() {
+                    return if request_gas_limit.is_some() || request_gas_price.is_some() {
                         let evm_db = self.get_db(working_set);
                         Err(map_out_of_gas_err(
                             block_env,
@@ -1075,7 +1077,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         Ok(EstimatedTxExpenses {
             gas_used: U64::from(highest_gas_limit),
-            base_fee: env_base_fee,
+            base_fee: block_env_base_fee,
             l1_fee,
             l1_diff_size: diff_size,
         })
