@@ -912,8 +912,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
 
         // if the provided gas limit is less than computed cap, use that
-        let gas_limit: u64 = std::cmp::min(tx_env.gas_limit, highest_gas_limit as u64); // highest_gas_limit is capped to u64::MAX
-        tx_env.gas_limit = gas_limit;
+        tx_env.gas_limit = std::cmp::min(tx_env.gas_limit, highest_gas_limit as u64); // highest_gas_limit is capped to u64::MAX
 
         let evm_db = self.get_db(working_set);
 
