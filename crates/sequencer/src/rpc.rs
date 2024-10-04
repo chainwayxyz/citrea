@@ -43,10 +43,10 @@ pub trait SequencerRpc {
 
     #[method(name = "citrea_sendRawDepositTransaction")]
     #[blocking]
-    fn citrea_send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()>;
+    fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()>;
 
     #[method(name = "citrea_testPublishBlock")]
-    async fn citrea_test_publish_block(&self) -> RpcResult<()>;
+    async fn publish_test_block(&self) -> RpcResult<()>;
 }
 
 pub struct SequencerRpcServerImpl<
@@ -133,7 +133,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
         }
     }
 
-    fn citrea_send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()> {
+    fn send_raw_deposit_transaction(&self, deposit: Bytes) -> RpcResult<()> {
         debug!("Sequencer: citrea_sendRawDepositTransaction");
 
         let evm = Evm::<C>::default();
@@ -163,7 +163,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
         }
     }
 
-    async fn citrea_test_publish_block(&self) -> RpcResult<()> {
+    async fn publish_test_block(&self) -> RpcResult<()> {
         if !self.context.test_mode {
             return Err(ErrorObject::from(ErrorCode::MethodNotFound).to_owned());
         }
