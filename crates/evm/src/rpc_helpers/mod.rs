@@ -21,9 +21,9 @@ use crate::{primitive_types::BlockEnv, types::BlockOverrides};
 
 #[cfg(feature = "native")]
 /// Applies all instances [`AccountOverride`] to the [`EvmDb`].
-pub(crate) fn apply_state_overrides<'a, C: sov_modules_api::Context>(
+pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
     state_overrides: HashMap<Address, AccountOverride>,
-    db: &mut EvmDb<'a, C>,
+    db: &mut EvmDb<C>,
 ) -> EthResult<()> {
     for (address, account_overrides) in state_overrides {
         apply_account_override(address, account_overrides, db)?;
@@ -34,10 +34,10 @@ pub(crate) fn apply_state_overrides<'a, C: sov_modules_api::Context>(
 
 #[cfg(feature = "native")]
 /// Applies a single [`AccountOverride`] to the [`EvmDb`].
-pub(crate) fn apply_account_override<'a, C: sov_modules_api::Context>(
+pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
     account: Address,
     account_override: AccountOverride,
-    db: &mut EvmDb<'a, C>,
+    db: &mut EvmDb<C>,
 ) -> EthResult<()> {
     // we need to fetch the account via the `DatabaseRef` to not update the state of the account,
     // which is modified via `Database::basic_ref`
@@ -76,10 +76,10 @@ pub(crate) fn apply_account_override<'a, C: sov_modules_api::Context>(
 
 #[cfg(feature = "native")]
 /// Applies all instances of [`BlockOverride`] to the [`EvmDb`].
-pub(crate) fn apply_block_overrides<'a, C: sov_modules_api::Context>(
+pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
     block_env: &mut BlockEnv,
     block_overrides: &mut Box<BlockOverrides>,
-    db: &mut EvmDb<'a, C>,
+    db: &mut EvmDb<C>,
 ) {
     if let Some(block_hashes) = block_overrides.block_hash.take() {
         // override block hashes
