@@ -1,3 +1,6 @@
+#[cfg(feature = "native")]
+use std::collections::HashMap;
+
 use reth_primitives::{Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::Database;
@@ -5,6 +8,23 @@ use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 use super::{AccountInfo, DbAccount};
+
+// infallible
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum DBError {}
+
+impl std::fmt::Display for DBError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EVM Infallible DBError")
+    }
+}
+
+// impl stdError for dberror
+impl std::error::Error for DBError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
@@ -27,22 +47,44 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             working_set,
         }
     }
-}
 
-// infallible
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum DBError {}
-
-impl std::fmt::Display for DBError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EVM Infallible DBError")
+    #[cfg(feature = "native")]
+    pub(crate) fn override_block_hash(&mut self, number: u64, hash: B256) {
+        self.last_block_hashes
+            .set(&U256::from(number), &hash, self.working_set);
     }
-}
 
-// impl stdError for dberror
-impl std::error::Error for DBError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+    #[cfg(feature = "native")]
+    pub(crate) fn override_account(&mut self, account: &Address, info: AccountInfo) {
+        self.accounts.set(account, &info, self.working_set);
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn override_insert_account_storage(
+        &mut self,
+        account: &Address,
+        state_diff: HashMap<B256, B256>,
+    ) {
+        let db_account = DbAccount::new(*account);
+        for (slot, value) in state_diff {
+            db_account.storage.set(
+                &U256::from_be_bytes(slot.0),
+                &U256::from_be_bytes(value.0),
+                self.working_set,
+            );
+        }
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn override_replace_account_storage(
+        &mut self,
+        account: &Address,
+        storage: HashMap<U256, U256>,
+    ) {
+        let db_account = DbAccount::new(*account);
+        for (slot, value) in storage {
+            db_account.storage.set(&slot, &value, self.working_set);
+        }
     }
 }
 

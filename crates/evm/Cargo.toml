@@ -33,6 +33,7 @@ alloy-consensus = { workspace = true }
 alloy-eips = { workspace = true }
 alloy-primitives = { workspace = true, features = ["rand", "serde"] }
 alloy-rlp = { workspace = true, optional = true }
+alloy-serde = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true }
 itertools = { workspace = true, optional = true }
 reth-primitives = { workspace = true, default-features = false }
@@ -76,6 +77,7 @@ native = [
   "revm-inspectors",
   "reth-provider",
   "alloy-rlp",
+  "alloy-serde",
 
   "jsonrpsee",
   "schemars",

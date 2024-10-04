@@ -39,6 +39,7 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
+use crate::types::BlockOverrides;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 /// Gas per transaction not creating a contract.
@@ -496,8 +497,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_id: Option<BlockId>,
-        _state_overrides: Option<reth_rpc_types::state::StateOverride>,
-        _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
+        state_overrides: Option<reth_rpc_types::state::StateOverride>,
+        block_overrides: Option<Box<BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         let mut block_env = match block_id {
@@ -561,6 +562,44 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_env.gas_limit = 100_000_000;
 
         let mut evm_db = self.get_db(working_set);
+
+        if let Some(mut block_overrides) = block_overrides {
+            if let Some(block_hashes) = block_overrides.block_hash.take() {
+                // override block hashes
+                for (num, hash) in block_hashes {
+                    evm_db.override_block_hash(num, hash);
+                }
+            }
+
+            let BlockOverrides {
+                number,
+                time,
+                gas_limit,
+                coinbase,
+                random,
+                base_fee,
+                block_hash: _,
+            } = *block_overrides;
+            if let Some(number) = number {
+                block_env.number = number;
+            }
+            if let Some(time) = time {
+                block_env.timestamp = time;
+            }
+            if let Some(gas_limit) = gas_limit {
+                block_env.gas_limit = gas_limit;
+            }
+            if let Some(coinbase) = coinbase {
+                block_env.coinbase = coinbase;
+            }
+            if let Some(random) = random {
+                block_env.prevrandao = random;
+            }
+            if let Some(base_fee) = base_fee {
+                block_env.basefee = base_fee;
+            }
+        }
+
         let mut tx_env = prepare_call_env(
             &block_env,
             request.clone(),
@@ -572,6 +611,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .balance,
             ),
         )?;
+
+        if let Some(state_overrides) = state_overrides {
+            for (address, account_overrides) in state_overrides {
+                apply_account_override(address, account_overrides, &mut evm_db)?;
+            }
+        }
 
         // https://github.com/paradigmxyz/reth/issues/6574
         tx_env.nonce = None;

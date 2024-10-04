@@ -28,6 +28,8 @@ mod signer;
 pub use signer::DevSigner;
 #[cfg(feature = "native")]
 pub mod smart_contracts;
+#[cfg(feature = "native")]
+pub mod types;
 
 #[cfg(all(test, feature = "native"))]
 mod tests;
