@@ -516,6 +516,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .ok_or(EthApiError::UnknownBlockNumber)?;
             let block_env = BlockEnv::from(&block);
 
+            // Set evm state to block if needed
+            match block_number {
+                BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
+                _ => set_state_to_end_of_evm_block(block_env.number, working_set),
+            };
+
             let cfg = self
                 .cfg
                 .get(working_set)
@@ -523,13 +529,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let cfg_env = get_cfg_env(&block_env, cfg);
 
             (block_env, cfg_env)
-        };
-
-        match block_number {
-            BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
-            _ => {
-                set_state_to_end_of_evm_block(block_env.number, working_set);
-            }
         };
 
         let mut evm_db = self.get_db(working_set);
@@ -587,6 +586,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .ok_or(EthApiError::UnknownBlockNumber)?;
             let block_env = BlockEnv::from(&block);
 
+            match block_number {
+                None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+                _ => set_state_to_end_of_evm_block(block_env.number, working_set),
+            };
+
             let cfg = self
                 .cfg
                 .get(working_set)
@@ -594,13 +598,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let cfg_env = get_cfg_env(&block_env, cfg);
 
             (block.l1_fee_rate, block_env, cfg_env)
-        };
-
-        match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
-            _ => {
-                set_state_to_end_of_evm_block(block_env.number, working_set);
-            }
         };
 
         // we want to disable this in eth_createAccessList, since this is common practice used by
@@ -681,6 +678,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .ok_or(EthApiError::UnknownBlockNumber)?;
             let block_env = BlockEnv::from(&block);
 
+            match block_number {
+                None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
+                _ => set_state_to_end_of_evm_block(block_env.number, working_set),
+            };
+
             let cfg = self
                 .cfg
                 .get(working_set)
@@ -688,11 +690,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let cfg_env = get_cfg_env(&block_env, cfg);
 
             (block.l1_fee_rate, block_env, cfg_env)
-        };
-
-        match block_number {
-            None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
-            _ => set_state_to_end_of_evm_block(block_env.number, working_set),
         };
 
         self.estimate_gas_with_env(request, l1_fee_rate, block_env, cfg_env, working_set)
