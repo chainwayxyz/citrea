@@ -1820,6 +1820,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "citrea-pruning",
  "futures",
  "hex",
  "jsonrpsee",
@@ -1894,6 +1895,23 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tower",
+ "tracing",
+]
+
+[[package]]
+name = "citrea-pruning"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "citrea-evm",
+ "citrea-primitives",
+ "futures",
+ "serde",
+ "sov-db",
+ "sov-modules-api",
+ "tempfile",
+ "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -7797,6 +7815,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "citrea-pruning",
  "futures",
  "hex",
  "hyper 1.4.1",

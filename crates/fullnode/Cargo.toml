@@ -12,6 +12,7 @@ repository.workspace = true
 # Citrea Deps
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
+citrea-pruning = { path = "../pruning" }
 sequencer-client = { path = "../sequencer-client" }
 
 # Sov SDK deps
