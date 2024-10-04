@@ -16,6 +16,7 @@ resolver = "2"
 alloy-rlp = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
@@ -23,7 +24,7 @@ digest = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
 schnellru = "0.2.1"

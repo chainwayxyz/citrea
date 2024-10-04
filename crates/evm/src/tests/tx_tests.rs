@@ -11,7 +11,7 @@ use reth_primitives::{
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use revm::primitives::{TransactTo, TxEnv};
 
-use crate::evm::call::prepare_call_env;
+use crate::evm::call::create_txn_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::primitive_types::{Block, BlockEnv};
 use crate::tests::DEFAULT_CHAIN_ID;
@@ -108,7 +108,7 @@ fn prepare_call_env_conversion() {
 
     let block_env = BlockEnv::default();
 
-    let tx_env = prepare_call_env(&block_env, request, None).unwrap();
+    let tx_env = create_txn_env(&block_env, request, None).unwrap();
     let expected = TxEnv {
         caller: from,
         gas_price: U256::from(100u64),
