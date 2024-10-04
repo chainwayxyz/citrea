@@ -139,6 +139,7 @@ pub fn create_default_rollup_config(
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),
                 sync_blocks_count: 10,
+                pruning_config: None,
             }),
             NodeMode::SequencerNode => None,
         },

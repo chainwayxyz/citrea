@@ -12,6 +12,7 @@ repository.workspace = true
 # Citrea Deps
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
+citrea-pruning = { path = "../pruning" }
 sequencer-client = { path = "../sequencer-client" }
 
 # Sov SDK deps
@@ -34,6 +35,7 @@ rs_merkle = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 tower = { workspace = true }
 tracing = { workspace = true }
 

@@ -61,22 +61,26 @@ impl<T: TestCase> TestCaseRunner<T> {
     ///
     /// This sets up the framework, executes the test, and ensures cleanup is performed even if a panic occurs.
     pub async fn run(mut self) -> Result<()> {
+        let mut framework = None;
         let result = panic::AssertUnwindSafe(async {
-            let mut framework = TestFramework::new(Self::generate_test_config()?).await?;
-            let test_result = self.run_test_case(&mut framework).await;
-
-            if test_result.is_err() {
-                if let Err(e) = framework.dump_log() {
-                    eprintln!("Error dumping log: {}", e);
-                }
-            }
-
-            framework.stop().await?;
-
-            test_result
+            framework = Some(TestFramework::new(Self::generate_test_config()?).await?);
+            let f = framework.as_mut().unwrap();
+            self.run_test_case(f).await
         })
         .catch_unwind()
         .await;
+
+        let f = framework
+            .as_mut()
+            .expect("Framework not correctly initialized");
+
+        if result.is_err() {
+            if let Err(e) = f.dump_log() {
+                eprintln!("Error dumping log: {}", e);
+            }
+        }
+
+        f.stop().await?;
 
         // Additional test cleanup
         self.0.cleanup().await?;
@@ -163,6 +167,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             ),
             include_tx_body: true,
             accept_public_input_as_proven: Some(true),
+            pruning_config: None,
             sync_blocks_count: 10,
         });
 

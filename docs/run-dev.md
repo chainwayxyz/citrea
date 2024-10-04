@@ -34,11 +34,7 @@ _Optional_: Run full node on Mock DA:
 
 Full node RPC is accessible at `127.0.0.1:12346`
 
-If test_mode is set to false in the sequencer config, the sequencer will publish blocks every 2 seconds. To also publish mock DA blocks, run this script:
-
-```sh
-./configs/mock-dockerized/publish_da_block.sh
-```
+If test_mode is set to false in the sequencer config, the sequencer will publish blocks every 2 seconds.
 
 ### Run on Bitcoin Regtest
 
