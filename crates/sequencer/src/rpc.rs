@@ -158,7 +158,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
             }
             Err(e) => {
                 error!("Error processing deposit tx: {:?}", e);
-                Err(e.into())
+                Err(e)
             }
         }
     }

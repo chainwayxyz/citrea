@@ -16,6 +16,7 @@ resolver = "2"
 alloy-rlp = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
 chrono = { workspace = true }
@@ -34,7 +35,6 @@ tokio-util = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
-async-trait = { workspace = true }
 
 reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
