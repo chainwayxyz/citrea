@@ -60,7 +60,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn override_insert_account_storage(
+    pub(crate) fn override_set_account_storage(
         &mut self,
         account: &Address,
         state_diff: HashMap<B256, B256>,
@@ -72,18 +72,6 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
                 &U256::from_be_bytes(value.0),
                 self.working_set,
             );
-        }
-    }
-
-    #[cfg(feature = "native")]
-    pub(crate) fn override_replace_account_storage(
-        &mut self,
-        account: &Address,
-        storage: HashMap<U256, U256>,
-    ) {
-        let db_account = DbAccount::new(*account);
-        for (slot, value) in storage {
-            db_account.storage.set(&slot, &value, self.working_set);
         }
     }
 }

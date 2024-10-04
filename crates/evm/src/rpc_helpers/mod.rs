@@ -3,7 +3,7 @@ use std::collections::HashMap;
 pub use filter::*;
 pub use log_utils::*;
 pub use responses::*;
-use reth_primitives::{keccak256, Address, U256};
+use reth_primitives::{keccak256, Address};
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use reth_rpc_types::state::AccountOverride;
 use revm::Database;
@@ -64,18 +64,10 @@ pub(crate) fn apply_account_override<'a, C: sov_modules_api::Context>(
             // nothing to do
         }
         (Some(new_account_state), None) => {
-            db.override_replace_account_storage(
-                &account,
-                new_account_state
-                    .into_iter()
-                    .map(|(slot, value)| {
-                        (U256::from_be_bytes(slot.0), U256::from_be_bytes(value.0))
-                    })
-                    .collect(),
-            );
+            db.override_set_account_storage(&account, new_account_state);
         }
         (None, Some(account_state_diff)) => {
-            db.override_insert_account_storage(&account, account_state_diff);
+            db.override_set_account_storage(&account, account_state_diff);
         }
     };
 
