@@ -535,40 +535,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut evm_db = self.get_db(working_set);
 
         if let Some(mut block_overrides) = block_overrides {
-            if let Some(block_hashes) = block_overrides.block_hash.take() {
-                // override block hashes
-                for (num, hash) in block_hashes {
-                    evm_db.override_block_hash(num, hash);
-                }
-            }
-
-            let BlockOverrides {
-                number,
-                time,
-                gas_limit,
-                coinbase,
-                random,
-                base_fee,
-                block_hash: _,
-            } = *block_overrides;
-            if let Some(number) = number {
-                block_env.number = number;
-            }
-            if let Some(time) = time {
-                block_env.timestamp = time;
-            }
-            if let Some(gas_limit) = gas_limit {
-                block_env.gas_limit = gas_limit;
-            }
-            if let Some(coinbase) = coinbase {
-                block_env.coinbase = coinbase;
-            }
-            if let Some(random) = random {
-                block_env.prevrandao = random;
-            }
-            if let Some(base_fee) = base_fee {
-                block_env.basefee = base_fee;
-            }
+            apply_block_override(&mut block_env, &mut block_overrides, &mut evm_db);
         }
 
         if let Some(state_overrides) = state_overrides {

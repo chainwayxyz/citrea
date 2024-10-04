@@ -13,6 +13,8 @@ use revm::Database;
 pub(crate) use tracing_utils::*;
 
 use crate::db::EvmDb;
+#[cfg(feature = "native")]
+use crate::{primitive_types::BlockEnv, types::BlockOverrides};
 
 #[cfg(feature = "native")]
 /// Applies a single [`AccountOverride`] to the [`EvmDb`].
@@ -62,4 +64,47 @@ pub(crate) fn apply_account_override<'a, C: sov_modules_api::Context>(
     };
 
     Ok(())
+}
+
+#[cfg(feature = "native")]
+/// Applies a single [`AccountOverride`] to the [`EvmDb`].
+pub(crate) fn apply_block_override<'a, C: sov_modules_api::Context>(
+    block_env: &mut BlockEnv,
+    block_overrides: &mut Box<BlockOverrides>,
+    db: &mut EvmDb<'a, C>,
+) {
+    if let Some(block_hashes) = block_overrides.block_hash.take() {
+        // override block hashes
+        for (num, hash) in block_hashes {
+            db.override_block_hash(num, hash);
+        }
+    }
+
+    let BlockOverrides {
+        number,
+        time,
+        gas_limit,
+        coinbase,
+        random,
+        base_fee,
+        block_hash: _,
+    } = **block_overrides;
+    if let Some(number) = number {
+        block_env.number = number;
+    }
+    if let Some(time) = time {
+        block_env.timestamp = time;
+    }
+    if let Some(gas_limit) = gas_limit {
+        block_env.gas_limit = gas_limit;
+    }
+    if let Some(coinbase) = coinbase {
+        block_env.coinbase = coinbase;
+    }
+    if let Some(random) = random {
+        block_env.prevrandao = random;
+    }
+    if let Some(base_fee) = base_fee {
+        block_env.basefee = base_fee;
+    }
 }
