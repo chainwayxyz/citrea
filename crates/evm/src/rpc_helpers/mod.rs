@@ -15,7 +15,7 @@ pub(crate) use tracing_utils::*;
 use crate::db::EvmDb;
 
 #[cfg(feature = "native")]
-/// Applies a single [`AccountOverride`] to the [`CacheDB`].
+/// Applies a single [`AccountOverride`] to the [`EvmDb`].
 pub(crate) fn apply_account_override<'a, C: sov_modules_api::Context>(
     account: Address,
     account_override: AccountOverride,
