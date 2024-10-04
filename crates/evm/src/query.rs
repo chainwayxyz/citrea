@@ -533,15 +533,17 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let mut evm_db = self.get_db(working_set);
+
+        let cap_to_balance = evm_db
+            .basic(request.from.unwrap_or_default())
+            .map_err(EthApiError::from)?
+            .unwrap_or_default()
+            .balance;
         let tx_env = prepare_call_env(
             &block_env,
             &mut cfg_env,
-            &mut request.clone(),
-            evm_db
-                .basic(request.from.unwrap_or_default())
-                .map_err(EthApiError::from)?
-                .unwrap_or_default()
-                .balance,
+            request,
+            cap_to_balance,
         )?;
 
         let result = match inspect(

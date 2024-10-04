@@ -240,7 +240,7 @@ pub(crate) fn create_txn_env(
 pub(crate) fn prepare_call_env(
     block_env: &BlockEnv,
     cfg_env: &mut CfgEnvWithHandlerCfg,
-    request: &mut TransactionRequest,
+    mut request: TransactionRequest,
     cap_to_balance: U256,
 ) -> EthResult<TxEnv> {
     // we want to disable this in eth_call, since this is common practice used by other node
