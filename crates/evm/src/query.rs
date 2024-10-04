@@ -790,7 +790,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .unwrap_or_default();
 
         // create tx env
-        let mut tx_env = create_txn_env(&block_env, request.clone(), Some(account.balance))?;
+        let mut tx_env = create_txn_env(&block_env, request, Some(account.balance))?;
 
         // if the request is a simple transfer we can optimize
         if tx_env.data.is_empty() {
