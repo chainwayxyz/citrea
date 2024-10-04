@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::Path;
 
+use alloy_eips::eip1559::BaseFeeParams;
 use lazy_static::lazy_static;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::hex_literal::hex;
@@ -21,10 +23,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "9fcaf6e03bf17a3372e03c5f3aa293dee54f73545462f82ba7875710da4604d5"
+        "82d04e48b7bbcc7239fc123b0eda02586c5f2d45557d66a313183a7f1626f5a6"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "5a4c1a83d16c771fa4221e0353ef5e2af558dbe11ce429e677914292428dec1c"
+        "5c5e936b06651c65b4e539500afa8563122173f04f1da9c812d717c0064c1051"
     ));
 }
 
@@ -240,4 +242,51 @@ pub(crate) fn get_evm_config_starting_base_fee(
     };
     config_push_contracts(&mut config, None);
     (config, dev_signer, contract_addr)
+}
+pub(crate) fn get_evm_test_config() -> EvmConfig {
+    let mut config = EvmConfig {
+        data: vec![AccountData {
+            address: Address::from([1u8; 20]),
+            balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        },
+        AccountData {
+            address:Address::from([2u8; 20]),
+            balance: U256::checked_mul(U256::from(1000),
+            U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
+            code_hash: hex!("4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").into(),
+            code: hex!("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").into(),
+            storage: {
+                let mut storage = HashMap::new();
+                storage.insert(U256::from(0), U256::from(0x4321));
+                storage.insert(
+                    U256::from_be_slice(
+                        &hex!("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")[..],
+                    ),
+                    U256::from(8),
+                );
+
+                storage
+            },
+            nonce: 1
+        }],
+        spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
+            .into_iter()
+            .collect(),
+        chain_id: 1000,
+        block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        coinbase: Address::from([3u8; 20]),
+        limit_contract_code_size: Some(5000),
+        starting_base_fee: 1000000000,
+        base_fee_params: BaseFeeParams::ethereum(),
+        timestamp: 0,
+        difficulty: U256::ZERO,
+        extra_data: Bytes::default(),
+        nonce: 0,
+    };
+    config_push_contracts(&mut config, None);
+    config
 }

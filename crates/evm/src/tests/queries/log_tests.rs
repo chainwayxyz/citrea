@@ -37,13 +37,12 @@ fn logs_for_filter_test() {
         },
         &mut working_set,
     );
-
     assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
 
     let available_res = evm.eth_get_logs(
         Filter {
             block_option: FilterBlockOption::AtBlockHash(b256!(
-                "2d7962c316685635252886d6801a553139e94e3b7d2b678f8c9d974a54e24ab9"
+                "c8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3"
             )),
             address: FilterSet::default(),
             topics: [
@@ -57,7 +56,7 @@ fn logs_for_filter_test() {
     );
 
     // TODO: Check this better.
-    assert_eq!(available_res.unwrap().len(), 8);
+    assert_eq!(available_res.unwrap().len(), 9);
 }
 
 #[test]
@@ -153,8 +152,8 @@ fn log_filter_test_at_block_hash() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-    // should get all the logs
-    assert_eq!(rpc_logs.len(), 4);
+    // should get all the logs including system txs
+    assert_eq!(rpc_logs.len(), 5);
 
     // with address and without topics
     address.0.insert(contract_addr);
@@ -165,7 +164,7 @@ fn log_filter_test_at_block_hash() {
         topics: topics.clone(),
     };
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-    // 1) should get all the logs
+    // 1) should get all the logs with the contract address
     assert_eq!(rpc_logs.len(), 4);
 
     let empty_topic: FilterSet<B256> = FilterSet::default();
@@ -351,8 +350,7 @@ fn log_filter_test_with_range() {
     };
 
     let rpc_logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
-
-    assert_eq!(rpc_logs.len(), 4);
+    assert_eq!(rpc_logs.len(), 8);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,

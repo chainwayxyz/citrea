@@ -21,7 +21,7 @@ use crate::evm::DbAccount;
 use crate::primitive_types::Block;
 use crate::tests::ef_tests::models::{BlockchainTest, ForkSpec};
 use crate::tests::ef_tests::{Case, Error, Suite};
-use crate::tests::utils::{commit, get_evm_with_storage};
+use crate::tests::utils::{commit, config_push_contracts, get_evm_with_storage};
 use crate::{AccountData, Evm, EvmChainConfig, EvmConfig, RlpEvmTransaction, U256};
 
 /// A handler for the blockchain test suite.
@@ -135,7 +135,7 @@ impl Case for BlockchainTestCase {
             .par_bridge()
             .try_for_each(|case| {
                 let mut evm_config = EvmConfig::default();
-
+                config_push_contracts(&mut evm_config, None);
                 // Set this base fee based on what's set in genesis.
                 let header = reth_primitives::Header {
                     parent_hash: case.genesis_block_header.parent_hash,
