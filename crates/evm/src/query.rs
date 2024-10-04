@@ -539,12 +539,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map_err(EthApiError::from)?
             .unwrap_or_default()
             .balance;
-        let tx_env = prepare_call_env(
-            &block_env,
-            &mut cfg_env,
-            request,
-            cap_to_balance,
-        )?;
+        let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance)?;
 
         let result = match inspect(
             evm_db,
