@@ -119,6 +119,12 @@ pub trait SharedLedgerOps {
 
     /// Set the last scanned slot
     fn set_last_scanned_l1_height(&self, l1_height: SlotNumber) -> Result<()>;
+
+    /// Get the last pruned block number
+    fn get_last_pruned_l2_height(&self) -> Result<Option<u64>>;
+
+    /// Set the last pruned block number
+    fn set_last_pruned_l2_height(&self, l2_height: u64) -> Result<()>;
 }
 
 /// Node ledger operations

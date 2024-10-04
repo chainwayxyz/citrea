@@ -13,10 +13,10 @@ use tracing::instrument;
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2Witness,
-    LastSequencerCommitmentSent, LastStateDiff, MempoolTxs, PendingProvingSessions,
-    PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
-    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
-    SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
+    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
+    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
+    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
@@ -447,6 +447,22 @@ impl SharedLedgerOps for LedgerDB {
         let mut schema_batch = SchemaBatch::new();
 
         schema_batch.put::<ProverLastScannedSlot>(&(), &l1_height)?;
+        self.db.write_schemas(schema_batch)?;
+
+        Ok(())
+    }
+
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_last_pruned_l2_height(&self) -> anyhow::Result<Option<u64>> {
+        self.db.get::<LastPrunedBlock>(&())
+    }
+
+    /// Set the last pruned L2 block number
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn set_last_pruned_l2_height(&self, l2_height: u64) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+
+        schema_batch.put::<LastPrunedBlock>(&(), &l2_height)?;
         self.db.write_schemas(schema_batch)?;
 
         Ok(())

@@ -1132,8 +1132,6 @@ mod tests {
             .await
             .expect("Failed to send transaction");
 
-        println!("sent 1");
-
         da_service
             .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
                 merkle_root: [14; 32],
@@ -1143,13 +1141,9 @@ mod tests {
             .await
             .expect("Failed to send transaction");
 
-        println!("sent 2");
-
         println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
         let mut s = String::new();
         std::io::stdin().read_line(&mut s).unwrap();
-
-        println!("sent 3");
 
         let size = 2000;
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
@@ -1159,13 +1153,9 @@ mod tests {
             .await
             .expect("Failed to send transaction");
 
-        println!("sent 4");
-
         println!("\n\nSend some BTC to this address: bcrt1qscttjdc3wypf7ttu0203sqgfz80a4q38cne693 and press enter\n\n");
         let mut s = String::new();
         std::io::stdin().read_line(&mut s).unwrap();
-
-        println!("sent 5");
 
         let size = 600 * 1024;
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
@@ -1174,8 +1164,6 @@ mod tests {
             .send_transaction(DaData::ZKProof(Proof::Full(blob)))
             .await
             .expect("Failed to send transaction");
-
-        println!("sent 6");
 
         // seq com different namespace
         get_service_wrong_namespace()
@@ -1195,8 +1183,6 @@ mod tests {
             .send_transaction(DaData::ZKProof(Proof::Full(blob)))
             .await
             .expect("Failed to send transaction");
-
-        println!("sent 7");
 
         // seq com incorrect pubkey and sig
         get_service_correct_sig_different_public_key()
@@ -1218,8 +1204,6 @@ mod tests {
             .await
             .expect("Failed to send transaction");
 
-        println!("sent 8");
-
         let size = 1200 * 1024;
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
@@ -1227,8 +1211,6 @@ mod tests {
             .send_transaction(DaData::ZKProof(Proof::Full(blob)))
             .await
             .expect("Failed to send transaction");
-
-        println!("sent 9");
 
         da_service
             .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
@@ -1238,8 +1220,6 @@ mod tests {
             }))
             .await
             .expect("Failed to send transaction");
-
-        println!("sent 10");
     }
 
     // #[tokio::test]

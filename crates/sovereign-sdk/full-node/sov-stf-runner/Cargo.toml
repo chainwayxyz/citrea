@@ -33,6 +33,9 @@ sov-db = { path = "../db/sov-db", optional = true }
 sov-modules-api = { path = "../../module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../../rollup-interface" }
 
+# Citrea
+citrea-pruning = { path = "../../../pruning", optional = true }
+
 [dev-dependencies]
 sha2 = { workspace = true }
 tempfile = { workspace = true }
@@ -58,4 +61,5 @@ native = [
   "rand",
   "tower",
   "hyper",
+  "dep:citrea-pruning",
 ]
