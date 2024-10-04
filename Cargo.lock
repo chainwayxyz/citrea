@@ -1946,6 +1946,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
+ "async-trait",
  "backoff",
  "borsh",
  "chrono",
