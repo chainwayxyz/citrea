@@ -535,13 +535,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut evm_db = self.get_db(working_set);
 
         if let Some(mut block_overrides) = block_overrides {
-            apply_block_override(&mut block_env, &mut block_overrides, &mut evm_db);
+            apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
         }
 
         if let Some(state_overrides) = state_overrides {
-            for (address, account_overrides) in state_overrides {
-                apply_account_override(address, account_overrides, &mut evm_db)?;
-            }
+            apply_state_overrides(state_overrides, &mut evm_db)?;
         }
 
         let cap_to_balance = evm_db

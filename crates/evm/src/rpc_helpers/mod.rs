@@ -1,7 +1,4 @@
-mod filter;
-mod log_utils;
-mod responses;
-mod tracing_utils;
+use std::collections::HashMap;
 
 pub use filter::*;
 pub use log_utils::*;
@@ -10,11 +7,30 @@ use reth_primitives::{keccak256, Address, U256};
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use reth_rpc_types::state::AccountOverride;
 use revm::Database;
+
+mod filter;
+mod log_utils;
+mod responses;
+mod tracing_utils;
+
 pub(crate) use tracing_utils::*;
 
 use crate::db::EvmDb;
 #[cfg(feature = "native")]
 use crate::{primitive_types::BlockEnv, types::BlockOverrides};
+
+#[cfg(feature = "native")]
+/// Applies all instances [`AccountOverride`] to the [`EvmDb`].
+pub(crate) fn apply_state_overrides<'a, C: sov_modules_api::Context>(
+    state_overrides: HashMap<Address, AccountOverride>,
+    db: &mut EvmDb<'a, C>,
+) -> EthResult<()> {
+    for (address, account_overrides) in state_overrides {
+        apply_account_override(address, account_overrides, db)?;
+    }
+
+    Ok(())
+}
 
 #[cfg(feature = "native")]
 /// Applies a single [`AccountOverride`] to the [`EvmDb`].
@@ -67,8 +83,8 @@ pub(crate) fn apply_account_override<'a, C: sov_modules_api::Context>(
 }
 
 #[cfg(feature = "native")]
-/// Applies a single [`AccountOverride`] to the [`EvmDb`].
-pub(crate) fn apply_block_override<'a, C: sov_modules_api::Context>(
+/// Applies all instances of [`BlockOverride`] to the [`EvmDb`].
+pub(crate) fn apply_block_overrides<'a, C: sov_modules_api::Context>(
     block_env: &mut BlockEnv,
     block_overrides: &mut Box<BlockOverrides>,
     db: &mut EvmDb<'a, C>,
