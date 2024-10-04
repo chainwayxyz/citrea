@@ -758,7 +758,7 @@ where
             .filter_map(
                 |mut blob| match DaDataBatchProof::try_from_slice(blob.full_data()) {
                     Ok(da_data)
-                    // we check on da pending txs of our wallet however let's keep consistency 
+                    // we check on da pending txs of our wallet however let's keep consistency
                         if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
                     {
                         match da_data {
@@ -1072,7 +1072,7 @@ where
         mut rpc_methods: jsonrpsee::RpcModule<()>,
     ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
         let rpc_context = self.create_rpc_context().await;
-        let rpc = create_rpc_module(rpc_context)?;
+        let rpc = create_rpc_module(rpc_context);
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
     }

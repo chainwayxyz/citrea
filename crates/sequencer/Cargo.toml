@@ -23,7 +23,7 @@ digest = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
-jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 parking_lot = { workspace = true }
 rs_merkle = { workspace = true }
 schnellru = "0.2.1"
@@ -34,6 +34,7 @@ tokio-util = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+async-trait = { workspace = true }
 
 reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
