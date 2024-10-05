@@ -9,12 +9,12 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
-use super::genesis_tests::{GENESIS_DA_TXS_COMMITMENT, TEST_CONFIG};
+use super::genesis_tests::GENESIS_DA_TXS_COMMITMENT;
 use crate::evm::primitive_types::{
     Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 use crate::tests::genesis_tests::BENEFICIARY;
-use crate::tests::utils::{get_evm, GENESIS_STATE_ROOT};
+use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::PendingTransaction;
 
@@ -24,7 +24,8 @@ lazy_static! {
 
 #[test]
 fn begin_soft_confirmation_hook_creates_pending_block() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let config = get_evm_test_config();
+    let (mut evm, mut working_set) = get_evm(&config);
     let l1_fee_rate = 0;
     let l2_height = 2;
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -48,15 +49,16 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
             coinbase: *BENEFICIARY,
             timestamp: 54,
             prevrandao: *DA_ROOT_HASH,
-            basefee: 765625000,
-            gas_limit: TEST_CONFIG.block_gas_limit,
+            basefee: 767816299,
+            gas_limit: config.block_gas_limit,
         }
     );
 }
 
 #[test]
 fn end_soft_confirmation_hook_sets_head() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let config = get_evm_test_config();
+    let (mut evm, mut working_set) = get_evm(&get_evm_test_config());
 
     let mut pre_state_root = [0u8; 32];
     pre_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -98,28 +100,28 @@ fn end_soft_confirmation_hook_sets_head() {
         Block {
             header: Header {
                 parent_hash: B256::from(hex!(
-                    "3c83b326074b9430d4899991bbb06b8517315c50ca2cb17c11e1e972afce1b02"
+                    "06c67dab6518e07a5df24039fd294e3f548026915ef1b8b6d597d421a18cc438"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                beneficiary: TEST_CONFIG.coinbase,
+                beneficiary: config.coinbase,
                 state_root: KECCAK_EMPTY,
                 transactions_root: B256::from(hex!(
-                    "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
+                    "fdf1049f7decef904ffdc7d55f8ca9c9c52ad655c8ddb7435025d86c97a253c0"
                 )),
                 receipts_root: B256::from(hex!(
-                    "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
+                    "e8271759b66c13c70ad0726ee34c9fd2574d429fd77d95f95b22f988565a1469"
                 )),
                 withdrawals_root: None,
-                logs_bloom: Bloom::default(),
+                logs_bloom: Bloom::new(hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000040000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000")),
                 difficulty: U256::ZERO,
                 number: 2,
-                gas_limit: TEST_CONFIG.block_gas_limit,
+                gas_limit: config.block_gas_limit,
                 gas_used: 200u64,
                 timestamp: 54,
                 mix_hash: *DA_ROOT_HASH,
                 nonce: 0,
-                base_fee_per_gas: Some(765625000),
+                base_fee_per_gas: Some(767816299),
                 extra_data: Bytes::default(),
                 blob_gas_used: None,
                 excess_blob_gas: None,
@@ -128,14 +130,14 @@ fn end_soft_confirmation_hook_sets_head() {
             },
             l1_fee_rate: 0,
             l1_hash: B256::from(DA_ROOT_HASH.0),
-            transactions: 0..2
+            transactions: 3..6
         }
     );
 }
 
 #[test]
 fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&get_evm_test_config());
     let l1_fee_rate = 0;
     let l2_height = 2;
 
@@ -165,31 +167,42 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let tx2_hash = tx2.transaction.signed_transaction.hash;
 
     assert_eq!(
-        evm.transactions
-            .iter(&mut working_set.accessory_state())
-            .collect::<Vec<_>>(),
-        [tx1.transaction, tx2.transaction]
+        evm.receipts
+            .get(4, &mut working_set.accessory_state())
+            .unwrap(),
+        tx1.receipt
     );
-
     assert_eq!(
         evm.receipts
-            .iter(&mut working_set.accessory_state())
-            .collect::<Vec<_>>(),
-        [tx1.receipt, tx2.receipt]
+            .get(5, &mut working_set.accessory_state())
+            .unwrap(),
+        tx2.receipt
+    );
+    assert_eq!(
+        evm.transactions
+            .get(4, &mut working_set.accessory_state())
+            .unwrap(),
+        tx1.transaction
+    );
+    assert_eq!(
+        evm.transactions
+            .get(5, &mut working_set.accessory_state())
+            .unwrap(),
+        tx2.transaction
     );
 
     assert_eq!(
         evm.transaction_hashes
             .get(&tx1_hash, &mut working_set.accessory_state())
             .unwrap(),
-        0
+        4
     );
 
     assert_eq!(
         evm.transaction_hashes
             .get(&tx2_hash, &mut working_set.accessory_state())
             .unwrap(),
-        1
+        5
     );
 
     assert_eq!(evm.pending_transactions.len(), 0);
@@ -232,7 +245,8 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
 
 #[test]
 fn finalize_hook_creates_final_block() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let config = get_evm_test_config();
+    let (mut evm, mut working_set) = get_evm(&config);
 
     // hack to get the root hash
     let binding = evm
@@ -298,16 +312,16 @@ fn finalize_hook_creates_final_block() {
     let header = Header {
         parent_hash,
         ommers_hash: EMPTY_OMMER_ROOT_HASH,
-        beneficiary: TEST_CONFIG.coinbase,
+        beneficiary: config.coinbase,
         state_root: B256::from(root_hash),
         transactions_root: B256::from(hex!(
-            "30eb5f6050df7ea18ca34cf3503f4713119315a2d3c11f892c5c8920acf816f4"
+            "fdf1049f7decef904ffdc7d55f8ca9c9c52ad655c8ddb7435025d86c97a253c0"
         )),
         receipts_root: B256::from(hex!(
-            "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
+            "e8271759b66c13c70ad0726ee34c9fd2574d429fd77d95f95b22f988565a1469"
         )),
         withdrawals_root: None,
-        logs_bloom: Bloom::default(),
+        logs_bloom: Bloom::new(hex!("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000040000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000")),
         difficulty: U256::ZERO,
         number: 2,
         gas_limit: 30000000,
@@ -317,7 +331,7 @@ fn finalize_hook_creates_final_block() {
             "0505050505050505050505050505050505050505050505050505050505050505"
         )),
         nonce: 0,
-        base_fee_per_gas: Some(765625000),
+        base_fee_per_gas: Some(767816299),
         extra_data: Bytes::default(),
         blob_gas_used: None,
         excess_blob_gas: None,
@@ -330,7 +344,7 @@ fn finalize_hook_creates_final_block() {
             header: header.seal_slow(),
             l1_fee_rate: 0,
             l1_hash: B256::from(DA_ROOT_HASH.0),
-            transactions: 0..2
+            transactions: 3..6
         }
     );
 
@@ -346,7 +360,7 @@ fn finalize_hook_creates_final_block() {
 
 #[test]
 fn begin_soft_confirmation_hook_appends_last_block_hashes() {
-    let (mut evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (mut evm, mut working_set) = get_evm(&get_evm_test_config());
 
     // hack to get the root hash
     let binding = evm
