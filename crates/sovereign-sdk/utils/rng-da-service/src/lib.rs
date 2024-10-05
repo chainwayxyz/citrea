@@ -209,6 +209,34 @@ impl DaService for RngDaService {
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
         vec![]
     }
+
+    fn extract_relevant_blobs_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        unimplemented!()
+    }
+
+    async fn get_extraction_proof_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> (
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    ) {
+        unimplemented!()
+    }
+
+    async fn extract_relevant_blobs_with_proof_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> (
+        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    ) {
+        todo!()
+    }
 }
 
 pub struct RngDaVerifier;
@@ -229,6 +257,16 @@ impl DaVerifier for RngDaVerifier {
         _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(MockValidityCond { is_valid: true })
+    }
+
+    fn verify_relevant_tx_list_light_client(
+        &self,
+        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
+        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
+        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
+        todo!()
     }
 }
 

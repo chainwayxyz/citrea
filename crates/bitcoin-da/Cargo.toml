@@ -29,7 +29,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
 
 bitcoin = { workspace = true }
-brotli = { workspace = true, optional = true }
+brotli = { workspace = true }
 futures.workspace = true
 sha2 = { workspace = true }
 
@@ -39,7 +39,6 @@ bitcoincore-rpc = { workspace = true, optional = true }
 default = []
 native = [
   "dep:backoff",
-  "dep:brotli",
   "dep:tokio",
   "dep:pin-project",
   "dep:tracing",
