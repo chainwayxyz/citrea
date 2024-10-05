@@ -11,6 +11,7 @@ members = [
   "crates/evm",
   "crates/fullnode",
   "crates/primitives",
+  "crates/prover-services",
   "crates/pruning",
   "crates/risc0-bonsai",
   "crates/sequencer",
