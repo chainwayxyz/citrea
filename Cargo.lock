@@ -1891,6 +1891,20 @@ dependencies = [
 [[package]]
 name = "citrea-light-client-prover"
 version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "citrea-common",
+ "jsonrpsee",
+ "sov-db",
+ "sov-modules-rollup-blueprint",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tracing",
+]
 
 [[package]]
 name = "citrea-primitives"

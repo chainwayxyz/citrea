@@ -9,7 +9,36 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+# Citrea Deps
+citrea-common = { path = "../common" }
+
+# Sov SDK deps
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint", optional = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", optional = true }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional = true }
+
+# 3rd-party deps
+anyhow = { workspace = true, optional = true }
+borsh = { workspace = true, optional = true }
+jsonrpsee = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+tower = { workspace = true }
+tracing = { workspace = true, optional = true }
 
 [features]
 default = []
-native = []
+native = [
+  "dep:sov-db",
+  "dep:sov-modules-rollup-blueprint",
+  "dep:sov-rollup-interface",
+  "dep:sov-stf-runner",
+
+  "dep:anyhow",
+  "dep:borsh",
+  "dep:jsonrpsee",
+  "dep:tokio",
+  "dep:tokio-util",
+  "dep:tracing",
+]
