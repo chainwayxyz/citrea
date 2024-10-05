@@ -18,9 +18,7 @@ use sov_db::schema::types::{
     BatchNumber, SlotNumber, StoredSoftConfirmation, StoredStateTransition,
 };
 use sov_modules_api::{BlobReaderTrait, Context, Zkvm};
-use sov_rollup_interface::da::{
-    BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, SequencerCommitment,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;

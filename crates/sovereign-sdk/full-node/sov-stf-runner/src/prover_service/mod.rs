@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{Proof, StateTransitionData};
+use sov_rollup_interface::zk::Proof;
 use thiserror::Error;
 
 /// The possible configurations of the prover.

@@ -5,8 +5,6 @@ use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
-#[cfg(feature = "native")]
-use bitcoin::Txid;
 use bitcoin::{secp256k1, Opcode, Script, Transaction};
 use thiserror::Error;
 

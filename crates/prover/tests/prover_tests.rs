@@ -31,7 +31,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     prover_service
         .submit_witness(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            header_hash.clone(),
+            header_hash,
         )
         .await;
     prover_service.prove(header_hash).await?;
@@ -72,7 +72,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         prover_service
             .submit_witness(
                 borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-                header_hash.clone(),
+                header_hash,
             )
             .await;
 
@@ -89,7 +89,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         prover_service
             .submit_witness(
                 borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-                header_hash.clone(),
+                header_hash,
             )
             .await;
 
@@ -121,7 +121,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
         prover_service
             .submit_witness(
                 borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-                header_hash.clone(),
+                header_hash,
             )
             .await;
 
@@ -153,7 +153,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
     let submission_status = prover_service
         .submit_witness(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            header_hash.clone(),
+            header_hash,
         )
         .await;
 
@@ -165,7 +165,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
     let submission_status = prover_service
         .submit_witness(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            header_hash.clone(),
+            header_hash,
         )
         .await;
 
@@ -182,7 +182,7 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
     prover_service
         .submit_witness(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            header_hash.clone(),
+            header_hash,
         )
         .await;
 
