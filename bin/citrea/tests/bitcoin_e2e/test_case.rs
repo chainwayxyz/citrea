@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea_sequencer::SequencerConfig;
 use futures::FutureExt;
-use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
+use sov_stf_runner::{BatchProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 
 use super::config::{
     default_rollup_config, BitcoinConfig, FullFullNodeConfig, FullProverConfig,
@@ -284,8 +284,8 @@ pub trait TestCase: Send + Sync + 'static {
 
     /// Returns the prover configuration for the test.
     /// Override this method to provide a custom prover configuration.
-    fn prover_config() -> ProverConfig {
-        ProverConfig::default()
+    fn prover_config() -> BatchProverConfig {
+        BatchProverConfig::default()
     }
 
     /// Returns the test setup

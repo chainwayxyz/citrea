@@ -11,7 +11,7 @@ use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::config::ProverConfig;
+use sov_stf_runner::config::BatchProverConfig;
 use sov_stf_runner::{
     ProofProcessingStatus, ProverGuestRunConfig, ProverService, ProverServiceError,
     WitnessSubmissionStatus,
@@ -94,7 +94,7 @@ where
         vm: Vm,
         zk_stf: V,
         da_verifier: Da::Verifier,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         zk_storage: V::PreState,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {

@@ -145,7 +145,7 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 }
 
 /// Prover ledger operations
-pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
+pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get the witness by L2 height
     fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
 
@@ -176,7 +176,7 @@ pub trait ProverLedgerOps: SharedLedgerOps + Send + Sync {
 }
 
 /// Ledger operations for the prover service
-pub trait ProvingServiceLedgerOps: ProverLedgerOps + SharedLedgerOps + Send + Sync {
+pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
     /// Gets all pending sessions and step numbers
     fn get_pending_proving_sessions(&self) -> Result<Vec<Vec<u8>>>;
 

@@ -11,7 +11,7 @@ pub use bitcoin::BitcoinConfig;
 pub use citrea_sequencer::SequencerConfig;
 pub use docker::DockerConfig;
 pub use rollup::{default_rollup_config, RollupConfig};
-pub use sov_stf_runner::ProverConfig;
+pub use sov_stf_runner::BatchProverConfig;
 pub use test::TestConfig;
 pub use test_case::{TestCaseConfig, TestCaseEnv};
 pub use utils::config_to_file;
@@ -26,5 +26,5 @@ pub struct FullL2NodeConfig<T> {
 }
 
 pub type FullSequencerConfig = FullL2NodeConfig<SequencerConfig>;
-pub type FullProverConfig = FullL2NodeConfig<ProverConfig>;
+pub type FullProverConfig = FullL2NodeConfig<BatchProverConfig>;
 pub type FullFullNodeConfig = FullL2NodeConfig<()>;

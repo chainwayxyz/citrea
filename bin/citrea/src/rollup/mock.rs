@@ -18,7 +18,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, ZkStorage};
-use sov_stf_runner::{FullNodeConfig, ProverConfig};
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig};
 use tokio::sync::broadcast;
 
 use crate::CitreaRollupBlueprint;
@@ -103,7 +103,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

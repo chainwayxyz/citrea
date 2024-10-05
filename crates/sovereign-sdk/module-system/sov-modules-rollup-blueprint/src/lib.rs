@@ -17,7 +17,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_stf_runner::{FullNodeConfig, ProverConfig, ProverService};
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig, ProverService};
 use tokio::sync::broadcast;
 pub use wallet::*;
 
@@ -107,7 +107,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of [`ProverService`].
     async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
