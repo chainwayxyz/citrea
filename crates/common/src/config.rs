@@ -136,7 +136,31 @@ pub struct BatchProverConfig {
     pub enable_recovery: bool,
 }
 
+/// Prover configuration
+///
+/// TODO: leaving as the same with batch prover config for now
+/// but it will most probably have different fields in the future
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LightClientProverConfig {
+    /// Prover run mode
+    pub proving_mode: ProverGuestRunConfig,
+    /// Average number of commitments to prove
+    pub proof_sampling_number: usize,
+    /// If true prover will try to recover ongoing proving sessions
+    pub enable_recovery: bool,
+}
+
 impl Default for BatchProverConfig {
+    fn default() -> Self {
+        Self {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }
+    }
+}
+
+impl Default for LightClientProverConfig {
     fn default() -> Self {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,

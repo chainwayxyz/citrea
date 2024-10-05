@@ -567,6 +567,8 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 }
 
+impl LightClientProverLedgerOps for LedgerDB {}
+
 impl ProvingServiceLedgerOps for LedgerDB {
     /// Gets all pending sessions and step numbers
     #[instrument(level = "trace", skip(self), err)]

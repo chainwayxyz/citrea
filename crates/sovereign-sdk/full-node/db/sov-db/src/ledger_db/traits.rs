@@ -175,6 +175,9 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn clear_pending_proving_sessions(&self) -> Result<()>;
 }
 
+/// Light client prover ledger operations
+pub trait LightClientProverLedgerOps {}
+
 /// Ledger operations for the prover service
 pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
     /// Gets all pending sessions and step numbers
