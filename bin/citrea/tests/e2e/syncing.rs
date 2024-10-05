@@ -9,7 +9,7 @@ use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverConfig;
+use sov_stf_runner::BatchProverConfig;
 use tokio::time::sleep;
 
 use crate::e2e::{execute_blocks, initialize_test, TestConfig};
@@ -292,7 +292,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,

@@ -16,7 +16,7 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_db::ledger_db::ProverLedgerOps;
+use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
 use sov_modules_api::{BlobReaderTrait, DaSpec, SignedSoftConfirmation, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, SequencerCommitment};
@@ -24,7 +24,7 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
-use sov_stf_runner::{ProverConfig, ProverService};
+use sov_stf_runner::{BatchProverConfig, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -41,7 +41,7 @@ pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: ProverLedgerOps,
+    DB: BatchProverLedgerOps,
     Ps: ProverService<Vm>,
     StateRoot: BorshDeserialize
         + BorshSerialize
@@ -52,7 +52,7 @@ where
         + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
-    prover_config: ProverConfig,
+    prover_config: BatchProverConfig,
     prover_service: Arc<Ps>,
     ledger_db: DB,
     da_service: Arc<Da>,
@@ -71,7 +71,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     Ps: ProverService<Vm, DaService = Da>,
-    DB: ProverLedgerOps + Clone,
+    DB: BatchProverLedgerOps + Clone,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -83,7 +83,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         prover_service: Arc<Ps>,
         ledger_db: DB,
         da_service: Arc<Da>,

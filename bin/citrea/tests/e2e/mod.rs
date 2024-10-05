@@ -19,7 +19,7 @@ use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::{LastVerifiedProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverConfig;
+use sov_stf_runner::BatchProverConfig;
 use tokio::task::JoinHandle;
 
 use crate::evm::{init_test_rollup, make_test_client};
@@ -91,7 +91,7 @@ async fn test_all_flow() {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,

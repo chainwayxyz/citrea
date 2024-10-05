@@ -8,7 +8,7 @@ use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_stf_runner::ProverConfig;
+use sov_stf_runner::BatchProverConfig;
 use tokio::runtime::Runtime;
 use tokio::time::sleep;
 
@@ -328,7 +328,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(ProverConfig::default()),
+                    Some(BatchProverConfig::default()),
                     rollup_config,
                     None,
                 )
@@ -396,7 +396,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(ProverConfig::default()),
+                    Some(BatchProverConfig::default()),
                     rollup_config,
                     None,
                 )
@@ -448,7 +448,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(ProverConfig::default()),
+                    Some(BatchProverConfig::default()),
                     rollup_config,
                     None,
                 )

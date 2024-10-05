@@ -23,7 +23,7 @@ use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, ZkStorage};
-use sov_stf_runner::{FullNodeConfig, ProverConfig};
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
@@ -154,7 +154,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all)]
     async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

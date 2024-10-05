@@ -15,7 +15,7 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_stf_runner::{
-    FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
+    BatchProverConfig, FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
 };
 use tempfile::TempDir;
 use tokio::sync::oneshot;
@@ -36,7 +36,7 @@ pub enum NodeMode {
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
-    rollup_prover_config: Option<ProverConfig>,
+    rollup_prover_config: Option<BatchProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) {

@@ -10,7 +10,7 @@ use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, FullNodeConfig, ProverConfig};
+use sov_stf_runner::{from_toml_path, BatchProverConfig, FullNodeConfig};
 use tracing::{error, instrument};
 
 #[cfg(test)]
@@ -82,7 +82,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap()
         });
 
-    let prover_config: Option<ProverConfig> = args.prover_config_path.clone().map(|path| {
+    let prover_config: Option<BatchProverConfig> = args.prover_config_path.clone().map(|path| {
         from_toml_path(path)
             .context("Failed to read prover configuration")
             .unwrap()
@@ -125,7 +125,7 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
     rollup_config_path: &str,
-    prover_config: Option<ProverConfig>,
+    prover_config: Option<BatchProverConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
 where

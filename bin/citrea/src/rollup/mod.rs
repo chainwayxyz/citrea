@@ -15,7 +15,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig, InitVariant};
 use tokio::sync::broadcast;
 use tracing::{info, instrument};
 
@@ -239,7 +239,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaSpec,
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
     ) -> Result<BatchProver<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
