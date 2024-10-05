@@ -5,7 +5,8 @@ use std::sync::Arc;
 use citrea_common::tasks::manager::TaskManager;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps};
+use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps, SharedLedgerOps};
+use sov_db::schema::types::SlotNumber;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
@@ -15,6 +16,8 @@ use sov_stf_runner::{
 };
 use tokio::sync::oneshot;
 use tracing::{error, info, instrument};
+
+use crate::da_block_handler::L1BlockHandler;
 
 /// Dependencies needed to run the rollup.
 pub struct LightClientProver<S: RollupBlueprint> {
@@ -53,10 +56,10 @@ impl<S: RollupBlueprint> LightClientProver<S> {
 
 pub struct CitreaLightClientProver<Da, Vm, Ps, DB>
 where
-    Da: DaService,
+    Da: DaService + Send + Sync,
     Vm: ZkvmHost,
     Ps: ProverService<Vm>,
-    DB: LightClientProverLedgerOps,
+    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
     runner_config: RunnerConfig,
     public_keys: RollupPublicKeys,
@@ -71,10 +74,10 @@ where
 
 impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
 where
-    Da: DaService,
+    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Vm: ZkvmHost,
-    Ps: ProverService<Vm>,
-    DB: LightClientProverLedgerOps,
+    Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
+    DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -165,6 +168,31 @@ where
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+        let last_l1_height_scanned = self
+            .ledger_db
+            .get_last_scanned_l1_height()?
+            .unwrap_or(SlotNumber(1));
+
+        let prover_config = self.prover_config.clone();
+        let prover_service = self.prover_service.clone();
+        let ledger_db = self.ledger_db.clone();
+        let da_service = self.da_service.clone();
+        let batch_prover_da_pub_key = self.public_keys.prover_da_pub_key.clone();
+        let batch_proof_commitments_by_spec = self.batch_proof_commitments_by_spec.clone();
+
+        self.task_manager.spawn(|cancellation_token| async move {
+            let l1_block_handler = L1BlockHandler::<Vm, Da, Ps, DB>::new(
+                prover_config,
+                prover_service,
+                ledger_db,
+                da_service,
+                batch_prover_da_pub_key,
+                batch_proof_commitments_by_spec,
+            );
+            l1_block_handler
+                .run(last_l1_height_scanned.0, cancellation_token)
+                .await
+        });
         todo!()
     }
 }

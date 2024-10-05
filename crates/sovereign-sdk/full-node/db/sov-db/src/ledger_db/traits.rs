@@ -176,7 +176,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 }
 
 /// Light client prover ledger operations
-pub trait LightClientProverLedgerOps {}
+pub trait LightClientProverLedgerOps: SharedLedgerOps {}
 
 /// Ledger operations for the prover service
 pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {
