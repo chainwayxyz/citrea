@@ -373,7 +373,11 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let data: DaDataLightClient = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
 
     // Test we got zkproof indeed
-    let DaDataLightClient::ZKProof(_proof) = data;
+    let DaDataLightClient::Complete(_proof) = data else {
+        return Err(anyhow::anyhow!(
+            "Expected completed zkproof, got chunks or aggregate"
+        ));
+    };
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
