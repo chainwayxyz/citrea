@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use citrea_prover::prover_service::ParallelProverService;
+use citrea_batch_prover::prover_service::ParallelProverService;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{
