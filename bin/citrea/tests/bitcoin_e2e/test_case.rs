@@ -167,6 +167,7 @@ impl<T: TestCase> TestCaseRunner<T> {
             ),
             include_tx_body: true,
             accept_public_input_as_proven: Some(true),
+            pruning_config: None,
             sync_blocks_count: 10,
         });
 

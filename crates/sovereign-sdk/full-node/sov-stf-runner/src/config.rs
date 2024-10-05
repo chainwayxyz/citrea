@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use citrea_pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +20,8 @@ pub struct RunnerConfig {
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
+    /// Configurations for pruning
+    pub pruning_config: Option<PruningConfig>,
 }
 
 /// RPC configuration.
@@ -214,6 +217,7 @@ mod tests {
                 include_tx_body: true,
                 accept_public_input_as_proven: None,
                 sync_blocks_count: 10,
+                pruning_config: None,
             }),
             da: sov_mock_da::MockDaConfig {
                 sender_address: [0; 32].into(),

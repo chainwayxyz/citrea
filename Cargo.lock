@@ -1820,6 +1820,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "citrea-pruning",
  "futures",
  "hex",
  "jsonrpsee",
@@ -1898,6 +1899,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-pruning"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "citrea-evm",
+ "citrea-primitives",
+ "futures",
+ "serde",
+ "sov-db",
+ "sov-modules-api",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "citrea-risc0-bonsai-adapter"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -1928,6 +1946,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
+ "async-trait",
  "backoff",
  "borsh",
  "chrono",
@@ -7796,6 +7815,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "citrea-pruning",
  "futures",
  "hex",
  "hyper 1.4.1",

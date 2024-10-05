@@ -69,6 +69,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     MempoolTxs::table_name(),
     PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
+    LastPrunedBlock::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -319,6 +320,11 @@ define_table_with_default_codec!(
 define_table_with_default_codec!(
     /// L2 height to state diff for prover
     (ProverStateDiffs) BatchNumber => StateDiff
+);
+
+define_table_with_seek_key_codec!(
+    /// Stores the last pruned L2 block number
+    (LastPrunedBlock) () => u64
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {

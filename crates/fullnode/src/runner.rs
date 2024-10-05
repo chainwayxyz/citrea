@@ -9,6 +9,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
@@ -66,6 +67,7 @@ where
     sync_blocks_count: u64,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    pruning_config: Option<PruningConfig>,
     task_manager: TaskManager<()>,
 }
 
@@ -151,6 +153,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,
+            pruning_config: runner_config.pruning_config,
             task_manager: TaskManager::default(),
         })
     }
@@ -319,6 +322,18 @@ where
                 None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
             }
         };
+
+        if let Some(config) = &self.pruning_config {
+            let pruner = Pruner::<DB>::new(
+                config.clone(),
+                self.ledger_db.get_last_pruned_l2_height()?.unwrap_or(0),
+                self.soft_confirmation_tx.subscribe(),
+                self.ledger_db.clone(),
+            );
+
+            self.task_manager
+                .spawn(|cancellation_token| pruner.run(cancellation_token));
+        }
 
         let ledger_db = self.ledger_db.clone();
         let da_service = self.da_service.clone();
