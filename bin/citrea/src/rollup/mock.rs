@@ -17,7 +17,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
+use sov_state::{DefaultStorageSpec, ZkStorage};
 use sov_stf_runner::{FullNodeConfig, ProverConfig};
 use tokio::sync::broadcast;
 
