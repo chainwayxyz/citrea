@@ -23,7 +23,7 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
+use sov_state::{DefaultStorageSpec, ZkStorage};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;

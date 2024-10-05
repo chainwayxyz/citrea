@@ -24,7 +24,7 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
-use sov_rollup_interface::zk::{self, Proof};
+use sov_rollup_interface::zk::Proof;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::{select, signal};
@@ -797,7 +797,7 @@ impl DaService for BitcoinService {
                         let data = DaDataLightClient::try_from_slice(&part.body).map_err(|e| {
                             anyhow::anyhow!("{}: Failed to parse chunk: {e}", tx_id)
                         })?;
-                        let DaDataLightClient::Chunk(chunk) = data else {
+                        let DaDataLightClient::Chunk(_chunk) = data else {
                             anyhow::bail!("{}: Chunk: unexpected kind", tx_id);
                         };
                         body.extend(part.body);
@@ -820,7 +820,7 @@ impl DaService for BitcoinService {
         proofs.sort_by_key(|b| b.0);
 
         let mut result = Vec::new();
-        for (_i, tx_id, proof) in proofs {
+        for (_i, _tx_id, proof) in proofs {
             result.push(proof);
         }
         Ok(result)
