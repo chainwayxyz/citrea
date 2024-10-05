@@ -1929,7 +1929,7 @@ dependencies = [
  "jsonrpsee",
  "sov-db",
  "sov-modules-rollup-blueprint",
- "sov-rollup-interface",
+ "sov-rollup-interface 0.5.0-rc.1",
  "sov-stf-runner",
  "tokio",
  "tokio-util",

@@ -682,6 +682,21 @@ impl DaService for BitcoinService {
         get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
     }
 
+    // Extract the blob transactions relevant to a particular rollup from a block.
+    #[instrument(level = "trace", skip_all)]
+    fn extract_relevant_blobs_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
+        debug!(
+            "Extracting relevant light_client txs from block {:?}",
+            block.header.block_hash()
+        );
+
+        let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
+        get_relevant_blobs_from_txs_light_client(txs, &self.reveal_light_client_prefix)
+    }
+
     /// Return a list of LightClient transactions
     #[instrument(level = "trace", skip_all)]
     async fn extract_relevant_proofs(
@@ -896,6 +911,84 @@ impl DaService for BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all)]
+    async fn get_extraction_proof_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> (
+        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
+        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
+    ) {
+        info!(
+            "Getting extraction proof for block {:?}",
+            block.header.block_hash()
+        );
+
+        let mut completeness_proof = Vec::with_capacity(block.txdata.len());
+
+        let mut wtxids = Vec::with_capacity(block.txdata.len());
+        wtxids.push([0u8; 32]);
+
+        // coinbase starts with 0, so we skip it unless the prefix is all 0's
+        if self.reveal_light_client_prefix.iter().all(|&x| x == 0) {
+            completeness_proof.push(block.txdata[0].clone());
+        }
+
+        block.txdata[1..].iter().for_each(|tx| {
+            let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
+
+            // if tx_hash starts with the given prefix, it is in the completeness proof
+            if wtxid.starts_with(&self.reveal_light_client_prefix) {
+                completeness_proof.push(tx.clone());
+            }
+
+            wtxids.push(wtxid);
+        });
+
+        let txid_merkle_tree = merkle_tree::BitcoinMerkleTree::new(
+            block
+                .txdata
+                .iter()
+                .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
+                .collect(),
+        );
+
+        assert_eq!(
+            txid_merkle_tree.root(),
+            block.header.merkle_root(),
+            "Merkle root mismatch"
+        );
+
+        let coinbase_proof = txid_merkle_tree.get_idx_path(0);
+
+        (
+            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
+            completeness_proof,
+        )
+    }
+
+    // Extract the list blob transactions relevant to a particular rollup from a block, along with inclusion and
+    // completeness proofs for that set of transactions. The output of this method will be passed to the verifier.
+    async fn extract_relevant_blobs_with_proof_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> (
+        Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction>,
+        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
+        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
+    ) {
+        info!(
+            "Extracting relevant txs with proof from block {:?}",
+            block.header.block_hash()
+        );
+
+        let txs = self.extract_relevant_blobs_light_client(block);
+        let (inclusion_proof, completeness_proof) =
+            self.get_extraction_proof_light_client(block).await;
+
+        (txs, inclusion_proof, completeness_proof)
+    }
+
+    #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
         da_data: DaData,
@@ -1051,6 +1144,49 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .map(|fee| Amount::from_sat(fee * 1000)); // multiply by 1000 to convert to sat/vkb
 
     Ok(fee_rate)
+}
+
+pub fn get_relevant_blobs_from_txs_light_client(
+    txs: Vec<Transaction>,
+    reveal_wtxid_prefix: &[u8],
+) -> Vec<BlobWithSender> {
+    let mut relevant_txs = Vec::new();
+
+    for tx in txs {
+        if !tx
+            .compute_wtxid()
+            .to_byte_array()
+            .as_slice()
+            .starts_with(reveal_wtxid_prefix)
+        {
+            continue;
+        }
+
+        if let Ok(tx) = parse_light_client_transaction(&tx) {
+            match tx {
+                ParsedLightClientTransaction::Complete(complete) => {
+                    if let Some(hash) = complete.get_sig_verified_hash() {
+                        let blob = decompress_blob(&complete.body);
+                        let relevant_tx = BlobWithSender::new(blob, complete.public_key, hash);
+
+                        relevant_txs.push(relevant_tx);
+                    }
+                }
+                ParsedLightClientTransaction::Aggregate(aggregate) => {
+                    if let Some(hash) = aggregate.get_sig_verified_hash() {
+                        let relevant_tx =
+                            BlobWithSender::new(aggregate.body, aggregate.public_key, hash);
+
+                        relevant_txs.push(relevant_tx);
+                    }
+                }
+                ParsedLightClientTransaction::Chunk(_) => {
+                    // ignore
+                }
+            }
+        }
+    }
+    relevant_txs
 }
 
 #[cfg(test)]
