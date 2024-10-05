@@ -1711,6 +1711,8 @@ dependencies = [
  "log",
  "log-panics",
  "proptest",
+ "prover-services",
+ "rand 0.8.5",
  "regex",
  "reqwest 0.12.5",
  "reth-primitives",
@@ -1759,6 +1761,7 @@ dependencies = [
  "jsonrpsee",
  "num_cpus",
  "parking_lot",
+ "prover-services",
  "rand 0.8.5",
  "rayon",
  "rs_merkle",
@@ -5095,6 +5098,44 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.72",
+]
+
+[[package]]
+name = "prover-services"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backoff",
+ "bitcoin-da",
+ "borsh",
+ "citrea-common",
+ "citrea-primitives",
+ "citrea-stf",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "num_cpus",
+ "parking_lot",
+ "rand 0.8.5",
+ "rayon",
+ "rs_merkle",
+ "sequencer-client",
+ "serde",
+ "sha2",
+ "sov-db",
+ "sov-mock-da",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tracing",
 ]
 
 [[package]]
