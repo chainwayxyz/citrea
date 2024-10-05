@@ -56,14 +56,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
 
     /// Prover service.
-    type ProverService: ProverService<
-            Self::Vm,
-            StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
-            Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
-            DaService = Self::DaService,
-        > + Send
-        + Sync
-        + 'static;
+    type ProverService: ProverService<Self::Vm, DaService = Self::DaService> + Send + Sync + 'static;
 
     /// Creates a new instance of the blueprint.
     fn new() -> Self;

@@ -85,10 +85,7 @@ where
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
-    Ps: ProverService<Vm, StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>
-        + Send
-        + Sync
-        + 'static,
+    Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
     DB: ProverLedgerOps + Clone + 'static,
 {
     /// Creates a new `StateTransitionRunner`.

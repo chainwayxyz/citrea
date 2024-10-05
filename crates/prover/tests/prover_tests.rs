@@ -29,7 +29,10 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(
+            borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+            header_hash.clone(),
+        )
         .await;
     prover_service.prove(header_hash).await?;
     vm.make_proof();
@@ -67,7 +70,10 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     // Saturate the prover.
     for header_hash in header_hashes.clone() {
         prover_service
-            .submit_witness(make_transition_data(header_hash))
+            .submit_witness(
+                borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+                header_hash.clone(),
+            )
             .await;
 
         let poof_processing_status = prover_service.prove(header_hash).await?;
@@ -81,7 +87,10 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     {
         let header_hash = MockHash::from([0; 32]);
         prover_service
-            .submit_witness(make_transition_data(header_hash))
+            .submit_witness(
+                borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+                header_hash.clone(),
+            )
             .await;
 
         let status = prover_service.prove(header_hash).await?;
@@ -110,7 +119,10 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     {
         let header_hash = MockHash::from([(num_worker_threads + 1) as u8; 32]);
         prover_service
-            .submit_witness(make_transition_data(header_hash))
+            .submit_witness(
+                borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+                header_hash.clone(),
+            )
             .await;
 
         let status = prover_service.prove(header_hash).await?;
@@ -139,7 +151,10 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
 
     let header_hash = MockHash::from([0; 32]);
     let submission_status = prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(
+            borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+            header_hash.clone(),
+        )
         .await;
 
     assert_eq!(
@@ -148,7 +163,10 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
     );
 
     let submission_status = prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(
+            borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+            header_hash.clone(),
+        )
         .await;
 
     assert_eq!(WitnessSubmissionStatus::WitnessExist, submission_status);
@@ -162,7 +180,10 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(make_transition_data(header_hash))
+        .submit_witness(
+            borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+            header_hash.clone(),
+        )
         .await;
 
     let status = prover_service.prove(header_hash).await?;
@@ -174,13 +195,8 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
 }
 
 struct TestProver {
-    prover_service: ParallelProverService<
-        [u8; 0],
-        Vec<u8>,
-        MockDaService,
-        MockZkvm<MockValidityCond>,
-        MockStf<MockValidityCond>,
-    >,
+    prover_service:
+        ParallelProverService<MockDaService, MockZkvm<MockValidityCond>, MockStf<MockValidityCond>>,
     vm: MockZkvm<MockValidityCond>,
     num_worker_threads: usize,
 }

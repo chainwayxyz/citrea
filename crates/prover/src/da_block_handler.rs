@@ -50,7 +50,7 @@ where
         + Clone
         + AsRef<[u8]>
         + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
+    Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: ProverConfig,
     prover_service: Arc<Ps>,
@@ -70,7 +70,7 @@ impl<Vm, Da, Ps, DB, StateRoot, Witness> L1BlockHandler<Vm, Da, Ps, DB, StateRoo
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da, StateRoot = StateRoot, Witness = Witness>,
+    Ps: ProverService<Vm, DaService = Da>,
     DB: ProverLedgerOps + Clone,
     StateRoot: BorshDeserialize
         + BorshSerialize
@@ -79,7 +79,7 @@ where
         + Clone
         + AsRef<[u8]>
         + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
+    Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -551,7 +551,9 @@ where
     ) -> Result<(), anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
 
-        prover_service.submit_witness(transition_data).await;
+        prover_service
+            .submit_witness(borsh::to_vec(&transition_data)?, hash.clone())
+            .await;
 
         prover_service.prove(hash.clone()).await?;
 
