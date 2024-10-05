@@ -72,7 +72,7 @@ pub async fn start_rollup(
             .unwrap();
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
-        let rollup = CitreaRollupBlueprint::create_new_prover(
+        let rollup = CitreaRollupBlueprint::create_new_batch_prover(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config,
