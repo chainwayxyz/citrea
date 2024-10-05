@@ -10,7 +10,6 @@ use thiserror::Error;
 
 use super::calculate_sha256;
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub enum ParsedLightClientTransaction {
     /// Kind 0
@@ -29,7 +28,6 @@ pub enum ParsedBatchProofTransaction {
     // ForcedTransaction(ForcedTransaction),
 }
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedComplete {
     pub body: Vec<u8>,
@@ -37,7 +35,6 @@ pub struct ParsedComplete {
     pub public_key: Vec<u8>,
 }
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedAggregate {
     pub body: Vec<u8>,
@@ -85,7 +82,6 @@ pub trait VerifyParsed {
     }
 }
 
-#[cfg(feature = "native")]
 impl VerifyParsed for ParsedComplete {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -98,7 +94,6 @@ impl VerifyParsed for ParsedComplete {
     }
 }
 
-#[cfg(feature = "native")]
 impl VerifyParsed for ParsedAggregate {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -145,7 +140,6 @@ impl From<ScriptError> for ParserError {
     }
 }
 
-#[cfg(feature = "native")]
 pub fn parse_light_client_transaction(
     tx: &Transaction,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
@@ -176,7 +170,6 @@ fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
         .ok_or(ParserError::NonTapscriptWitness)
 }
 
-#[cfg(feature = "native")]
 fn parse_relevant_lightclient(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
@@ -263,7 +256,6 @@ fn read_opcode(
     Ok(op)
 }
 
-#[cfg(feature = "native")]
 mod light_client {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
