@@ -11,7 +11,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::ProverLedgerOps;
+use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_core::{Spec, Storage};
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
@@ -35,7 +35,7 @@ pub(crate) struct RpcContext<C, Da, DB>
 where
     C: sov_modules_api::Context,
     Da: DaService,
-    DB: ProverLedgerOps,
+    DB: BatchProverLedgerOps,
 {
     pub da_service: Arc<Da>,
     pub ledger: DB,
@@ -60,7 +60,7 @@ pub struct ProverRpcServerImpl<C, Da, DB>
 where
     C: sov_modules_api::Context,
     Da: DaService,
-    DB: ProverLedgerOps + Send + Sync + 'static,
+    DB: BatchProverLedgerOps + Send + Sync + 'static,
 {
     context: Arc<RpcContext<C, Da, DB>>,
 }
@@ -69,7 +69,7 @@ impl<C, Da, DB> ProverRpcServerImpl<C, Da, DB>
 where
     C: sov_modules_api::Context,
     Da: DaService,
-    DB: ProverLedgerOps + Send + Sync + 'static,
+    DB: BatchProverLedgerOps + Send + Sync + 'static,
 {
     pub fn new(context: RpcContext<C, Da, DB>) -> Self {
         Self {
@@ -79,7 +79,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<C: sov_modules_api::Context, Da: DaService, DB: ProverLedgerOps + Send + Sync + 'static>
+impl<C: sov_modules_api::Context, Da: DaService, DB: BatchProverLedgerOps + Send + Sync + 'static>
     ProverRpcServer for ProverRpcServerImpl<C, Da, DB>
 {
     async fn generate_input(
@@ -321,7 +321,7 @@ pub fn create_rpc_module<C, Da, DB>(
 where
     C: sov_modules_api::Context,
     Da: DaService,
-    DB: ProverLedgerOps + Send + Sync + 'static,
+    DB: BatchProverLedgerOps + Send + Sync + 'static,
 {
     let server = ProverRpcServerImpl::new(rpc_context);
 

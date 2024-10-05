@@ -6,7 +6,7 @@ use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_common::{
-    FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig,
+    FullNodeConfig, BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig,
     StorageConfig,
 };
 use citrea_primitives::TEST_PRIVATE_KEY;
@@ -36,7 +36,7 @@ pub enum NodeMode {
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
-    rollup_prover_config: Option<ProverConfig>,
+    rollup_prover_config: Option<BatchProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) {

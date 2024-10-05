@@ -10,13 +10,13 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
+use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
-use sov_db::ledger_db::ProverLedgerOps;
+use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::{Context, SlotData};
@@ -48,7 +48,7 @@ where
         + StfBlueprintTrait<C, Da::Spec, Vm>,
 
     Ps: ProverService<Vm>,
-    DB: ProverLedgerOps + Clone,
+    DB: BatchProverLedgerOps + Clone,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
@@ -63,7 +63,7 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
-    prover_config: ProverConfig,
+    prover_config: BatchProverConfig,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
@@ -86,7 +86,7 @@ where
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
     Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
-    DB: ProverLedgerOps + Clone + 'static,
+    DB: BatchProverLedgerOps + Clone + 'static,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -104,7 +104,7 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Arc<Ps>,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,

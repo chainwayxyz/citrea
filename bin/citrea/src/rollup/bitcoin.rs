@@ -6,7 +6,7 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::{FullNodeConfig, ProverConfig};
+use citrea_common::{FullNodeConfig, BatchProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
@@ -154,7 +154,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all)]
     async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::{FullNodeConfig, ProverConfig};
+use citrea_common::{FullNodeConfig, BatchProverConfig};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
@@ -103,7 +103,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

@@ -2,7 +2,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use citrea_common::{ProverConfig, SequencerConfig};
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::LayerStatus;
 use reth_primitives::{Address, BlockNumberOrTag};
@@ -291,7 +291,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,

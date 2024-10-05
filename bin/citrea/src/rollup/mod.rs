@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_batch_prover::{BatchProver, CitreaBatchProver};
-use citrea_common::{FullNodeConfig, ProverConfig, SequencerConfig};
+use citrea_common::{FullNodeConfig, BatchProverConfig, SequencerConfig};
 use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::forks::FORKS;
 use citrea_sequencer::{CitreaSequencer, Sequencer};
@@ -240,7 +240,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaSpec,
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
     ) -> Result<BatchProver<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
