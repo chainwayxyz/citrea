@@ -14,10 +14,10 @@ resolver = "2"
 [dependencies]
 # Citrea deps
 bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
+citrea-batch-prover = { path = "../../crates/batch-prover" }
 citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-prover = { path = "../../crates/prover" }
 citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
 citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }

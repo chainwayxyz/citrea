@@ -1694,12 +1694,12 @@ dependencies = [
  "bitcoin-da",
  "bitcoincore-rpc",
  "borsh",
+ "citrea-batch-prover",
  "citrea-common",
  "citrea-e2e",
  "citrea-evm",
  "citrea-fullnode",
  "citrea-primitives",
- "citrea-prover",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
@@ -1739,6 +1739,44 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "citrea-batch-prover"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backoff",
+ "bitcoin-da",
+ "borsh",
+ "citrea-common",
+ "citrea-primitives",
+ "citrea-stf",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "num_cpus",
+ "parking_lot",
+ "rand 0.8.5",
+ "rayon",
+ "rs_merkle",
+ "sequencer-client",
+ "serde",
+ "sha2",
+ "sov-db",
+ "sov-mock-da",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-stf-runner",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tracing",
 ]
 
 [[package]]
@@ -1881,44 +1919,6 @@ dependencies = [
  "serde",
  "sov-rollup-interface 0.5.0-rc.1",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "citrea-prover"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "backoff",
- "bitcoin-da",
- "borsh",
- "citrea-common",
- "citrea-primitives",
- "citrea-stf",
- "futures",
- "hex",
- "jsonrpsee",
- "num_cpus",
- "parking_lot",
- "rand 0.8.5",
- "rayon",
- "rs_merkle",
- "sequencer-client",
- "serde",
- "sha2",
- "sov-db",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-rollup-blueprint",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
- "sov-stf-runner",
- "tempfile",
- "tokio",
- "tokio-util",
- "tower",
  "tracing",
 ]
 

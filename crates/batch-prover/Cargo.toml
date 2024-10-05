@@ -1,5 +1,5 @@
 [package]
-name = "citrea-prover"
+name = "citrea-batch-prover"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

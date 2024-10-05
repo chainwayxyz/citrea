@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use citrea_batch_prover::{CitreaProver, Prover};
 use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::forks::FORKS;
-use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
