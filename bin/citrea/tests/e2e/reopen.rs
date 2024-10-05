@@ -4,7 +4,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use citrea_common::{ProverConfig, SequencerConfig};
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService};
@@ -327,7 +327,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(ProverConfig::default()),
+                    Some(BatchProverConfig::default()),
                     rollup_config,
                     None,
                 )
@@ -395,7 +395,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(ProverConfig::default()),
+                    Some(BatchProverConfig::default()),
                     rollup_config,
                     None,
                 )
@@ -447,7 +447,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(ProverConfig::default()),
+                    Some(BatchProverConfig::default()),
                     rollup_config,
                     None,
                 )

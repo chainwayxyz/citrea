@@ -3,7 +3,7 @@ use core::fmt::Debug as DebugTrait;
 use anyhow::Context as _;
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
-use citrea_common::{from_toml_path, FullNodeConfig, ProverConfig, SequencerConfig};
+use citrea_common::{from_toml_path, FullNodeConfig, BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_mock_da::MockDaConfig;
@@ -81,7 +81,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap()
         });
 
-    let prover_config: Option<ProverConfig> = args.prover_config_path.clone().map(|path| {
+    let prover_config: Option<BatchProverConfig> = args.prover_config_path.clone().map(|path| {
         from_toml_path(path)
             .context("Failed to read prover configuration")
             .unwrap()
@@ -124,7 +124,7 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
     rollup_config_path: &str,
-    prover_config: Option<ProverConfig>,
+    prover_config: Option<BatchProverConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
 where

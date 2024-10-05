@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use citrea_common::{FullNodeConfig, ProverConfig};
+use citrea_common::{FullNodeConfig, BatchProverConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -108,7 +108,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates instance of [`ProverService`].
     async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

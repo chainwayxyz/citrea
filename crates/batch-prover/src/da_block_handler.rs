@@ -13,12 +13,12 @@ use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
     merge_state_diffs,
 };
-use citrea_common::ProverConfig;
+use citrea_common::BatchProverConfig;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_db::ledger_db::ProverLedgerOps;
+use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
 use sov_modules_api::{BlobReaderTrait, DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -44,7 +44,7 @@ pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: ProverLedgerOps,
+    DB: BatchProverLedgerOps,
     Ps: ProverService<Vm>,
     StateRoot: BorshDeserialize
         + BorshSerialize
@@ -55,7 +55,7 @@ where
         + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
-    prover_config: ProverConfig,
+    prover_config: BatchProverConfig,
     prover_service: Arc<Ps>,
     ledger_db: DB,
     da_service: Arc<Da>,
@@ -74,7 +74,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     Ps: ProverService<Vm, DaService = Da>,
-    DB: ProverLedgerOps + Clone,
+    DB: BatchProverLedgerOps + Clone,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -86,7 +86,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         prover_service: Arc<Ps>,
         ledger_db: DB,
         da_service: Arc<Da>,
@@ -582,7 +582,7 @@ async fn sync_l1<Da>(
 
 pub(crate) async fn get_state_transition_data_from_commitments<
     Da: DaService,
-    DB: ProverLedgerOps,
+    DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
 >(
     sequencer_commitments: &[SequencerCommitment],
@@ -661,7 +661,7 @@ pub(crate) async fn get_state_transition_data_from_commitments<
     ))
 }
 
-pub(crate) fn break_sequencer_commitments_into_groups<DB: ProverLedgerOps>(
+pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
     ledger_db: &DB,
     sequencer_commitments: &[SequencerCommitment],
 ) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
