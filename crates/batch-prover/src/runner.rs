@@ -38,7 +38,7 @@ use crate::rpc::{create_rpc_module, RpcContext};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
-pub struct CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
+pub struct CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
     Da: DaService,
@@ -72,7 +72,7 @@ where
     task_manager: TaskManager<()>,
 }
 
-impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
+impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
     Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,

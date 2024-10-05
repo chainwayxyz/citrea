@@ -106,7 +106,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
-    async fn create_prover_service(
+    async fn create_batch_prover_service(
         &self,
         prover_config: ProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
