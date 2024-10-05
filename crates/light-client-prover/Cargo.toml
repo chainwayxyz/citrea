@@ -1,0 +1,15 @@
+[package]
+name = "citrea-light-client-prover"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[features]
+default = []
+native = []

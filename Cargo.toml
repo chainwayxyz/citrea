@@ -10,6 +10,7 @@ members = [
   "crates/ethereum-rpc",
   "crates/evm",
   "crates/fullnode",
+  "crates/light-client-prover",
   "crates/primitives",
   "crates/prover-services",
   "crates/pruning",
