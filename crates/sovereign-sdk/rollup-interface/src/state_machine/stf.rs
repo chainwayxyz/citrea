@@ -193,7 +193,13 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
 
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification
-    type Witness: Default + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync;
+    type Witness: Default
+        + BorshSerialize
+        + BorshDeserialize
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync;
 
     /// The validity condition that must be verified outside of the Vm
     type Condition: ValidityCondition;
