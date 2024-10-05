@@ -1,5 +1,5 @@
 [package]
-name = "citrea-batch-prover"
+name = "prover-services"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -14,7 +14,6 @@ bitcoin-da = { path = "../bitcoin-da" }
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
 citrea-stf = { path = "../citrea-stf" }
-prover-services = { path = "../prover-services" }
 sequencer-client = { path = "../sequencer-client" }
 
 # Sov SDK deps

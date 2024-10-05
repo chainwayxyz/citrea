@@ -11,7 +11,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{ProofProcessingStatus, ProverServiceError, WitnessSubmissionStatus};
 
-use crate::prover_service::ProofGenConfig;
+use crate::ProofGenConfig;
 
 pub(crate) enum ProverStatus {
     WitnessSubmitted(Vec<u8>),

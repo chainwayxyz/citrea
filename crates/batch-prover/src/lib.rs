@@ -7,7 +7,6 @@ use tokio::sync::oneshot;
 use tracing::instrument;
 
 mod da_block_handler;
-pub mod prover_service;
 mod runner;
 pub use runner::*;
 

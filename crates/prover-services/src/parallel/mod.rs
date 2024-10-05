@@ -18,7 +18,7 @@ use sov_stf_runner::{
 };
 
 use self::prover::ProverStatus;
-use crate::prover_service::ProofGenConfig;
+use crate::ProofGenConfig;
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<Da, Vm, V>
