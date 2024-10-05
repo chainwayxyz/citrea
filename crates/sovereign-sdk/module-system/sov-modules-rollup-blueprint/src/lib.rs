@@ -17,7 +17,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::Storage;
 use sov_stf_runner::{FullNodeConfig, ProverConfig, ProverService};
 use tokio::sync::broadcast;
 pub use wallet::*;
