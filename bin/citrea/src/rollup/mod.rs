@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use citrea_batch_prover::{CitreaProver, Prover};
+use citrea_batch_prover::{BatchProver, CitreaBatchProver};
 use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::forks::FORKS;
 use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
@@ -232,7 +232,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new prover
     #[instrument(level = "trace", skip_all)]
-    async fn create_new_prover(
+    async fn create_new_batch_prover(
         &self,
         runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
             Self::NativeContext,
@@ -240,7 +240,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: ProverConfig,
-    ) -> Result<Prover<Self>, anyhow::Error>
+    ) -> Result<BatchProver<Self>, anyhow::Error>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -253,7 +253,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_prover_service(
+            .create_batch_prover_service(
                 prover_config.clone(),
                 &rollup_config,
                 &da_service,
@@ -323,7 +323,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
-        let runner = CitreaProver::new(
+        let runner = CitreaBatchProver::new(
             runner_config,
             rollup_config.public_keys,
             rollup_config.rpc,
@@ -339,7 +339,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             soft_confirmation_tx,
         )?;
 
-        Ok(Prover {
+        Ok(BatchProver {
             runner,
             rpc_methods,
         })
