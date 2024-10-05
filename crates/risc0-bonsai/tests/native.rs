@@ -21,8 +21,8 @@ fn test_hints_roundtrip() {
         string: "world".to_string(),
     };
 
-    host.add_hint(&hint_a);
-    host.add_hint(&hint_b);
+    host.add_hint(borsh::to_vec(&hint_a).unwrap());
+    host.add_hint(borsh::to_vec(&hint_b).unwrap());
 
     let guest = host.simulate_with_hints();
 

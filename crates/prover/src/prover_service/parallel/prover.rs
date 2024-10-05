@@ -16,28 +16,25 @@ use sov_stf_runner::{ProofProcessingStatus, ProverServiceError, WitnessSubmissio
 
 use crate::prover_service::ProofGenConfig;
 
-pub(crate) enum ProverStatus<StateRoot, Witness, Da: DaSpec> {
-    WitnessSubmitted(StateTransitionData<StateRoot, Witness, Da>),
+pub(crate) enum ProverStatus {
+    WitnessSubmitted(Vec<u8>),
     ProvingInProgress,
     #[allow(dead_code)]
     Proved(Proof),
     Err(anyhow::Error),
 }
 
-struct ProverState<StateRoot, Witness, Da: DaSpec> {
-    prover_status: HashMap<Da::SlotHash, ProverStatus<StateRoot, Witness, Da>>,
+struct ProverState<Da: DaSpec> {
+    prover_status: HashMap<Da::SlotHash, ProverStatus>,
     pending_tasks_count: usize,
 }
 
-impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
-    fn remove(&mut self, hash: &Da::SlotHash) -> Option<ProverStatus<StateRoot, Witness, Da>> {
+impl<Da: DaSpec> ProverState<Da> {
+    fn remove(&mut self, hash: &Da::SlotHash) -> Option<ProverStatus> {
         self.prover_status.remove(hash)
     }
 
-    fn set_to_proving(
-        &mut self,
-        hash: Da::SlotHash,
-    ) -> Option<ProverStatus<StateRoot, Witness, Da>> {
+    fn set_to_proving(&mut self, hash: Da::SlotHash) -> Option<ProverStatus> {
         self.prover_status
             .insert(hash, ProverStatus::ProvingInProgress)
     }
@@ -46,17 +43,14 @@ impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
         &mut self,
         hash: Da::SlotHash,
         proof: Result<Proof, anyhow::Error>,
-    ) -> Option<ProverStatus<StateRoot, Witness, Da>> {
+    ) -> Option<ProverStatus> {
         match proof {
             Ok(p) => self.prover_status.insert(hash, ProverStatus::Proved(p)),
             Err(e) => self.prover_status.insert(hash, ProverStatus::Err(e)),
         }
     }
 
-    fn get_prover_status(
-        &self,
-        hash: Da::SlotHash,
-    ) -> Option<&ProverStatus<StateRoot, Witness, Da>> {
+    fn get_prover_status(&self, hash: Da::SlotHash) -> Option<&ProverStatus> {
         self.prover_status.get(&hash)
     }
 
@@ -77,26 +71,15 @@ impl<StateRoot, Witness, Da: DaSpec> ProverState<StateRoot, Witness, Da> {
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
 // the prover will reject new jobs.
-pub(crate) struct Prover<StateRoot, Witness, Da: DaService> {
-    prover_state: Arc<Mutex<ProverState<StateRoot, Witness, Da::Spec>>>,
+pub(crate) struct Prover<Da: DaService> {
+    prover_state: Arc<Mutex<ProverState<Da::Spec>>>,
     num_threads: usize,
     pool: rayon::ThreadPool,
 }
 
-impl<StateRoot, Witness, Da> Prover<StateRoot, Witness, Da>
+impl<Da> Prover<Da>
 where
     Da: DaService,
-    StateRoot: BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Send
-        + Sync
-        + 'static,
-    Witness:
-        BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync + 'static,
 {
     pub(crate) fn new(num_threads: usize) -> anyhow::Result<Self> {
         Ok(Self {
@@ -115,10 +98,11 @@ where
 
     pub(crate) fn submit_witness(
         &self,
-        state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
+        input: Vec<u8>,
+        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> WitnessSubmissionStatus {
-        let header_hash = state_transition_data.da_block_header_of_commitments.hash();
-        let data = ProverStatus::WitnessSubmitted(state_transition_data);
+        let header_hash = da_slot_hash;
+        let data = ProverStatus::WitnessSubmitted(input);
 
         let mut prover_state = self.prover_state.lock();
         let entry = prover_state.prover_status.entry(header_hash);
@@ -192,7 +176,7 @@ where
     pub(crate) fn get_prover_status_for_da_submission(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProverStatus<StateRoot, Witness, Da::Spec>, anyhow::Error> {
+    ) -> Result<ProverStatus, anyhow::Error> {
         let mut prover_state = self.prover_state.lock();
 
         let status = prover_state.get_prover_status(block_header_hash.clone());
