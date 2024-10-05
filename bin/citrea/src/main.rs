@@ -147,7 +147,7 @@ where
             error!("Error: {}", e);
         }
     } else if let Some(prover_config) = prover_config {
-        let prover = CitreaRollupBlueprint::create_new_prover(
+        let prover = CitreaRollupBlueprint::create_new_batch_prover(
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,

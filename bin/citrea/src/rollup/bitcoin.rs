@@ -152,7 +152,7 @@ impl RollupBlueprint for BitcoinRollup {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn create_prover_service(
+    async fn create_batch_prover_service(
         &self,
         prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
