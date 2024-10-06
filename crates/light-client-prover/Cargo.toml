@@ -10,11 +10,11 @@ repository.workspace = true
 
 [dependencies]
 # Citrea Deps
-citrea-common = { path = "../common" }
+citrea-common = { path = "../common", optional = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
-sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false, optional = true }
+sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional = true }
@@ -26,14 +26,14 @@ hex = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
-tower = { workspace = true }
+tower = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 [features]
 default = []
 native = [
+  "dep:citrea-common",
   "dep:sov-db",
-  "dep:sov-modules-api",
   "dep:sov-modules-rollup-blueprint",
   "dep:sov-stf-runner",
 
@@ -41,5 +41,6 @@ native = [
   "dep:jsonrpsee",
   "dep:tokio",
   "dep:tokio-util",
+  "dep:tower",
   "dep:tracing",
 ]
