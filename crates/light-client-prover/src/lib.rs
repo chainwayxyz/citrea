@@ -1,8 +1,8 @@
-mod circuit;
-mod input;
-mod output;
+pub mod circuit;
+pub mod input;
+pub mod output;
 
 #[cfg(feature = "native")]
-mod da_block_handler;
+pub mod da_block_handler;
 #[cfg(feature = "native")]
-mod runner;
+pub mod runner;
