@@ -18,8 +18,12 @@ fn main() {
                 let elf = r#"
                 pub const BITCOIN_DA_ELF: &[u8] = &[];
                 pub const MOCK_DA_ELF: &[u8] = &[];
+                pub const LIGHT_CLIENT_BITCOIN_DA_ELF: &[u8] = &[];
+                pub const LIGHT_CLIENT_MOCK_DA_ELF: &[u8] = &[];
                 pub const BITCOIN_DA_ID: [u32; 8] = [0u32; 8];
                 pub const MOCK_DA_ID: [u32; 8] = [0u32; 8];
+                pub const LIGHT_CLIENT_BITCOIN_ID: &[u8] = &[0u32; 8];
+                pub const LIGHT_CLIENT_MOCK_ID: &[u8] = &[0u32; 8];
                 "#;
 
                 return std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
@@ -69,6 +73,20 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     );
     guest_pkg_to_options.insert(
         "citrea-bitcoin-prover",
+        GuestOptions {
+            features: features.clone(),
+            use_docker: use_docker.clone(),
+        },
+    );
+    guest_pkg_to_options.insert(
+        "citrea-light-client-bitcoin",
+        GuestOptions {
+            features: features.clone(),
+            use_docker: use_docker.clone(),
+        },
+    );
+    guest_pkg_to_options.insert(
+        "citrea-light-client-mock",
         GuestOptions {
             features: features.clone(),
             use_docker: use_docker.clone(),
