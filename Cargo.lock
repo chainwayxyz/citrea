@@ -2455,7 +2455,6 @@ dependencies = [
  "sov-value-setter",
  "tempfile",
  "tokio",
- "toml",
  "tracing",
 ]
 
@@ -7852,7 +7851,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "toml",
  "tower",
  "tracing",
 ]
