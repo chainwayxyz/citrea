@@ -48,6 +48,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -149,6 +150,7 @@ async fn test_sequencer_commitment_threshold() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(sequencer_config),
@@ -352,6 +354,7 @@ async fn test_gas_limit_too_high() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -373,6 +376,7 @@ async fn test_gas_limit_too_high() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -482,6 +486,7 @@ async fn test_system_tx_effect_on_block_gas_limit() -> Result<(), anyhow::Error>
             GenesisPaths::from_dir(
                 "../../resources/test-data/integration-tests-low-block-gas-limit",
             ),
+            None,
             None,
             rollup_config,
             Some(sequencer_config),

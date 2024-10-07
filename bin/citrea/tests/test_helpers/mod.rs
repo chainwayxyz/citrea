@@ -15,7 +15,7 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_stf_runner::{
-    BatchProverConfig, FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig
 };
 use tempfile::TempDir;
 use tokio::sync::oneshot;
@@ -31,12 +31,14 @@ pub enum NodeMode {
     SequencerNode,
     #[allow(dead_code)]
     Prover(SocketAddr),
+    LightClientProver(SocketAddr),
 }
 
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<BatchProverConfig>,
+    light_client_prover_config: Option<LightClientProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) {
@@ -45,7 +47,13 @@ pub async fn start_rollup(
     let mock_demo_rollup = MockDemoRollup {};
 
     if sequencer_config.is_some() && rollup_prover_config.is_some() {
-        panic!("Both sequencer and prover config cannot be set at the same time");
+        panic!("Both sequencer and batch prover config cannot be set at the same time");
+    }
+    if sequencer_config.is_some() && light_client_prover_config.is_some() {
+        panic!("Both sequencer and light client prover config cannot be set at the same time");
+    }
+    if rollup_prover_config.is_some() && light_client_prover_config.is_some() {
+        panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
     if let Some(sequencer_config) = sequencer_config {
@@ -77,6 +85,22 @@ pub async fn start_rollup(
             &rt_genesis_paths,
             rollup_config,
             rollup_prover_config,
+        )
+        .instrument(span.clone())
+        .await
+        .unwrap();
+        rollup
+            .run_and_report_rpc_port(Some(rpc_reporting_channel))
+            .instrument(span)
+            .await
+            .unwrap();
+    } else if let Some(light_client_prover_config) = light_client_prover_config {
+        let span = info_span!("LightClientProver");
+        let rollup = CitreaRollupBlueprint::create_new_light_client_prover(
+            &mock_demo_rollup,
+            &rt_genesis_paths,
+            rollup_config.clone(),
+            light_client_prover_config,
         )
         .instrument(span.clone())
         .await
@@ -134,7 +158,7 @@ pub fn create_default_rollup_config(
             max_subscriptions_per_connection: 100,
         },
         runner: match node_mode {
-            NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) => Some(RunnerConfig {
+            NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) | NodeMode::LightClientProver(socket_addr) => Some(RunnerConfig {
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),

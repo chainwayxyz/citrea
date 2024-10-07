@@ -73,6 +73,7 @@ async fn test_all_flow() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -96,6 +97,7 @@ async fn test_all_flow() {
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
+            None,
             rollup_config,
             None,
         )
@@ -118,6 +120,7 @@ async fn test_all_flow() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -383,6 +386,7 @@ async fn test_ledger_get_head_soft_confirmation() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -451,6 +455,7 @@ async fn initialize_test(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -472,6 +477,7 @@ async fn initialize_test(
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,

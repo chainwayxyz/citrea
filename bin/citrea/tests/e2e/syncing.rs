@@ -46,6 +46,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -79,6 +80,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -275,6 +277,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -297,6 +300,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
+            None,
             rollup_config,
             None,
         )
@@ -410,6 +414,7 @@ async fn test_full_node_sync_status() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -443,6 +448,7 @@ async fn test_full_node_sync_status() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -523,6 +529,7 @@ async fn test_healthcheck() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -544,6 +551,7 @@ async fn test_healthcheck() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
