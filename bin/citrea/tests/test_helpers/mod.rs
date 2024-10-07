@@ -15,7 +15,8 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_stf_runner::{
-    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
+    RunnerConfig, StorageConfig,
 };
 use tempfile::TempDir;
 use tokio::sync::oneshot;
@@ -158,7 +159,9 @@ pub fn create_default_rollup_config(
             max_subscriptions_per_connection: 100,
         },
         runner: match node_mode {
-            NodeMode::FullNode(socket_addr) | NodeMode::Prover(socket_addr) | NodeMode::LightClientProver(socket_addr) => Some(RunnerConfig {
+            NodeMode::FullNode(socket_addr)
+            | NodeMode::Prover(socket_addr)
+            | NodeMode::LightClientProver(socket_addr) => Some(RunnerConfig {
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),

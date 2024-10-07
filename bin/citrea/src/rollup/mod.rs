@@ -16,7 +16,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, InitVariant};
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig, InitVariant, LightClientProverConfig};
 use tokio::sync::broadcast;
 use tracing::{info, instrument};
 
@@ -345,7 +345,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rpc_methods,
         })
     }
-    
+
     /// Creates a new light client prover
     #[instrument(level = "trace", skip_all)]
     async fn create_new_light_client_prover(

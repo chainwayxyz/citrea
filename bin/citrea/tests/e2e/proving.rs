@@ -225,8 +225,12 @@ async fn test_light_client_proof() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::LightClientProver(seq_port));
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::LightClientProver(seq_port),
+    );
 
     let prover_node_task = tokio::spawn(async {
         start_rollup(

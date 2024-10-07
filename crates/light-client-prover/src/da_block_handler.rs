@@ -35,7 +35,7 @@ where
     batch_prover_da_pub_key: Vec<u8>,
     batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -62,7 +62,7 @@ where
             batch_prover_da_pub_key,
             batch_proof_code_commitments_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
-            pending_l1_blocks: VecDeque::new(),
+            queued_l1_blocks: VecDeque::new(),
         }
     }
 
@@ -87,7 +87,7 @@ where
         );
         tokio::pin!(l1_sync_worker);
 
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        let mut interval = tokio::time::interval(Duration::from_secs(2));
         interval.tick().await;
         loop {
             select! {
@@ -97,69 +97,69 @@ where
                 }
                 _ = &mut l1_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
-                    self.pending_l1_blocks.push_back(l1_block);
+                    self.queued_l1_blocks.push_back(l1_block);
                 },
                 _ = interval.tick() => {
-                    if let Err(e) = self.process_l1_block().await {
-                        error!("Could not process L1 block and generate proof: {:?}", e);
+                    if let Err(e) = self.process_queued_l1_blocks().await {
+                        error!("Could not process queued L1 blocks and generate proof: {:?}", e);
                     }
                 },
             }
         }
     }
 
-    async fn process_l1_block(&mut self) -> Result<(), anyhow::Error> {
-        while !self.pending_l1_blocks.is_empty() {
+    async fn process_queued_l1_blocks(&mut self) -> Result<(), anyhow::Error> {
+        while !self.queued_l1_blocks.is_empty() {
             let l1_block = self
-                .pending_l1_blocks
+                .queued_l1_blocks
                 .front()
                 .expect("Pending l1 blocks cannot be empty");
-            // work on the first unprocessed l1 block
-            let l1_height = l1_block.header().height();
 
-            // Set the l1 height of the l1 hash
-            self.ledger_db
-                .set_l1_height_of_l1_hash(
-                    l1_block.header().hash().into(),
-                    l1_block.header().height(),
-                )
-                .unwrap();
+            self.process_l1_block(l1_block).await?;
 
-            let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> = self
-                .da_service
-                .extract_relevant_blobs_light_client(l1_block);
-            if da_data.len() == 0 {
-                return Ok(());
-            }
-
-            let batch_proofs = self
-                .extract_batch_proofs(&mut da_data, l1_block.header().hash().into())
-                .await;
-            if batch_proofs.len() == 0 {
-                return Ok(());
-            }
-
-            // Do any kind of ordering etc. on batch proofs here
-            // If you do so, don't forget to do the same inside zk
-
-            let circuit_input = self.create_circuit_input(da_data, l1_block).await;
-
-            let circuit_output = self.prove(circuit_input).await?;
-
-            tracing::info!("Proved. Output: {:?}", circuit_output);
-
-            if let Err(e) = self
-                .ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_height))
-            {
-                panic!(
-                    "Failed to put prover last scanned l1 height in the ledger db: {}",
-                    e
-                );
-            }
-
-            self.pending_l1_blocks.pop_front();
+            self.queued_l1_blocks.pop_front();
         }
+
+        Ok(())
+    }
+
+    async fn process_l1_block(&self, l1_block: &Da::FilteredBlock) -> anyhow::Result<()> {
+        let l1_hash = l1_block.header().hash().into();
+        let l1_height = l1_block.header().height();
+
+        // Set the l1 height of the l1 hash
+        self.ledger_db
+            .set_l1_height_of_l1_hash(l1_hash, l1_height)
+            .expect("Setting l1 height of l1 hash in ledger db");
+
+        let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> = self
+            .da_service
+            .extract_relevant_blobs_light_client(l1_block);
+        if da_data.is_empty() {
+            return Ok(());
+        }
+
+        let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
+        if batch_proofs.is_empty() {
+            return Ok(());
+        }
+
+        // Do any kind of ordering etc. on batch proofs here
+        // If you do so, don't forget to do the same inside zk
+
+        let circuit_input = self.create_circuit_input(da_data, l1_block).await;
+
+        let circuit_output = self.prove(circuit_input).await?;
+
+        tracing::info!(
+            "Generated proof for L1 block: {l1_height} output={:?}",
+            circuit_output
+        );
+
+        self.ledger_db
+            .set_last_scanned_l1_height(SlotNumber(l1_height))
+            .expect("Saving last scanned l1 height to ledger db");
+
         Ok(())
     }
 
@@ -169,10 +169,6 @@ where
         da_slot_hash: [u8; 32], // passing this as an argument is not clever
     ) -> Vec<DaDataLightClient> {
         let mut batch_proofs = Vec::new();
-
-        da_data.iter_mut().for_each(|blob| {
-            blob.full_data();
-        });
 
         da_data.iter_mut().for_each(|tx| {
             // Check for commitment
