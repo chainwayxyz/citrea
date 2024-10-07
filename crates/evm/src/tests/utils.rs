@@ -1,23 +1,32 @@
+use std::collections::HashMap;
+use std::path::Path;
+
+use alloy_eips::eip1559::BaseFeeParams;
 use lazy_static::lazy_static;
+use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::hex_literal::hex;
-use reth_primitives::B256;
+use reth_primitives::{address, Address, Bytes, TxKind, B256};
+use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_stf_runner::read_json_file;
 
-use crate::{Evm, EvmConfig};
+use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
+use crate::tests::test_signer::TestSigner;
+use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, PRIORITY_FEE_VAULT};
 
 type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "9fcaf6e03bf17a3372e03c5f3aa293dee54f73545462f82ba7875710da4604d5"
+        "82d04e48b7bbcc7239fc123b0eda02586c5f2d45557d66a313183a7f1626f5a6"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "5a4c1a83d16c771fa4221e0353ef5e2af558dbe11ce429e677914292428dec1c"
+        "5c5e936b06651c65b4e539500afa8563122173f04f1da9c812d717c0064c1051"
     ));
 }
 
@@ -61,7 +70,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
         da_slot_height: 1,
         da_slot_txs_commitment: [2u8; 32],
         pre_state_root: root.to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SovSpecId::Genesis,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 0,
@@ -102,4 +111,182 @@ pub(crate) fn commit(
     storage.commit(&authenticated_node_batch, &accessory_log);
 
     root.0
+}
+
+/// Loads the genesis configuration from the given path and pushes the accounts to the evm config
+pub(crate) fn config_push_contracts(config: &mut EvmConfig, path: Option<&str>) {
+    let mut genesis_config: EvmConfig = read_json_file(Path::new(
+        path.unwrap_or("../../resources/test-data/integration-tests/evm.json"),
+    ))
+    .expect("Failed to read genesis configuration");
+    config.data.append(&mut genesis_config.data);
+}
+
+pub fn create_contract_message<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction(TxKind::Create, contract.byte_code(), nonce, 0)
+        .unwrap()
+}
+pub(crate) fn create_contract_message_with_fee<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+    max_fee_per_gas: u128,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction_with_fee(
+            TxKind::Create,
+            contract.byte_code(),
+            nonce,
+            0,
+            max_fee_per_gas,
+        )
+        .unwrap()
+}
+pub(crate) fn create_contract_transaction<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction(TxKind::Create, contract.byte_code(), nonce, 0)
+        .unwrap()
+}
+
+pub(crate) fn set_arg_message(
+    contract_addr: Address,
+    dev_signer: &TestSigner,
+    nonce: u64,
+    set_arg: u32,
+) -> RlpEvmTransaction {
+    let contract = SimpleStorageContract::default();
+
+    dev_signer
+        .sign_default_transaction(
+            TxKind::Call(contract_addr),
+            contract.set_call_data(set_arg),
+            nonce,
+            0,
+        )
+        .unwrap()
+}
+
+pub(crate) fn publish_event_message(
+    contract_addr: Address,
+    signer: &TestSigner,
+    nonce: u64,
+    message: String,
+) -> RlpEvmTransaction {
+    let contract = LogsContract::default();
+
+    signer
+        .sign_default_transaction(
+            TxKind::Call(contract_addr),
+            contract.publish_event(message),
+            nonce,
+            0,
+        )
+        .unwrap()
+}
+
+pub(crate) fn get_evm_config(
+    signer_balance: U256,
+    block_gas_limit: Option<u64>,
+) -> (EvmConfig, TestSigner, Address) {
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
+    let mut config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: signer_balance,
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
+        ..Default::default()
+    };
+    config_push_contracts(&mut config, None);
+    (config, dev_signer, contract_addr)
+}
+
+pub(crate) fn get_evm_config_starting_base_fee(
+    signer_balance: U256,
+    block_gas_limit: Option<u64>,
+    starting_base_fee: u64,
+) -> (EvmConfig, TestSigner, Address) {
+    let dev_signer: TestSigner = TestSigner::new_random();
+
+    let contract_addr = address!("819c5497b157177315e1204f52e588b393771719");
+    let mut config = EvmConfig {
+        data: vec![AccountData {
+            address: dev_signer.address(),
+            balance: signer_balance,
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        }],
+        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+        block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
+        starting_base_fee,
+        coinbase: PRIORITY_FEE_VAULT,
+        ..Default::default()
+    };
+    config_push_contracts(&mut config, None);
+    (config, dev_signer, contract_addr)
+}
+pub(crate) fn get_evm_test_config() -> EvmConfig {
+    let mut config = EvmConfig {
+        data: vec![AccountData {
+            address: Address::from([1u8; 20]),
+            balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
+            code_hash: KECCAK_EMPTY,
+            code: Bytes::default(),
+            nonce: 0,
+            storage: Default::default(),
+        },
+        AccountData {
+            address:Address::from([2u8; 20]),
+            balance: U256::checked_mul(U256::from(1000),
+            U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
+            code_hash: hex!("4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").into(),
+            code: hex!("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").into(),
+            storage: {
+                let mut storage = HashMap::new();
+                storage.insert(U256::from(0), U256::from(0x4321));
+                storage.insert(
+                    U256::from_be_slice(
+                        &hex!("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")[..],
+                    ),
+                    U256::from(8),
+                );
+
+                storage
+            },
+            nonce: 1
+        }],
+        spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
+            .into_iter()
+            .collect(),
+        chain_id: 1000,
+        block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+        coinbase: Address::from([3u8; 20]),
+        limit_contract_code_size: Some(5000),
+        starting_base_fee: 1000000000,
+        base_fee_params: BaseFeeParams::ethereum(),
+        timestamp: 0,
+        difficulty: U256::ZERO,
+        extra_data: Bytes::default(),
+        nonce: 0,
+    };
+    config_push_contracts(&mut config, None);
+    config
 }

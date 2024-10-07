@@ -1805,6 +1805,7 @@ dependencies = [
  "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
+ "sov-stf-runner",
  "tempfile",
  "thiserror",
  "tracing",
