@@ -63,7 +63,7 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
-    prover_config: Option<ProverConfig>,
+    prover_config: ProverConfig,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
@@ -107,7 +107,7 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Arc<Ps>,
-        prover_config: Option<ProverConfig>,
+        prover_config: ProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
@@ -244,7 +244,7 @@ where
         };
 
         let ledger_db = self.ledger_db.clone();
-        let prover_config = self.prover_config.clone().unwrap();
+        let prover_config = self.prover_config.clone();
         let prover_service = self.prover_service.clone();
         let da_service = self.da_service.clone();
         let sequencer_pub_key = self.sequencer_pub_key.clone();
