@@ -1,0 +1,30 @@
+[package]
+name = "node-configs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Citrea Deps
+citrea-pruning = { path = "../pruning" }
+
+# Sov SDK deps
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+
+# 3rd-party deps
+anyhow = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+tempfile = { workspace = true }
+
+[features]
+native = []

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use citrea_fullnode::CitreaFullnode;
+use node_configs::{FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig};
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
@@ -10,10 +11,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::spec::SpecId;
 use sov_state::DefaultStorageSpec;
-use sov_stf_runner::{
-    FullNodeConfig, InitVariant, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
-};
-
+use sov_stf_runner::InitVariant;
 mod hash_stf;
 
 use hash_stf::HashStf;

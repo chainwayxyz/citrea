@@ -5,9 +5,7 @@ use std::path::{Path, PathBuf};
 use citrea_pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-
-use crate::ProverGuestRunConfig;
-
+use sov_stf_runner::ProverGuestRunConfig;
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RunnerConfig {

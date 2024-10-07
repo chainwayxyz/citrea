@@ -6,11 +6,11 @@ use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoR
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
+use node_configs::{from_toml_path, FullNodeConfig, ProverConfig};
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, FullNodeConfig, ProverConfig};
 use tracing::{error, instrument};
 
 #[cfg(test)]

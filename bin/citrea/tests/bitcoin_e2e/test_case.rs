@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea_sequencer::SequencerConfig;
 use futures::FutureExt;
-use sov_stf_runner::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
+use node_configs::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
 
 use super::config::{
     default_rollup_config, BitcoinConfig, FullFullNodeConfig, FullProverConfig,

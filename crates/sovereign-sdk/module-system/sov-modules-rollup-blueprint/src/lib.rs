@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use node_configs::{FullNodeConfig, ProverConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -18,7 +19,7 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::Storage;
-use sov_stf_runner::{FullNodeConfig, ProverConfig, ProverService};
+use sov_stf_runner::ProverService;
 use tokio::sync::broadcast;
 pub use wallet::*;
 

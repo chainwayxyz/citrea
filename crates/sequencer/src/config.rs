@@ -72,7 +72,7 @@ impl Default for SequencerMempoolConfig {
 mod tests {
     use std::io::Write;
 
-    use sov_stf_runner::from_toml_path;
+    use node_configs::from_toml_path;
     use tempfile::NamedTempFile;
 
     use super::*;

@@ -14,6 +14,7 @@ bitcoin-da = { path = "../bitcoin-da" }
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
 citrea-stf = { path = "../citrea-stf" }
+node-configs = { path = "../node-configs" }
 sequencer-client = { path = "../sequencer-client" }
 
 # Sov SDK deps

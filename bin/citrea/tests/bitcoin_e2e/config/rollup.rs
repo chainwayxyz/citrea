@@ -1,5 +1,5 @@
 use bitcoin_da::service::BitcoinServiceConfig;
-use sov_stf_runner::{FullNodeConfig, RollupPublicKeys, RpcConfig, StorageConfig};
+use node_configs::{FullNodeConfig, RollupPublicKeys, RpcConfig, StorageConfig};
 use tempfile::TempDir;
 
 use super::BitcoinConfig;

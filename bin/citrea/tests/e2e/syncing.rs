@@ -5,11 +5,11 @@ use std::time::Duration;
 use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::LayerStatus;
+use node_configs::ProverConfig;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverConfig;
 use tokio::time::sleep;
 
 use crate::e2e::{execute_blocks, initialize_test, TestConfig};

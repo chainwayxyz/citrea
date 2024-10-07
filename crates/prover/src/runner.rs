@@ -14,6 +14,7 @@ use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
+use node_configs::{ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
@@ -26,9 +27,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{
-    InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
-};
+use sov_stf_runner::{InitVariant, ProverService};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
 use tokio::{select, signal};

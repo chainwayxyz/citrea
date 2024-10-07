@@ -12,6 +12,7 @@ use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
+use node_configs::{FullNodeConfig, ProverConfig};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec};
@@ -23,7 +24,6 @@ use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{FullNodeConfig, ProverConfig};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
@@ -105,7 +105,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_storage_manager(
         &self,
-        rollup_config: &sov_stf_runner::FullNodeConfig<Self::DaConfig>,
+        rollup_config: &node_configs::FullNodeConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
