@@ -1268,9 +1268,9 @@ fn test_l1_fee_not_enough_funds() {
     assert_eq!(db_account.balance, U256::from(1000000));
     assert_eq!(db_account.nonce, 0);
 
-    // The coinbase was not created
+    // The coinbase balance is zero
     let db_coinbase = evm.accounts.get(&config.coinbase, &working_set);
-    assert!(db_coinbase.is_none());
+    assert_eq!(db_coinbase.unwrap().balance, U256::from(0));
 }
 
 #[test]
@@ -1459,7 +1459,6 @@ fn test_l1_fee_halt() {
             expenses
         )
     );
-
     let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &working_set).unwrap();
     let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &working_set).unwrap();
 
