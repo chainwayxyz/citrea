@@ -251,12 +251,17 @@ async fn test_light_client_proof() {
     let prover_node_port = prover_node_port_rx.await.unwrap();
 
     let prover_test_client = make_test_client(prover_node_port).await.unwrap();
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
     let l1_height = prover_test_client.ledger_get_last_scanned_l1_height().await;
     dbg!(l1_height);
 
     da_service.publish_test_block().await.unwrap();
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let l1_height = prover_test_client.ledger_get_last_scanned_l1_height().await;
+    dbg!(l1_height);
+
+    da_service.publish_test_block().await.unwrap();
+    tokio::time::sleep(Duration::from_secs(5)).await;
     let l1_height = prover_test_client.ledger_get_last_scanned_l1_height().await;
     dbg!(l1_height);
 }
