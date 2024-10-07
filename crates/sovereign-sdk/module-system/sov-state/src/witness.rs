@@ -45,9 +45,12 @@ impl Witness for ArrayWitness {
 
     fn merge(&self, rhs: &Self) {
         let rhs_next_idx = rhs.next_idx.load(std::sync::atomic::Ordering::SeqCst);
+        let rhs_hints_lock = rhs.hints.lock().unwrap();
+        let mut rhs_hints = rhs_hints_lock.clone();
+        drop(rhs_hints_lock);
+
         let mut lhs_hints_lock = self.hints.lock().unwrap();
-        let mut rhs_hints_lock = rhs.hints.lock().unwrap();
-        lhs_hints_lock.extend(rhs_hints_lock.drain(rhs_next_idx..));
+        lhs_hints_lock.extend(rhs_hints.drain(rhs_next_idx..));
     }
 }
 
