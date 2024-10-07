@@ -139,14 +139,8 @@ where
         let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> = self
             .da_service
             .extract_relevant_blobs_light_client(l1_block);
-        if da_data.is_empty() {
-            return Ok(());
-        }
 
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
-        if batch_proofs.is_empty() {
-            return Ok(());
-        }
 
         // Do any kind of ordering etc. on batch proofs here
         // If you do so, don't forget to do the same inside zk
