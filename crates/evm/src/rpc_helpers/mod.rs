@@ -6,6 +6,7 @@ pub use responses::*;
 use reth_primitives::{keccak256, Address};
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use reth_rpc_types::state::AccountOverride;
+use reth_rpc_types::BlockOverrides;
 use revm::Database;
 
 mod filter;
@@ -17,7 +18,7 @@ pub(crate) use tracing_utils::*;
 
 use crate::db::EvmDb;
 #[cfg(feature = "native")]
-use crate::{primitive_types::BlockEnv, types::BlockOverrides};
+use crate::primitive_types::BlockEnv;
 
 #[cfg(feature = "native")]
 /// Applies all instances [`AccountOverride`] to the [`EvmDb`].
@@ -96,9 +97,10 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         random,
         base_fee,
         block_hash: _,
+        difficulty: _,
     } = **block_overrides;
     if let Some(number) = number {
-        block_env.number = number;
+        block_env.number = number.saturating_to();
     }
     if let Some(time) = time {
         block_env.timestamp = time;
@@ -113,6 +115,6 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         block_env.prevrandao = random;
     }
     if let Some(base_fee) = base_fee {
-        block_env.basefee = base_fee;
+        block_env.basefee = base_fee.saturating_to();
     }
 }

@@ -12,9 +12,10 @@ use reth_primitives::{
 };
 use reth_provider::ProviderError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
+use reth_rpc_types::state::StateOverride;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{
-    AnyReceiptEnvelope, AnyTransactionReceipt, Log, OtherFields, ReceiptWithBloom,
+    AnyReceiptEnvelope, AnyTransactionReceipt, BlockOverrides, Log, OtherFields, ReceiptWithBloom,
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -38,7 +39,6 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
-use crate::types::BlockOverrides;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
 
 /// Gas per transaction not creating a contract.
@@ -496,7 +496,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_id: Option<BlockId>,
-        state_overrides: Option<reth_rpc_types::state::StateOverride>,
+        state_overrides: Option<StateOverride>,
         block_overrides: Option<Box<BlockOverrides>>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
