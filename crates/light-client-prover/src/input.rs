@@ -8,5 +8,5 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub completeness_proof: Da::CompletenessProof,
     pub da_block_header: Da::BlockHeader,
 
-    pub batch_pover_da_pub_key: Vec<u8>,
+    pub batch_prover_da_pub_key: Vec<u8>,
 }

@@ -203,7 +203,7 @@ where
             inclusion_proof,
             completeness_proof,
             da_block_header: l1_block.header().clone(),
-            batch_pover_da_pub_key: self.batch_prover_da_pub_key.clone(),
+            batch_prover_da_pub_key: self.batch_prover_da_pub_key.clone(),
         }
     }
 
