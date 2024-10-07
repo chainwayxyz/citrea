@@ -1699,6 +1699,7 @@ dependencies = [
  "citrea-common",
  "citrea-evm",
  "citrea-fullnode",
+ "citrea-light-client-prover",
  "citrea-primitives",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",

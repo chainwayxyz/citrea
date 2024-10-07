@@ -193,6 +193,8 @@ where
                 .run(last_l1_height_scanned.0, cancellation_token)
                 .await
         });
-        todo!()
+        // TODO: think what could be needed here
+
+        Ok(())
     }
 }
