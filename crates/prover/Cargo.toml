@@ -31,7 +31,7 @@ backoff = { workspace = true }
 borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
-jsonrpsee = { workspace = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 num_cpus = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }

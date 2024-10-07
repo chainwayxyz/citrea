@@ -160,7 +160,7 @@ where
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
             if !check_l2_range_exists(
-                self.ledger_db.clone(),
+                &self.ledger_db,
                 sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {

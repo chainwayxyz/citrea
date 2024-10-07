@@ -1750,8 +1750,10 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "backoff",
+ "borsh",
  "citrea-primitives",
  "futures",
+ "hex",
  "hyper 1.4.1",
  "jsonrpsee",
  "lru",

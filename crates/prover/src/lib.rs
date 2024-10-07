@@ -10,6 +10,7 @@ mod da_block_handler;
 pub mod prover_service;
 mod runner;
 pub use runner::*;
+mod rpc;
 
 /// Dependencies needed to run the rollup.
 pub struct Prover<S: RollupBlueprint> {

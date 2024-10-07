@@ -1,10 +1,11 @@
 use core::panic;
 use std::collections::{HashMap, VecDeque};
+use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
@@ -35,6 +36,7 @@ use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
+use crate::rpc::{create_rpc_module, RpcContext};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
@@ -163,20 +165,45 @@ where
         })
     }
 
+    /// Creates a shared RpcContext with all required data.
+    fn create_rpc_context(&self) -> RpcContext<Da, DB, Stf::StateRoot, Stf::Witness> {
+        RpcContext {
+            ledger: self.ledger_db.clone(),
+            da_service: self.da_service.clone(),
+            sequencer_da_pub_key: self.sequencer_da_pub_key.clone(),
+            sequencer_pub_key: self.sequencer_pub_key.clone(),
+            l1_block_cache: self.l1_block_cache.clone(),
+            _state_root: PhantomData,
+            _witness: PhantomData,
+        }
+    }
+
+    /// Updates the given RpcModule with Prover methods.
+    pub fn register_rpc_methods(
+        &self,
+        mut rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        let rpc_context = self.create_rpc_context();
+        let rpc = create_rpc_module(rpc_context);
+        rpc_methods.merge(rpc)?;
+        Ok(rpc_methods)
+    }
+
     /// Starts a RPC server with provided rpc methods.
     pub async fn start_rpc_server(
         &mut self,
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
-    ) {
-        let bind_host = match self.rpc_config.bind_host.parse() {
-            Ok(bind_host) => bind_host,
-            Err(e) => {
-                error!("Failed to parse bind host: {}", e);
-                return;
-            }
-        };
-        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
+    ) -> anyhow::Result<()> {
+        let methods = self.register_rpc_methods(methods)?;
+
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .map_err(|e| anyhow!("Failed to parse bind host: {}", e))?,
+            self.rpc_config.bind_port,
+        );
 
         let max_connections = self.rpc_config.max_connections;
         let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
@@ -223,6 +250,7 @@ where
                 }
             }
         });
+        Ok(())
     }
 
     /// Runs the rollup.

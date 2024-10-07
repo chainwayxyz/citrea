@@ -14,7 +14,9 @@ resolver = "2"
 # 3rd-party deps
 anyhow = { workspace = true }
 backoff = { workspace = true }
+borsh = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lru = { workspace = true }
