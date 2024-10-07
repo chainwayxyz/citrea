@@ -1,22 +1,19 @@
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
-use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoin_da::spec::BitcoinSpec;
+use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
+use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::DaData;
+use sov_rollup_interface::da::{BlobReaderTrait, DaData};
 
-use crate::bitcoin_e2e::bitcoin::BitcoinNode;
-use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::L2Node;
-use crate::bitcoin_e2e::sequencer::Sequencer;
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
-
+use citrea_e2e::bitcoin::BitcoinNode;
+use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::sequencer::Sequencer;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::Result;
 struct LedgerGetCommitmentsProverTest;
 
 #[async_trait]
@@ -41,7 +38,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
@@ -115,13 +112,13 @@ impl TestCase for LedgerGetCommitmentsTest {
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
 
         // disable this since it's the only difference from other tests??
         // da.generate(1, None).await?;
 
-        // sequencer.client.send_publish_batch_request().await;
+        // sequencer.client.send_publish_batch_request().await?;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
@@ -185,7 +182,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         // publish min_soft_confirmations_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_soft_confirmations_per_commitment - 1 {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
             .wait_for_l2_height(min_soft_confirmations_per_commitment - 1, None)
@@ -197,24 +194,27 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         let finalized_height = da.get_finalized_height().await?;
 
         for height in initial_height..finalized_height {
-            let mut blobs = da.get_relevant_blobs_from_block(height).await?;
+            let hash = da.get_block_hash(height).await?;
+            let block = da.get_block(&hash).await?;
+
+            let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_BATCH_PROOF_PREFIX);
 
             for mut blob in blobs.drain(0..) {
-                let data = blob.full_data();
+                let data = BlobReaderTrait::full_data(&mut blob);
 
                 assert_eq!(data, &[] as &[u8]);
             }
         }
 
         // Publish one more L2 block and send commitment
-        sequencer.client.send_publish_batch_request().await;
+        sequencer.client.send_publish_batch_request().await?;
 
         sequencer
             .wait_for_l2_height(
                 min_soft_confirmations_per_commitment + FINALITY_DEPTH - 1,
                 None,
             )
-            .await;
+            .await?;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
@@ -230,14 +230,14 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .await?;
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
             .wait_for_l2_height(
                 end_l2_block + min_soft_confirmations_per_commitment + FINALITY_DEPTH - 2,
                 None,
             )
-            .await;
+            .await?;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
@@ -265,13 +265,16 @@ impl SequencerSendCommitmentsToDaTest {
         let finalized_height = da.get_finalized_height().await?;
 
         // Extract and verify the commitment from the block
-        let mut blobs = da.get_relevant_blobs_from_block(finalized_height).await?;
+        let hash = da.get_block_hash(finalized_height).await?;
+        let block = da.get_block(&hash).await?;
+
+        let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_BATCH_PROOF_PREFIX);
 
         assert_eq!(blobs.len(), 1);
 
         let mut blob = blobs.pop().unwrap();
 
-        let data = blob.full_data();
+        let data = BlobReaderTrait::full_data(&mut blob);
 
         let commitment = DaData::try_from_slice(data).unwrap();
 
@@ -287,8 +290,8 @@ impl SequencerSendCommitmentsToDaTest {
             soft_confirmations.push(
                 sequencer
                     .client
-                    .ledger_get_soft_confirmation_by_number::<BitcoinSpec>(i)
-                    .await
+                    .ledger_get_soft_confirmation_by_number(i)
+                    .await?
                     .unwrap(),
             );
         }

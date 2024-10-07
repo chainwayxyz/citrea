@@ -166,8 +166,6 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 hyper = { version = "1.4.0" }
 
-bollard = { version = "0.17.1" }
-
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes
 # celestia-proto = { path = "../celestia-node-rs/proto" }
