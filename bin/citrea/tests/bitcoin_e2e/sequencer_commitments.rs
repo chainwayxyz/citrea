@@ -3,17 +3,16 @@ use bitcoin::hashes::Hash;
 use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
-use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
-use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
-use sov_rollup_interface::da::{BlobReaderTrait, DaData};
-
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
+use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
+use rs_merkle::algorithms::Sha256;
+use rs_merkle::MerkleTree;
+use sov_rollup_interface::da::{BlobReaderTrait, DaData};
 struct LedgerGetCommitmentsProverTest;
 
 #[async_trait]
@@ -42,7 +41,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         }
         sequencer
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
-            .await;
+            .await?;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
@@ -128,7 +127,7 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         full_node
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
-            .await;
+            .await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -186,7 +185,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         }
         sequencer
             .wait_for_l2_height(min_soft_confirmations_per_commitment - 1, None)
-            .await;
+            .await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
