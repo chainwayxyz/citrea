@@ -7,7 +7,7 @@ use crate::output::LightClientCircuitOutput;
 
 #[derive(Debug)]
 pub enum LightClientVerificationError {
-    DaTxsCouldnBeVerified,
+    DaTxsCouldntBeVerified,
 }
 
 pub fn run_circuit<DaV: DaVerifier>(
@@ -22,12 +22,12 @@ pub fn run_circuit<DaV: DaVerifier>(
             input.inclusion_proof,
             input.completeness_proof,
         )
-        .map_err(|_| LightClientVerificationError::DaTxsCouldnBeVerified)?;
+        .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
 
     let mut complete_proofs = vec![];
     // Try parsing the data
     for blob in input.da_data {
-        if blob.sender().as_ref() == input.batch_pover_da_pub_key {
+        if blob.sender().as_ref() == input.batch_prover_da_pub_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
             if let Ok(data) = data {
