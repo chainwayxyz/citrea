@@ -19,8 +19,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
-use sov_modules_api::{BlobReaderTrait, DaSpec, SignedSoftConfirmation, StateDiff, Zkvm};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, SequencerCommitment};
+use sov_modules_api::{BlobReaderTrait, DaSpec, StateDiff, Zkvm};
+use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -47,7 +47,7 @@ where
         + Debug
         + Send
         + Sync,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned + borsh::BorshSerialize,
+    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: ProverConfig,
     prover_service: Arc<Ps>,
@@ -176,7 +176,7 @@ where
             });
             let mut sequencer_commitments: Vec<SequencerCommitment> =
                 extract_sequencer_commitments::<Da>(
-                    &self.sequencer_da_pub_key.as_slice(),
+                    self.sequencer_da_pub_key.as_slice(),
                     l1_block.header().hash().into(),
                     &mut da_data,
                 );

@@ -1,28 +1,22 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
     get_state_transition_data_from_commitments,
 };
-use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
+use jsonrpsee::types::ErrorObjectOwned;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::BatchNumber;
-use sov_modules_api::WorkingSet;
-use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHashTrait, BlockHeaderTrait, DaSpec, SequencerCommitment,
-};
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::StateTransitionData;
 use tokio::sync::Mutex;
@@ -40,14 +34,16 @@ where
         + AsRef<[u8]>
         + Debug
         + Send
-        + Sync,
+        + Sync
+        + 'static,
     Witness: Default
+        + BorshSerialize
         + BorshDeserialize
-        + borsh::BorshSerialize
         + Serialize
         + DeserializeOwned
         + Send
-        + Sync,
+        + Sync
+        + 'static,
 {
     pub da_service: Arc<Da>,
     pub ledger: DB,
@@ -69,7 +65,7 @@ pub trait ProverRpc {
 pub struct ProverRpcServerImpl<Da, DB, StateRoot, Witness>
 where
     Da: DaService,
-    DB: ProverLedgerOps + Send + Sync,
+    DB: ProverLedgerOps + Send + Sync + 'static,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -78,14 +74,16 @@ where
         + AsRef<[u8]>
         + Debug
         + Send
-        + Sync,
+        + Sync
+        + 'static,
     Witness: Default
+        + BorshSerialize
         + BorshDeserialize
-        + borsh::BorshSerialize
         + Serialize
         + DeserializeOwned
         + Send
-        + Sync,
+        + Sync
+        + 'static,
 {
     context: Arc<RpcContext<Da, DB, StateRoot, Witness>>,
 }
@@ -105,12 +103,13 @@ where
         + Sync
         + 'static,
     Witness: Default
+        + BorshSerialize
         + BorshDeserialize
-        + borsh::BorshSerialize
         + Serialize
         + DeserializeOwned
         + Send
-        + Sync,
+        + Sync
+        + 'static,
 {
     pub fn new(context: RpcContext<Da, DB, StateRoot, Witness>) -> Self {
         Self {
@@ -135,8 +134,8 @@ where
         + Sync
         + 'static,
     Witness: Default
+        + BorshSerialize
         + BorshDeserialize
-        + borsh::BorshSerialize
         + Serialize
         + DeserializeOwned
         + Send
@@ -167,8 +166,8 @@ where
             blob.full_data();
         });
 
-        let mut sequencer_commitments: Vec<SequencerCommitment> = extract_sequencer_commitments(
-            &self.context.sequencer_da_pub_key.as_slice(),
+        let mut sequencer_commitments: Vec<SequencerCommitment> = extract_sequencer_commitments::<Da>(
+            self.context.sequencer_da_pub_key.as_slice(),
             l1_block.header().hash().into(),
             &mut da_data,
         );
@@ -231,7 +230,6 @@ where
         let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
             l1_block.header().clone();
 
-        let hash = da_block_header_of_commitments.hash();
         let sequencer_commitments_range = 0..=sequencer_commitments.len() - 1;
 
         let first_l2_height_of_l1 =
@@ -361,8 +359,16 @@ where
         + AsRef<[u8]>
         + Debug
         + Send
-        + Sync,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync,
+        + Sync
+        + 'static,
+    Witness: Default
+        + BorshSerialize
+        + BorshDeserialize
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static,
 {
     let server = ProverRpcServerImpl::new(rpc_context);
 

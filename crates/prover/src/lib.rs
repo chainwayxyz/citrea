@@ -38,7 +38,7 @@ impl<S: RollupBlueprint> Prover<S> {
 
     /// Only run the rpc.
     pub async fn run_rpc(mut self) -> Result<(), anyhow::Error> {
-        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        self.runner.start_rpc_server(self.rpc_methods, None).await?;
         Ok(())
     }
 
@@ -48,7 +48,7 @@ impl<S: RollupBlueprint> Prover<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await;
+        runner.start_rpc_server(self.rpc_methods, channel).await?;
 
         runner.run().await?;
         Ok(())

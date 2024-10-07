@@ -4,12 +4,10 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use borsh::de::BorshDeserialize;
 use jsonrpsee::core::DeserializeOwned;
-use sov_db::ledger_db::ProverLedgerOps;
-use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::ledger_db::{ProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::BatchNumber;
-use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaSpec, SequencerCommitment,
 };
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
