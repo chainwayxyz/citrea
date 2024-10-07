@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::{DaDataLightClient, DaSpec, DaVerifier};
+use sov_rollup_interface::da::{DaDataLightClient, DaVerifier};
 
 use crate::input::LightClientCircuitInput;
 use crate::output::LightClientCircuitOutput;
