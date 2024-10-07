@@ -29,7 +29,7 @@ impl Default for BitcoinConfig {
                 .into_path(),
             extra_args: Vec::new(),
             network: Network::Regtest,
-            docker_image: Some("bitcoin/bitcoin:latest".to_string()),
+            docker_image: Some("bitcoin/bitcoin:27.1-alpine".to_string()),
             env: Vec::new(),
             idx: 0,
         }
