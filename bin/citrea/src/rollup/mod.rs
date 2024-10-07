@@ -333,7 +333,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager,
             init_variant,
             Arc::new(prover_service),
-            Some(prover_config),
+            prover_config,
             code_commitments_by_spec,
             fork_manager,
             soft_confirmation_tx,
