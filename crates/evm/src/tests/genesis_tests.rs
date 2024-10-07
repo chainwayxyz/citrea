@@ -1,65 +1,19 @@
-use std::collections::HashMap;
-
 use alloy_eips::eip1559::BaseFeeParams;
 use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
-    Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
+    Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH, U256,
 };
 use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
 
 use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, EvmChainConfig};
-use crate::tests::utils::{get_evm, GENESIS_HASH, GENESIS_STATE_ROOT};
-use crate::{AccountData, EvmConfig};
+use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_HASH, GENESIS_STATE_ROOT};
+use crate::EvmConfig;
 
 lazy_static! {
-    pub(crate) static ref TEST_CONFIG: EvmConfig = EvmConfig {
-        data: vec![AccountData {
-            address: Address::from([1u8; 20]),
-            balance: U256::checked_mul(U256::from(1000), U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH
-            code_hash: KECCAK_EMPTY,
-            code: Bytes::default(),
-            nonce: 0,
-            storage: Default::default(),
-        },
-        AccountData {
-            address:Address::from([2u8; 20]),
-            balance: U256::checked_mul(U256::from(1000),
-            U256::pow(U256::from(10), U256::from(18))).unwrap(), // 1000 ETH,
-            code_hash: hex!("4e8ee9adb469b245e3a5a8e58e9b733aaa857a9dce1982257531db8a2700aabf").into(),
-            code: hex!("60606040526000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063a223e05d1461006a578063").into(),
-            storage: {
-                let mut storage = HashMap::new();
-                storage.insert(U256::from(0), U256::from(0x4321));
-                storage.insert(
-                    U256::from_be_slice(
-                        &hex!("6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9")[..],
-                    ),
-                    U256::from(8),
-                );
-
-                storage
-            },
-            nonce: 1
-        }],
-        spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
-            .into_iter()
-            .collect(),
-        chain_id: 1000,
-        block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
-        coinbase: Address::from([3u8; 20]),
-        limit_contract_code_size: Some(5000),
-        starting_base_fee: 1000000000,
-        base_fee_params: BaseFeeParams::ethereum(),
-        timestamp: 0,
-        difficulty: U256::ZERO,
-        extra_data: Bytes::default(),
-        nonce: 0,
-    };
-
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
         "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
     ));
@@ -68,13 +22,14 @@ lazy_static! {
 
 #[test]
 fn genesis_data() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let config = get_evm_test_config();
+    let (evm, mut working_set) = get_evm(&config);
 
-    let account = &TEST_CONFIG.data[0];
+    let account = &config.data[0];
 
     let db_account = evm.accounts.get(&account.address, &working_set).unwrap();
 
-    let contract = &TEST_CONFIG.data[1];
+    let contract = &config.data[1];
 
     let contract_account = evm.accounts.get(&contract.address, &working_set).unwrap();
 
@@ -132,7 +87,7 @@ fn genesis_data() {
 
 #[test]
 fn genesis_cfg() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&get_evm_test_config());
 
     let cfg = evm.cfg.get(&mut working_set).unwrap();
     assert_eq!(
@@ -159,7 +114,7 @@ fn genesis_cfg_missing_specs() {
 
 #[test]
 fn genesis_empty_spec_defaults_to_shanghai() {
-    let mut config = TEST_CONFIG.clone();
+    let mut config = get_evm_test_config();
     config.spec.clear();
     let (evm, mut working_set) = get_evm(&config);
 
@@ -178,7 +133,7 @@ fn genesis_cfg_cancun() {
 
 #[test]
 fn genesis_block() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&get_evm_test_config());
 
     let mut accessory_state = working_set.accessory_state();
 
@@ -232,7 +187,7 @@ fn genesis_block() {
 
 #[test]
 fn genesis_head() {
-    let (evm, mut working_set) = get_evm(&TEST_CONFIG);
+    let (evm, mut working_set) = get_evm(&get_evm_test_config());
     let head = evm.head.get(&mut working_set).unwrap();
 
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
