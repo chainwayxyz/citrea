@@ -1764,7 +1764,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=main#669d14f9b5ada394d045c63f4067fbeaecfe9aea"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=main#b6451bee765ffd6fbc7f5174b8cb05c4147c21fe"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1774,17 +1774,15 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "log",
  "rand 0.8.5",
  "serde",
  "serde_json",
  "sov-ledger-rpc 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
  "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=82bf52d)",
- "syn 1.0.109",
  "tempfile",
  "tokio",
  "toml",
- "which",
+ "tracing",
 ]
 
 [[package]]
