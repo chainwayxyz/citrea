@@ -25,6 +25,3 @@ tracing = { workspace = true }
 [dev-dependencies]
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 tempfile = { workspace = true }
-
-[features]
-native = []
