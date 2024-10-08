@@ -28,7 +28,7 @@ use crate::da_block_handler::{
 pub struct ProverInputResponse {
     pub commitment_range: (u32, u32),
     pub l1_block_height: u64,
-    pub serialized_state_transition_data: Vec<u8>,
+    pub encoded_serialized_state_transition_data: String,
 }
 
 pub(crate) struct RpcContext<C, Da, DB>
@@ -301,7 +301,7 @@ impl<C: sov_modules_api::Context, Da: DaService, DB: ProverLedgerOps + Send + Sy
                     *sequencer_commitments_range.end() as u32,
                 ),
                 l1_block_height: l1_height,
-                serialized_state_transition_data: serialized_state_transition,
+                encoded_serialized_state_transition_data: hex::encode(serialized_state_transition),
             };
 
             state_transition_responses.push(response);
