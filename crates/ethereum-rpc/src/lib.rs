@@ -423,8 +423,13 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let evm = Evm::<C>::default();
             let block_number = match block_number {
                 BlockNumberOrTag::Number(block_number) => block_number,
-                BlockNumberOrTag::Latest |  BlockNumberOrTag::Pending => evm.block_number(&mut working_set)?.saturating_to(),
-                _ => return Err(EthApiError::Unsupported("Earliest, safe and finalized are not supported for debug_traceBlockByNumber").into()),
+                BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => {
+                    evm.block_number(&mut working_set)?.saturating_to()
+                }
+                _ => return Err(EthApiError::Unsupported(
+                    "Earliest, safe and finalized are not supported for debug_traceBlockByNumber",
+                )
+                .into()),
             };
 
             debug_trace_by_block_number(block_number, None, &ethereum, &evm, &mut working_set, opts)
