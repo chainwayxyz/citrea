@@ -1709,7 +1709,6 @@ dependencies = [
  "jsonrpsee",
  "log",
  "log-panics",
- "node-configs",
  "proptest",
  "regex",
  "reqwest 0.12.5",
@@ -1749,14 +1748,21 @@ dependencies = [
  "anyhow",
  "backoff",
  "citrea-primitives",
+ "citrea-pruning",
  "futures",
+ "hex",
  "hyper 1.4.1",
  "jsonrpsee",
  "lru",
+ "serde",
  "sov-db",
+ "sov-mock-da",
  "sov-rollup-interface 0.5.0-rc.1",
+ "sov-stf-runner",
+ "tempfile",
  "tokio",
  "tokio-util",
+ "toml",
  "tower-http",
  "tracing",
 ]
@@ -1849,7 +1855,6 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "node-configs",
  "rand 0.8.5",
  "rs_merkle",
  "sequencer-client",
@@ -1901,7 +1906,6 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
- "node-configs",
  "num_cpus",
  "parking_lot",
  "rand 0.8.5",
@@ -1986,7 +1990,6 @@ dependencies = [
  "hex",
  "hyper 1.4.1",
  "jsonrpsee",
- "node-configs",
  "parking_lot",
  "reth-chainspec",
  "reth-db",
@@ -4522,21 +4525,6 @@ dependencies = [
  "num-traits",
  "rawpointer",
  "rayon",
-]
-
-[[package]]
-name = "node-configs"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "citrea-pruning",
- "hex",
- "serde",
- "sov-mock-da",
- "sov-stf-runner",
- "tempfile",
- "toml",
- "tracing",
 ]
 
 [[package]]
@@ -7656,9 +7644,9 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "citrea-common",
  "hex",
  "jsonrpsee",
- "node-configs",
  "serde",
  "serde_json",
  "sov-cli",

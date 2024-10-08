@@ -64,7 +64,6 @@ citrea-common = { path = "../common" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf", features = ["native"] }
-node-configs = { path = "../node-configs" }
 
 [dev-dependencies]
 tempfile = { workspace = true }

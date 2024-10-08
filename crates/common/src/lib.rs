@@ -7,3 +7,5 @@ pub mod error;
 pub mod rpc;
 pub mod tasks;
 pub mod utils;
+pub mod config;
+pub use config::*;

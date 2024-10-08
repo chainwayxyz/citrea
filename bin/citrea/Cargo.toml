@@ -23,7 +23,6 @@ citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = [
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
-node-configs = { path = "../../crates/node-configs" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
