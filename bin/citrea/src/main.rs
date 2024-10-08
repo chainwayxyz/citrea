@@ -10,7 +10,11 @@ use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
+<<<<<<< HEAD
 use sov_stf_runner::{from_toml_path, BatchProverConfig, FullNodeConfig, LightClientProverConfig};
+=======
+use sov_stf_runner::{from_toml_path, BatchProverConfig, FullNodeConfig};
+>>>>>>> esad/light-client-starter
 use tracing::{error, instrument};
 
 #[cfg(test)]
@@ -86,12 +90,20 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap()
         });
 
+<<<<<<< HEAD
     let batch_prover_config: Option<BatchProverConfig> =
         args.batch_prover_config_path.clone().map(|path| {
             from_toml_path(path)
                 .context("Failed to read batch prover configuration")
                 .unwrap()
         });
+=======
+    let prover_config: Option<BatchProverConfig> = args.prover_config_path.clone().map(|path| {
+        from_toml_path(path)
+            .context("Failed to read prover configuration")
+            .unwrap()
+    });
+>>>>>>> esad/light-client-starter
 
     let light_client_prover_config: Option<LightClientProverConfig> =
         args.light_client_prover_config_path.clone().map(|path| {
@@ -149,8 +161,12 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
     rollup_config_path: &str,
+<<<<<<< HEAD
     batch_prover_config: Option<BatchProverConfig>,
     light_client_prover_config: Option<LightClientProverConfig>,
+=======
+    prover_config: Option<BatchProverConfig>,
+>>>>>>> esad/light-client-starter
     sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
 where
@@ -171,7 +187,11 @@ where
         if let Err(e) = sequencer_rollup.run().await {
             error!("Error: {}", e);
         }
+<<<<<<< HEAD
     } else if let Some(batch_prover_config) = batch_prover_config {
+=======
+    } else if let Some(prover_config) = prover_config {
+>>>>>>> esad/light-client-starter
         let prover = CitreaRollupBlueprint::create_new_batch_prover(
             &rollup_blueprint,
             rt_genesis_paths,

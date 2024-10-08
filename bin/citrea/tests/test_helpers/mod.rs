@@ -15,8 +15,12 @@ use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
 use sov_stf_runner::{
+<<<<<<< HEAD
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, StorageConfig,
+=======
+    BatchProverConfig, FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
+>>>>>>> esad/light-client-starter
 };
 use tempfile::TempDir;
 use tokio::sync::oneshot;
@@ -39,7 +43,10 @@ pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<BatchProverConfig>,
+<<<<<<< HEAD
     light_client_prover_config: Option<LightClientProverConfig>,
+=======
+>>>>>>> esad/light-client-starter
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) {

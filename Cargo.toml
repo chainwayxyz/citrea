@@ -3,13 +3,17 @@ resolver = "2"
 members = [
   # Citrea
   "bin/citrea",
-  "crates/common",
-  "crates/primitives",
-  "crates/pruning",
+  "crates/batch-prover",
   "crates/bitcoin-da",
-  "crates/evm",
+  "crates/citrea-stf",
+  "crates/common",
   "crates/ethereum-rpc",
+  "crates/evm",
   "crates/fullnode",
+  "crates/light-client-prover",
+  "crates/primitives",
+  "crates/prover-services",
+  "crates/pruning",
   "crates/risc0-bonsai",
   "crates/sequencer",
   "crates/sequencer-client",
@@ -165,8 +169,6 @@ secp256k1 = { version = "0.29.0", default-features = false, features = ["global-
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 hyper = { version = "1.4.0" }
-
-bollard = { version = "0.17.1" }
 
 [patch.'https://github.com/eigerco/celestia-node-rs.git']
 # Uncomment to apply local changes

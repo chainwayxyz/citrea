@@ -16,7 +16,7 @@
 #
 # Environment Variables:
 #   BASE_BRANCH: The branch to compare against (default: nightly)
-#   TEST_NAME: The test file to run (default: bitcoin_e2e::tests::prover_test::basic_prover_test)
+#   TEST_NAME: The test file to run (default: bitcoin_e2e::prover_test::basic_prover_test)
 #   TARGET_PCT: The threshold percentage for regression detection (default: 3)
 #   NUM_RUNS: Number of times to run the test for averaging (default: 1)
 #
@@ -38,7 +38,7 @@
 set -euo pipefail
 
 BASE_BRANCH=${BASE_BRANCH:-"nightly"}
-TEST_NAME=${TEST_NAME:-"bitcoin_e2e::tests::prover_test::basic_prover_test"}
+TEST_NAME=${TEST_NAME:-"bitcoin_e2e::prover_test::basic_prover_test"}
 TARGET_PCT=${TARGET_PCT:-3}
 COMPARISON_FILE=${COMPARISON_FILE:-"comparison_results.log"}
 NUM_RUNS=${NUM_RUNS:-1}

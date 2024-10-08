@@ -16,7 +16,11 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
+<<<<<<< HEAD
 use sov_stf_runner::{BatchProverConfig, FullNodeConfig, InitVariant, LightClientProverConfig};
+=======
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig, InitVariant};
+>>>>>>> esad/light-client-starter
 use tokio::sync::broadcast;
 use tracing::{info, instrument};
 
@@ -341,6 +345,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )?;
 
         Ok(BatchProver {
+<<<<<<< HEAD
             runner,
             rpc_methods,
         })
@@ -437,6 +442,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )?;
 
         Ok(LightClientProver {
+=======
+>>>>>>> esad/light-client-starter
             runner,
             rpc_methods,
         })
