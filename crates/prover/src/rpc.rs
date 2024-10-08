@@ -1,8 +1,7 @@
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
@@ -12,8 +11,6 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_core::{Spec, Storage};
