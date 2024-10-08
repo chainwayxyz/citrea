@@ -1,6 +1,6 @@
 use reth_primitives::{Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
-use revm::{Database, DatabaseRef};
+use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_state::codec::BcsCodec;
 
@@ -77,45 +77,6 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
     }
 
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
-        let block_hash = self
-            .last_block_hashes
-            .get(&U256::from(number), self.working_set)
-            .unwrap_or(B256::ZERO);
-
-        Ok(block_hash)
-    }
-}
-
-impl<'a, C: sov_modules_api::Context> DatabaseRef for EvmDb<'a, C> {
-    type Error = ();
-
-    fn basic_ref(&self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
-        let db_account = self.accounts.get(&address, self.working_set);
-        Ok(db_account.map(Into::into))
-    }
-
-    fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        Ok(self
-            .code
-            .get(&code_hash, self.working_set)
-            .unwrap_or_default())
-    }
-
-    fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let storage_value: U256 = if self.accounts.get(&address, self.working_set).is_some() {
-            let db_account = DbAccount::new(address);
-            db_account
-                .storage
-                .get(&index, self.working_set)
-                .unwrap_or_default()
-        } else {
-            U256::default()
-        };
-
-        Ok(storage_value)
-    }
-
-    fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
         let block_hash = self
             .last_block_hashes
             .get(&U256::from(number), self.working_set)
