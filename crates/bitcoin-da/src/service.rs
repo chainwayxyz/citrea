@@ -547,9 +547,11 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
-        let smart_fee = get_fee_rate_from_mempool_space()
-            .await
-            .unwrap_or_else(self.client.estimate_smart_fee(1, None).await?.fee_rate);
+        let smart_fee = get_fee_rate_from_mempool_space().await?.or(self
+            .client
+            .estimate_smart_fee(1, None)
+            .await?
+            .fee_rate);
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
         tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
@@ -985,14 +987,16 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
     BitcoinMerkleTree::new(hashes).root()
 }
 
-pub(crate) async fn get_fee_rate_from_mempool_space() -> Result<Option<u64>> {
-    reqwest::get(MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT)
+pub(crate) async fn get_fee_rate_from_mempool_space() -> Result<Option<Amount>> {
+    let fee_rate = reqwest::get(MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT)
         .await?
         .json::<serde_json::Value>()
         .await?
         .get("fastestFee")
         .and_then(|fee| fee.as_u64())
-        .map(|fee| fee * 1000) // multiply by 1000 to convert to sat/vkb
+        .map(|fee| Amount::from_sat(fee * 1000)); // multiply by 1000 to convert to sat/vkb
+
+    Ok(fee_rate)
 }
 
 #[cfg(test)]
@@ -1471,7 +1475,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mempool_space_fee_rate() {
-        let fee_rate = get_fee_rate_from_mempool_space().await.unwrap();
+        let fee_rate = get_fee_rate_from_mempool_space().await.unwrap().unwrap();
         println!("Fee rate: {}", fee_rate);
     }
 }
