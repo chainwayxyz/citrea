@@ -70,6 +70,7 @@ where
     prover_config: LightClientProverConfig,
     task_manager: TaskManager<()>,
     batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    light_client_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
 }
 
 impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
@@ -89,6 +90,7 @@ where
         prover_service: Arc<Ps>,
         prover_config: LightClientProverConfig,
         batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+        light_client_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             runner_config,
@@ -100,6 +102,7 @@ where
             prover_config,
             task_manager: TaskManager::default(),
             batch_proof_commitments_by_spec,
+            light_client_proof_commitments_by_spec,
         })
     }
 
@@ -179,6 +182,8 @@ where
         let da_service = self.da_service.clone();
         let batch_prover_da_pub_key = self.public_keys.prover_da_pub_key.clone();
         let batch_proof_commitments_by_spec = self.batch_proof_commitments_by_spec.clone();
+        let light_client_proof_commitments_by_spec =
+            self.light_client_proof_commitments_by_spec.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<Vm, Da, Ps, DB>::new(
@@ -188,6 +193,7 @@ where
                 da_service,
                 batch_prover_da_pub_key,
                 batch_proof_commitments_by_spec,
+                light_client_proof_commitments_by_spec,
             );
             l1_block_handler
                 .run(last_l1_height_scanned.0, cancellation_token)

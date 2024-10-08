@@ -410,7 +410,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let _genesis_root = prover_storage.get_root_hash(1);
 
-        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
+        let batch_prover_code_commitments_by_spec =
+            self.get_batch_prover_code_commitments_by_spec();
+        let light_client_prover_code_commitments_by_spec =
+            self.get_light_client_prover_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -429,7 +432,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db,
             Arc::new(prover_service),
             prover_config,
-            code_commitments_by_spec,
+            batch_prover_code_commitments_by_spec,
+            light_client_prover_code_commitments_by_spec,
         )?;
 
         Ok(LightClientProver {

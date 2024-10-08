@@ -60,8 +60,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
 
-    /// Get code commitments by fork.
+    /// Get batch prover code commitments by fork.
     fn get_batch_prover_code_commitments_by_spec(
+        &self,
+    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
+
+    /// Get light client prover code commitments by fork.
+    fn get_light_client_prover_code_commitments_by_spec(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 

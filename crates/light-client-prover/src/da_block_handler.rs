@@ -34,6 +34,7 @@ where
     da_service: Arc<Da>,
     batch_prover_da_pub_key: Vec<u8>,
     batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    light_client_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
 }
@@ -53,6 +54,7 @@ where
         da_service: Arc<Da>,
         batch_prover_da_pub_key: Vec<u8>,
         batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+        light_client_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     ) -> Self {
         Self {
             prover_config,
@@ -61,6 +63,7 @@ where
             da_service,
             batch_prover_da_pub_key,
             batch_proof_code_commitments_by_spec,
+            light_client_proof_code_commitments_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
         }

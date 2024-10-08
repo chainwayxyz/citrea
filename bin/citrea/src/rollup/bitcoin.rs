@@ -102,6 +102,18 @@ impl RollupBlueprint for BitcoinRollup {
         map
     }
 
+    #[instrument(level = "trace", skip(self), ret)]
+    fn get_light_client_prover_code_commitments_by_spec(
+        &self,
+    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
+        let mut map = HashMap::new();
+        map.insert(
+            SpecId::Genesis,
+            Digest::new(citrea_risc0::LIGHT_CLIENT_BITCOIN_DA_ID),
+        );
+        map
+    }
+
     #[instrument(level = "trace", skip_all, err)]
     fn create_storage_manager(
         &self,
