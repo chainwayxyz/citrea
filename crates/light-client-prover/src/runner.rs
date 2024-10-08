@@ -15,6 +15,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
+use tokio::{select, signal};
 use tokio::sync::oneshot;
 use tracing::{error, info, instrument};
 
@@ -199,8 +200,16 @@ where
                 .run(last_l1_height_scanned.0, cancellation_token)
                 .await
         });
-        // TODO: think what could be needed here
 
-        Ok(())
+        loop {
+            // TODO: update this once l2 sync is implemented
+            select! {
+                _ = signal::ctrl_c() => {
+                    info!("Shutting down");
+                    self.task_manager.abort().await;
+                    return Ok(());
+                }
+            }
+        }
     }
 }
