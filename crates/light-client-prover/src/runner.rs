@@ -70,10 +70,7 @@ where
     prover_config: LightClientProverConfig,
     task_manager: TaskManager<()>,
     batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-<<<<<<< HEAD
     light_client_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-=======
->>>>>>> esad/light-client-starter
 }
 
 impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
@@ -93,10 +90,7 @@ where
         prover_service: Arc<Ps>,
         prover_config: LightClientProverConfig,
         batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-<<<<<<< HEAD
         light_client_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-=======
->>>>>>> esad/light-client-starter
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             runner_config,
@@ -108,10 +102,7 @@ where
             prover_config,
             task_manager: TaskManager::default(),
             batch_proof_commitments_by_spec,
-<<<<<<< HEAD
             light_client_proof_commitments_by_spec,
-=======
->>>>>>> esad/light-client-starter
         })
     }
 
