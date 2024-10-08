@@ -45,7 +45,7 @@ impl TestCase for BasicProverTest {
         };
 
         let Some(batch_prover) = &f.batch_prover else {
-            bail!("Batch Prover not running. Set TestCaseConfig with_prover to true")
+            bail!("Batch Prover not running. Set TestCaseConfig with_batch_prover to true")
         };
 
         let Some(full_node) = &f.full_node else {
@@ -73,6 +73,7 @@ impl TestCase for BasicProverTest {
 
         da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
+
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
@@ -128,7 +129,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         };
 
         let Some(prover) = &f.batch_prover else {
-            bail!("Batch Prover not running. Set TestCaseConfig with_prover to true")
+            bail!("Batch Prover not running. Set TestCaseConfig with_batch_prover to true")
         };
 
         let Some(full_node) = &f.full_node else {
