@@ -86,17 +86,19 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap()
         });
 
-    let batch_prover_config: Option<BatchProverConfig> = args.batch_prover_config_path.clone().map(|path| {
-        from_toml_path(path)
-            .context("Failed to read batch prover configuration")
-            .unwrap()
-    });
+    let batch_prover_config: Option<BatchProverConfig> =
+        args.batch_prover_config_path.clone().map(|path| {
+            from_toml_path(path)
+                .context("Failed to read batch prover configuration")
+                .unwrap()
+        });
 
-    let light_client_prover_config: Option<LightClientProverConfig> = args.batch_prover_config_path.clone().map(|path| {
-        from_toml_path(path)
-            .context("Failed to read light client prover configuration")
-            .unwrap()
-    });
+    let light_client_prover_config: Option<LightClientProverConfig> =
+        args.light_client_prover_config_path.clone().map(|path| {
+            from_toml_path(path)
+                .context("Failed to read light client prover configuration")
+                .unwrap()
+        });
 
     if batch_prover_config.is_some() && sequencer_config.is_some() {
         return Err(anyhow::anyhow!(
