@@ -34,7 +34,7 @@ where
     pub sequencer_da_pub_key: Vec<u8>,
     pub sequencer_pub_key: Vec<u8>,
     pub l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pub phantom: PhantomData<C>,
+    pub phantom: PhantomData<fn() -> C>,
 }
 
 #[rpc(client, server)]
