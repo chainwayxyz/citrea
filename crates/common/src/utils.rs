@@ -82,7 +82,6 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
 
 pub fn extract_sequencer_commitments<Da: DaService>(
     sequencer_da_pub_key: &[u8],
-    l1_block_hash: [u8; 32],
     da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
 ) -> Vec<SequencerCommitment> {
     let mut sequencer_commitments = vec![];

@@ -180,7 +180,6 @@ where
             let mut sequencer_commitments: Vec<SequencerCommitment> =
                 extract_sequencer_commitments::<Da>(
                     self.sequencer_da_pub_key.as_slice(),
-                    l1_block.header().hash().into(),
                     &mut da_data,
                 );
 
@@ -252,8 +251,10 @@ where
             let hash = da_block_header_of_commitments.hash();
 
             if should_prove {
-                let sequencer_commitments_groups =
-                    self.break_sequencer_commitments_into_groups(&sequencer_commitments)?;
+                let sequencer_commitments_groups = break_sequencer_commitments_into_groups(
+                    &self.ledger_db,
+                    &sequencer_commitments,
+                )?;
 
                 let submitted_proofs = self
                     .ledger_db
@@ -300,59 +301,6 @@ where
             self.pending_l1_blocks.pop_front();
         }
         Ok(())
-    }
-
-    fn break_sequencer_commitments_into_groups(
-        &self,
-        sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
-        let mut result_range = vec![];
-
-        let mut range = 0usize..=0usize;
-        let mut cumulative_state_diff = StateDiff::new();
-        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
-            let mut sequencer_commitment_state_diff = StateDiff::new();
-            for l2_height in sequencer_commitment.l2_start_block_number
-                ..=sequencer_commitment.l2_end_block_number
-            {
-                let state_diff = self
-                    .ledger_db
-                    .get_l2_state_diff(BatchNumber(l2_height))?
-                    .ok_or(anyhow!(
-                        "Could not find state diff for L2 range {}-{}",
-                        sequencer_commitment.l2_start_block_number,
-                        sequencer_commitment.l2_end_block_number
-                    ))?;
-                sequencer_commitment_state_diff =
-                    merge_state_diffs(sequencer_commitment_state_diff, state_diff);
-            }
-            cumulative_state_diff = merge_state_diffs(
-                cumulative_state_diff,
-                sequencer_commitment_state_diff.clone(),
-            );
-
-            let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
-
-            // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
-            let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
-
-            if state_diff_threshold_reached {
-                // We've exceeded the limit with the current commitments
-                // so we have to stop at the previous one.
-                result_range.push(range);
-
-                // Reset the cumulative state diff to be equal to the current commitment state diff
-                cumulative_state_diff = sequencer_commitment_state_diff;
-                range = index..=index;
-            } else {
-                range = *range.start()..=index;
-            }
-        }
-
-        // If the last group hasn't been reset because it has not reached the threshold,
-        // Add it anyway
-        result_range.push(range);
-        Ok(result_range)
     }
 
     async fn create_state_transition_data(
@@ -708,4 +656,57 @@ pub(crate) async fn get_state_transition_data_from_commitments<
         soft_confirmations,
         da_block_headers_of_soft_confirmations,
     ))
+}
+
+pub(crate) fn break_sequencer_commitments_into_groups<DB: ProverLedgerOps>(
+    ledger_db: &DB,
+    sequencer_commitments: &[SequencerCommitment],
+) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
+    let mut result_range = vec![];
+
+    let mut range = 0usize..=0usize;
+    let mut cumulative_state_diff = StateDiff::new();
+    for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
+        let mut sequencer_commitment_state_diff = StateDiff::new();
+        for l2_height in
+            sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
+        {
+            let state_diff =
+                ledger_db
+                    .get_l2_state_diff(BatchNumber(l2_height))?
+                    .ok_or(anyhow!(
+                        "Could not find state diff for L2 range {}-{}",
+                        sequencer_commitment.l2_start_block_number,
+                        sequencer_commitment.l2_end_block_number
+                    ))?;
+            sequencer_commitment_state_diff =
+                merge_state_diffs(sequencer_commitment_state_diff, state_diff);
+        }
+        cumulative_state_diff = merge_state_diffs(
+            cumulative_state_diff,
+            sequencer_commitment_state_diff.clone(),
+        );
+
+        let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
+
+        // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
+        let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
+
+        if state_diff_threshold_reached {
+            // We've exceeded the limit with the current commitments
+            // so we have to stop at the previous one.
+            result_range.push(range);
+
+            // Reset the cumulative state diff to be equal to the current commitment state diff
+            cumulative_state_diff = sequencer_commitment_state_diff;
+            range = index..=index;
+        } else {
+            range = *range.start()..=index;
+        }
+    }
+
+    // If the last group hasn't been reset because it has not reached the threshold,
+    // Add it anyway
+    result_range.push(range);
+    Ok(result_range)
 }
