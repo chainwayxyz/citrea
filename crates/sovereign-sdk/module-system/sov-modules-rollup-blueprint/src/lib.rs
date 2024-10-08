@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use citrea_common::{FullNodeConfig, BatchProverConfig};
+use citrea_common::{FullNodeConfig, BatchProverConfig, LightClientProverConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -61,8 +61,13 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
 
-    /// Get code commitments by fork.
-    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
+    /// Get batch prover code commitments by fork.
+    fn get_batch_prover_code_commitments_by_spec(
+        &self,
+    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
+
+    /// Get light client prover code commitment.
+    fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
@@ -109,6 +114,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     async fn create_batch_prover_service(
         &self,
         prover_config: BatchProverConfig,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService;
+
+    /// Creates instance of [`ProverService`].
+    async fn create_light_client_prover_service(
+        &self,
+        prover_config: LightClientProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

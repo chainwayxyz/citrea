@@ -3,8 +3,9 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_batch_prover::{BatchProver, CitreaBatchProver};
-use citrea_common::{FullNodeConfig, BatchProverConfig, SequencerConfig};
+use citrea_common::{FullNodeConfig, BatchProverConfig, SequencerConfig, LightClientProverConfig};
 use citrea_fullnode::{CitreaFullnode, FullNode};
+use citrea_light_client_prover::runner::{CitreaLightClientProver, LightClientProver};
 use citrea_primitives::forks::FORKS;
 use citrea_sequencer::{CitreaSequencer, Sequencer};
 use sov_db::ledger_db::SharedLedgerOps;
@@ -200,7 +201,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let code_commitments_by_spec = self.get_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -313,7 +314,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let code_commitments_by_spec = self.get_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -341,6 +342,81 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )?;
 
         Ok(BatchProver {
+            runner,
+            rpc_methods,
+        })
+    }
+
+    /// Creates a new light client prover
+    #[instrument(level = "trace", skip_all)]
+    async fn create_new_light_client_prover(
+        &self,
+        rollup_config: FullNodeConfig<Self::DaConfig>,
+        prover_config: LightClientProverConfig,
+    ) -> Result<LightClientProver<Self>, anyhow::Error>
+    where
+        <Self::NativeContext as Spec>::Storage: NativeStorage,
+    {
+        let da_service = self.create_da_service(&rollup_config, true).await?;
+
+        let rocksdb_config = RocksdbConfig::new(
+            rollup_config.storage.path.as_path(),
+            rollup_config.storage.db_max_open_files,
+        );
+        let ledger_db = self.create_ledger_db(&rocksdb_config);
+
+        let prover_service = self
+            .create_light_client_prover_service(
+                prover_config.clone(),
+                &rollup_config,
+                &da_service,
+                ledger_db.clone(),
+            )
+            .await;
+
+        // TODO: Double check what kind of storage needed here.
+        // Maybe whole "prev_root" can be initialized inside runner
+        // Getting block here, so prover_service doesn't have to be `Send`
+
+        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
+        let prover_storage = storage_manager.create_finalized_storage()?;
+
+        let runner_config = rollup_config.runner.expect("Runner config is missing");
+        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
+        let rpc_methods = self.create_rpc_methods(
+            &prover_storage,
+            &ledger_db,
+            &da_service,
+            Some(runner_config.sequencer_client_url.clone()),
+            None,
+        )?;
+
+        let batch_prover_code_commitments_by_spec =
+            self.get_batch_prover_code_commitments_by_spec();
+        let light_client_prover_code_commitment = self.get_light_client_prover_code_commitment();
+
+        let current_l2_height = ledger_db
+            .get_head_soft_confirmation()
+            .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
+            .map(|(l2_height, _)| l2_height)
+            .unwrap_or(BatchNumber(0));
+
+        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
+        fork_manager.register_handler(Box::new(ledger_db.clone()));
+
+        let runner = CitreaLightClientProver::new(
+            runner_config,
+            rollup_config.public_keys,
+            rollup_config.rpc,
+            da_service,
+            ledger_db,
+            Arc::new(prover_service),
+            prover_config,
+            batch_prover_code_commitments_by_spec,
+            light_client_prover_code_commitment,
+        )?;
+
+        Ok(LightClientProver {
             runner,
             rpc_methods,
         })

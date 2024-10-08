@@ -37,6 +37,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -58,6 +59,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -138,6 +140,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             None,
         )
@@ -192,6 +195,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -234,6 +238,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(sequencer_config),
@@ -298,6 +303,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -328,6 +334,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
                     Some(BatchProverConfig::default()),
+                    None,
                     rollup_config,
                     None,
                 )
@@ -396,6 +403,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
                     Some(BatchProverConfig::default()),
+                    None,
                     rollup_config,
                     None,
                 )
@@ -448,6 +456,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
                     Some(BatchProverConfig::default()),
+                    None,
                     rollup_config,
                     None,
                 )
