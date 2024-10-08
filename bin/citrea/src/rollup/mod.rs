@@ -365,13 +365,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_batch_prover_service(
-                // TODO: fix this
-                BatchProverConfig {
-                    proof_sampling_number: prover_config.proof_sampling_number,
-                    proving_mode: prover_config.proving_mode,
-                    enable_recovery: prover_config.enable_recovery,
-                },
+            .create_light_client_prover_service(
+                prover_config.clone(),
                 &rollup_config,
                 &da_service,
                 ledger_db.clone(),

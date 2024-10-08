@@ -18,7 +18,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, ZkStorage};
-use sov_stf_runner::{BatchProverConfig, FullNodeConfig};
+use sov_stf_runner::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 use tokio::sync::broadcast;
 
 use crate::CitreaRollupBlueprint;
@@ -135,7 +135,35 @@ impl RollupBlueprint for MockDemoRollup {
             vm,
             zk_stf,
             da_verifier,
-            prover_config,
+            prover_config.proving_mode,
+            zk_storage,
+            ledger_db,
+        )
+        .expect("Should be able to instantiate prover service")
+    }
+
+    async fn create_light_client_prover_service(
+        &self,
+        prover_config: LightClientProverConfig,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
+        _da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService {
+        let vm = Risc0BonsaiHost::new(
+            citrea_risc0::LIGHT_CLIENT_MOCK_DA_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db.clone(),
+        );
+        let zk_stf = StfBlueprint::new();
+        let zk_storage = ZkStorage::new();
+        let da_verifier = Default::default();
+
+        ParallelProverService::new_with_default_workers(
+            vm,
+            zk_stf,
+            da_verifier,
+            prover_config.proving_mode,
             zk_storage,
             ledger_db,
         )
