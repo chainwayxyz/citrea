@@ -1,13 +1,11 @@
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::spec::BitcoinSpec;
 use bitcoincore_rpc::RpcApi;
-use node_configs::SequencerConfig;
-
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::{L2Node, Restart};
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
+use citrea_e2e::config::SequencerConfig;
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::Restart;
+use citrea_e2e::Result;
 
 struct BasicSequencerTest;
 
@@ -22,15 +20,26 @@ impl TestCase for BasicSequencerTest {
             bail!("bitcoind not running. Test cannot run with bitcoind runnign as DA")
         };
 
-        let seq_height0 = sequencer.client.eth_block_number().await;
-        assert_eq!(seq_height0, 0);
+        sequencer.client.send_publish_batch_request().await?;
 
-        sequencer.client.send_publish_batch_request().await;
+        let head_batch0 = sequencer
+            .client
+            .ledger_get_head_soft_confirmation()
+            .await?
+            .unwrap();
+        assert_eq!(head_batch0.l2_height, 1);
+
+        sequencer.client.send_publish_batch_request().await?;
+
         da.generate(1, None).await?;
 
-        sequencer.wait_for_l2_height(1, None).await;
-        let seq_height1 = sequencer.client.eth_block_number().await;
-        assert_eq!(seq_height1, 1);
+        sequencer.client.wait_for_l2_block(1, None).await?;
+        let head_batch1 = sequencer
+            .client
+            .ledger_get_head_soft_confirmation()
+            .await?
+            .unwrap();
+        assert_eq!(head_batch1.l2_height, 2);
 
         Ok(())
     }
@@ -68,7 +77,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         // Create initial DA blocks
         da.generate(3, None).await?;
 
-        sequencer.client.send_publish_batch_request().await;
+        sequencer.client.send_publish_batch_request().await?;
 
         sequencer.wait_until_stopped().await?;
 
@@ -79,15 +88,13 @@ impl TestCase for SequencerMissedDaBlocksTest {
         sequencer.start(None).await?;
 
         for _ in 0..10 {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
 
         let head_soft_confirmation_height = sequencer
             .client
             .ledger_get_head_soft_confirmation_height()
-            .await
-            .unwrap()
-            .unwrap();
+            .await?;
 
         let mut last_used_l1_height = initial_l1_height;
 
@@ -98,8 +105,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
         for i in 1..=head_soft_confirmation_height {
             let soft_confirmation = sequencer
                 .client
-                .ledger_get_soft_confirmation_by_number::<BitcoinSpec>(i)
-                .await
+                .ledger_get_soft_confirmation_by_number(i)
+                .await?
                 .unwrap();
 
             if i == 1 {

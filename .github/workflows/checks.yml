@@ -224,6 +224,7 @@ jobs:
           RUST_BACKTRACE: 1
           USE_DOCKER: "true"
           SHORT_PREFIX: 1
+          CITREA: ${{ github.workspace }}/target/debug/citrea
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -395,6 +396,7 @@ jobs:
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
           USE_DOCKER: "true"
           SHORT_PREFIX: 1
+          CITREA: ${{ github.workspace }}/target/debug/citrea
 
   system-contracts:
     strategy:

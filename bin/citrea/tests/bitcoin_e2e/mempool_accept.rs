@@ -2,11 +2,11 @@ use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoin_e2e::config::BitcoinConfig;
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::L2Node;
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
+use citrea_e2e::config::BitcoinConfig;
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::L2Node;
+use citrea_e2e::Result;
 
 struct MempoolAcceptTest;
 
@@ -31,7 +31,7 @@ impl TestCase for MempoolAcceptTest {
 
         // publish min_soft_conf_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_soft_conf_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
             .wait_for_l2_height(min_soft_conf_per_commitment, None)
