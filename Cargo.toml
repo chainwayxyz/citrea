@@ -3,17 +3,13 @@ resolver = "2"
 members = [
   # Citrea
   "bin/citrea",
-  "crates/batch-prover",
-  "crates/bitcoin-da",
-  "crates/citrea-stf",
   "crates/common",
-  "crates/ethereum-rpc",
-  "crates/evm",
-  "crates/fullnode",
-  "crates/light-client-prover",
   "crates/primitives",
-  "crates/prover-services",
   "crates/pruning",
+  "crates/bitcoin-da",
+  "crates/evm",
+  "crates/ethereum-rpc",
+  "crates/fullnode",
   "crates/risc0-bonsai",
   "crates/sequencer",
   "crates/sequencer-client",
@@ -106,7 +102,7 @@ rayon = "1.8.0"
 rlimit = "0.10.2"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
 reqwest = { version = "0.12.5", features = ["rustls-tls", "json", "http2"], default-features = false }
-rocksdb = { version = "0.22.0", features = ["lz4"] }
+rocksdb = { version = "0.22.0", features = ["lz4"], default-features = false }
 serde = { version = "1.0.192", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.8", default-features = false }
