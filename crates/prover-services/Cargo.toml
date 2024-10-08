@@ -28,6 +28,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
+bincode = { workspace = true }
 borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -36,6 +37,7 @@ num_cpus = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
+risc0-zkvm = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

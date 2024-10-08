@@ -6,6 +6,7 @@ use borsh::BorshDeserialize;
 use citrea_stf::verifier::StateTransitionVerifier;
 use parking_lot::Mutex;
 use prover::Prover;
+use risc0_zkvm::{Journal, Receipt};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
@@ -149,9 +150,39 @@ where
 
     async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
         &self,
-        _block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<T, anyhow::Error> {
-        todo!()
+        // Wait for proof
+        let proof = loop {
+            let status = self
+                .prover_state
+                .get_prover_status_for_da_submission(block_header_hash.clone())?;
+
+            match status {
+                ProverStatus::Proved(proof) => break proof,
+                ProverStatus::ProvingInProgress => {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+                _ => {
+                    // function will not return any other type of status
+                }
+            }
+        };
+
+        // TODO: maybe extract this to Vm?
+        // Extract journal
+        let journal = match proof {
+            Proof::PublicInput(journal) => {
+                let journal: Journal = bincode::deserialize(&journal)?;
+                journal
+            }
+            Proof::Full(data) => {
+                let receipt: Receipt = bincode::deserialize(&data)?;
+                receipt.journal
+            }
+        };
+
+        Ok(T::try_from_slice(&journal.bytes)?)
     }
 
     async fn wait_for_proving_and_send_to_da(
