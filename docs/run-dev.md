@@ -100,7 +100,7 @@ Full node RPC is accessible at `127.0.0.1:12346`
 _Optional_: Run prover:
 
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/prover_rollup_config.toml --prover-config-path resources/configs/bitcoin-regtest/prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
+./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/prover_rollup_config.toml --batch-prover-config-path resources/configs/bitcoin-regtest/prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
 If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcion-regtest/prover_config.toml` to 0, and you can lower the `min_soft_confirmations_per_commitment` to a number between 5-50, as higher numbers than that takes too long even if you run the prover in execute mode.

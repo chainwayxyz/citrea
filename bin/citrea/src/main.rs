@@ -35,12 +35,12 @@ struct Args {
     rollup_config_path: String,
 
     /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
-    #[arg(long, conflicts_with = "prover_config_path")]
+    #[arg(long, conflicts_with = "batch_prover_config_path")]
     sequencer_config_path: Option<String>,
 
-    /// The path to the prover config. If set, runs the node in prover mode, otherwise in full node mode.
+    /// The path to the batch prover config. If set, runs the node in batch prover mode, otherwise in full node mode.
     #[arg(long, conflicts_with = "sequencer_config_path")]
-    prover_config_path: Option<String>,
+    batch_prover_config_path: Option<String>,
 
     /// Logging verbosity
     #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
@@ -82,15 +82,15 @@ async fn main() -> Result<(), anyhow::Error> {
                 .unwrap()
         });
 
-    let prover_config: Option<BatchProverConfig> = args.prover_config_path.clone().map(|path| {
+    let batch_prover_config: Option<BatchProverConfig> = args.batch_prover_config_path.clone().map(|path| {
         from_toml_path(path)
-            .context("Failed to read prover configuration")
+            .context("Failed to read batch prover configuration")
             .unwrap()
     });
 
-    if prover_config.is_some() && sequencer_config.is_some() {
+    if batch_prover_config.is_some() && sequencer_config.is_some() {
         return Err(anyhow::anyhow!(
-            "Cannot run in both prover and sequencer mode at the same time"
+            "Cannot run in both batch prover and sequencer mode at the same time"
         ));
     }
 
@@ -99,7 +99,7 @@ async fn main() -> Result<(), anyhow::Error> {
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 rollup_config_path,
-                prover_config,
+                batch_prover_config,
                 sequencer_config,
             )
             .await?;
@@ -108,7 +108,7 @@ async fn main() -> Result<(), anyhow::Error> {
             start_rollup::<BitcoinRollup, BitcoinServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 rollup_config_path,
-                prover_config,
+                batch_prover_config,
                 sequencer_config,
             )
             .await?;
