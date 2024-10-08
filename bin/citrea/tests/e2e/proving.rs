@@ -6,11 +6,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-<<<<<<< HEAD
 use sov_stf_runner::{BatchProverConfig, LightClientProverConfig};
-=======
-use sov_stf_runner::BatchProverConfig;
->>>>>>> esad/light-client-starter
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{
