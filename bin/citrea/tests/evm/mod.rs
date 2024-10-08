@@ -6,8 +6,8 @@ use alloy::signers::Signer;
 // use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
+use node_configs::SequencerConfig;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U256};
 use sov_rollup_interface::CITREA_VERSION;
 

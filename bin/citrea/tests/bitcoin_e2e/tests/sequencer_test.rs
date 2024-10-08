@@ -2,7 +2,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin_da::spec::BitcoinSpec;
 use bitcoincore_rpc::RpcApi;
-use citrea_sequencer::SequencerConfig;
+use node_configs::SequencerConfig;
 
 use crate::bitcoin_e2e::framework::TestFramework;
 use crate::bitcoin_e2e::node::{L2Node, Restart};

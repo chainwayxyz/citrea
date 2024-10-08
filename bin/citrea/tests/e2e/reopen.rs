@@ -4,9 +4,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use node_configs::ProverConfig;
+use node_configs::{ProverConfig, SequencerConfig};
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::runtime::Runtime;

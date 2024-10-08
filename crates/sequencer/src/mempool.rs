@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail};
 use citrea_evm::SYSTEM_SIGNER;
+use node_configs::SequencerMempoolConfig;
 use reth_chainspec::{Chain, ChainSpecBuilder};
 use reth_primitives::{Genesis, TxHash};
 use reth_tasks::TokioTaskExecutor;
@@ -13,7 +14,6 @@ use reth_transaction_pool::{
     TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
-use crate::config::SequencerMempoolConfig;
 pub use crate::db_provider::DbProvider;
 
 type CitreaMempoolImpl<C> = Pool<

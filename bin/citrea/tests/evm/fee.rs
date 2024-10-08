@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
+use node_configs::SequencerConfig;
 use reth_primitives::BlockNumberOrTag;
 
 use crate::evm::init_test_rollup;

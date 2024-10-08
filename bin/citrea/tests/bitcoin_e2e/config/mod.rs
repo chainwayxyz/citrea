@@ -8,9 +8,8 @@ mod utils;
 use std::path::PathBuf;
 
 pub use bitcoin::BitcoinConfig;
-pub use citrea_sequencer::SequencerConfig;
 pub use docker::DockerConfig;
-pub use node_configs::ProverConfig;
+pub use node_configs::{ProverConfig, SequencerConfig};
 pub use rollup::{default_rollup_config, RollupConfig};
 pub use test::TestConfig;
 pub use test_case::{TestCaseConfig, TestCaseEnv};

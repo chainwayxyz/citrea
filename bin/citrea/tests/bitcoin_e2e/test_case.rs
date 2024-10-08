@@ -8,9 +8,8 @@ use std::time::Duration;
 use anyhow::{bail, Context};
 use async_trait::async_trait;
 use bitcoin_da::service::BitcoinServiceConfig;
-use citrea_sequencer::SequencerConfig;
 use futures::FutureExt;
-use node_configs::{ProverConfig, RpcConfig, RunnerConfig, StorageConfig};
+use node_configs::{ProverConfig, RpcConfig, RunnerConfig, SequencerConfig, StorageConfig};
 
 use super::config::{
     default_rollup_config, BitcoinConfig, FullFullNodeConfig, FullProverConfig,
