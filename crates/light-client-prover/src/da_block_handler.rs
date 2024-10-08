@@ -120,10 +120,6 @@ where
 
             self.process_l1_block(l1_block).await?;
 
-            self.ledger_db
-                .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
-                .expect("Saving last scanned l1 height to ledger db");
-
             self.queued_l1_blocks.pop_front();
         }
 
@@ -156,6 +152,10 @@ where
             "Generated proof for L1 block: {l1_height} output={:?}",
             circuit_output
         );
+
+        self.ledger_db
+            .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
+            .expect("Saving last scanned l1 height to ledger db");
 
         Ok(())
     }
