@@ -4,12 +4,11 @@ use anyhow::bail;
 use async_trait::async_trait;
 use bitcoincore_rpc::json::IndexStatus;
 use bitcoincore_rpc::RpcApi;
-
-use crate::bitcoin_e2e::config::{BitcoinConfig, TestCaseConfig};
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::Restart;
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::Result;
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::Restart;
+use citrea_e2e::Result;
 
 struct BasicSyncTest;
 
