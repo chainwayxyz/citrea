@@ -11,7 +11,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
-    get_state_transition_data_from_commitments, merge_state_diffs,
+    merge_state_diffs,
 };
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
@@ -23,6 +23,7 @@ use sov_modules_api::{BlobReaderTrait, DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::{ProverConfig, ProverService};
@@ -31,6 +32,12 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
+
+type CommitmentStateTransitionData<Witness, Da> = (
+    VecDeque<Vec<Witness>>,
+    VecDeque<Vec<SignedSoftConfirmation>>,
+    VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
+);
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness>
 where
@@ -620,4 +627,85 @@ async fn sync_l1<Da>(
 
         sleep(Duration::from_secs(2)).await;
     }
+}
+
+pub(crate) async fn get_state_transition_data_from_commitments<
+    Da: DaService,
+    DB: ProverLedgerOps,
+    Witness: DeserializeOwned,
+>(
+    sequencer_commitments: &[SequencerCommitment],
+    da_service: &Arc<Da>,
+    ledger_db: &DB,
+    l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
+) -> Result<CommitmentStateTransitionData<Witness, Da>, anyhow::Error> {
+    let mut state_transition_witnesses: VecDeque<Vec<Witness>> = VecDeque::new();
+    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
+    let mut da_block_headers_of_soft_confirmations: VecDeque<
+        Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
+    > = VecDeque::new();
+    for sequencer_commitment in sequencer_commitments.to_owned().iter() {
+        // get the l2 height ranges of each seq_commitments
+        let mut witnesses = vec![];
+        let start_l2 = sequencer_commitment.l2_start_block_number;
+        let end_l2 = sequencer_commitment.l2_end_block_number;
+        let soft_confirmations_in_commitment = match ledger_db
+            .get_soft_confirmation_range(&(BatchNumber(start_l2)..=BatchNumber(end_l2)))
+        {
+            Ok(soft_confirmations) => soft_confirmations,
+            Err(e) => {
+                return Err(anyhow!(
+                    "Failed to get soft confirmations from the ledger db: {}",
+                    e
+                ));
+            }
+        };
+        let mut commitment_soft_confirmations = vec![];
+        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
+            vec![];
+        for soft_confirmation in soft_confirmations_in_commitment {
+            if da_block_headers_to_push.is_empty()
+                || da_block_headers_to_push.last().unwrap().height()
+                    != soft_confirmation.da_slot_height
+            {
+                let filtered_block = match get_da_block_at_height(
+                    da_service,
+                    soft_confirmation.da_slot_height,
+                    l1_block_cache.clone(),
+                )
+                .await
+                {
+                    Ok(block) => block,
+                    Err(_) => {
+                        return Err(anyhow!(
+                            "Error while fetching DA block at height: {}",
+                            soft_confirmation.da_slot_height
+                        ));
+                    }
+                };
+                da_block_headers_to_push.push(filtered_block.header().clone());
+            }
+            let signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
+            commitment_soft_confirmations.push(signed_soft_confirmation.clone());
+        }
+        soft_confirmations.push_back(commitment_soft_confirmations);
+
+        da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
+        for l2_height in
+            sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
+        {
+            let witness = match ledger_db.get_l2_witness::<Witness>(l2_height) {
+                Ok(witness) => witness,
+                Err(e) => return Err(anyhow!("Failed to get witness from the ledger db: {}", e)),
+            };
+
+            witnesses.push(witness.expect("A witness must be present"));
+        }
+        state_transition_witnesses.push_back(witnesses);
+    }
+    Ok((
+        state_transition_witnesses,
+        soft_confirmations,
+        da_block_headers_of_soft_confirmations,
+    ))
 }

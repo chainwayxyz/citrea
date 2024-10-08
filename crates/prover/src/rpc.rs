@@ -5,7 +5,6 @@ use borsh::BorshSerialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
-    get_state_transition_data_from_commitments,
 };
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -19,6 +18,8 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::StateTransitionData;
 use tokio::sync::Mutex;
 use tracing::{debug, error};
+
+use crate::da_block_handler::get_state_transition_data_from_commitments;
 
 pub(crate) struct RpcContext<C, Da, DB>
 where
