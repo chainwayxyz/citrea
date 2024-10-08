@@ -84,7 +84,9 @@ impl RollupBlueprint for MockDemoRollup {
         Ok(rpc_methods)
     }
 
-    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
+    fn get_batch_prover_code_commitments_by_spec(
+        &self,
+    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         let mut map = HashMap::new();
         map.insert(SpecId::Genesis, Digest::new(citrea_risc0::MOCK_DA_ID));
         map

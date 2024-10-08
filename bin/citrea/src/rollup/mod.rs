@@ -200,7 +200,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let code_commitments_by_spec = self.get_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -313,7 +313,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let code_commitments_by_spec = self.get_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -410,7 +410,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let _genesis_root = prover_storage.get_root_hash(1);
 
-        let code_commitments_by_spec = self.get_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
