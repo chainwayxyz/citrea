@@ -44,9 +44,7 @@ where
         + DeserializeOwned
         + Clone
         + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync,
+        + Debug,
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_config: ProverConfig,
@@ -75,9 +73,7 @@ where
         + DeserializeOwned
         + Clone
         + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync,
+        + Debug,
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
 {
     #[allow(clippy::too_many_arguments)]

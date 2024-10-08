@@ -174,8 +174,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         + AsRef<[u8]>
         + Debug
         + Sync
-        + Send
-        + 'static;
+        + Send;
 
     /// The initial params of the rollup.
     type GenesisParams;
@@ -200,8 +199,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         + Serialize
         + DeserializeOwned
         + Send
-        + Sync
-        + 'static;
+        + Sync;
 
     /// The validity condition that must be verified outside of the Vm
     type Condition: ValidityCondition;

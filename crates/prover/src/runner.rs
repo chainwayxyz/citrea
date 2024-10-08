@@ -1,6 +1,5 @@
 use core::panic;
 use std::collections::{HashMap, VecDeque};
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -166,15 +165,14 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    fn create_rpc_context(&self) -> RpcContext<Da, DB, Stf::StateRoot, Stf::Witness> {
+    fn create_rpc_context(&self) -> RpcContext<C, Da, DB> {
         RpcContext {
             ledger: self.ledger_db.clone(),
             da_service: self.da_service.clone(),
             sequencer_da_pub_key: self.sequencer_da_pub_key.clone(),
             sequencer_pub_key: self.sequencer_pub_key.clone(),
             l1_block_cache: self.l1_block_cache.clone(),
-            _state_root: PhantomData,
-            _witness: PhantomData,
+            phantom: std::marker::PhantomData,
         }
     }
 

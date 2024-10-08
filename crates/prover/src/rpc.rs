@@ -16,102 +16,50 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::BatchNumber;
+use sov_modules_core::{Spec, Storage};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::StateTransitionData;
 use tokio::sync::Mutex;
 use tracing::{debug, error};
 
-pub(crate) struct RpcContext<Da, DB, StateRoot, Witness>
+pub(crate) struct RpcContext<C, Da, DB>
 where
+    C: sov_modules_api::Context,
     Da: DaService,
     DB: ProverLedgerOps,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync
-        + 'static,
-    Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static,
 {
     pub da_service: Arc<Da>,
     pub ledger: DB,
     pub sequencer_da_pub_key: Vec<u8>,
     pub sequencer_pub_key: Vec<u8>,
     pub l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    pub _state_root: PhantomData<StateRoot>,
-    pub _witness: PhantomData<Witness>,
+    pub phantom: PhantomData<C>,
 }
 
 #[rpc(client, server)]
 pub trait ProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
     #[method(name = "prover_generateInput")]
-    #[blocking]
     async fn generate_input(&self, l1_height: u64) -> RpcResult<String>;
 }
 
-pub struct ProverRpcServerImpl<Da, DB, StateRoot, Witness>
+pub struct ProverRpcServerImpl<C, Da, DB>
 where
+    C: sov_modules_api::Context,
     Da: DaService,
     DB: ProverLedgerOps + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync
-        + 'static,
-    Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static,
 {
-    context: Arc<RpcContext<Da, DB, StateRoot, Witness>>,
+    context: Arc<RpcContext<C, Da, DB>>,
 }
 
-impl<Da, DB, StateRoot, Witness> ProverRpcServerImpl<Da, DB, StateRoot, Witness>
+impl<C, Da, DB> ProverRpcServerImpl<C, Da, DB>
 where
+    C: sov_modules_api::Context,
     Da: DaService,
     DB: ProverLedgerOps + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync
-        + 'static,
-    Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static,
 {
-    pub fn new(context: RpcContext<Da, DB, StateRoot, Witness>) -> Self {
+    pub fn new(context: RpcContext<C, Da, DB>) -> Self {
         Self {
             context: Arc::new(context),
         }
@@ -119,28 +67,8 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Da, DB, StateRoot, Witness> ProverRpcServer for ProverRpcServerImpl<Da, DB, StateRoot, Witness>
-where
-    Da: DaService,
-    DB: ProverLedgerOps + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync
-        + 'static,
-    Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static,
+impl<C: sov_modules_api::Context, Da: DaService, DB: ProverLedgerOps + Send + Sync + 'static>
+    ProverRpcServer for ProverRpcServerImpl<C, Da, DB>
 {
     async fn generate_input(&self, l1_height: u64) -> RpcResult<String> {
         debug!("Prover: prover_generateInput");
@@ -261,7 +189,7 @@ where
         let initial_state_root = self
             .context
             .ledger
-            .get_l2_state_root::<StateRoot>(first_l2_height_of_l1 - 1)
+            .get_l2_state_root::<<<C as Spec>::Storage as Storage>::Root>(first_l2_height_of_l1 - 1)
             .map_err(|e| {
                 error!("Error getting initial state root: {:?}", e);
                 ErrorObjectOwned::owned(
@@ -296,7 +224,7 @@ where
         let final_state_root = self
             .context
             .ledger
-            .get_l2_state_root::<StateRoot>(last_l2_height_of_l1)
+            .get_l2_state_root::<<<C as Spec>::Storage as Storage>::Root>(last_l2_height_of_l1)
             .map_err(|e| {
                 error!("Error getting final state root: {:?}", e);
                 ErrorObjectOwned::owned(
@@ -313,26 +241,29 @@ where
             .get_extraction_proof(&l1_block, &da_data)
             .await;
 
-        let state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec> =
-            StateTransitionData {
-                initial_state_root,
-                final_state_root,
-                initial_batch_hash,
-                da_data,
-                da_block_header_of_commitments,
-                inclusion_proof,
-                completeness_proof,
-                soft_confirmations,
-                state_transition_witnesses,
-                da_block_headers_of_soft_confirmations,
-                preproven_commitments: preproven_commitments.to_vec(),
-                sequencer_commitments_range: (
-                    *sequencer_commitments_range.start() as u32,
-                    *sequencer_commitments_range.end() as u32,
-                ),
-                sequencer_public_key: self.context.sequencer_pub_key.clone(),
-                sequencer_da_public_key: self.context.sequencer_da_pub_key.clone(),
-            };
+        let state_transition_data: StateTransitionData<
+            <<C as Spec>::Storage as Storage>::Root,
+            <<C as Spec>::Storage as Storage>::Witness,
+            Da::Spec,
+        > = StateTransitionData {
+            initial_state_root,
+            final_state_root,
+            initial_batch_hash,
+            da_data,
+            da_block_header_of_commitments,
+            inclusion_proof,
+            completeness_proof,
+            soft_confirmations,
+            state_transition_witnesses,
+            da_block_headers_of_soft_confirmations,
+            preproven_commitments: preproven_commitments.to_vec(),
+            sequencer_commitments_range: (
+                *sequencer_commitments_range.start() as u32,
+                *sequencer_commitments_range.end() as u32,
+            ),
+            sequencer_public_key: self.context.sequencer_pub_key.clone(),
+            sequencer_da_public_key: self.context.sequencer_da_pub_key.clone(),
+        };
         let serialized_state_transition = serialize_state_transition(state_transition_data);
 
         let encoded_serialized_transition_data = hex::encode(serialized_state_transition);
@@ -345,30 +276,13 @@ fn serialize_state_transition<T: BorshSerialize>(item: T) -> Vec<u8> {
     borsh::to_vec(&item).expect("Risc0 hint serialization is infallible")
 }
 
-pub fn create_rpc_module<Da, DB, StateRoot, Witness>(
-    rpc_context: RpcContext<Da, DB, StateRoot, Witness>,
-) -> jsonrpsee::RpcModule<ProverRpcServerImpl<Da, DB, StateRoot, Witness>>
+pub fn create_rpc_module<C, Da, DB>(
+    rpc_context: RpcContext<C, Da, DB>,
+) -> jsonrpsee::RpcModule<ProverRpcServerImpl<C, Da, DB>>
 where
+    C: sov_modules_api::Context,
     Da: DaService,
     DB: ProverLedgerOps + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug
-        + Send
-        + Sync
-        + 'static,
-    Witness: Default
-        + BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + 'static,
 {
     let server = ProverRpcServerImpl::new(rpc_context);
 

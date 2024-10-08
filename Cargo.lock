@@ -1889,6 +1889,7 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-modules-core",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface",
