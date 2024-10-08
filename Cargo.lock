@@ -1222,6 +1222,7 @@ dependencies = [
  "hex",
  "pin-project",
  "rand 0.8.5",
+ "reqwest 0.12.5",
  "serde",
  "serde_json",
  "sha2",
