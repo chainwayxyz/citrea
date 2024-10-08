@@ -92,15 +92,8 @@ impl RollupBlueprint for MockDemoRollup {
         map
     }
 
-    fn get_light_client_prover_code_commitments_by_spec(
-        &self,
-    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
-        let mut map = HashMap::new();
-        map.insert(
-            SpecId::Genesis,
-            Digest::new(citrea_risc0::LIGHT_CLIENT_MOCK_DA_ID),
-        );
-        map
+    fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
+        Digest::new(citrea_risc0::LIGHT_CLIENT_MOCK_DA_ID)
     }
 
     async fn create_da_service(

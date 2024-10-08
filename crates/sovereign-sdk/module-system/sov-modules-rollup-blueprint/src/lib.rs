@@ -65,10 +65,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
-    /// Get light client prover code commitments by fork.
-    fn get_light_client_prover_code_commitments_by_spec(
-        &self,
-    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
+    /// Get light client prover code commitment.
+    fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
