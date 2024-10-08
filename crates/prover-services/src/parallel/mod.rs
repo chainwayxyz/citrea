@@ -7,6 +7,7 @@ use citrea_common::config::BatchProverConfig;
 use citrea_stf::verifier::StateTransitionVerifier;
 use parking_lot::Mutex;
 use prover::Prover;
+use risc0_zkvm::{Journal, Receipt};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
@@ -94,7 +95,7 @@ where
         vm: Vm,
         zk_stf: V,
         da_verifier: Da::Verifier,
-        prover_config: BatchProverConfig,
+        proving_mode: ProverGuestRunConfig,
         zk_storage: V::PreState,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
@@ -105,7 +106,7 @@ where
             vm,
             zk_stf,
             da_verifier,
-            prover_config.proving_mode,
+            proving_mode,
             zk_storage,
             num_cpus - 1,
             ledger_db,
@@ -149,9 +150,26 @@ where
 
     async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
         &self,
-        _block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> Result<T, anyhow::Error> {
-        todo!()
+        let proof = self.wait_for_proof(block_header_hash).await?;
+
+        // TODO: maybe extract this to Vm?
+        // Extract journal
+        let journal = match proof {
+            Proof::PublicInput(journal) => {
+                let journal: Journal = bincode::deserialize(&journal)?;
+                journal
+            }
+            Proof::Full(data) => {
+                let receipt: Receipt = bincode::deserialize(&data)?;
+                receipt.journal
+            }
+        };
+
+        self.ledger_db.clear_pending_proving_sessions()?;
+
+        Ok(T::try_from_slice(&journal.bytes)?)
     }
 
     async fn wait_for_proving_and_send_to_da(
@@ -159,30 +177,17 @@ where
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
         da_service: &Arc<Self::DaService>,
     ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
-        loop {
-            let status = self
-                .prover_state
-                .get_prover_status_for_da_submission(block_header_hash.clone())?;
+        let proof = self.wait_for_proof(block_header_hash).await?;
+        let da_data = DaData::ZKProof(proof.clone());
 
-            match status {
-                ProverStatus::Proved(proof) => {
-                    let da_data = DaData::ZKProof(proof.clone());
+        let tx_id = da_service
+            .send_transaction(da_data)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
-                    let tx_id = da_service
-                        .send_transaction(da_data)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?;
-                    self.ledger_db.clear_pending_proving_sessions()?;
-                    break Ok((tx_id, proof));
-                }
-                ProverStatus::ProvingInProgress => {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                }
-                _ => {
-                    // function will not return any other type of status
-                }
-            }
-        }
+        self.ledger_db.clear_pending_proving_sessions()?;
+
+        Ok((tx_id, proof))
     }
 
     async fn recover_proving_sessions_and_send_to_da(
@@ -206,5 +211,34 @@ where
         }
         self.ledger_db.clear_pending_proving_sessions()?;
         Ok(results)
+    }
+}
+
+impl<Da, Vm, V> ParallelProverService<Da, Vm, V>
+where
+    Da: DaService,
+    Vm: ZkvmHost + 'static,
+    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    V::PreState: Clone + Send + Sync,
+{
+    async fn wait_for_proof(
+        &self,
+        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+    ) -> anyhow::Result<Proof> {
+        loop {
+            let status = self
+                .prover_state
+                .get_prover_status_for_da_submission(block_header_hash.clone())?;
+
+            match status {
+                ProverStatus::Proved(proof) => break Ok(proof),
+                ProverStatus::ProvingInProgress => {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+                _ => {
+                    // function will not return any other type of status
+                }
+            }
+        }
     }
 }

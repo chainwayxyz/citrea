@@ -22,8 +22,8 @@ fn main() {
                 pub const LIGHT_CLIENT_MOCK_DA_ELF: &[u8] = &[];
                 pub const BITCOIN_DA_ID: [u32; 8] = [0u32; 8];
                 pub const MOCK_DA_ID: [u32; 8] = [0u32; 8];
-                pub const LIGHT_CLIENT_BITCOIN_ID: [u32; 8] = [0u32; 8];
-                pub const LIGHT_CLIENT_MOCK_ID: [u32; 8] = [0u32; 8];
+                pub const LIGHT_CLIENT_BITCOIN_DA_ID: [u32; 8] = [0u32; 8];
+                pub const LIGHT_CLIENT_MOCK_DA_ID: [u32; 8] = [0u32; 8];
                 "#;
 
                 return std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");

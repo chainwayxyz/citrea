@@ -14,7 +14,8 @@ demo_data/
 resources/dbs/da-db/
 resources/dbs/sequencer-db/
 resources/dbs/full-node-db/
-resources/dbs/prover-db/
+resources/dbs/batch-prover-db/
+resources/dbs/light-client-prover-db/
 resources/bitcoin/inscription_txs/
 /.vscode/*
 
