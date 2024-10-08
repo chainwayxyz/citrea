@@ -59,10 +59,10 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
             }
             end_block
         }
-        BlockNumberOrTag::Latest => latest_block_number,
+        BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => latest_block_number,
         _ => {
             pending.reject(EthApiError::Unsupported(
-                "Earliest, pending, safe and finalized are not supported for traceChain end block",
+                "Earliest, safe and finalized are not supported for traceChain end block",
             )).await;
             return;
         }

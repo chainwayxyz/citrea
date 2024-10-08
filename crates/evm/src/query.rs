@@ -1366,7 +1366,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<u64, EthApiError> {
         match block_id {
             BlockNumberOrTag::Earliest => Ok(0),
-            BlockNumberOrTag::Latest => Ok(self
+            BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => Ok(self
                 .blocks
                 .last(&mut working_set.accessory_state())
                 .map(|block| block.header.number)
@@ -1379,7 +1379,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 }
             }
             _ => Err(EthApiError::InvalidParams(
-                "Please provide a number or earliest/latest tag".to_string(),
+                "Please provide a number or earliest/latest/pending tag".to_string(),
             )),
         }
     }
@@ -1401,7 +1401,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .get(0, &mut working_set.accessory_state())
                     .expect("Genesis block must be set"),
             )),
-            Some(BlockNumberOrTag::Latest) => Ok(Some(
+            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
@@ -1412,7 +1412,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .expect("Head block must be set"),
             )),
             _ => Err(EthApiError::InvalidParams(
-                "pending/safe/finalized block not supported".to_string(),
+                "safe/finalized block not supported".to_string(),
             )),
         }
     }
