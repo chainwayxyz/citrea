@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_common::config::ProverConfig;
 use citrea_stf::verifier::StateTransitionVerifier;
-use node_configs::config::ProverConfig;
 use parking_lot::Mutex;
 use prover::Prover;
 use serde::de::DeserializeOwned;

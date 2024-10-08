@@ -1,6 +1,6 @@
-use hex::ToHex;
 #[cfg(test)]
-use node_configs::RpcConfig;
+use citrea_common::RpcConfig;
+use hex::ToHex;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};

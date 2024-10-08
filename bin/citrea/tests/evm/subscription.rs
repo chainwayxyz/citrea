@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use alloy_primitives::FixedBytes;
 use alloy_sol_types::SolEvent;
+use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{AnotherLogEvent, LogEvent, LogsContract, TestContract};
 use citrea_evm::{Filter, LogResponse};
 // use citrea::initialize_logging;
 use citrea_stf::genesis_config::GenesisPaths;
-use node_configs::SequencerConfig;
 use reth_primitives::{keccak256, Address};
 use tokio::time::sleep;
 

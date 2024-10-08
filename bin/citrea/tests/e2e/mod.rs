@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
+use citrea_common::{ProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use node_configs::{ProverConfig, SequencerConfig};
 use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::{LastVerifiedProofResponse, SoftConfirmationStatus};

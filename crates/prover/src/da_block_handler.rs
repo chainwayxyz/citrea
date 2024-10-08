@@ -12,8 +12,8 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::{
     check_l2_range_exists, filter_out_proven_commitments, merge_state_diffs,
 };
+use citrea_common::ProverConfig;
 use citrea_primitives::MAX_TXBODY_SIZE;
-use node_configs::ProverConfig;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

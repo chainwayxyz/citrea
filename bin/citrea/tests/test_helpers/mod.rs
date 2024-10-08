@@ -5,12 +5,12 @@ use std::time::{Duration, SystemTime};
 use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
-use citrea_primitives::TEST_PRIVATE_KEY;
-use citrea_stf::genesis_config::GenesisPaths;
-use node_configs::{
+use citrea_common::{
     FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig,
     StorageConfig,
 };
+use citrea_primitives::TEST_PRIVATE_KEY;
+use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;

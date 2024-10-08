@@ -8,7 +8,7 @@ mod utils;
 
 use std::net::SocketAddr;
 
-pub use node_configs::{SequencerConfig, SequencerMempoolConfig};
+pub use citrea_common::{SequencerConfig, SequencerMempoolConfig};
 pub use rpc::SequencerRpcClient;
 pub use sequencer::CitreaSequencer;
 use sov_db::ledger_db::LedgerDB;

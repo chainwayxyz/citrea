@@ -6,13 +6,13 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
+use citrea_common::{FullNodeConfig, ProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use node_configs::{FullNodeConfig, ProverConfig};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec};
@@ -105,7 +105,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_storage_manager(
         &self,
-        rollup_config: &node_configs::FullNodeConfig<Self::DaConfig>,
+        rollup_config: &citrea_common::FullNodeConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),

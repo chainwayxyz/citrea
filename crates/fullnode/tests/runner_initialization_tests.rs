@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use citrea_common::{FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig};
 use citrea_fullnode::CitreaFullnode;
-use node_configs::{FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig};
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
