@@ -96,12 +96,6 @@ pub fn extract_sequencer_commitments<Da: DaService>(
         if tx.sender().as_ref() == sequencer_da_pub_key {
             if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
                 sequencer_commitments.push(seq_com);
-            } else {
-                tracing::warn!(
-                    "Found broken DA data in block 0x{}: {:?}",
-                    hex::encode(l1_block_hash),
-                    data
-                );
             }
         }
     });

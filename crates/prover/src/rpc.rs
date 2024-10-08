@@ -87,11 +87,6 @@ impl<C: sov_modules_api::Context, Da: DaService, DB: ProverLedgerOps + Send + Sy
         let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
             self.context.da_service.extract_relevant_blobs(&l1_block);
 
-        // if we don't do this, the zk circuit can't read the sequencer commitments
-        da_data.iter_mut().for_each(|blob| {
-            blob.full_data();
-        });
-
         let mut sequencer_commitments: Vec<SequencerCommitment> = extract_sequencer_commitments::<Da>(
             self.context.sequencer_da_pub_key.as_slice(),
             l1_block.header().hash().into(),
