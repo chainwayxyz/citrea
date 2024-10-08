@@ -99,7 +99,6 @@ pub async fn start_rollup(
         let span = info_span!("LightClientProver");
         let rollup = CitreaRollupBlueprint::create_new_light_client_prover(
             &mock_demo_rollup,
-            &rt_genesis_paths,
             rollup_config.clone(),
             light_client_prover_config,
         )

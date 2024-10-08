@@ -186,7 +186,6 @@ where
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let prover = CitreaRollupBlueprint::create_new_light_client_prover(
             &rollup_blueprint,
-            rt_genesis_paths,
             rollup_config,
             light_client_prover_config,
         )

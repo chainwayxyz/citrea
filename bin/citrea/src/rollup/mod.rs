@@ -350,10 +350,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     #[instrument(level = "trace", skip_all)]
     async fn create_new_light_client_prover(
         &self,
-        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
-            Self::DaSpec,
-        >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: LightClientProverConfig,
     ) -> Result<LightClientProver<Self>, anyhow::Error>
@@ -386,18 +382,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let _genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
-
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let (_soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
-        // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
-            Some(soft_confirmation_rx)
-        } else {
-            None
-        };
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -405,10 +392,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &ledger_db,
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_rx,
+            None,
         )?;
-
-        let _genesis_root = prover_storage.get_root_hash(1);
 
         let batch_prover_code_commitments_by_spec =
             self.get_batch_prover_code_commitments_by_spec();
