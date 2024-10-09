@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
+use alloy_eips::BlockId;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, U64};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
@@ -788,10 +789,7 @@ fn test_block_hash_in_evm() {
     for i in 0..=1000 {
         request.input.input = Some(BlockHashContract::default().get_block_hash(i).into());
         let resp = evm.get_call(request.clone(), None, None, None, &mut working_set);
-        if !(260..=515).contains(&i) {
-            // Should be 0, there is more than 256 blocks between the last block and the block number
-            assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
-        } else {
+        if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
             let block = evm
                 .blocks
@@ -800,8 +798,40 @@ fn test_block_hash_in_evm() {
                 resp.unwrap().to_vec(),
                 block.unwrap().header.hash().to_vec()
             );
+        } else {
+            // Should be 0, there is more than 256 blocks between the last block and the block number
+            assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
         }
     }
+
+    // last produced block is 516, eth_call with pending should return latest block's hash
+    let latest_block = evm.blocks.get(516, &mut working_set.accessory_state());
+    request.input.input = Some(BlockHashContract::default().get_block_hash(516).into());
+
+    let resp = evm.get_call(
+        request.clone(),
+        Some(BlockId::pending()),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(
+        resp.unwrap().to_vec(),
+        latest_block.unwrap().header.hash().to_vec()
+    );
+
+    // but not 260's hash
+    request.input.input = Some(BlockHashContract::default().get_block_hash(260).into());
+    let resp = evm.get_call(
+        request.clone(),
+        Some(BlockId::pending()),
+        None,
+        None,
+        &mut working_set,
+    );
+
+    assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
 }
 
 #[test]
