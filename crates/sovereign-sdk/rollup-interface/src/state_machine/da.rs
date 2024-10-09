@@ -1,5 +1,7 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
+
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -47,7 +49,11 @@ pub enum DaData {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaDataLightClient {
     /// A zk proof and state diff
-    ZKProof(Proof),
+    Complete(Proof),
+    /// A list of tx ids
+    Aggregate(Vec<[u8; 32]>),
+    /// A chunk of an aggregate
+    Chunk(Vec<u8>),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
