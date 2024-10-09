@@ -6,7 +6,7 @@ use alloy::consensus::{Signed, TxEip1559, TxEnvelope};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use alloy_rlp::{BytesMut, Encodable};
-use citrea_sequencer::{SequencerConfig, SequencerMempoolConfig};
+use citrea_common::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};

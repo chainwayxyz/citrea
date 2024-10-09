@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use citrea_sequencer::SequencerConfig;
+use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 
