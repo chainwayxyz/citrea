@@ -1,3 +1,5 @@
+#[cfg(test)]
+use citrea_common::RpcConfig;
 use hex::ToHex;
 use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
@@ -7,8 +9,6 @@ use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, TransactionReceipt};
-#[cfg(test)]
-use sov_stf_runner::RpcConfig;
 
 struct TestExpect {
     payload: serde_json::Value,

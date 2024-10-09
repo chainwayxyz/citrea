@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
+use reth_rpc_types::state::AccountOverride;
 use reth_rpc_types::BlockId;
 use revm::primitives::U256;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -18,7 +20,7 @@ use crate::Evm;
 
 #[test]
 fn call_contract_without_value() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -66,7 +68,7 @@ fn call_contract_without_value() {
 
 #[test]
 fn test_state_change() {
-    let (mut evm, mut working_set, signer, l2_height) = init_evm();
+    let (mut evm, mut working_set, _, signer, l2_height) = init_evm();
 
     let balance_1 = evm.get_balance(signer.address(), None, &mut working_set);
 
@@ -112,7 +114,7 @@ fn test_state_change() {
 
 #[test]
 fn call_contract_with_value_transfer() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -138,7 +140,7 @@ fn call_contract_with_value_transfer() {
 
 #[test]
 fn call_contract_with_invalid_nonce() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -188,7 +190,7 @@ fn call_contract_with_invalid_nonce() {
 
 #[test]
 fn call_to_nonexistent_contract() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let nonexistent_contract_address =
         Address::from_str("0x000000000000000000000000000000000000dead").unwrap();
@@ -216,7 +218,7 @@ fn call_to_nonexistent_contract() {
 
 #[test]
 fn call_with_high_gas_price() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
@@ -246,7 +248,7 @@ fn call_with_high_gas_price() {
 
 #[test]
 fn test_eip1559_fields_call() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let default_result = eth_call_eip1559(
         &evm,
@@ -505,4 +507,92 @@ fn gas_price_call_test() {
 
     assert!(result_high_fees.is_ok());
     working_set.unset_archival_version();
+}
+
+#[test]
+fn test_call_with_state_overrides() {
+    let (evm, mut working_set, prover_storage, signer, _) = init_evm();
+
+    let contract = SimpleStorageContract::default();
+    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    // Get value of contract before state override
+    let call_result_without_state_override = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(contract_address)),
+                input: TransactionInput::new(contract.get_call_data().into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        call_result_without_state_override,
+        U256::from(478).to_be_bytes_vec()
+    );
+
+    // Override the state and check returned value
+    let mut state = HashMap::new();
+    state.insert(U256::from(0).into(), U256::from(15).into());
+
+    let mut state_override = HashMap::new();
+    state_override.insert(
+        contract_address,
+        AccountOverride {
+            balance: None,
+            nonce: None,
+            code: None,
+            state: Some(state),
+            state_diff: None,
+        },
+    );
+    let call_result_with_state_override = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(contract_address)),
+                input: TransactionInput::new(contract.get_call_data().into()),
+                ..Default::default()
+            },
+            None,
+            Some(state_override),
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        call_result_with_state_override,
+        U256::from(15).to_be_bytes_vec()
+    );
+
+    // Start with a fresh working set, because the previous one was for a separate RPC call.
+    let mut working_set = WorkingSet::new(prover_storage);
+
+    // Get value of contract AFTER state override, this MUST be the original value.
+    let call_result_without_state_override = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(contract_address)),
+                input: TransactionInput::new(contract.get_call_data().into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        call_result_without_state_override,
+        U256::from(478).to_be_bytes_vec()
+    );
 }

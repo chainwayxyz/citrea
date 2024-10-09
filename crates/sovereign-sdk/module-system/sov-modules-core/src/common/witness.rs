@@ -14,7 +14,9 @@ use serde::Serialize;
 /// they were added via [`Witness::add_hint`].
 // TODO: Refactor witness trait so it only require Serialize / Deserialize
 //   https://github.com/Sovereign-Labs/sovereign-sdk/issues/263
-pub trait Witness: Default + BorshDeserialize + Serialize + DeserializeOwned {
+pub trait Witness:
+    Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned
+{
     /// Adds a serializable "hint" to the witness value, which can be later
     /// read by the zkVM circuit.
     ///

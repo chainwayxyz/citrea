@@ -2,14 +2,13 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use citrea_sequencer::SequencerConfig;
+use citrea_common::{ProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::LayerStatus;
 use reth_primitives::{Address, BlockNumberOrTag};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec, MockHash};
 use sov_rollup_interface::da::{DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverConfig;
 use tokio::time::sleep;
 
 use crate::e2e::{execute_blocks, initialize_test, TestConfig};
@@ -295,7 +294,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                enable_reocvery: true,
+                enable_recovery: true,
             }),
             rollup_config,
             None,

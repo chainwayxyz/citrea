@@ -24,7 +24,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
-toml = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
@@ -37,7 +36,6 @@ sov-rollup-interface = { path = "../../rollup-interface" }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 
-sov-mock-da = { path = "../../adapters/mock-da", features = ["native"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-prover-storage-manager = { path = "../sov-prover-storage-manager", features = ["test-utils"] }
 sov-state = { path = "../../module-system/sov-state", features = ["native"] }
@@ -49,7 +47,6 @@ native = [
   "sov-db",
   "sov-modules-api/native",
   "jsonrpsee",
-  "toml",
   "tokio",
   "tracing",
   "futures",

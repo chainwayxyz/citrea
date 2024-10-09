@@ -5,8 +5,11 @@ use std::time::{Duration, SystemTime};
 use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
+use citrea_common::{
+    FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig,
+    StorageConfig,
+};
 use citrea_primitives::TEST_PRIVATE_KEY;
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
@@ -14,9 +17,6 @@ use sov_modules_api::PrivateKey;
 use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use sov_stf_runner::{
-    FullNodeConfig, ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig,
-};
 use tempfile::TempDir;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
@@ -139,6 +139,7 @@ pub fn create_default_rollup_config(
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 accept_public_input_as_proven: Some(true),
                 sync_blocks_count: 10,
+                pruning_config: None,
             }),
             NodeMode::SequencerNode => None,
         },

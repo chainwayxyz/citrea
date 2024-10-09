@@ -1,5 +1,4 @@
 mod commitment_controller;
-mod config;
 mod db_provider;
 mod deposit_data_mempool;
 mod mempool;
@@ -9,7 +8,8 @@ mod utils;
 
 use std::net::SocketAddr;
 
-pub use config::{SequencerConfig, SequencerMempoolConfig};
+pub use citrea_common::{SequencerConfig, SequencerMempoolConfig};
+pub use rpc::SequencerRpcClient;
 pub use sequencer::CitreaSequencer;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_rollup_blueprint::RollupBlueprint;

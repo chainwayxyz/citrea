@@ -6,6 +6,7 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
+use citrea_common::{FullNodeConfig, ProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_prover::prover_service::ParallelProverService;
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
@@ -23,7 +24,6 @@ use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
-use sov_stf_runner::{FullNodeConfig, ProverConfig};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
@@ -105,7 +105,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_storage_manager(
         &self,
-        rollup_config: &sov_stf_runner::FullNodeConfig<Self::DaConfig>,
+        rollup_config: &citrea_common::FullNodeConfig<Self::DaConfig>,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
@@ -147,7 +147,7 @@ impl RollupBlueprint for BitcoinRollup {
         // until forced transactions are implemented,
         // require_wallet_check is set false for full nodes.
         if require_wallet_check {
-            // spawn_da_queue only for sequencer and prover
+            // run only for sequencer and prover
             Arc::clone(&service).spawn_da_queue(rx);
         }
         Ok(service)

@@ -4,11 +4,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
+use citrea_common::tasks::manager::TaskManager;
+use citrea_common::{ProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -25,15 +27,14 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{
-    InitVariant, ProverConfig, ProverService, RollupPublicKeys, RpcConfig, RunnerConfig,
-};
-use tokio::select;
+use sov_stf_runner::{InitVariant, ProverService};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
+use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
+use crate::rpc::{create_rpc_module, RpcContext};
 
 type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
 
@@ -62,12 +63,13 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
-    prover_config: Option<ProverConfig>,
+    prover_config: ProverConfig,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
+    task_manager: TaskManager<()>,
 }
 
 impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaProver<C, Da, Sm, Vm, Stf, Ps, DB>
@@ -105,7 +107,7 @@ where
         mut storage_manager: Sm,
         init_variant: InitVariant<Stf, Vm, Da::Spec>,
         prover_service: Arc<Ps>,
-        prover_config: Option<ProverConfig>,
+        prover_config: ProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
@@ -157,23 +159,48 @@ where
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
+            task_manager: TaskManager::default(),
         })
+    }
+
+    /// Creates a shared RpcContext with all required data.
+    fn create_rpc_context(&self) -> RpcContext<C, Da, DB> {
+        RpcContext {
+            ledger: self.ledger_db.clone(),
+            da_service: self.da_service.clone(),
+            sequencer_da_pub_key: self.sequencer_da_pub_key.clone(),
+            sequencer_pub_key: self.sequencer_pub_key.clone(),
+            l1_block_cache: self.l1_block_cache.clone(),
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Updates the given RpcModule with Prover methods.
+    pub fn register_rpc_methods(
+        &self,
+        mut rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        let rpc_context = self.create_rpc_context();
+        let rpc = create_rpc_module(rpc_context);
+        rpc_methods.merge(rpc)?;
+        Ok(rpc_methods)
     }
 
     /// Starts a RPC server with provided rpc methods.
     pub async fn start_rpc_server(
-        &self,
+        &mut self,
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
-    ) {
-        let bind_host = match self.rpc_config.bind_host.parse() {
-            Ok(bind_host) => bind_host,
-            Err(e) => {
-                error!("Failed to parse bind host: {}", e);
-                return;
-            }
-        };
-        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
+    ) -> anyhow::Result<()> {
+        let methods = self.register_rpc_methods(methods)?;
+
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .map_err(|e| anyhow!("Failed to parse bind host: {}", e))?,
+            self.rpc_config.bind_port,
+        );
 
         let max_connections = self.rpc_config.max_connections;
         let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
@@ -184,7 +211,7 @@ where
         let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
         //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
 
-        let _handle = tokio::spawn(async move {
+        self.task_manager.spawn(|cancellation_token| async move {
             let server = ServerBuilder::default()
                 .max_connections(max_connections)
                 .max_subscriptions_per_connection(max_subscriptions_per_connection)
@@ -213,13 +240,14 @@ where
                     info!("Starting RPC server at {} ", &bound_address);
 
                     let _server_handle = server.start(methods);
-                    futures::future::pending::<()>().await;
+                    cancellation_token.cancelled().await;
                 }
                 Err(e) => {
                     error!("Could not start RPC server: {}", e);
                 }
             }
         });
+        Ok(())
     }
 
     /// Runs the rollup.
@@ -241,7 +269,7 @@ where
         };
 
         let ledger_db = self.ledger_db.clone();
-        let prover_config = self.prover_config.clone().unwrap();
+        let prover_config = self.prover_config.clone();
         let prover_service = self.prover_service.clone();
         let da_service = self.da_service.clone();
         let sequencer_pub_key = self.sequencer_pub_key.clone();
@@ -249,7 +277,7 @@ where
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
 
-        tokio::spawn(async move {
+        self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler =
                 L1BlockHandler::<Vm, Da, Ps, DB, Stf::StateRoot, Stf::Witness>::new(
                     prover_config,
@@ -262,7 +290,9 @@ where
                     skip_submission_until_l1,
                     l1_block_cache.clone(),
                 );
-            l1_block_handler.run(start_l1_height).await
+            l1_block_handler
+                .run(start_l1_height, cancellation_token)
+                .await
         });
 
         // Create l2 sync worker task
@@ -320,6 +350,11 @@ where
                         }
                     }
                 },
+                _ = signal::ctrl_c() => {
+                    info!("Shutting down");
+                    self.task_manager.abort().await;
+                    return Ok(());
+                }
             }
         }
     }

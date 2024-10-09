@@ -618,3 +618,9 @@ fn decrease_caller_balance<EXT, DB: Database>(
     let address = context.evm.env.tx.caller;
     change_balance(context, amount, false, address)
 }
+
+#[cfg(feature = "native")]
+pub(crate) fn diff_size_send_eth_eoa() -> usize {
+    DB_ACCOUNT_KEY_SIZE * ACCOUNT_DISCOUNTED_PERCENTAGE / 100
+        + (DB_ACCOUNT_SIZE_EOA + DB_ACCOUNT_KEY_SIZE) * NONCE_DISCOUNTED_PERCENTAGE / 100
+}

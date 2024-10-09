@@ -16,7 +16,6 @@ borsh = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 clap = { workspace = true, optional = true }
-toml = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = [
     "http-client",
     "server",
@@ -67,7 +66,6 @@ native = [
     "soft-confirmation-rule-enforcer/native",
     "jsonrpsee",
     "tokio",
-    "toml",
 ]
 serde = [
     "sov-bank/serde",

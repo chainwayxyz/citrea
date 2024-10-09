@@ -61,9 +61,11 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         }
         BlockNumberOrTag::Latest => latest_block_number,
         _ => {
-            pending.reject(EthApiError::Unsupported(
-                "Earliest, pending, safe and finalized are not supported for traceChain end block",
-            )).await;
+            pending
+                .reject(EthApiError::Unsupported(
+                    "Earliest, pending, safe and finalized are not supported for traceChain end block",
+                ))
+                .await;
             return;
         }
     };
@@ -82,6 +84,10 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     };
 
     let subscription = pending.accept().await.unwrap();
+
+    // This task will be fetching and sending to the subscription sink the list of traces
+    // for each block in the requested range. This task does not run indefinitely and therefore does
+    // not need to be managed by the SubscriptionManager.
     tokio::spawn(async move {
         for block_number in start_block + 1..=end_block {
             let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());

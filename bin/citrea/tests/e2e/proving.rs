@@ -1,12 +1,11 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
-use citrea_sequencer::SequencerConfig;
+use citrea_common::{ProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverConfig;
 
 use crate::evm::make_test_client;
 use crate::test_helpers::{
@@ -62,7 +61,7 @@ async fn full_node_verify_proof_and_store() {
             Some(ProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
-                enable_reocvery: true,
+                enable_recovery: true,
             }),
             rollup_config,
             None,

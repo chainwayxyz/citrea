@@ -10,24 +10,28 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::{
-    check_l2_range_exists, filter_out_proven_commitments, merge_state_diffs,
+    check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
+    merge_state_diffs,
 };
+use citrea_common::ProverConfig;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
-use sov_modules_api::{BlobReaderTrait, DaSpec, SignedSoftConfirmation, StateDiff, Zkvm};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, SequencerCommitment};
+use sov_modules_api::{BlobReaderTrait, DaSpec, StateDiff, Zkvm};
+use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
-use sov_stf_runner::{ProverConfig, ProverService};
+use sov_stf_runner::ProverService;
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 type CommitmentStateTransitionData<Witness, Da> = (
@@ -108,8 +112,8 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64) {
-        if self.prover_config.enable_reocvery {
+    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
+        if self.prover_config.enable_recovery {
             if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
                 error!("Failed to recover ongoing proving sessions: {:?}", e);
             }
@@ -133,6 +137,10 @@ where
         interval.tick().await;
         loop {
             select! {
+                biased;
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
                 _ = &mut l1_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
                     self.pending_l1_blocks.push_back(l1_block);
@@ -171,7 +179,10 @@ where
                 blob.full_data();
             });
             let mut sequencer_commitments: Vec<SequencerCommitment> =
-                self.extract_sequencer_commitments(l1_block.header().hash().into(), &mut da_data);
+                extract_sequencer_commitments::<Da>(
+                    self.sequencer_da_pub_key.as_slice(),
+                    &mut da_data,
+                );
 
             if sequencer_commitments.is_empty() {
                 info!("No sequencer commitment found at height {}", l1_height,);
@@ -202,7 +213,7 @@ where
             // the outer loop / select to make room for other tasks to run.
             // We retry the L1 block there as well.
             if !check_l2_range_exists(
-                self.ledger_db.clone(),
+                &self.ledger_db,
                 sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {
@@ -241,8 +252,10 @@ where
             let hash = da_block_header_of_commitments.hash();
 
             if should_prove {
-                let sequencer_commitments_groups =
-                    self.break_sequencer_commitments_into_groups(&sequencer_commitments)?;
+                let sequencer_commitments_groups = break_sequencer_commitments_into_groups(
+                    &self.ledger_db,
+                    &sequencer_commitments,
+                )?;
 
                 let submitted_proofs = self
                     .ledger_db
@@ -291,87 +304,6 @@ where
         Ok(())
     }
 
-    fn extract_sequencer_commitments(
-        &self,
-        l1_block_hash: [u8; 32],
-        da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
-    ) -> Vec<SequencerCommitment> {
-        let mut sequencer_commitments = vec![];
-        // if we don't do this, the zk circuit can't read the sequencer commitments
-        da_data.iter_mut().for_each(|blob| {
-            blob.full_data();
-        });
-        da_data.iter_mut().for_each(|tx| {
-            let data = DaDataBatchProof::try_from_slice(tx.full_data());
-            // Check for commitment
-            if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
-                    sequencer_commitments.push(seq_com);
-                } else {
-                    tracing::warn!(
-                        "Found broken DA data in block 0x{}: {:?}",
-                        hex::encode(l1_block_hash),
-                        data
-                    );
-                }
-            }
-        });
-        sequencer_commitments
-    }
-
-    fn break_sequencer_commitments_into_groups(
-        &self,
-        sequencer_commitments: &[SequencerCommitment],
-    ) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
-        let mut result_range = vec![];
-
-        let mut range = 0usize..=0usize;
-        let mut cumulative_state_diff = StateDiff::new();
-        for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
-            let mut sequencer_commitment_state_diff = StateDiff::new();
-            for l2_height in sequencer_commitment.l2_start_block_number
-                ..=sequencer_commitment.l2_end_block_number
-            {
-                let state_diff = self
-                    .ledger_db
-                    .get_l2_state_diff(BatchNumber(l2_height))?
-                    .ok_or(anyhow!(
-                        "Could not find state diff for L2 range {}-{}",
-                        sequencer_commitment.l2_start_block_number,
-                        sequencer_commitment.l2_end_block_number
-                    ))?;
-                sequencer_commitment_state_diff =
-                    merge_state_diffs(sequencer_commitment_state_diff, state_diff);
-            }
-            cumulative_state_diff = merge_state_diffs(
-                cumulative_state_diff,
-                sequencer_commitment_state_diff.clone(),
-            );
-
-            let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
-
-            // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
-            let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
-
-            if state_diff_threshold_reached {
-                // We've exceeded the limit with the current commitments
-                // so we have to stop at the previous one.
-                result_range.push(range);
-
-                // Reset the cumulative state diff to be equal to the current commitment state diff
-                cumulative_state_diff = sequencer_commitment_state_diff;
-                range = index..=index;
-            } else {
-                range = *range.start()..=index;
-            }
-        }
-
-        // If the last group hasn't been reset because it has not reached the threshold,
-        // Add it anyway
-        result_range.push(range);
-        Ok(result_range)
-    }
-
     async fn create_state_transition_data(
         &self,
         sequencer_commitments: &[SequencerCommitment],
@@ -389,12 +321,13 @@ where
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
-        ) = self
-            .get_state_transition_data_from_commitments(
-                &sequencer_commitments[sequencer_commitments_range.clone()],
-                &self.da_service,
-            )
-            .await?;
+        ) = get_state_transition_data_from_commitments(
+            &sequencer_commitments[sequencer_commitments_range.clone()],
+            &self.da_service,
+            &self.ledger_db,
+            &self.l1_block_cache,
+        )
+        .await?;
         let initial_state_root = self
             .ledger_db
             .get_l2_state_root::<StateRoot>(first_l2_height_of_l1 - 1)?
@@ -439,87 +372,6 @@ where
                 sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
             };
         Ok(transition_data)
-    }
-
-    async fn get_state_transition_data_from_commitments(
-        &self,
-        sequencer_commitments: &[SequencerCommitment],
-        da_service: &Arc<Da>,
-    ) -> Result<CommitmentStateTransitionData<Witness, Da>, anyhow::Error> {
-        let mut state_transition_witnesses: VecDeque<Vec<Witness>> = VecDeque::new();
-        let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
-        let mut da_block_headers_of_soft_confirmations: VecDeque<
-            Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
-        > = VecDeque::new();
-        for sequencer_commitment in sequencer_commitments.to_owned().iter() {
-            // get the l2 height ranges of each seq_commitments
-            let mut witnesses = vec![];
-            let start_l2 = sequencer_commitment.l2_start_block_number;
-            let end_l2 = sequencer_commitment.l2_end_block_number;
-            let soft_confirmations_in_commitment = match self
-                .ledger_db
-                .get_soft_confirmation_range(&(BatchNumber(start_l2)..=BatchNumber(end_l2)))
-            {
-                Ok(soft_confirmations) => soft_confirmations,
-                Err(e) => {
-                    return Err(anyhow!(
-                        "Failed to get soft confirmations from the ledger db: {}",
-                        e
-                    ));
-                }
-            };
-            let mut commitment_soft_confirmations = vec![];
-            let mut da_block_headers_to_push: Vec<
-                <<Da as DaService>::Spec as DaSpec>::BlockHeader,
-            > = vec![];
-            for soft_confirmation in soft_confirmations_in_commitment {
-                if da_block_headers_to_push.is_empty()
-                    || da_block_headers_to_push.last().unwrap().height()
-                        != soft_confirmation.da_slot_height
-                {
-                    let filtered_block = match get_da_block_at_height(
-                        da_service,
-                        soft_confirmation.da_slot_height,
-                        self.l1_block_cache.clone(),
-                    )
-                    .await
-                    {
-                        Ok(block) => block,
-                        Err(_) => {
-                            return Err(anyhow!(
-                                "Error while fetching DA block at height: {}",
-                                soft_confirmation.da_slot_height
-                            ));
-                        }
-                    };
-                    da_block_headers_to_push.push(filtered_block.header().clone());
-                }
-                let signed_soft_confirmation: SignedSoftConfirmation =
-                    soft_confirmation.clone().into();
-                commitment_soft_confirmations.push(signed_soft_confirmation.clone());
-            }
-            soft_confirmations.push_back(commitment_soft_confirmations);
-
-            da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
-            for l2_height in sequencer_commitment.l2_start_block_number
-                ..=sequencer_commitment.l2_end_block_number
-            {
-                let witness = match self.ledger_db.get_l2_witness::<Witness>(l2_height) {
-                    Ok(witness) => witness,
-                    Err(e) => {
-                        return Err(anyhow!("Failed to get witness from the ledger db: {}", e))
-                    }
-                };
-
-                witnesses.push(witness.expect("A witness must be present"));
-            }
-            state_transition_witnesses.push_back(witnesses);
-        }
-        Ok((
-            state_transition_witnesses,
-            soft_confirmations,
-            da_block_headers_of_soft_confirmations,
-        ))
     }
 
     async fn prove_state_transition(
@@ -724,4 +576,138 @@ async fn sync_l1<Da>(
 
         sleep(Duration::from_secs(2)).await;
     }
+}
+
+pub(crate) async fn get_state_transition_data_from_commitments<
+    Da: DaService,
+    DB: ProverLedgerOps,
+    Witness: DeserializeOwned,
+>(
+    sequencer_commitments: &[SequencerCommitment],
+    da_service: &Arc<Da>,
+    ledger_db: &DB,
+    l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
+) -> Result<CommitmentStateTransitionData<Witness, Da>, anyhow::Error> {
+    let mut state_transition_witnesses: VecDeque<Vec<Witness>> = VecDeque::new();
+    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
+    let mut da_block_headers_of_soft_confirmations: VecDeque<
+        Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
+    > = VecDeque::new();
+    for sequencer_commitment in sequencer_commitments.to_owned().iter() {
+        // get the l2 height ranges of each seq_commitments
+        let mut witnesses = vec![];
+        let start_l2 = sequencer_commitment.l2_start_block_number;
+        let end_l2 = sequencer_commitment.l2_end_block_number;
+        let soft_confirmations_in_commitment = match ledger_db
+            .get_soft_confirmation_range(&(BatchNumber(start_l2)..=BatchNumber(end_l2)))
+        {
+            Ok(soft_confirmations) => soft_confirmations,
+            Err(e) => {
+                return Err(anyhow!(
+                    "Failed to get soft confirmations from the ledger db: {}",
+                    e
+                ));
+            }
+        };
+        let mut commitment_soft_confirmations = vec![];
+        let mut da_block_headers_to_push: Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader> =
+            vec![];
+        for soft_confirmation in soft_confirmations_in_commitment {
+            if da_block_headers_to_push.is_empty()
+                || da_block_headers_to_push.last().unwrap().height()
+                    != soft_confirmation.da_slot_height
+            {
+                let filtered_block = match get_da_block_at_height(
+                    da_service,
+                    soft_confirmation.da_slot_height,
+                    l1_block_cache.clone(),
+                )
+                .await
+                {
+                    Ok(block) => block,
+                    Err(_) => {
+                        return Err(anyhow!(
+                            "Error while fetching DA block at height: {}",
+                            soft_confirmation.da_slot_height
+                        ));
+                    }
+                };
+                da_block_headers_to_push.push(filtered_block.header().clone());
+            }
+            let signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
+            commitment_soft_confirmations.push(signed_soft_confirmation.clone());
+        }
+        soft_confirmations.push_back(commitment_soft_confirmations);
+
+        da_block_headers_of_soft_confirmations.push_back(da_block_headers_to_push);
+        for l2_height in
+            sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
+        {
+            let witness = match ledger_db.get_l2_witness::<Witness>(l2_height) {
+                Ok(witness) => witness,
+                Err(e) => return Err(anyhow!("Failed to get witness from the ledger db: {}", e)),
+            };
+
+            witnesses.push(witness.expect("A witness must be present"));
+        }
+        state_transition_witnesses.push_back(witnesses);
+    }
+    Ok((
+        state_transition_witnesses,
+        soft_confirmations,
+        da_block_headers_of_soft_confirmations,
+    ))
+}
+
+pub(crate) fn break_sequencer_commitments_into_groups<DB: ProverLedgerOps>(
+    ledger_db: &DB,
+    sequencer_commitments: &[SequencerCommitment],
+) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
+    let mut result_range = vec![];
+
+    let mut range = 0usize..=0usize;
+    let mut cumulative_state_diff = StateDiff::new();
+    for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
+        let mut sequencer_commitment_state_diff = StateDiff::new();
+        for l2_height in
+            sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
+        {
+            let state_diff =
+                ledger_db
+                    .get_l2_state_diff(BatchNumber(l2_height))?
+                    .ok_or(anyhow!(
+                        "Could not find state diff for L2 range {}-{}",
+                        sequencer_commitment.l2_start_block_number,
+                        sequencer_commitment.l2_end_block_number
+                    ))?;
+            sequencer_commitment_state_diff =
+                merge_state_diffs(sequencer_commitment_state_diff, state_diff);
+        }
+        cumulative_state_diff = merge_state_diffs(
+            cumulative_state_diff,
+            sequencer_commitment_state_diff.clone(),
+        );
+
+        let compressed_state_diff = compress_blob(&borsh::to_vec(&cumulative_state_diff)?);
+
+        // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
+        let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
+
+        if state_diff_threshold_reached {
+            // We've exceeded the limit with the current commitments
+            // so we have to stop at the previous one.
+            result_range.push(range);
+
+            // Reset the cumulative state diff to be equal to the current commitment state diff
+            cumulative_state_diff = sequencer_commitment_state_diff;
+            range = index..=index;
+        } else {
+            range = *range.start()..=index;
+        }
+    }
+
+    // If the last group hasn't been reset because it has not reached the threshold,
+    // Add it anyway
+    result_range.push(range);
+    Ok(result_range)
 }

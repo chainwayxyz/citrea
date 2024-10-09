@@ -20,7 +20,7 @@ use crate::{EstimatedDiffSize, Evm};
 type C = DefaultContext;
 
 #[test]
-fn payable_contract_value_test() {
+fn test_payable_contract_value() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     let tx_req = TransactionRequest {
@@ -339,7 +339,7 @@ fn test_access_list() {
 
 #[test]
 fn estimate_gas_with_varied_inputs_test() {
-    let (evm, mut working_set, signer, _) = init_evm();
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let simple_call_data = 0;
     let simple_result =
@@ -361,6 +361,63 @@ fn estimate_gas_with_varied_inputs_test() {
         value_transfer_result.unwrap(),
         U256::from(MIN_TRANSACTION_GAS + 1)
     );
+}
+
+#[test]
+fn test_pending_env() {
+    let (evm, mut working_set, signer) = init_evm_single_block();
+
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(address!(
+            "819c5497b157177315e1204f52e588b393771719"
+        ))), // Address of the payable contract.
+        gas: Some(100000),
+        gas_price: Some(100000000),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: Some(U256::from(3100000)),
+        input: TransactionInput {
+            input: None,
+            data: None,
+        },
+        nonce: Some(1u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
+        transaction_type: None,
+        sidecar: None,
+    };
+
+    let result = evm
+        .eth_estimate_gas(
+            tx_req.clone(),
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+        )
+        .unwrap();
+
+    let result_pending = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Pending),
+        &mut working_set,
+    );
+    assert_eq!(result_pending.unwrap(), result);
+
+    let result = evm
+        .create_access_list(tx_req.clone(), None, &mut working_set)
+        .unwrap();
+
+    let result_pending = evm
+        .create_access_list(
+            tx_req.clone(),
+            Some(BlockNumberOrTag::Pending),
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(result_pending, result);
 }
 
 fn test_estimate_gas_with_input(

@@ -10,6 +10,7 @@ mod da_block_handler;
 pub mod prover_service;
 mod runner;
 pub use runner::*;
+mod rpc;
 
 /// Dependencies needed to run the rollup.
 pub struct Prover<S: RollupBlueprint> {
@@ -36,8 +37,8 @@ impl<S: RollupBlueprint> Prover<S> {
     }
 
     /// Only run the rpc.
-    pub async fn run_rpc(self) -> Result<(), anyhow::Error> {
-        self.runner.start_rpc_server(self.rpc_methods, None).await;
+    pub async fn run_rpc(mut self) -> Result<(), anyhow::Error> {
+        self.runner.start_rpc_server(self.rpc_methods, None).await?;
         Ok(())
     }
 
@@ -47,7 +48,7 @@ impl<S: RollupBlueprint> Prover<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await;
+        runner.start_rpc_server(self.rpc_methods, channel).await?;
 
         runner.run().await?;
         Ok(())

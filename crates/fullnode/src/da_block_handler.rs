@@ -28,6 +28,7 @@ use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 pub(crate) struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
@@ -97,7 +98,7 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64) {
+    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
@@ -112,6 +113,10 @@ where
 
         loop {
             select! {
+                biased;
+                _ = cancellation_token.cancelled() => {
+                    return;
+                }
                 _ = &mut l1_sync_worker => {},
                 Some(l1_block) = l1_rx.recv() => {
                     self.pending_l1_blocks.push_back(l1_block);
@@ -155,7 +160,7 @@ where
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
             if !check_l2_range_exists(
-                self.ledger_db.clone(),
+                &self.ledger_db,
                 sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {
