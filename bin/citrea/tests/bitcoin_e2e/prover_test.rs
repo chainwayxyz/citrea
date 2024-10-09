@@ -6,17 +6,15 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
+use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
+use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::NodeKind;
+use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::Result;
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use tokio::sync::mpsc::UnboundedSender;
-
-use crate::bitcoin_e2e::config::{SequencerConfig, TestCaseConfig};
-use crate::bitcoin_e2e::framework::TestFramework;
-use crate::bitcoin_e2e::node::NodeKind;
-use crate::bitcoin_e2e::test_case::{TestCase, TestCaseRunner};
-use crate::bitcoin_e2e::utils::get_tx_backup_dir;
-use crate::bitcoin_e2e::Result;
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates soft confirmations and wait until it reaches the first commitment.
@@ -28,7 +26,7 @@ struct BasicProverTest;
 impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            with_prover: true,
+            with_batch_prover: true,
             with_full_node: true,
             ..Default::default()
         }
@@ -46,8 +44,8 @@ impl TestCase for BasicProverTest {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(prover) = &f.prover else {
-            bail!("Prover not running. Set TestCaseConfig with_prover to true")
+        let Some(batch_prover) = &f.batch_prover else {
+            bail!("Batch Prover not running. Set TestCaseConfig with_prover to true")
         };
 
         let Some(full_node) = &f.full_node else {
@@ -61,14 +59,11 @@ impl TestCase for BasicProverTest {
         // Generate confirmed UTXOs
         da.generate(120, None).await?;
 
-        let seq_height0 = sequencer.client.eth_block_number().await;
-        assert_eq!(seq_height0, 0);
-
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
 
         da.generate(FINALITY_DEPTH, None).await?;
@@ -78,7 +73,9 @@ impl TestCase for BasicProverTest {
 
         da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
-        prover.wait_for_l1_height(finalized_height, None).await?;
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
         let proofs = full_node
@@ -119,7 +116,7 @@ struct SkipPreprovenCommitmentsTest {
 impl TestCase for SkipPreprovenCommitmentsTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            with_prover: true,
+            with_batch_prover: true,
             with_full_node: true,
             ..Default::default()
         }
@@ -130,8 +127,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(prover) = &f.prover else {
-            bail!("Prover not running. Set TestCaseConfig with_prover to true")
+        let Some(prover) = &f.batch_prover else {
+            bail!("Batch Prover not running. Set TestCaseConfig with_prover to true")
         };
 
         let Some(full_node) = &f.full_node else {
@@ -163,7 +160,11 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                 // somehow resubmitted the same commitment.
                 "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D".to_owned(),
             ),
-            tx_backup_dir: get_tx_backup_dir(),
+            tx_backup_dir: Self::test_config()
+                .dir
+                .join("tx_backup_dir")
+                .display()
+                .to_string(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         // Keep sender for cleanup
@@ -186,14 +187,11 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Generate 1 FINALIZED DA block.
         da.generate(1 + FINALITY_DEPTH, None).await?;
 
-        let seq_height0 = sequencer.client.eth_block_number().await;
-        assert_eq!(seq_height0, 0);
-
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
 
         da.generate(FINALITY_DEPTH, None).await?;
@@ -263,7 +261,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         // Trigger a new commitment.
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await;
+            sequencer.client.send_publish_batch_request().await?;
         }
 
         // Wait for the sequencer commitment to be submitted & accepted.

@@ -3,7 +3,6 @@
 mod e2e;
 
 mod bitcoin_e2e;
-
 mod evm;
 mod mempool;
 mod soft_confirmation_rule_enforcer;

@@ -1,9 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-#[cfg(feature = "native")]
-/// Config
-pub mod config;
 /// Testing utilities.
 #[cfg(feature = "mock")]
 pub mod mock;
@@ -15,8 +12,6 @@ use std::path::Path;
 
 #[cfg(feature = "native")]
 use anyhow::Context;
-#[cfg(feature = "native")]
-pub use config::*;
 #[cfg(feature = "native")]
 pub use prover_service::*;
 #[cfg(feature = "native")]

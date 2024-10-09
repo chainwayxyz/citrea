@@ -23,6 +23,7 @@ borsh = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }
+reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror = { workspace = true }
@@ -46,4 +47,5 @@ native = [
   "sov-rollup-interface/native",
   "dep:citrea-primitives",
   "dep:bitcoincore-rpc",
+  "dep:reqwest",
 ]

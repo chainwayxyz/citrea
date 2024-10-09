@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, B256, U256};
 use tokio::time::sleep;

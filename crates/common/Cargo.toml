@@ -14,18 +14,28 @@ resolver = "2"
 # 3rd-party deps
 anyhow = { workspace = true }
 backoff = { workspace = true }
+borsh = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lru = { workspace = true }
+serde = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+toml = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 # Citrea
 citrea-primitives = { path = "../primitives/" }
+citrea-pruning = { path = "../pruning" }
+
+[dev-dependencies]
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+tempfile = { workspace = true }
