@@ -20,7 +20,6 @@ impl TestCase for LedgerGetCommitmentsProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_batch_prover: true,
-            with_light_client_prover: false,
             ..Default::default()
         }
     }

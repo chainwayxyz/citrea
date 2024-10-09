@@ -1765,7 +1765,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=bump-bitcoind-docker-image#a69a226b84a374665704be5af38a8845c9b4b2d7"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=ed77653#ed77653dfde186e230ab8b0572f250b966a2e05e"
 dependencies = [
  "anyhow",
  "async-trait",

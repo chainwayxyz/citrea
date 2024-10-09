@@ -27,7 +27,6 @@ impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_batch_prover: true,
-            with_light_client_prover: false,
             with_full_node: true,
             ..Default::default()
         }
@@ -118,7 +117,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
             with_batch_prover: true,
-            with_light_client_prover: false,
             with_full_node: true,
             ..Default::default()
         }
