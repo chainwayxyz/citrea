@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use jsonrpsee::core::RpcResult;
 use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
+use reth_rpc_types::state::AccountOverride;
 use reth_rpc_types::BlockId;
 use revm::primitives::U256;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -505,4 +507,87 @@ fn gas_price_call_test() {
 
     assert!(result_high_fees.is_ok());
     working_set.unset_archival_version();
+}
+
+#[test]
+fn test_call_with_state_overrides() {
+    let (evm, mut working_set, signer, _) = init_evm();
+
+    let contract = SimpleStorageContract::default();
+    let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
+
+    let call_result_without_state_override = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(contract_address)),
+                input: TransactionInput::new(contract.get_call_data().into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        call_result_without_state_override,
+        U256::from(478).to_be_bytes_vec()
+    );
+
+    // Override the state and check returned value
+    let mut state = HashMap::new();
+    state.insert(U256::from(0).into(), U256::from(15).into());
+
+    let mut state_override = HashMap::new();
+    state_override.insert(
+        contract_address,
+        AccountOverride {
+            balance: None,
+            nonce: None,
+            code: None,
+            state: Some(state),
+            state_diff: None,
+        },
+    );
+    let call_result_with_state_override = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(contract_address)),
+                input: TransactionInput::new(contract.get_call_data().into()),
+                ..Default::default()
+            },
+            None,
+            Some(state_override),
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        call_result_with_state_override,
+        U256::from(15).to_be_bytes_vec()
+    );
+
+    let call_result_without_state_override = evm
+        .get_call(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(contract_address)),
+                input: TransactionInput::new(contract.get_call_data().into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            None,
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(
+        call_result_without_state_override,
+        U256::from(478).to_be_bytes_vec()
+    );
 }
