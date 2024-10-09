@@ -117,12 +117,12 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v0.5.2-osx-arm64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.5.3-osx-arm64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v0.5.2-linux-amd64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+./citrea-v0.5.3-linux-amd64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
