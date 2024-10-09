@@ -1,0 +1,182 @@
+name: nightly-build-and-push
+
+on:
+  push:
+    branches:
+      - nightly
+
+env:
+  EXPECTED_BITCOIN_DA_ID: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+
+  validate_DA_ID_format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate EXPECTED_BITCOIN_DA_ID format
+        run: |
+          echo "Raw EXPECTED_BITCOIN_DA_ID value:"
+          echo "$EXPECTED_BITCOIN_DA_ID"
+          
+          echo "Length of EXPECTED_BITCOIN_DA_ID: ${#EXPECTED_BITCOIN_DA_ID}"
+          
+          if [ -z "${EXPECTED_BITCOIN_DA_ID// }" ]; then
+            echo "Error: EXPECTED_BITCOIN_DA_ID is not set, empty, or contains only spaces"
+            exit 1
+          fi
+          
+          # Remove any trailing newline or carriage return
+          EXPECTED_BITCOIN_DA_ID=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -d '\n\r')
+          
+          # Count commas and spaces
+          comma_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ',' | wc -c)
+          space_count=$(echo "$EXPECTED_BITCOIN_DA_ID" | tr -cd ' ' | wc -c)
+          
+          echo "Number of commas: $comma_count"
+          echo "Number of spaces: $space_count"
+          
+          # Split the string into an array and trim each element
+          IFS=', ' read -ra raw_numbers <<< "$EXPECTED_BITCOIN_DA_ID"
+          numbers=()
+          for num in "${raw_numbers[@]}"; do
+            trimmed_num=$(echo "$num" | tr -d '[:space:]')  # Remove all whitespace
+            numbers+=("$trimmed_num")
+          done
+          
+          echo "Number of elements after splitting and trimming: ${#numbers[@]}"
+          
+          # Check if there are exactly 8 numbers
+          if [ ${#numbers[@]} -ne 8 ]; then
+            echo "Error: EXPECTED_BITCOIN_DA_ID should contain exactly 8 numbers"
+            echo "Actual number of elements: ${#numbers[@]}"
+            exit 1
+          fi
+          
+          # Check if all numbers are valid u32
+          for i in "${!numbers[@]}"; do
+            num=${numbers[$i]}
+            echo "Checking number $((i+1)): '$num'"
+            echo "Hex representation: $(echo -n "$num" | xxd -p)"
+            if ! [[ $num =~ ^[0-9]+$ ]]; then
+              echo "Error: '$num' is not composed of digits only"
+              exit 1
+            fi
+            if [ $num -gt 4294967295 ]; then
+              echo "Error: '$num' is greater than 4294967295"
+              exit 1
+            fi
+          done
+          
+          # Reconstruct the trimmed DA_ID
+          trimmed_da_id=$(IFS=', '; echo "${numbers[*]}")
+          
+          # Final check
+          if [ $comma_count -eq 7 ] && [ $space_count -eq 7 ] && [ ${#numbers[@]} -eq 8 ]; then
+            echo "EXPECTED_BITCOIN_DA_ID is valid:"
+            echo "- Contains 7 commas"
+            echo "- Contains 7 spaces"
+            echo "- Contains 8 valid u32 numbers"
+            echo "Original value: $EXPECTED_BITCOIN_DA_ID"
+            echo "Trimmed value: $trimmed_da_id"
+          else
+            echo "Error: EXPECTED_BITCOIN_DA_ID format is incorrect"
+            echo "- Comma count: $comma_count (should be 7)"
+            echo "- Space count: $space_count (should be 7)"
+            echo "- Number count: ${#numbers[@]} (should be 8)"
+            exit 1
+          fi
+
+  linux_amd64_binary_extraction:
+    needs: validate_DA_ID_format
+    runs-on: ubicloud-standard-30
+    strategy:
+      matrix:
+        include:
+          - short_prefix: 1
+            short_prefix_value: "-short-prefix"
+          - short_prefix: 0
+            short_prefix_value: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
+          sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup install 1.79.0
+          rustup default 1.79.0
+
+      - name: Install Cargo Binstall
+        run: |
+          cargo install --version 1.7.0 cargo-binstall
+
+      - name: Install cargo-risczero
+        run: |
+          cargo binstall cargo-risczero@1.0.5 --no-confirm
+
+      - name: Install risc0-zkvm toolchain
+        run: cargo risczero install --version r0.1.79.0-2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Project
+        env:
+          REPR_GUEST_BUILD: 1
+          SHORT_PREFIX: ${{ matrix.short_prefix }}
+          SKIP_GUEST_BUILD: 0
+        run: |
+          cargo build --release
+
+      - name: Check BITCOIN_DA_ID
+        id: check-id
+        run: |
+          RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
+          EXPECTED_BITCOIN_DA_ID=$(echo "${{ env.EXPECTED_BITCOIN_DA_ID }}" | tr -d '\n\r')
+          if echo "$RESULT" | grep -q "$EXPECTED_BITCOIN_DA_ID"; then
+            echo "Check passed successfully."
+            echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+              
+          else      
+            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Actual: $RESULT"
+            exit 1
+          fi
+
+      - name: Copy binary to devops/nightly
+        run: |
+          cp target/release/citrea devops/nightly/citrea
+          chmod +x devops/nightly/citrea
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          file: ./devops/nightly/Dockerfile
+          context: ./devops/nightly
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea:${{ env.IMAGE_TAG }}${{ matrix.short_prefix_value }}
+          platforms: linux/amd64
+          push: true
+          load: false
+          provenance: false
+
+
+
