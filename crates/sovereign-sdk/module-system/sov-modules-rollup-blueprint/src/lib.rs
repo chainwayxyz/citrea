@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use citrea_common::{FullNodeConfig, BatchProverConfig, LightClientProverConfig};
+use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;

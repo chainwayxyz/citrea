@@ -141,7 +141,11 @@ where
             .extract_relevant_blobs_light_client(l1_block);
 
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
-        tracing::info!("Block {} has {} batch proofs", l1_height, batch_proofs.len());
+        tracing::info!(
+            "Block {} has {} batch proofs",
+            l1_height,
+            batch_proofs.len()
+        );
 
         // Do any kind of ordering etc. on batch proofs here
         // If you do so, don't forget to do the same inside zk

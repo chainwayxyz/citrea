@@ -6,7 +6,7 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::{FullNodeConfig, BatchProverConfig, LightClientProverConfig};
+use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;

@@ -1,9 +1,11 @@
 use async_trait::async_trait;
-use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
+use bitcoin_da::service::{get_relevant_blobs_from_txs};
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::BitcoinNode;
-use citrea_e2e::config::{BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{
+    BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
+};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -129,7 +131,5 @@ impl LightClientProvingTest {
 
 #[tokio::test]
 async fn test_light_client_proving() -> Result<()> {
-    TestCaseRunner::new(LightClientProvingTest)
-        .run()
-        .await
+    TestCaseRunner::new(LightClientProvingTest).run().await
 }
