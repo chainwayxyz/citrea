@@ -19,7 +19,7 @@ struct LedgerGetCommitmentsProverTest;
 impl TestCase for LedgerGetCommitmentsProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            with_prover: true,
+            with_batch_prover: true,
             ..Default::default()
         }
     }
@@ -31,7 +31,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
-        let prover = f.prover.as_ref().unwrap();
+        let prover = f.batch_prover.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
