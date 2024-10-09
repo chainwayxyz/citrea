@@ -79,8 +79,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<C: sov_modules_api::Context, Da: DaService, DB: BatchProverLedgerOps + Send + Sync + 'static>
-    ProverRpcServer for ProverRpcServerImpl<C, Da, DB>
+impl<
+        C: sov_modules_api::Context,
+        Da: DaService,
+        DB: BatchProverLedgerOps + Send + Sync + 'static,
+    > ProverRpcServer for ProverRpcServerImpl<C, Da, DB>
 {
     async fn generate_input(
         &self,

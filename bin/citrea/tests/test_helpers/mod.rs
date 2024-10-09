@@ -6,8 +6,8 @@ use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, MockDemoRollup};
 use citrea_common::{
-    FullNodeConfig, BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, SequencerConfig,
-    StorageConfig, LightClientProverConfig
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
+    RunnerConfig, SequencerConfig, StorageConfig,
 };
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;

@@ -3,9 +3,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{
-    LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig,
-};
+use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps, SharedLedgerOps};
@@ -15,8 +13,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
-use tokio::{select, signal};
 use tokio::sync::oneshot;
+use tokio::{select, signal};
 use tracing::{error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
