@@ -1383,7 +1383,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         match block_id {
             BlockNumberOrTag::Earliest => Ok(0),
             BlockNumberOrTag::Latest => Ok(latest_block_number),
-            BlockNumberOrTag::Pending => Ok(latest_block_number + 1),
+            BlockNumberOrTag::Pending => Err(EthApiError::UnknownBlockNumber),
             BlockNumberOrTag::Number(block_number) => {
                 if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
                     Ok(*block_number)
