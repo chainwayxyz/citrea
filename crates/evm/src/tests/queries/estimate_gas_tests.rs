@@ -20,7 +20,7 @@ use crate::{EstimatedDiffSize, Evm};
 type C = DefaultContext;
 
 #[test]
-fn payable_contract_value_test() {
+fn test_payable_contract_value() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     let tx_req = TransactionRequest {
@@ -338,7 +338,7 @@ fn test_access_list() {
 }
 
 #[test]
-fn estimate_gas_with_varied_inputs_test() {
+fn test_estimate_gas_with_varied_inputs() {
     let (evm, mut working_set, signer, _) = init_evm();
 
     let simple_call_data = 0;
@@ -364,7 +364,7 @@ fn estimate_gas_with_varied_inputs_test() {
 }
 
 #[test]
-fn pending_env_test() {
+fn test_pending_env() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     let tx_req = TransactionRequest {
