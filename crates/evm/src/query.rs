@@ -144,11 +144,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
-        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
-            Some(sealed_block) => sealed_block,
-            None => return Ok(None), // if block doesn't exist return null
+        let sealed_block = match block_number {
+            Some(BlockNumberOrTag::Pending) => get_sealed_pending_block(self, working_set),
+            _ => match self.get_sealed_block_by_number(block_number, working_set)? {
+                Some(sealed_block) => sealed_block,
+                None => return Ok(None), // if block doesn't exist return null
+            },
         };
-
         // Build rpc header response
         let mut header = from_primitive_with_hash(sealed_block.header.clone());
         header.total_difficulty = Some(header.difficulty);
@@ -511,9 +513,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let (block_env, mut cfg_env) = {
-            let block = self
-                .get_sealed_block_by_number(Some(block_number), working_set)?
-                .ok_or(EthApiError::UnknownBlockNumber)?;
+            let block = match block_number {
+                BlockNumberOrTag::Pending => get_sealed_pending_block(self, working_set),
+                _ => self
+                    .get_sealed_block_by_number(Some(block_number), working_set)?
+                    .ok_or(EthApiError::UnknownBlockNumber)?,
+            };
             let block_env = BlockEnv::from(&block);
 
             // Set evm state to block if needed
@@ -581,9 +586,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut request = request.clone();
 
         let (l1_fee_rate, block_env, mut cfg_env) = {
-            let block = self
-                .get_sealed_block_by_number(block_number, working_set)?
-                .ok_or(EthApiError::UnknownBlockNumber)?;
+            let block = match block_number {
+                Some(BlockNumberOrTag::Pending) => get_sealed_pending_block(self, working_set),
+                _ => self
+                    .get_sealed_block_by_number(block_number, working_set)?
+                    .ok_or(EthApiError::UnknownBlockNumber)?,
+            };
             let block_env = BlockEnv::from(&block);
 
             match block_number {
@@ -673,9 +681,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
         let (l1_fee_rate, block_env, cfg_env) = {
-            let block = self
-                .get_sealed_block_by_number(block_number, working_set)?
-                .ok_or(EthApiError::UnknownBlockNumber)?;
+            let block = match block_number {
+                Some(BlockNumberOrTag::Pending) => get_sealed_pending_block(self, working_set),
+                _ => self
+                    .get_sealed_block_by_number(block_number, working_set)?
+                    .ok_or(EthApiError::UnknownBlockNumber)?,
+            };
             let block_env = BlockEnv::from(&block);
 
             match block_number {
@@ -1408,39 +1419,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
             )),
-            Some(BlockNumberOrTag::Pending) => {
-                let latest_block = self
-                    .blocks
-                    .last(&mut working_set.accessory_state())
-                    .expect("Head block must be set");
-                let cfg = self
-                    .cfg
-                    .get(working_set)
-                    .expect("EVM chain config should be set");
-                Ok(Some(SealedBlock {
-                    header: Header {
-                        number: latest_block.header.number + 1,
-                        base_fee_per_gas: calculate_next_block_base_fee(
-                            latest_block.header.gas_used as u128,
-                            latest_block.header.gas_limit as u128,
-                            latest_block.header.base_fee_per_gas,
-                            cfg.base_fee_params,
-                        ),
-                        ..latest_block.header.header().to_owned()
-                    }
-                    .seal(FixedBytes::<32>::default()),
-                    transactions: latest_block.transactions.clone(),
-                    l1_fee_rate: latest_block.l1_fee_rate,
-                    l1_hash: latest_block.l1_hash,
-                }))
-            }
             None => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
             )),
             _ => Err(EthApiError::InvalidParams(
-                "safe/finalized block not supported".to_string(),
+                "pending/safe/finalized block not supported".to_string(),
             )),
         }
     }
@@ -1700,4 +1685,34 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
     // genesis is committed at db version 1
     // so every block is offset by 1
     working_set.set_archival_version(block_number + 1);
+}
+
+fn get_sealed_pending_block<C: sov_modules_api::Context>(
+    evm: &Evm<C>,
+    working_set: &mut WorkingSet<C>,
+) -> SealedBlock {
+    let latest_block = evm
+        .blocks
+        .last(&mut working_set.accessory_state())
+        .expect("Head block must be set");
+    let cfg = evm
+        .cfg
+        .get(working_set)
+        .expect("EVM chain config should be set");
+    SealedBlock {
+        header: Header {
+            number: latest_block.header.number + 1,
+            base_fee_per_gas: calculate_next_block_base_fee(
+                latest_block.header.gas_used as u128,
+                latest_block.header.gas_limit as u128,
+                latest_block.header.base_fee_per_gas,
+                cfg.base_fee_params,
+            ),
+            ..latest_block.header.header().to_owned()
+        }
+        .seal(FixedBytes::<32>::default()),
+        transactions: latest_block.transactions.clone(),
+        l1_fee_rate: latest_block.l1_fee_rate,
+        l1_hash: latest_block.l1_hash,
+    }
 }
