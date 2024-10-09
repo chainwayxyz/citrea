@@ -655,7 +655,8 @@ impl TestClient {
         };
         let end_block = match end_block {
             BlockNumberOrTag::Number(b) => b,
-            BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => self.eth_block_number().await,
+            BlockNumberOrTag::Latest => self.eth_block_number().await,
+            BlockNumberOrTag::Pending => self.eth_block_number().await + 1,
             _ => panic!("Only number, pending and latest"),
         };
         let mut traces: Vec<Vec<GethTrace>> = vec![];

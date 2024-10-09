@@ -59,7 +59,8 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
             }
             end_block
         }
-        BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => latest_block_number,
+        BlockNumberOrTag::Latest => latest_block_number,
+        BlockNumberOrTag::Pending => latest_block_number + 1,
         _ => {
             pending
                 .reject(EthApiError::Unsupported(

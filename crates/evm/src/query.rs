@@ -3,12 +3,13 @@ use std::ops::{Range, RangeInclusive};
 
 use alloy_consensus::Eip658Value;
 use alloy_eips::eip2930::AccessListWithGasUsed;
-use alloy_primitives::Uint;
+use alloy_primitives::{FixedBytes, Uint};
 use alloy_rlp::Encodable;
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
-    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
+    Block, BlockId, BlockNumberOrTag, Header, SealedHeader, TransactionSignedEcRecovered, U256, U64,
 };
 use reth_provider::ProviderError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
@@ -39,7 +40,6 @@ use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
-
 /// Gas per transaction not creating a contract.
 pub const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 
@@ -1364,13 +1364,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: &BlockNumberOrTag,
         working_set: &mut WorkingSet<C>,
     ) -> Result<u64, EthApiError> {
+        let latest_block_number = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .map(|block| block.header.number)
+            .expect("Head block must be set");
         match block_id {
             BlockNumberOrTag::Earliest => Ok(0),
-            BlockNumberOrTag::Latest | BlockNumberOrTag::Pending => Ok(self
-                .blocks
-                .last(&mut working_set.accessory_state())
-                .map(|block| block.header.number)
-                .expect("Head block must be set")),
+            BlockNumberOrTag::Latest => Ok(latest_block_number),
+            BlockNumberOrTag::Pending => Ok(latest_block_number + 1),
             BlockNumberOrTag::Number(block_number) => {
                 if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
                     Ok(*block_number)
@@ -1401,11 +1403,37 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .get(0, &mut working_set.accessory_state())
                     .expect("Genesis block must be set"),
             )),
-            Some(BlockNumberOrTag::Latest) | Some(BlockNumberOrTag::Pending) => Ok(Some(
+            Some(BlockNumberOrTag::Latest) => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
                     .expect("Head block must be set"),
             )),
+            Some(BlockNumberOrTag::Pending) => {
+                let latest_block = self
+                    .blocks
+                    .last(&mut working_set.accessory_state())
+                    .expect("Head block must be set");
+                let cfg = self
+                    .cfg
+                    .get(working_set)
+                    .expect("EVM chain config should be set");
+                Ok(Some(SealedBlock {
+                    header: Header {
+                        number: latest_block.header.number + 1,
+                        base_fee_per_gas: calculate_next_block_base_fee(
+                            latest_block.header.gas_used as u128,
+                            latest_block.header.gas_limit as u128,
+                            latest_block.header.base_fee_per_gas,
+                            cfg.base_fee_params,
+                        ),
+                        ..latest_block.header.header().to_owned()
+                    }
+                    .seal(FixedBytes::<32>::default()),
+                    transactions: latest_block.transactions.clone(),
+                    l1_fee_rate: latest_block.l1_fee_rate,
+                    l1_hash: latest_block.l1_hash,
+                }))
+            }
             None => Ok(Some(
                 self.blocks
                     .last(&mut working_set.accessory_state())
