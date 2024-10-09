@@ -56,6 +56,9 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 pub const FINALITY_DEPTH: u64 = 8; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
+const MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
+const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, core::hash::Hash)]
 pub struct TxidWrapper(Txid);
 impl From<TxidWrapper> for [u8; 32] {
@@ -544,8 +547,13 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
-        let smart_fee = self.client.estimate_smart_fee(1, None).await?;
-        let sat_vkb = smart_fee.fee_rate.map_or(1000, |rate| rate.to_sat());
+        // If network is regtest or signet, mempool space is not available
+        let smart_fee = get_fee_rate_from_mempool_space(self.network).await?.or(self
+            .client
+            .estimate_smart_fee(1, None)
+            .await?
+            .fee_rate);
+        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
         tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
         Ok(sat_vkb / 1000)
@@ -980,6 +988,32 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
     BitcoinMerkleTree::new(hashes).root()
 }
 
+pub(crate) async fn get_fee_rate_from_mempool_space(
+    network: bitcoin::Network,
+) -> Result<Option<Amount>> {
+    let url = match network {
+        bitcoin::Network::Bitcoin => format!(
+            // Mainnet
+            "{}{}",
+            MEMPOOL_SPACE_URL, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
+        ),
+        bitcoin::Network::Testnet => format!(
+            "{}testnet4/{}",
+            MEMPOOL_SPACE_URL, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
+        ),
+        _ => return Ok(None),
+    };
+    let fee_rate = reqwest::get(url)
+        .await?
+        .json::<serde_json::Value>()
+        .await?
+        .get("fastestFee")
+        .and_then(|fee| fee.as_u64())
+        .map(|fee| Amount::from_sat(fee * 1000)); // multiply by 1000 to convert to sat/vkb
+
+    Ok(fee_rate)
+}
+
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -995,7 +1029,7 @@ mod tests {
     use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
-    use super::BitcoinService;
+    use super::{get_fee_rate_from_mempool_space, BitcoinService};
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
     use crate::service::BitcoinServiceConfig;
@@ -1452,5 +1486,25 @@ mod tests {
             da_pubkey,
             "Publickey recovered incorrectly!"
         );
+    }
+
+    #[tokio::test]
+    async fn test_mempool_space_fee_rate() {
+        let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Bitcoin)
+            .await
+            .unwrap()
+            .unwrap();
+        let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Testnet)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Regtest)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Signet)
+            .await
+            .unwrap()
+            .is_none());
     }
 }
