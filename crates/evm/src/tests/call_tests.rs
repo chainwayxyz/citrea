@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::BlockId;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, U64};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
+use reth_rpc_types::BlockOverrides;
 use revm::primitives::{hex, SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -1507,4 +1509,136 @@ fn test_l1_fee_halt() {
         l1_fee_vault.balance,
         U256::from(447 + 96 + 2 * L1_FEE_OVERHEAD as u64)
     );
+}
+
+#[test]
+fn test_call_with_block_overrides() {
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    // Deploy block hashes contract
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
+
+        let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    // Create empty EVM blocks
+    for _i in 0..10 {
+        let l1_fee_rate = 0;
+        let soft_confirmation_info = HookSoftConfirmationInfo {
+            l2_height,
+            da_slot_hash: [5u8; 32],
+            da_slot_height: 1,
+            da_slot_txs_commitment: [42u8; 32],
+            pre_state_root: [99u8; 32].to_vec(),
+            current_spec: SovSpecId::Genesis,
+            pub_key: vec![],
+            deposit_data: vec![],
+            l1_fee_rate,
+            timestamp: 0,
+        };
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+        l2_height += 1;
+    }
+
+    // Construct block override with custom hashes
+    let mut block_hashes = BTreeMap::new();
+    block_hashes.insert(1, [1; 32].into());
+    block_hashes.insert(2, [2; 32].into());
+
+    // Call with block overrides and check that the hash for 1st block is what we want
+    let call_result = evm
+        .get_call(
+            TransactionRequest {
+                from: None,
+                to: Some(TxKind::Call(contract_addr)),
+                input: TransactionInput::new(BlockHashContract::default().get_block_hash(1).into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            Some(BlockOverrides {
+                number: None,
+                difficulty: None,
+                time: None,
+                gas_limit: None,
+                coinbase: None,
+                random: None,
+                base_fee: None,
+                block_hash: Some(block_hashes.clone()),
+            }),
+            &mut working_set,
+        )
+        .unwrap();
+
+    let expected_hash = Bytes::from_iter([1; 32]);
+    assert_eq!(call_result, expected_hash);
+
+    // Call with block overrides and check that the hash for 2nd block is what we want
+    let call_result = evm
+        .get_call(
+            TransactionRequest {
+                from: None,
+                to: Some(TxKind::Call(contract_addr)),
+                input: TransactionInput::new(BlockHashContract::default().get_block_hash(2).into()),
+                ..Default::default()
+            },
+            None,
+            None,
+            Some(BlockOverrides {
+                number: None,
+                difficulty: None,
+                time: None,
+                gas_limit: None,
+                coinbase: None,
+                random: None,
+                base_fee: None,
+                block_hash: Some(block_hashes),
+            }),
+            &mut working_set,
+        )
+        .unwrap();
+    let expected_hash = Bytes::from_iter([2; 32]);
+    assert_eq!(call_result, expected_hash);
 }

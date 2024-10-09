@@ -13,9 +13,10 @@ use reth_primitives::{
 };
 use reth_provider::ProviderError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
+use reth_rpc_types::state::StateOverride;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::{
-    AnyReceiptEnvelope, AnyTransactionReceipt, Log, OtherFields, ReceiptWithBloom,
+    AnyReceiptEnvelope, AnyTransactionReceipt, BlockOverrides, Log, OtherFields, ReceiptWithBloom,
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
@@ -494,8 +495,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         request: reth_rpc_types::TransactionRequest,
         block_id: Option<BlockId>,
-        _state_overrides: Option<reth_rpc_types::state::StateOverride>,
-        _block_overrides: Option<Box<reth_rpc_types::BlockOverrides>>,
+        state_overrides: Option<StateOverride>,
+        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         let block_number = match block_id {
@@ -509,7 +510,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => BlockNumberOrTag::Latest,
         };
 
-        let (block_env, mut cfg_env) = {
+        let (mut block_env, mut cfg_env) = {
             let block_env = match block_number {
                 BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
                 _ => {
@@ -519,6 +520,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     BlockEnv::from(&block)
                 }
             };
+
             // Set evm state to block if needed
             match block_number {
                 BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
@@ -535,6 +537,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let mut evm_db = self.get_db(working_set);
+
+        if let Some(mut block_overrides) = block_overrides {
+            apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
+        }
+
+        if let Some(state_overrides) = state_overrides {
+            apply_state_overrides(state_overrides, &mut evm_db)?;
+        }
 
         let cap_to_balance = evm_db
             .basic(request.from.unwrap_or_default())

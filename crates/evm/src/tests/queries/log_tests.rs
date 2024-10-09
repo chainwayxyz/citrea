@@ -22,7 +22,7 @@ type C = DefaultContext;
 
 #[test]
 fn logs_for_filter_test() {
-    let (evm, mut working_set, _, _) = init_evm();
+    let (evm, mut working_set, _, _, _) = init_evm();
 
     let result = evm.eth_get_logs(
         Filter {
