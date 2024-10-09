@@ -150,10 +150,10 @@ jobs:
             exit 1
           fi
 
-      - name: Copy binary to devops/nightly
+      - name: Copy binary to build-push/nightly
         run: |
-          cp target/release/citrea devops/nightly/citrea
-          chmod +x devops/nightly/citrea
+          cp target/release/citrea build-push/nightly/citrea
+          chmod +x build-push/nightly/citrea
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -170,8 +170,8 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
-          file: ./devops/nightly/Dockerfile
-          context: ./devops/nightly
+          file: ./build-push/nightly/Dockerfile
+          context: ./build-push/nightly
           tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea:${{ env.IMAGE_TAG }}${{ matrix.short_prefix_value }}
           platforms: linux/amd64
           push: true
