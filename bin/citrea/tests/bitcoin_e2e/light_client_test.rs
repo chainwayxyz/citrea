@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bitcoin_da::service::{get_relevant_blobs_from_txs};
+use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoincore_rpc::RpcApi;
 use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::BitcoinNode;
