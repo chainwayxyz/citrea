@@ -497,7 +497,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         request: reth_rpc_types::TransactionRequest,
         block_id: Option<BlockId>,
         state_overrides: Option<StateOverride>,
-        block_overrides: Option<Box<BlockOverrides>>,
+        block_overrides: Option<BlockOverrides>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
         let block_number = match block_id {

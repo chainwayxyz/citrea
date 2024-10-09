@@ -79,7 +79,7 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
 /// Applies all instances of [`BlockOverride`] to the [`EvmDb`].
 pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
     block_env: &mut BlockEnv,
-    block_overrides: &mut Box<BlockOverrides>,
+    block_overrides: &mut BlockOverrides,
     db: &mut EvmDb<C>,
 ) {
     if let Some(block_hashes) = block_overrides.block_hash.take() {
@@ -98,7 +98,7 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         base_fee,
         block_hash: _,
         difficulty: _,
-    } = **block_overrides;
+    } = *block_overrides;
     if let Some(number) = number {
         block_env.number = number.saturating_to();
     }

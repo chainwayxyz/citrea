@@ -1568,7 +1568,7 @@ fn test_call_with_block_overrides() {
             },
             None,
             None,
-            Some(Box::new(BlockOverrides {
+            Some(BlockOverrides {
                 number: None,
                 difficulty: None,
                 time: None,
@@ -1577,7 +1577,7 @@ fn test_call_with_block_overrides() {
                 random: None,
                 base_fee: None,
                 block_hash: Some(block_hashes.clone()),
-            })),
+            }),
             &mut working_set,
         )
         .unwrap();
@@ -1596,7 +1596,7 @@ fn test_call_with_block_overrides() {
             },
             None,
             None,
-            Some(Box::new(BlockOverrides {
+            Some(BlockOverrides {
                 number: None,
                 difficulty: None,
                 time: None,
@@ -1605,7 +1605,7 @@ fn test_call_with_block_overrides() {
                 random: None,
                 base_fee: None,
                 block_hash: Some(block_hashes),
-            })),
+            }),
             &mut working_set,
         )
         .unwrap();
