@@ -59,7 +59,7 @@ revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 tempfile = { workspace = true }
 tracing-subscriber = { workspace = true }
 walkdir = "2.3.3"

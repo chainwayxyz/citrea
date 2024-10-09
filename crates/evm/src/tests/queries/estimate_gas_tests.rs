@@ -363,6 +363,63 @@ fn estimate_gas_with_varied_inputs_test() {
     );
 }
 
+#[test]
+fn pending_env_test() {
+    let (evm, mut working_set, signer) = init_evm_single_block();
+
+    let tx_req = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(address!(
+            "819c5497b157177315e1204f52e588b393771719"
+        ))), // Address of the payable contract.
+        gas: Some(100000),
+        gas_price: Some(100000000),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: Some(U256::from(3100000)),
+        input: TransactionInput {
+            input: None,
+            data: None,
+        },
+        nonce: Some(1u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
+        transaction_type: None,
+        sidecar: None,
+    };
+
+    let result = evm
+        .eth_estimate_gas(
+            tx_req.clone(),
+            Some(BlockNumberOrTag::Latest),
+            &mut working_set,
+        )
+        .unwrap();
+
+    let result_pending = evm.eth_estimate_gas(
+        tx_req.clone(),
+        Some(BlockNumberOrTag::Pending),
+        &mut working_set,
+    );
+    assert_eq!(result_pending.unwrap(), result);
+
+    let result = evm
+        .create_access_list(tx_req.clone(), None, &mut working_set)
+        .unwrap();
+
+    let result_pending = evm
+        .create_access_list(
+            tx_req.clone(),
+            Some(BlockNumberOrTag::Pending),
+            &mut working_set,
+        )
+        .unwrap();
+
+    assert_eq!(result_pending, result);
+}
+
 fn test_estimate_gas_with_input(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C>,
