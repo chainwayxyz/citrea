@@ -516,6 +516,7 @@ fn test_call_with_state_overrides() {
     let contract = SimpleStorageContract::default();
     let contract_address = Address::from_str("0xeeb03d20dae810f52111b853b31c8be6f30f4cd3").unwrap();
 
+    // Get value of contract before state override
     let call_result_without_state_override = evm
         .get_call(
             TransactionRequest {
@@ -571,6 +572,7 @@ fn test_call_with_state_overrides() {
         U256::from(15).to_be_bytes_vec()
     );
 
+    // Get value of contract AFTER state override, this MUST be the original value.
     let call_result_without_state_override = evm
         .get_call(
             TransactionRequest {

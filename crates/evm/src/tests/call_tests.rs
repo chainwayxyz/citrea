@@ -1503,6 +1503,7 @@ fn test_call_with_block_overrides() {
         timestamp: 0,
     };
 
+    // Deploy block hashes contract
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
@@ -1529,9 +1530,8 @@ fn test_call_with_block_overrides() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    // Create EVM blocks
+    // Create empty EVM blocks
     for _i in 0..10 {
-        // generate 514 more blocks
         let l1_fee_rate = 0;
         let soft_confirmation_info = HookSoftConfirmationInfo {
             l2_height,
@@ -1552,10 +1552,12 @@ fn test_call_with_block_overrides() {
         l2_height += 1;
     }
 
+    // Construct block override with custom hashes
     let mut block_hashes = BTreeMap::new();
     block_hashes.insert(1, [1; 32].into());
     block_hashes.insert(2, [2; 32].into());
 
+    // Call with block overrides and check that the hash for 1st block is what we want
     let call_result = evm
         .get_call(
             TransactionRequest {
@@ -1579,9 +1581,11 @@ fn test_call_with_block_overrides() {
             &mut working_set,
         )
         .unwrap();
+
     let expected_hash = Bytes::from_iter([1; 32]);
     assert_eq!(call_result, expected_hash);
 
+    // Call with block overrides and check that the hash for 2nd block is what we want
     let call_result = evm
         .get_call(
             TransactionRequest {
