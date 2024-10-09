@@ -5,6 +5,7 @@ use alloy_consensus::Eip658Value;
 use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
+use citrea_primitives::basefee::calculate_next_block_base_fee;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
@@ -39,7 +40,6 @@ use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
 use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
-
 /// Gas per transaction not creating a contract.
 pub const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 
@@ -148,7 +148,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(sealed_block) => sealed_block,
             None => return Ok(None), // if block doesn't exist return null
         };
-
         // Build rpc header response
         let mut header = from_primitive_with_hash(sealed_block.header.clone());
         header.total_difficulty = Some(header.difficulty);
@@ -511,11 +510,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let (block_env, mut cfg_env) = {
-            let block = self
-                .get_sealed_block_by_number(Some(block_number), working_set)?
-                .ok_or(EthApiError::UnknownBlockNumber)?;
-            let block_env = BlockEnv::from(&block);
-
+            let block_env = match block_number {
+                BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
+                _ => {
+                    let block = self
+                        .get_sealed_block_by_number(Some(block_number), working_set)?
+                        .ok_or(EthApiError::UnknownBlockNumber)?;
+                    BlockEnv::from(&block)
+                }
+            };
             // Set evm state to block if needed
             match block_number {
                 BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
@@ -581,11 +584,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut request = request.clone();
 
         let (l1_fee_rate, block_env, mut cfg_env) = {
-            let block = self
-                .get_sealed_block_by_number(block_number, working_set)?
-                .ok_or(EthApiError::UnknownBlockNumber)?;
-            let block_env = BlockEnv::from(&block);
-
+            let (l1_fee_rate, block_env) = match block_number {
+                Some(BlockNumberOrTag::Pending) => {
+                    let l1_fee_rate = self
+                        .blocks
+                        .last(&mut working_set.accessory_state())
+                        .expect("Head block must be set")
+                        .l1_fee_rate;
+                    (l1_fee_rate, get_pending_block_env(self, working_set))
+                }
+                _ => {
+                    let block = self
+                        .get_sealed_block_by_number(block_number, working_set)?
+                        .ok_or(EthApiError::UnknownBlockNumber)?;
+                    (block.l1_fee_rate, BlockEnv::from(&block))
+                }
+            };
             match block_number {
                 None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
                 _ => set_state_to_end_of_evm_block(block_env.number, working_set),
@@ -597,7 +611,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .expect("EVM chain config should be set");
             let cfg_env = get_cfg_env(&block_env, cfg);
 
-            (block.l1_fee_rate, block_env, cfg_env)
+            (l1_fee_rate, block_env, cfg_env)
         };
 
         // we want to disable this in eth_createAccessList, since this is common practice used by
@@ -673,23 +687,29 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
         let (l1_fee_rate, block_env, cfg_env) = {
-            let block = self
-                .get_sealed_block_by_number(block_number, working_set)?
-                .ok_or(EthApiError::UnknownBlockNumber)?;
-            let block_env = BlockEnv::from(&block);
-
-            match block_number {
-                None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
-                _ => set_state_to_end_of_evm_block(block_env.number, working_set),
+            let (l1_fee_rate, block_env) = match block_number {
+                Some(BlockNumberOrTag::Pending) => {
+                    let l1_fee_rate = self
+                        .blocks
+                        .last(&mut working_set.accessory_state())
+                        .expect("Head block must be set")
+                        .l1_fee_rate;
+                    (l1_fee_rate, get_pending_block_env(self, working_set))
+                }
+                _ => {
+                    let block = self
+                        .get_sealed_block_by_number(block_number, working_set)?
+                        .ok_or(EthApiError::UnknownBlockNumber)?;
+                    (block.l1_fee_rate, BlockEnv::from(&block))
+                }
             };
-
             let cfg = self
                 .cfg
                 .get(working_set)
                 .expect("EVM chain config should be set");
             let cfg_env = get_cfg_env(&block_env, cfg);
 
-            (block.l1_fee_rate, block_env, cfg_env)
+            (l1_fee_rate, block_env, cfg_env)
         };
 
         self.estimate_gas_with_env(request, l1_fee_rate, block_env, cfg_env, working_set)
@@ -1364,13 +1384,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: &BlockNumberOrTag,
         working_set: &mut WorkingSet<C>,
     ) -> Result<u64, EthApiError> {
+        let latest_block_number = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .map(|block| block.header.number)
+            .expect("Head block must be set");
         match block_id {
             BlockNumberOrTag::Earliest => Ok(0),
-            BlockNumberOrTag::Latest => Ok(self
-                .blocks
-                .last(&mut working_set.accessory_state())
-                .map(|block| block.header.number)
-                .expect("Head block must be set")),
+            BlockNumberOrTag::Latest => Ok(latest_block_number),
+            BlockNumberOrTag::Pending => Err(EthApiError::UnknownBlockNumber),
             BlockNumberOrTag::Number(block_number) => {
                 if *block_number < self.blocks.len(&mut working_set.accessory_state()) as u64 {
                     Ok(*block_number)
@@ -1379,7 +1401,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 }
             }
             _ => Err(EthApiError::InvalidParams(
-                "Please provide a number or earliest/latest tag".to_string(),
+                "Please provide a number or earliest/latest/pending tag".to_string(),
             )),
         }
     }
@@ -1672,4 +1694,44 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
     // genesis is committed at db version 1
     // so every block is offset by 1
     working_set.set_archival_version(block_number + 1);
+}
+
+/// Creates the next blocks `BlockEnv` based on the latest block
+/// Also updates `Evm::latest_block_hashes` with the new block hash
+fn get_pending_block_env<C: sov_modules_api::Context>(
+    evm: &Evm<C>,
+    working_set: &mut WorkingSet<C>,
+) -> BlockEnv {
+    let latest_block = evm
+        .blocks
+        .last(&mut working_set.accessory_state())
+        .expect("Head block must be set");
+
+    evm.latest_block_hashes.set(
+        &U256::from(latest_block.header.number),
+        &latest_block.header.hash(),
+        working_set,
+    );
+
+    let cfg = evm
+        .cfg
+        .get(working_set)
+        .expect("EVM chain config should be set");
+
+    let mut block_env = BlockEnv::from(&latest_block);
+    block_env.number += 1;
+    block_env.basefee = calculate_next_block_base_fee(
+        latest_block.header.gas_used as u128,
+        latest_block.header.gas_limit as u128,
+        latest_block.header.base_fee_per_gas,
+        cfg.base_fee_params,
+    )
+    .unwrap_or_default();
+
+    if block_env.number > 256 {
+        evm.latest_block_hashes
+            .remove(&U256::from(block_env.number - 257), working_set);
+    }
+
+    block_env
 }
