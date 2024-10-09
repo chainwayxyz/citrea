@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use citrea_common::SequencerConfig;
 // use citrea::initialize_logging;
 use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
 use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};

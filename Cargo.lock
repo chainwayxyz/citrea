@@ -1271,7 +1271,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=0ae498d#0ae498da2b6aa6e89b1a1bc9d484eb55919718ba"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=ede8097#ede8097e0f0fce5d69e9cab6f85fda39e788a97b"
 dependencies = [
  "async-trait",
  "bitcoincore-rpc-json",
@@ -1286,7 +1286,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc-json"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=0ae498d#0ae498da2b6aa6e89b1a1bc9d484eb55919718ba"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=ede8097#ede8097e0f0fce5d69e9cab6f85fda39e788a97b"
 dependencies = [
  "bitcoin",
  "serde",
@@ -1750,15 +1750,21 @@ dependencies = [
  "backoff",
  "borsh",
  "citrea-primitives",
+ "citrea-pruning",
  "futures",
  "hex",
  "hyper 1.4.1",
  "jsonrpsee",
  "lru",
+ "serde",
  "sov-db",
+ "sov-mock-da",
  "sov-rollup-interface 0.5.0-rc.1",
+ "sov-stf-runner",
+ "tempfile",
  "tokio",
  "tokio-util",
+ "toml",
  "tower-http",
  "tracing",
 ]
@@ -1766,7 +1772,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=main#b6451bee765ffd6fbc7f5174b8cb05c4147c21fe"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=a96abcf#a96abcfe145b9d2467e2f6a5b996cf458bb2d079"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2476,7 +2482,6 @@ dependencies = [
  "sov-value-setter",
  "tempfile",
  "tokio",
- "toml",
  "tracing",
 ]
 
@@ -7640,6 +7645,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "citrea-common",
  "hex",
  "jsonrpsee",
  "serde",
@@ -7871,7 +7877,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "citrea-pruning",
  "futures",
  "hex",
  "hyper 1.4.1",
@@ -7881,7 +7886,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "sov-db",
- "sov-mock-da",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-rollup-interface 0.5.0-rc.1",
@@ -7889,7 +7893,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "toml",
  "tower",
  "tracing",
 ]

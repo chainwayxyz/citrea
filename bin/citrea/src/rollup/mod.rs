@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use citrea_common::{FullNodeConfig, ProverConfig, SequencerConfig};
 use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::forks::FORKS;
 use citrea_prover::{CitreaProver, Prover};
-use citrea_sequencer::{CitreaSequencer, Sequencer, SequencerConfig};
+use citrea_sequencer::{CitreaSequencer, Sequencer};
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::BatchNumber;
@@ -15,7 +16,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{FullNodeConfig, InitVariant, ProverConfig};
+use sov_stf_runner::InitVariant;
 use tokio::sync::broadcast;
 use tracing::{info, instrument};
 

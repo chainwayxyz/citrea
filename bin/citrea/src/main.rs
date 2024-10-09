@@ -3,14 +3,13 @@ use core::fmt::Debug as DebugTrait;
 use anyhow::Context as _;
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
-use citrea_sequencer::SequencerConfig;
+use citrea_common::{from_toml_path, FullNodeConfig, ProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_state::storage::NativeStorage;
-use sov_stf_runner::{from_toml_path, FullNodeConfig, ProverConfig};
 use tracing::{error, instrument};
 
 #[cfg(test)]

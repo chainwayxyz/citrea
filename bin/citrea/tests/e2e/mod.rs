@@ -12,14 +12,13 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
+use citrea_common::{ProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_sequencer::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::{LastVerifiedProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
-use sov_stf_runner::ProverConfig;
 use tokio::task::JoinHandle;
 
 use crate::evm::{init_test_rollup, make_test_client};

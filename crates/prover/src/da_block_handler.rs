@@ -13,6 +13,7 @@ use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
     merge_state_diffs,
 };
+use citrea_common::ProverConfig;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
@@ -26,7 +27,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
-use sov_stf_runner::{ProverConfig, ProverService};
+use sov_stf_runner::ProverService;
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
