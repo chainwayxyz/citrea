@@ -3,13 +3,13 @@ use std::ops::{Range, RangeInclusive};
 
 use alloy_consensus::Eip658Value;
 use alloy_eips::eip2930::AccessListWithGasUsed;
-use alloy_primitives::{FixedBytes, Uint};
+use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
-    Block, BlockId, BlockNumberOrTag, Header, SealedHeader, TransactionSignedEcRecovered, U256, U64,
+    Block, BlockId, BlockNumberOrTag, SealedHeader, TransactionSignedEcRecovered, U256, U64,
 };
 use reth_provider::ProviderError;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
@@ -144,12 +144,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
         details: Option<bool>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<Option<reth_rpc_types::RichBlock>> {
-        let sealed_block = match block_number {
-            Some(BlockNumberOrTag::Pending) => get_sealed_pending_block(self, working_set),
-            _ => match self.get_sealed_block_by_number(block_number, working_set)? {
-                Some(sealed_block) => sealed_block,
-                None => return Ok(None), // if block doesn't exist return null
-            },
+        let sealed_block = match self.get_sealed_block_by_number(block_number, working_set)? {
+            Some(sealed_block) => sealed_block,
+            None => return Ok(None), // if block doesn't exist return null
         };
         // Build rpc header response
         let mut header = from_primitive_with_hash(sealed_block.header.clone());
@@ -513,14 +510,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
         };
 
         let (block_env, mut cfg_env) = {
-            let block = match block_number {
-                BlockNumberOrTag::Pending => get_sealed_pending_block(self, working_set),
-                _ => self
-                    .get_sealed_block_by_number(Some(block_number), working_set)?
-                    .ok_or(EthApiError::UnknownBlockNumber)?,
+            let block_env = match block_number {
+                BlockNumberOrTag::Pending => get_pending_block_env(self, working_set),
+                _ => {
+                    let block = self
+                        .get_sealed_block_by_number(Some(block_number), working_set)?
+                        .ok_or(EthApiError::UnknownBlockNumber)?;
+                    BlockEnv::from(&block)
+                }
             };
-            let block_env = BlockEnv::from(&block);
-
             // Set evm state to block if needed
             match block_number {
                 BlockNumberOrTag::Pending | BlockNumberOrTag::Latest => {}
@@ -586,14 +584,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let mut request = request.clone();
 
         let (l1_fee_rate, block_env, mut cfg_env) = {
-            let block = match block_number {
-                Some(BlockNumberOrTag::Pending) => get_sealed_pending_block(self, working_set),
-                _ => self
-                    .get_sealed_block_by_number(block_number, working_set)?
-                    .ok_or(EthApiError::UnknownBlockNumber)?,
+            let (l1_fee_rate, block_env) = match block_number {
+                Some(BlockNumberOrTag::Pending) => {
+                    let l1_fee_rate = self
+                        .blocks
+                        .last(&mut working_set.accessory_state())
+                        .expect("Head block must be set")
+                        .l1_fee_rate;
+                    (l1_fee_rate, get_pending_block_env(self, working_set))
+                }
+                _ => {
+                    let block = self
+                        .get_sealed_block_by_number(block_number, working_set)?
+                        .ok_or(EthApiError::UnknownBlockNumber)?;
+                    (block.l1_fee_rate, BlockEnv::from(&block))
+                }
             };
-            let block_env = BlockEnv::from(&block);
-
             match block_number {
                 None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
                 _ => set_state_to_end_of_evm_block(block_env.number, working_set),
@@ -605,7 +611,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .expect("EVM chain config should be set");
             let cfg_env = get_cfg_env(&block_env, cfg);
 
-            (block.l1_fee_rate, block_env, cfg_env)
+            (l1_fee_rate, block_env, cfg_env)
         };
 
         // we want to disable this in eth_createAccessList, since this is common practice used by
@@ -681,26 +687,29 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedTxExpenses> {
         let (l1_fee_rate, block_env, cfg_env) = {
-            let block = match block_number {
-                Some(BlockNumberOrTag::Pending) => get_sealed_pending_block(self, working_set),
-                _ => self
-                    .get_sealed_block_by_number(block_number, working_set)?
-                    .ok_or(EthApiError::UnknownBlockNumber)?,
+            let (l1_fee_rate, block_env) = match block_number {
+                Some(BlockNumberOrTag::Pending) => {
+                    let l1_fee_rate = self
+                        .blocks
+                        .last(&mut working_set.accessory_state())
+                        .expect("Head block must be set")
+                        .l1_fee_rate;
+                    (l1_fee_rate, get_pending_block_env(self, working_set))
+                }
+                _ => {
+                    let block = self
+                        .get_sealed_block_by_number(block_number, working_set)?
+                        .ok_or(EthApiError::UnknownBlockNumber)?;
+                    (block.l1_fee_rate, BlockEnv::from(&block))
+                }
             };
-            let block_env = BlockEnv::from(&block);
-
-            match block_number {
-                None | Some(BlockNumberOrTag::Pending | BlockNumberOrTag::Latest) => {}
-                _ => set_state_to_end_of_evm_block(block_env.number, working_set),
-            };
-
             let cfg = self
                 .cfg
                 .get(working_set)
                 .expect("EVM chain config should be set");
             let cfg_env = get_cfg_env(&block_env, cfg);
 
-            (block.l1_fee_rate, block_env, cfg_env)
+            (l1_fee_rate, block_env, cfg_env)
         };
 
         self.estimate_gas_with_env(request, l1_fee_rate, block_env, cfg_env, working_set)
@@ -1687,10 +1696,10 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
     working_set.set_archival_version(block_number + 1);
 }
 
-fn get_sealed_pending_block<C: sov_modules_api::Context>(
+fn get_pending_block_env<C: sov_modules_api::Context>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C>,
-) -> SealedBlock {
+) -> BlockEnv {
     let latest_block = evm
         .blocks
         .last(&mut working_set.accessory_state())
@@ -1699,20 +1708,15 @@ fn get_sealed_pending_block<C: sov_modules_api::Context>(
         .cfg
         .get(working_set)
         .expect("EVM chain config should be set");
-    SealedBlock {
-        header: Header {
-            number: latest_block.header.number + 1,
-            base_fee_per_gas: calculate_next_block_base_fee(
-                latest_block.header.gas_used as u128,
-                latest_block.header.gas_limit as u128,
-                latest_block.header.base_fee_per_gas,
-                cfg.base_fee_params,
-            ),
-            ..latest_block.header.header().to_owned()
-        }
-        .seal(FixedBytes::<32>::default()),
-        transactions: latest_block.transactions.clone(),
-        l1_fee_rate: latest_block.l1_fee_rate,
-        l1_hash: latest_block.l1_hash,
-    }
+
+    let mut block_env = BlockEnv::from(&latest_block);
+    block_env.number += 1;
+    block_env.basefee = calculate_next_block_base_fee(
+        latest_block.header.gas_used as u128,
+        latest_block.header.gas_limit as u128,
+        latest_block.header.base_fee_per_gas,
+        cfg.base_fee_params,
+    )
+    .unwrap_or_default();
+    block_env
 }
