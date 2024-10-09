@@ -19,7 +19,9 @@ citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-primitives = { path = "../../crates/primitives" }
 citrea-prover = { path = "../../crates/prover" }
 citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
-citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
+citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = [
+    "native",
+] }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
@@ -28,15 +30,29 @@ sequencer-client = { path = "../../crates/sequencer-client" }
 # Sovereign-SDK deps
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
-sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
-sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = ["native"] }
-sov-modules-api = { path = "../../crates/sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
+sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = [
+    "server",
+] }
+sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = [
+    "native",
+] }
+sov-modules-api = { path = "../../crates/sovereign-sdk/module-system/sov-modules-api", features = [
+    "native",
+] }
 sov-modules-rollup-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
-sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
+sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint", features = [
+    "native",
+] }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
-sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["native"] }
-sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
-sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = [
+    "native",
+] }
+sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = [
+    "native",
+] }
+sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = [
+    "native",
+] }
 
 # 3rd-party deps
 alloy-primitives = { workspace = true }
@@ -61,10 +77,21 @@ tracing-subscriber = { workspace = true }
 [dev-dependencies]
 citrea-evm = { path = "../../crates/evm", features = ["native"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
-sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
+sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = [
+    "test-utils",
+] }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = [
+    "fuzzing",
+] }
 
-alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers", "signer-local"] }
+alloy = { workspace = true, features = [
+    "hyper",
+    "consensus",
+    "rpc-types-eth",
+    "provider-http",
+    "signers",
+    "signer-local",
+] }
 alloy-rlp = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
@@ -86,10 +113,11 @@ rustc_version_runtime = { workspace = true }
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 bitcoincore-rpc.workspace = true
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", branch = "main" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", branch = "bump-bitcoind-docker-image" }
 
 [features]
-default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
+default = [
+] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
 bench = ["hex"] # "sov-risc0-adapter/bench", "risc0/bench"]
 
