@@ -158,7 +158,6 @@ alloy-sol-types = { version = "0.7.7", default-features = false, features = ["js
 alloy = { version = "0.2.1", default-features = false }
 alloy-eips = { version = "0.2.1", default-features = false }
 alloy-consensus = { version = "0.2.1", default-features = false }
-alloy-serde = { version = "0.2.1", default-features = false }
 
 ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
 secp256k1 = { version = "0.29.0", default-features = false, features = ["global-context", "recovery"] }
