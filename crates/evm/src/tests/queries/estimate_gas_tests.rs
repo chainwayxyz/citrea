@@ -338,8 +338,8 @@ fn test_access_list() {
 }
 
 #[test]
-fn test_estimate_gas_with_varied_inputs() {
-    let (evm, mut working_set, signer, _) = init_evm();
+fn estimate_gas_with_varied_inputs_test() {
+    let (evm, mut working_set, _, signer, _) = init_evm();
 
     let simple_call_data = 0;
     let simple_result =
