@@ -1,9 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use borsh::de::BorshDeserialize;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::BatchNumber;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::da::{BlobReaderTrait, DaDataBatchProof, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateDiff;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
@@ -13,18 +15,6 @@ pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff 
     new_diff_map.into_iter().collect()
 }
 
-/// Remove finalized commitments using the end block number of the L2 range.
-/// This is basically filtering out finalized soft confirmations.
-pub fn filter_out_finalized_commitments<DB: SharedLedgerOps>(
-    ledger_db: &DB,
-    sequencer_commitments: &[SequencerCommitment],
-) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<usize>)> {
-    filter_out_commitments_by_status(
-        ledger_db,
-        sequencer_commitments,
-        SoftConfirmationStatus::Finalized,
-    )
-}
 /// Remove proven commitments using the end block number of the L2 range.
 /// This is basically filtering out proven soft confirmations.
 pub fn filter_out_proven_commitments<DB: SharedLedgerOps>(
@@ -38,7 +28,7 @@ pub fn filter_out_proven_commitments<DB: SharedLedgerOps>(
     )
 }
 
-pub fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
+fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
     ledger_db: &DB,
     sequencer_commitments: &[SequencerCommitment],
     exclude_status: SoftConfirmationStatus,
@@ -76,7 +66,7 @@ pub fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
 }
 
 pub fn check_l2_range_exists<DB: SharedLedgerOps>(
-    ledger_db: DB,
+    ledger_db: &DB,
     first_l2_height_of_l1: u64,
     last_l2_height_of_l1: u64,
 ) -> bool {
@@ -88,4 +78,25 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
         }
     }
     false
+}
+
+pub fn extract_sequencer_commitments<Da: DaService>(
+    sequencer_da_pub_key: &[u8],
+    da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
+) -> Vec<SequencerCommitment> {
+    let mut sequencer_commitments = vec![];
+    // if we don't do this, the zk circuit can't read the sequencer commitments
+    da_data.iter_mut().for_each(|blob| {
+        blob.full_data();
+    });
+    da_data.iter_mut().for_each(|tx| {
+        let data = DaDataBatchProof::try_from_slice(tx.full_data());
+        // Check for commitment
+        if tx.sender().as_ref() == sequencer_da_pub_key {
+            if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
+                sequencer_commitments.push(seq_com);
+            }
+        }
+    });
+    sequencer_commitments
 }
