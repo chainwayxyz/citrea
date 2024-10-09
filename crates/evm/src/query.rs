@@ -1696,6 +1696,8 @@ fn set_state_to_end_of_evm_block<C: sov_modules_api::Context>(
     working_set.set_archival_version(block_number + 1);
 }
 
+/// Creates the next blocks `BlockEnv` based on the latest block
+/// Also updates `Evm::latest_block_hashes` with the new block hash
 fn get_pending_block_env<C: sov_modules_api::Context>(
     evm: &Evm<C>,
     working_set: &mut WorkingSet<C>,
@@ -1704,6 +1706,13 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         .blocks
         .last(&mut working_set.accessory_state())
         .expect("Head block must be set");
+
+    evm.latest_block_hashes.set(
+        &U256::from(latest_block.header.number),
+        &latest_block.header.hash(),
+        working_set,
+    );
+
     let cfg = evm
         .cfg
         .get(working_set)
@@ -1718,5 +1727,11 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         cfg.base_fee_params,
     )
     .unwrap_or_default();
+
+    if block_env.number > 256 {
+        evm.latest_block_hashes
+            .remove(&U256::from(block_env.number - 257), working_set);
+    }
+
     block_env
 }
