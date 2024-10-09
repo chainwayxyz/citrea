@@ -26,7 +26,8 @@ struct BasicProverTest;
 impl TestCase for BasicProverTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            with_prover: true,
+            with_batch_prover: true,
+            with_light_client_prover: false,
             with_full_node: true,
             ..Default::default()
         }
@@ -44,8 +45,8 @@ impl TestCase for BasicProverTest {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(prover) = &f.prover else {
-            bail!("Prover not running. Set TestCaseConfig with_prover to true")
+        let Some(batch_prover) = &f.batch_prover else {
+            bail!("Batch Prover not running. Set TestCaseConfig with_prover to true")
         };
 
         let Some(full_node) = &f.full_node else {
@@ -114,7 +115,8 @@ struct SkipPreprovenCommitmentsTest {
 impl TestCase for SkipPreprovenCommitmentsTest {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            with_prover: true,
+            with_batch_prover: true,
+            with_light_client_prover: false,
             with_full_node: true,
             ..Default::default()
         }
@@ -125,8 +127,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             bail!("Sequencer not running. Set TestCaseConfig with_sequencer to true")
         };
 
-        let Some(prover) = &f.prover else {
-            bail!("Prover not running. Set TestCaseConfig with_prover to true")
+        let Some(prover) = &f.batch_prover else {
+            bail!("Batch Prover not running. Set TestCaseConfig with_prover to true")
         };
 
         let Some(full_node) = &f.full_node else {
