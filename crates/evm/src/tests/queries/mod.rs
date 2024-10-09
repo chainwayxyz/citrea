@@ -11,7 +11,9 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
+use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
@@ -30,7 +32,13 @@ type C = DefaultContext;
 /// Block 1 has 3 transactions
 /// Block 2 has 4 transactions
 /// Block 3 has 2 transactions
-fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner, u64) {
+fn init_evm() -> (
+    Evm<C>,
+    WorkingSet<C>,
+    ProverStorage<DefaultStorageSpec, SnapshotManager>,
+    TestSigner,
+    u64,
+) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let mut config = EvmConfig {
@@ -206,7 +214,7 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, TestSigner, u64) {
 
     let working_set: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
 
-    (evm, working_set, dev_signer, l2_height)
+    (evm, working_set, prover_storage, dev_signer, l2_height)
 }
 
 pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
