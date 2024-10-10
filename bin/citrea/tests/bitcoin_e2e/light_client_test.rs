@@ -1,19 +1,15 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
-use bitcoin_da::service::get_relevant_blobs_from_txs;
+use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
-use borsh::BorshDeserialize;
-use citrea_e2e::bitcoin::BitcoinNode;
-use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
-};
+use citrea_e2e::config::{BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
-use rs_merkle::algorithms::Sha256;
-use rs_merkle::MerkleTree;
-use sov_rollup_interface::da::{BlobReaderTrait, DaData};
+
+const TEN_MINS: Duration = Duration::from_secs(10 * 60);
+const TWENTY_MINS: Duration = Duration::from_secs(20 * 60);
 
 struct LightClientProvingTest;
 
@@ -51,12 +47,12 @@ impl TestCase for LightClientProvingTest {
 
     // TODO: write something meaningful
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        citrea::initialize_logging(tracing::Level::INFO);
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
-        let initial_height = f.initial_da_height;
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
@@ -68,63 +64,40 @@ impl TestCase for LightClientProvingTest {
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
             .await?;
 
-        Ok(())
-    }
-}
+        // Wait for commitment tx to be submitted to DA
+        da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
 
-impl LightClientProvingTest {
-    async fn check_sequencer_commitment(
-        &self,
-        sequencer: &Sequencer,
-        da: &BitcoinNode,
-        start_l2_block: u64,
-        end_l2_block: u64,
-    ) -> Result<()> {
-        let finalized_height = da.get_finalized_height().await?;
+        // Finalize the DA block which contains the commitment tx
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
-        // Extract and verify the commitment from the block
-        let hash = da.get_block_hash(finalized_height).await?;
-        let block = da.get_block(&hash).await?;
+        let commitment_l1_height = da.get_finalized_height().await.unwrap();
 
-        let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_BATCH_PROOF_PREFIX);
+        // Wait for batch prover to generate proof for commitments
+        batch_prover.wait_for_l1_height(commitment_l1_height, Some(TEN_MINS)).await.unwrap();
 
-        assert_eq!(blobs.len(), 1);
+        // Assert that commitment is queryable
+        let commitments = batch_prover.client
+            .ledger_get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitments.len(), 1);
 
-        let mut blob = blobs.pop().unwrap();
+        // Ensure that batch proof is submitted to DA
+        da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
 
-        let data = BlobReaderTrait::full_data(&mut blob);
+        // Finalize the DA block which contains the batch proof tx
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
-        let commitment = DaData::try_from_slice(data).unwrap();
+        let batch_proof_l1_height = da.get_finalized_height().await.unwrap();
 
-        matches!(commitment, DaData::SequencerCommitment(_));
+        // Wait for light client prover to process batch proofs.
+        // Waiting extra here because currently light client
+        // starts from L1 block number 1 and it takes longer time
+        // to process up to 200s.
+        light_client_prover.wait_for_l1_height(batch_proof_l1_height, Some(TWENTY_MINS)).await.unwrap();
 
-        let DaData::SequencerCommitment(commitment) = commitment else {
-            panic!("Expected SequencerCommitment, got {:?}", commitment);
-        };
-
-        let mut soft_confirmations = Vec::new();
-
-        for i in start_l2_block..=end_l2_block {
-            soft_confirmations.push(
-                sequencer
-                    .client
-                    .ledger_get_soft_confirmation_by_number(i)
-                    .await?
-                    .unwrap(),
-            );
-        }
-
-        let merkle_tree = MerkleTree::<Sha256>::from_leaves(
-            soft_confirmations
-                .iter()
-                .map(|x| x.hash)
-                .collect::<Vec<_>>()
-                .as_slice(),
-        );
-
-        assert_eq!(commitment.l2_start_block_number, start_l2_block);
-        assert_eq!(commitment.l2_end_block_number, end_l2_block);
-        assert_eq!(commitment.merkle_root, merkle_tree.root().unwrap());
+        f.show_log_paths();
         Ok(())
     }
 }
