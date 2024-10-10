@@ -368,19 +368,23 @@ impl BitcoinService {
                 let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
                 let blob = compress_blob(&blob);
                 // create inscribe transactions
-                let inscription_txs = create_zkproof_transactions(
-                    blob,
-                    da_private_key,
-                    prev_utxo,
-                    utxos,
-                    address,
-                    REVEAL_OUTPUT_AMOUNT,
-                    fee_sat_per_vbyte,
-                    fee_sat_per_vbyte,
-                    network,
-                    self.reveal_light_client_prefix.clone(),
-                )
-                .await?;
+                let inscription_txs = tokio::task::spawn_blocking(move || {
+                    // Since this is CPU bound work, we use spawn_blocking
+                    // to release the tokio runtime execution
+                    create_zkproof_transactions(
+                        blob,
+                        da_private_key,
+                        prev_utxo,
+                        utxos,
+                        address,
+                        REVEAL_OUTPUT_AMOUNT,
+                        fee_sat_per_vbyte,
+                        fee_sat_per_vbyte,
+                        network,
+                        self.reveal_light_client_prefix.clone(),
+                    )
+                })
+                .await??;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
@@ -404,19 +408,23 @@ impl BitcoinService {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
                 // create inscribe transactions
-                let inscription_txs = create_seqcommitment_transactions(
-                    blob,
-                    da_private_key,
-                    prev_utxo,
-                    utxos,
-                    address,
-                    REVEAL_OUTPUT_AMOUNT,
-                    fee_sat_per_vbyte,
-                    fee_sat_per_vbyte,
-                    network,
-                    self.reveal_batch_prover_prefix.clone(),
-                )
-                .await?;
+                let inscription_txs = tokio::task::spawn_blocking(move || {
+                    // Since this is CPU bound work, we use spawn_blocking
+                    // to release the tokio runtime execution
+                    create_seqcommitment_transactions(
+                        blob,
+                        da_private_key,
+                        prev_utxo,
+                        utxos,
+                        address,
+                        REVEAL_OUTPUT_AMOUNT,
+                        fee_sat_per_vbyte,
+                        fee_sat_per_vbyte,
+                        network,
+                        self.reveal_batch_prover_prefix.clone(),
+                    )
+                })
+                .await??;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;

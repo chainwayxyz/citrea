@@ -85,7 +85,7 @@ impl TxListWithReveal for LightClientTxs {
 // Creates the light client transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub async fn create_zkproof_transactions(
+pub fn create_zkproof_transactions(
     body: Vec<u8>,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
@@ -97,39 +97,33 @@ pub async fn create_zkproof_transactions(
     network: Network,
     reveal_tx_prefix: Vec<u8>,
 ) -> Result<LightClientTxs, anyhow::Error> {
-    // Since this is CPU bound work, we use spawn_blocking
-    // to release the tokio runtime execution
-    tokio::task::spawn_blocking(move || {
-        if body.len() < MAX_TXBODY_SIZE {
-            create_inscription_type_0(
-                body,
-                &da_private_key,
-                prev_utxo,
-                utxos,
-                change_address,
-                reveal_value,
-                commit_fee_rate,
-                reveal_fee_rate,
-                network,
-                &reveal_tx_prefix,
-            )
-        } else {
-            create_inscription_type_1(
-                body,
-                &da_private_key,
-                prev_utxo,
-                utxos,
-                change_address,
-                reveal_value,
-                commit_fee_rate,
-                reveal_fee_rate,
-                network,
-                &reveal_tx_prefix,
-            )
-        }
-    })
-    .await
-    .expect("No JoinErrors")
+    if body.len() < MAX_TXBODY_SIZE {
+        create_inscription_type_0(
+            body,
+            &da_private_key,
+            prev_utxo,
+            utxos,
+            change_address,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            &reveal_tx_prefix,
+        )
+    } else {
+        create_inscription_type_1(
+            body,
+            &da_private_key,
+            prev_utxo,
+            utxos,
+            change_address,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            &reveal_tx_prefix,
+        )
+    }
 }
 
 // TODO: parametrize hardness
