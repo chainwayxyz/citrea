@@ -30,7 +30,7 @@ tracing = { workspace = true }
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features=["native"] }
 
 # Citrea
 citrea-primitives = { path = "../primitives/" }
