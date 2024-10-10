@@ -3,7 +3,7 @@ use core::fmt::Debug as DebugTrait;
 use anyhow::Context as _;
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
-use citrea_common::{from_toml_path, FullNodeConfig, ProverConfig, SequencerConfig};
+use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, ProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_mock_da::MockDaConfig;
@@ -76,15 +76,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let sequencer_config: Option<SequencerConfig> =
         args.sequencer_config_path.clone().map(|path| {
-            from_toml_path(path)
-                .context("Failed to read sequencer configuration")
-                .unwrap()
+            from_toml_path(path).unwrap_or_else( |_| {
+                SequencerConfig::from_env()
+                    .context("Failed to read sequencer configuration")
+                    .unwrap()
+            })
         });
-
     let prover_config: Option<ProverConfig> = args.prover_config_path.clone().map(|path| {
-        from_toml_path(path)
-            .context("Failed to read prover configuration")
-            .unwrap()
+        from_toml_path(path).unwrap_or_else(|_| {
+            ProverConfig::from_env()
+                .context("Failed to read prover configuration")
+                .unwrap()
+        })
     });
 
     if prover_config.is_some() && sequencer_config.is_some() {
@@ -128,13 +131,15 @@ async fn start_rollup<S, DaC>(
     sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
 where
-    DaC: serde::de::DeserializeOwned + DebugTrait + Clone,
+    DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let rollup_config: FullNodeConfig<DaC> = from_toml_path(rollup_config_path)
-        .context("Failed to read rollup configuration")
-        .unwrap();
+    let rollup_config: FullNodeConfig<DaC> = from_toml_path(rollup_config_path).unwrap_or_else(|_| {
+            FullNodeConfig::<DaC>::from_env()
+                .context("Failed to read rollup configuration")
+                .unwrap()
+        });
     let rollup_blueprint = S::new();
 
     if let Some(sequencer_config) = sequencer_config {
