@@ -6,6 +6,10 @@ use citrea_pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_stf_runner::ProverGuestRunConfig;
+
+pub trait FromEnv: Sized {
+    fn from_env() -> anyhow::Result<Self>;
+}
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RunnerConfig {
@@ -21,7 +25,23 @@ pub struct RunnerConfig {
     /// Configurations for pruning
     pub pruning_config: Option<PruningConfig>,
 }
-
+impl FromEnv for RunnerConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            sequencer_client_url: std::env::var("SEQUENCER_CLIENT_URL")?,
+            include_tx_body: std::env::var("INCLUDE_TX_BODY")?.parse()?,
+            accept_public_input_as_proven: std::env::var("ACCEPT_PUBLIC_INPUT_AS_PROVEN")
+                .ok()
+                .map(|val| val.parse().ok())
+                .flatten(),
+            sync_blocks_count: toml::from_str(&std::env::var("SYNC_BLOCKS_COUNT").unwrap_or("".to_string()))?,
+            pruning_config: std::env::var("PRUNING_CONFIG")
+                .ok()
+                .map(|val| toml::from_str(&val).ok())
+                .flatten(),
+        })
+    }
+}
 /// RPC configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
 pub struct RpcConfig {
@@ -49,7 +69,32 @@ pub struct RpcConfig {
     #[serde(default = "default_max_subscriptions_per_connection")]
     pub max_subscriptions_per_connection: u32,
 }
-
+impl FromEnv for RpcConfig{
+    fn from_env() -> anyhow::Result<Self> {
+        let mut toml_string = "".to_string();
+        toml_string.push_str(&format!("bind_host = {}\n", std::env::var("RPC_BIND_HOST")?));
+        toml_string.push_str(&format!("bind_port = {}\n", std::env::var("RPC_BIND_PORT")?));
+        if let Ok(val) = std::env::var("RPC_MAX_CONNECTIONS") {
+            toml_string.push_str(&format!("max_connections = {}\n", val));
+        }
+        if let Ok(val) = std::env::var("RPC_MAX_REQUEST_BODY_SIZE") {
+            toml_string.push_str(&format!("max_request_body_size = {}\n", val));
+        }
+        if let Ok(val) = std::env::var("RPC_MAX_RESPONSE_BODY_SIZE") {
+            toml_string.push_str(&format!("max_response_body_size = {}\n", val));
+        }
+        if let Ok(val) = std::env::var("RPC_BATCH_REQUESTS_LIMIT") {
+            toml_string.push_str(&format!("batch_requests_limit = {}\n", val));
+        }
+        if let Ok(val) = std::env::var("RPC_ENABLE_SUBSCRIPTIONS") {
+            toml_string.push_str(&format!("enable_subscriptions = {}\n", val));
+        }
+        if let Ok(val) = std::env::var("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION") {
+            toml_string.push_str(&format!("max_subscriptions_per_connection = {}\n", val));
+        }
+        Ok(toml::from_str(&toml_string)?)
+    }
+}
 #[inline]
 const fn default_max_connections() -> u32 {
     100
@@ -372,5 +417,42 @@ mod tests {
             block_production_interval_ms: 1000,
         };
         assert_eq!(config, expected);
+    }
+    #[test]
+    fn test_read_rpc_config_from_env(){
+        std::env::set_var("RPC_BIND_HOST", "\"127.0.0.1\"");
+        std::env::set_var("RPC_BIND_PORT", "8080");
+        std::env::set_var("RPC_MAX_CONNECTIONS", "100");
+        let rpc_config = RpcConfig::from_env().unwrap();
+
+        let expected = RpcConfig {
+            bind_host: "127.0.0.1".to_string(),
+            bind_port: 8080,
+            max_connections: 50,
+            max_request_body_size: default_max_request_body_size(),
+            max_response_body_size: default_max_response_body_size(),
+            batch_requests_limit: default_batch_requests_limit(),
+            enable_subscriptions: default_enable_subscriptions(),
+            max_subscriptions_per_connection: default_max_subscriptions_per_connection(),
+        };
+        assert_eq!(rpc_config, expected);
+    }
+    #[test]
+    fn test_read_runner_config_from_env() {
+        std::env::set_var("SEQUENCER_CLIENT_URL", "\"http://localhost:8545\"");
+        std::env::set_var("INCLUDE_TX_BODY", "true");
+        std::env::set_var("ACCEPT_PUBLIC_INPUT_AS_PROVEN", "true");
+        std::env::set_var("SYNC_BLOCKS_COUNT", "100");
+        let runner_config = RunnerConfig::from_env().unwrap();
+
+        let expected = RunnerConfig {
+            sequencer_client_url: "http://localhost:8545".to_string(),
+            include_tx_body: true,
+            accept_public_input_as_proven: Some(true),
+            sync_blocks_count: 100,
+            pruning_config: None,
+        };
+
+        assert_eq!(runner_config, expected);
     }
 }
