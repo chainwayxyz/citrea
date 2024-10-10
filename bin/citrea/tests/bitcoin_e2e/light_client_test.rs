@@ -91,6 +91,14 @@ impl TestCase for LightClientProvingTest {
 
         let batch_proof_l1_height = da.get_finalized_height().await.unwrap();
 
+        // Assert that proof is queryable
+        let batch_proofs = batch_prover.client
+            .ledger_get_verified_proofs_by_slot_height(batch_proof_l1_height)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(batch_proofs.len(), 1);
+
         // Wait for light client prover to process batch proofs.
         // Waiting extra here because currently light client
         // starts from L1 block number 1 and it takes longer time
