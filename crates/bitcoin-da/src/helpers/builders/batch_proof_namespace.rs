@@ -52,9 +52,9 @@ impl TxListWithReveal for BatchProvingTxs {
 // Creates the batch proof transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_seqcommitment_transactions(
+pub async fn create_seqcommitment_transactions(
     body: Vec<u8>,
-    da_private_key: &SecretKey,
+    da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
@@ -62,20 +62,26 @@ pub fn create_seqcommitment_transactions(
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
     network: Network,
-    reveal_tx_prefix: &[u8],
+    reveal_tx_prefix: Vec<u8>,
 ) -> Result<BatchProvingTxs, anyhow::Error> {
-    create_batchproof_type_0(
-        body,
-        da_private_key,
-        prev_utxo,
-        utxos,
-        change_address,
-        reveal_value,
-        commit_fee_rate,
-        reveal_fee_rate,
-        network,
-        reveal_tx_prefix,
-    )
+    // Since this is CPU bound work, we use spawn_blocking
+    // to release the tokio runtime execution
+    tokio::task::spawn_blocking(move || {
+        create_batchproof_type_0(
+            body,
+            &da_private_key,
+            prev_utxo,
+            utxos,
+            change_address,
+            reveal_value,
+            commit_fee_rate,
+            reveal_fee_rate,
+            network,
+            &reveal_tx_prefix,
+        )
+    })
+    .await
+    .expect("No JoinErrors")
 }
 
 // Creates the batch proof transactions Type 0 - BatchProvingTxs - SequencerCommitment
