@@ -57,7 +57,7 @@ const ESTIMATE_GAS_ERROR_RATIO: f64 = 0.015;
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) struct EstimatedTxExpenses {
     /// Evm gas used.
-    gas_used: U64,
+    pub gas_used: U64,
     /// Base fee of the L2 block when tx was executed.
     base_fee: U256,
     /// L1 fee.
@@ -682,9 +682,34 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let estimated =
             self.estimate_gas_with_env(request, l1_fee_rate, block_env, cfg_env, working_set)?;
 
+        // We add some kind of L1 fee overhead to the estimated gas
+        // so that the receiver can check if their balance is enough to
+        // cover L1 fees, without ever knowing about L1 fees.
+        //
+        // However, there is a chance that the real gas used is not bigger than
+        // block gas limit, but it is bigger with the overhead added. In this
+        // case the mempool will reject the transaction and even if it didn't, the sequencer
+        // wouldn't put it into a block since it's against EVM rules to hava tx that
+        // has more gas limit than the block.
+        //
+        // But in the case where the gas used is already bigger than the block gas limit
+        // we want to return the gas estimation as is since the mempool will reject it
+        // anyway.
+        let gas_to_return = {
+            let block_gas_limit = U64::from(block_env.gas_limit);
+
+            if estimated.gas_used > block_gas_limit {
+                estimated.gas_with_l1_overhead()
+            } else {
+                let with_l1_overhead = estimated.gas_with_l1_overhead();
+
+                with_l1_overhead.min(U256::from(block_gas_limit))
+            }
+        };
+
         Ok(AccessListWithGasUsed {
             access_list,
-            gas_used: estimated.gas_with_l1_overhead(),
+            gas_used: gas_to_return,
         })
     }
 
@@ -735,7 +760,36 @@ impl<C: sov_modules_api::Context> Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::U256> {
         let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
-        Ok(estimated.gas_with_l1_overhead())
+
+        // TODO: this assumes all blocks have the same gas limit
+        // if gas limit ever changes this should be updated
+        let last_block = self
+            .blocks
+            .last(&mut working_set.accessory_state())
+            .expect("Head block must be set");
+
+        let block_gas_limit = U64::from(last_block.header.gas_limit);
+
+        // We add some kind of L1 fee overhead to the estimated gas
+        // so that the receiver can check if their balance is enough to
+        // cover L1 fees, without ever knowing about L1 fees.
+        //
+        // However, there is a chance that the real gas used is not bigger than
+        // block gas limit, but it is bigger with the overhead added. In this
+        // case the mempool will reject the transaction and even if it didn't, the sequencer
+        // wouldn't put it into a block since it's against EVM rules to hava tx that
+        // has more gas limit than the block.
+        //
+        // But in the case where the gas used is already bigger than the block gas limit
+        // we want to return the gas estimation as is since the mempool will reject it
+        // anyway.
+        if estimated.gas_used > block_gas_limit {
+            Ok(estimated.gas_with_l1_overhead())
+        } else {
+            let with_l1_overhead = estimated.gas_with_l1_overhead();
+
+            Ok(with_l1_overhead.min(U256::from(block_gas_limit)))
+        }
     }
 
     /// Handler for: `eth_estimateDiffSize`
