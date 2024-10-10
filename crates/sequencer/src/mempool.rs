@@ -85,6 +85,9 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
         let validator = TransactionValidationTaskExecutor::eth_builder(Arc::new(chain_spec))
             .no_cancun()
             .no_eip4844()
+            // TODO: if we ever increase block gas limits, we need to pull this from
+            // somewhere else
+            .set_block_gas_limit(evm_config.block_gas_limit)
             .set_shanghai(true)
             .with_additional_tasks(0)
             .build_with_tasks(client, TokioTaskExecutor::default(), blob_store);
