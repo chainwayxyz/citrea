@@ -452,8 +452,9 @@ fn build_reveal_transaction() {
     assert!(tx.is_err());
     assert_eq!(format!("{}", tx.unwrap_err()), "input UTXO not big enough");
 }
-#[tokio::test]
-async fn create_inscription_transactions() {
+
+#[test]
+fn create_inscription_transactions() {
     let (body, address, utxos) = get_mock_data();
 
     let da_private_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
@@ -475,7 +476,6 @@ async fn create_inscription_transactions() {
             bitcoin::Network::Bitcoin,
             tx_prefix.to_vec(),
         )
-        .await
         .unwrap()
     else {
         panic!("Unexpected tx kind was produced");
