@@ -367,6 +367,8 @@ impl BitcoinService {
                 let data = DaDataLightClient::ZKProof(zkproof);
                 let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
                 let blob = compress_blob(&blob);
+
+                let reveal_light_client_prefix = self.reveal_light_client_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -381,7 +383,7 @@ impl BitcoinService {
                         fee_sat_per_vbyte,
                         fee_sat_per_vbyte,
                         network,
-                        self.reveal_light_client_prefix.clone(),
+                        reveal_light_client_prefix,
                     )
                 })
                 .await??;
@@ -407,6 +409,8 @@ impl BitcoinService {
             DaData::SequencerCommitment(comm) => {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
+
+                let reveal_batch_prover_prefix = self.reveal_batch_prover_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -421,7 +425,7 @@ impl BitcoinService {
                         fee_sat_per_vbyte,
                         fee_sat_per_vbyte,
                         network,
-                        self.reveal_batch_prover_prefix.clone(),
+                        reveal_batch_prover_prefix,
                     )
                 })
                 .await??;
