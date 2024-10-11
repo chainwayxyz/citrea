@@ -560,9 +560,25 @@ impl BitcoinService {
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         // If network is regtest or signet, mempool space is not available
-        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await? {
-            Some(fee_rate) => Some(fee_rate),
-            None => self.client.estimate_smart_fee(1, None).await?.fee_rate,
+        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await {
+            Ok(Some(fee_rate)) => Some(fee_rate),
+            Err(e) => {
+                tracing::warn!(?e, "Failed to get fee rate from mempool.space");
+                match self.client.estimate_smart_fee(1, None).await {
+                    Ok(res) => res.fee_rate,
+                    Err(e) => {
+                        error!(?e, "Failed to get fee rate from Bitcoin node");
+                        None
+                    }
+                }
+            }
+            Ok(None) => match self.client.estimate_smart_fee(1, None).await {
+                Ok(res) => res.fee_rate,
+                Err(e) => {
+                    error!(?e, "Failed to get fee rate from Bitcoin node");
+                    None
+                }
+            },
         };
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
