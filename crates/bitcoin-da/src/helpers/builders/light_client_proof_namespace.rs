@@ -12,15 +12,15 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{Secp256k1, SecretKey, XOnlyPublicKey};
-use bitcoin::taproot::{LeafVersion, TaprootBuilder};
 use bitcoin::{Address, Network, Transaction};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
 use super::{
-    build_commit_transaction, build_reveal_transaction, build_witness, get_size_reveal,
-    sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal, TxWithId,
+    build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
+    get_size_reveal, sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal,
+    TxWithId,
 };
 use crate::spec::utxo::UTXO;
 
@@ -197,25 +197,10 @@ pub fn create_inscription_type_0(
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
 
-        // create spend info for tapscript
-        let taproot_spend_info = TaprootBuilder::new()
-            .add_leaf(0, reveal_script.clone())
-            .expect("Cannot add reveal script to taptree")
-            .finalize(&secp256k1, public_key)
-            .expect("Cannot finalize taptree");
-
-        // create control block for tapscript
-        let control_block = taproot_spend_info
-            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
-            .expect("Cannot create control block");
+        let (control_block, merkle_root) = build_taproot(&reveal_script, public_key, &secp256k1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(
-            &secp256k1,
-            public_key,
-            taproot_spend_info.merkle_root(),
-            network,
-        );
+        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
 
         let reveal_input_value = get_size_reveal(
             change_address.script_pubkey(),
@@ -264,8 +249,7 @@ pub fn create_inscription_type_0(
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
             // check if inscription locked to the correct address
-            let recovery_key_pair =
-                key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+            let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
             let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
             assert_eq!(
                 Address::p2tr_tweaked(
@@ -333,25 +317,10 @@ pub fn create_inscription_type_1(
         // push end if
         let reveal_script = reveal_script_builder.push_opcode(OP_ENDIF).into_script();
 
-        // create spend info for tapscript
-        let taproot_spend_info = TaprootBuilder::new()
-            .add_leaf(0, reveal_script.clone())
-            .expect("Cannot add reveal script to taptree")
-            .finalize(&secp256k1, public_key)
-            .expect("Cannot finalize taptree");
-
-        // create control block for tapscript
-        let control_block = taproot_spend_info
-            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
-            .expect("Cannot create control block");
+        let (control_block, merkle_root) = build_taproot(&reveal_script, public_key, &secp256k1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(
-            &secp256k1,
-            public_key,
-            taproot_spend_info.merkle_root(),
-            network,
-        );
+        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
 
         let reveal_input_value = get_size_reveal(
             change_address.script_pubkey(),
@@ -411,7 +380,7 @@ pub fn create_inscription_type_1(
         );
 
         // check if inscription locked to the correct address
-        let recovery_key_pair = key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+        let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
         let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
         assert_eq!(
             Address::p2tr_tweaked(
@@ -499,25 +468,10 @@ pub fn create_inscription_type_1(
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
 
-        // create spend info for tapscript
-        let taproot_spend_info = TaprootBuilder::new()
-            .add_leaf(0, reveal_script.clone())
-            .expect("Cannot add reveal script to taptree")
-            .finalize(&secp256k1, public_key)
-            .expect("Cannot finalize taptree");
-
-        // create control block for tapscript
-        let control_block = taproot_spend_info
-            .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
-            .expect("Cannot create control block");
+        let (control_block, merkle_root) = build_taproot(&reveal_script, public_key, &secp256k1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(
-            &secp256k1,
-            public_key,
-            taproot_spend_info.merkle_root(),
-            network,
-        );
+        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
 
         let reveal_input_value = get_size_reveal(
             change_address.script_pubkey(),
@@ -566,8 +520,7 @@ pub fn create_inscription_type_1(
         // check if first N bytes equal to the given prefix
         if reveal_hash.starts_with(reveal_tx_prefix) {
             // check if inscription locked to the correct address
-            let recovery_key_pair =
-                key_pair.tap_tweak(&secp256k1, taproot_spend_info.merkle_root());
+            let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
             let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
             assert_eq!(
                 Address::p2tr_tweaked(

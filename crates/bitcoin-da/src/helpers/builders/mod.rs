@@ -16,10 +16,10 @@ use bitcoin::hashes::Hash;
 use bitcoin::key::constants::SCHNORR_SIGNATURE_SIZE;
 use bitcoin::secp256k1::{self, All, Keypair, Message, Secp256k1, SecretKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
-use bitcoin::taproot::{ControlBlock, LeafVersion};
+use bitcoin::taproot::{ControlBlock, LeafVersion, TaprootBuilder};
 use bitcoin::{
-    Address, Amount, OutPoint, ScriptBuf, Sequence, TapLeafHash, Transaction, TxIn, TxOut, Txid,
-    Witness,
+    Address, Amount, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, Transaction, TxIn,
+    TxOut, Txid, Witness, XOnlyPublicKey,
 };
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
@@ -221,6 +221,26 @@ fn build_reveal_transaction(
     };
 
     Ok(tx)
+}
+
+fn build_taproot(
+    reveal_script: &ScriptBuf,
+    public_key: XOnlyPublicKey,
+    secp256k1: &Secp256k1<All>,
+) -> (ControlBlock, Option<TapNodeHash>) {
+    // create spend info for tapscript
+    let taproot_spend_info = TaprootBuilder::new()
+        .add_leaf(0, reveal_script.clone())
+        .expect("Cannot add reveal script to taptree")
+        .finalize(secp256k1, public_key)
+        .expect("Cannot finalize taptree");
+
+    // create control block for tapscript
+    let control_block = taproot_spend_info
+        .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
+        .expect("Cannot create control block");
+
+    (control_block, taproot_spend_info.merkle_root())
 }
 
 fn build_witness(
