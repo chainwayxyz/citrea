@@ -11,6 +11,7 @@ members = [
   "crates/ethereum-rpc",
   "crates/fullnode",
   "crates/risc0-bonsai",
+  "crates/risc0-boundless",
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
@@ -121,11 +122,11 @@ tokio-util = { version = "0.7.12", features = ["rt"] }
 num_cpus = "1.0"
 
 # Risc0 dependencies
-risc0-zkvm = { version = "1.0.5", default-features = false }
-risc0-zkvm-platform = { version = "1.0.5" }
-risc0-zkp = { version = "1.0.5" }
-risc0-circuit-rv32im = { version = "1.0.5" }
-risc0-build = { version = "1.0.5" }
+risc0-zkvm = { version = "1.1.2", default-features = false }
+risc0-zkvm-platform = { version = "1.1.2" }
+risc0-zkp = { version = "1.1.2" }
+risc0-circuit-rv32im = { version = "1.1.2" }
+risc0-build = { version = "1.1.2" }
 bonsai-sdk = { version = "0.9.0" }
 
 # EVM dependencies
@@ -163,7 +164,7 @@ ed25519-dalek = { version = "2", default-features = false, features = ["serde", 
 secp256k1 = { version = "0.29.0", default-features = false, features = ["global-context", "recovery"] }
 
 tower-http = { version = "0.5.0", features = ["full"] }
-tower = { version = "0.4.13", features = ["full"] }
+tower = { version = "0.5.1", features = ["full"] }
 hyper = { version = "1.4.0" }
 
 [patch.'https://github.com/eigerco/celestia-node-rs.git']

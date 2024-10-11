@@ -1,0 +1,50 @@
+[package]
+name = "citrea-risc0-boundless-adapter"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+readme = "README.md"
+repository = { workspace = true }
+description = "An adapter allowing Citrea to connect with Risc0 Boundless Prover Network"
+
+[dependencies]
+alloy = { version = "0.3" }
+anyhow = { workspace = true }
+backoff = { workspace = true }
+bincode = { workspace = true }
+borsh = { workspace = true }
+bytemuck = "1.13.1"
+hex = { workspace = true }
+once_cell = { version = "1.19.0", optional = true }
+parking_lot = { version = "0.12.1", optional = true }
+reqwest = { workspace = true }
+risc0-circuit-rv32im = { workspace = true, optional = true }
+risc0-zkp = { workspace = true, optional = true }
+risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
+risc0-zkvm-platform = { workspace = true }
+serde = { workspace = true }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+# we are going to use its guest
+sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+url = "2.5"
+
+# # boundless monorepo dependencies.
+# aggregation-set = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+# guest-assessor = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+boundless-market = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+# broker = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+
+[features]
+default = []
+native = [
+  "risc0-zkvm/prove",
+  "dep:risc0-zkp",
+  "dep:risc0-circuit-rv32im",
+  "sov-risc0-adapter/native",
+]
+bench = ["once_cell", "parking_lot", "native"]
