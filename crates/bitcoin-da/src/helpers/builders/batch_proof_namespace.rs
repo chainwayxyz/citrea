@@ -12,16 +12,17 @@ use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{Secp256k1, SecretKey, XOnlyPublicKey};
-use bitcoin::{Address, Network, Transaction};
+use bitcoin::{Address, Amount, Network, Transaction};
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
 use super::{
     build_commit_transaction, build_reveal_transaction, build_taproot, build_witness,
-    get_size_reveal, sign_blob_with_private_key, TransactionKindBatchProof, TxListWithReveal,
-    TxWithId,
+    get_size_reveal, sign_blob_with_private_key, update_witness, TransactionKindBatchProof,
+    TxListWithReveal, TxWithId,
 };
 use crate::spec::utxo::UTXO;
+use crate::REVEAL_OUTPUT_AMOUNT;
 
 /// This is a list of batch proof tx we need to send to DA (only SequencerCommitment for now)
 #[derive(Serialize)]
@@ -57,7 +58,6 @@ pub fn create_seqcommitment_transactions(
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
-    reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
     network: Network,
@@ -69,7 +69,6 @@ pub fn create_seqcommitment_transactions(
         prev_utxo,
         utxos,
         change_address,
-        reveal_value,
         commit_fee_rate,
         reveal_fee_rate,
         network,
@@ -86,7 +85,6 @@ pub fn create_batchproof_type_0(
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
-    reveal_value: u64,
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
     network: Network,
@@ -124,6 +122,7 @@ pub fn create_batchproof_type_0(
     println!("reveal_script_builder: {:?}", reveal_script_builder);
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
+    let now = std::time::Instant::now();
     loop {
         if nonce % 10000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
@@ -145,23 +144,25 @@ pub fn create_batchproof_type_0(
         // finalize reveal script
         let reveal_script = reveal_script_builder.into_script();
 
-        let (control_block, merkle_root) = build_taproot(&reveal_script, public_key, &secp256k1);
+        let (control_block, merkle_root, tapscript_hash) =
+            build_taproot(&reveal_script, public_key, &secp256k1);
 
         // create commit tx address
         let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
 
-        let reveal_input_value = get_size_reveal(
+        let reveal_value = REVEAL_OUTPUT_AMOUNT;
+        let fee = get_size_reveal(
             change_address.script_pubkey(),
             reveal_value,
             &reveal_script,
             &control_block,
         ) as u64
-            * reveal_fee_rate
-            + reveal_value;
+            * reveal_fee_rate;
+        let reveal_input_value = fee + reveal_value + reveal_value / 2;
 
         // build commit tx
         // we don't need leftover_utxos because they will be requested from bitcoind next call
-        let (unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
+        let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
             prev_utxo.clone(),
             utxos,
             commit_tx_address.clone(),
@@ -177,7 +178,7 @@ pub fn create_batchproof_type_0(
             unsigned_commit_tx.compute_txid(),
             0,
             change_address,
-            reveal_value,
+            reveal_value + reveal_value / 2,
             reveal_fee_rate,
             &reveal_script,
             &control_block,
@@ -186,35 +187,53 @@ pub fn create_batchproof_type_0(
         build_witness(
             &unsigned_commit_tx,
             &mut reveal_tx,
+            tapscript_hash,
             reveal_script,
             control_block,
             &key_pair,
             &secp256k1,
         );
 
-        let reveal_wtxid = reveal_tx.compute_wtxid();
-        let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+        let min_commit_value = Amount::from_sat(fee + reveal_value);
+        while unsigned_commit_tx.output[0].value >= min_commit_value {
+            // tracing::info!("reveal output: {}", reveal_tx.output[0].value);
+            let reveal_wtxid = reveal_tx.compute_wtxid();
+            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+            // check if first N bytes equal to the given prefix
+            if reveal_hash.starts_with(reveal_tx_prefix) {
+                // check if inscription locked to the correct address
+                let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
+                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+                assert_eq!(
+                    Address::p2tr_tweaked(
+                        TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                        network,
+                    ),
+                    commit_tx_address
+                );
 
-        // check if first N bytes equal to the given prefix
-        if reveal_hash.starts_with(reveal_tx_prefix) {
-            // check if inscription locked to the correct address
-            let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
-            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
-            assert_eq!(
-                Address::p2tr_tweaked(
-                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                    network,
-                ),
-                commit_tx_address
-            );
+                tracing::info!("da seq elapsed: {:?}", now.elapsed());
 
-            return Ok(BatchProvingTxs {
-                commit: unsigned_commit_tx,
-                reveal: TxWithId {
-                    id: reveal_tx.compute_txid(),
-                    tx: reveal_tx,
-                },
-            });
+                return Ok(BatchProvingTxs {
+                    commit: unsigned_commit_tx,
+                    reveal: TxWithId {
+                        id: reveal_tx.compute_txid(),
+                        tx: reveal_tx,
+                    },
+                });
+            } else {
+                unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
+                unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
+                reveal_tx.output[0].value -= Amount::ONE_SAT;
+                reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
+                update_witness(
+                    &unsigned_commit_tx,
+                    &mut reveal_tx,
+                    tapscript_hash,
+                    &key_pair,
+                    &secp256k1,
+                );
+            }
         }
 
         nonce += 1;

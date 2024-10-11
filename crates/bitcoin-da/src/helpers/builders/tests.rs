@@ -470,7 +470,6 @@ fn create_inscription_transactions() {
             None,
             utxos.clone(),
             address.clone(),
-            546,
             12,
             10,
             bitcoin::Network::Bitcoin,

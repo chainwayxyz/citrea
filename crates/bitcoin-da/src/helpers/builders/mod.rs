@@ -72,10 +72,16 @@ fn build_commit_transaction(
             witness: Witness::new(),
             sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
         }],
-        &[TxOut {
-            script_pubkey: recipient.clone().script_pubkey(),
-            value: Amount::from_sat(output_value),
-        }],
+        &[
+            TxOut {
+                script_pubkey: recipient.clone().script_pubkey(),
+                value: Amount::from_sat(output_value),
+            },
+            TxOut {
+                script_pubkey: change_address.script_pubkey(),
+                value: Amount::ZERO,
+            },
+        ],
     );
 
     if let Some(req_utxo) = &prev_utxo {
@@ -105,10 +111,16 @@ fn build_commit_transaction(
         let direct_return = !has_change;
 
         let outputs = if !has_change {
-            vec![TxOut {
-                value: Amount::from_sat(output_value),
-                script_pubkey: recipient.script_pubkey(),
-            }]
+            vec![
+                TxOut {
+                    value: Amount::from_sat(output_value),
+                    script_pubkey: recipient.script_pubkey(),
+                },
+                TxOut {
+                    script_pubkey: change_address.script_pubkey(),
+                    value: Amount::ZERO,
+                },
+            ]
         } else {
             vec![
                 TxOut {
@@ -227,7 +239,7 @@ fn build_taproot(
     reveal_script: &ScriptBuf,
     public_key: XOnlyPublicKey,
     secp256k1: &Secp256k1<All>,
-) -> (ControlBlock, Option<TapNodeHash>) {
+) -> (ControlBlock, Option<TapNodeHash>, TapLeafHash) {
     // create spend info for tapscript
     let taproot_spend_info = TaprootBuilder::new()
         .add_leaf(0, reveal_script.clone())
@@ -235,17 +247,25 @@ fn build_taproot(
         .finalize(secp256k1, public_key)
         .expect("Cannot finalize taptree");
 
+    // create tapleaf hash
+    let tapleaf_hash = TapLeafHash::from_script(reveal_script, LeafVersion::TapScript);
+
     // create control block for tapscript
     let control_block = taproot_spend_info
         .control_block(&(reveal_script.clone(), LeafVersion::TapScript))
         .expect("Cannot create control block");
 
-    (control_block, taproot_spend_info.merkle_root())
+    (
+        control_block,
+        taproot_spend_info.merkle_root(),
+        tapleaf_hash,
+    )
 }
 
 fn build_witness(
     commit_tx: &Transaction,
     reveal_tx: &mut Transaction,
+    tapscript_hash: TapLeafHash,
     reveal_script: ScriptBuf,
     control_block: ControlBlock,
     key_pair: &Keypair,
@@ -259,7 +279,7 @@ fn build_witness(
         .taproot_script_spend_signature_hash(
             0,
             &Prevouts::All(&[&commit_tx.output[0]]),
-            TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+            tapscript_hash,
             bitcoin::sighash::TapSighashType::Default,
         )
         .expect("Cannot create hash for signature");
@@ -274,9 +294,52 @@ fn build_witness(
 
     // add signature to witness and finalize reveal tx
     let witness = sighash_cache.witness_mut(0).unwrap();
+    witness.clear();
     witness.push(signature.as_ref());
     witness.push(reveal_script);
     witness.push(&control_block.serialize());
+}
+
+fn update_witness(
+    commit_tx: &Transaction,
+    reveal_tx: &mut Transaction,
+    tapscript_hash: TapLeafHash,
+    key_pair: &Keypair,
+    secp256k1: &Secp256k1<All>,
+) {
+    // start signing reveal tx
+    let mut sighash_cache = SighashCache::new(reveal_tx);
+
+    // create data to sign
+    let signature_hash = sighash_cache
+        .taproot_script_spend_signature_hash(
+            0,
+            &Prevouts::All(&[&commit_tx.output[0]]),
+            tapscript_hash,
+            bitcoin::sighash::TapSighashType::Default,
+        )
+        .expect("Cannot create hash for signature");
+
+    // sign reveal tx data
+    let signature = secp256k1.sign_schnorr_with_rng(
+        &Message::from_digest_slice(signature_hash.as_byte_array())
+            .expect("should be cryptographically secure hash"),
+        key_pair,
+        &mut rand::thread_rng(),
+    );
+
+    // add signature to witness and finalize reveal tx
+    let witness = sighash_cache.witness_mut(0).unwrap();
+
+    let reveal_script = witness.nth(1).unwrap();
+    let control_block = witness.nth(2).unwrap();
+
+    let mut new_witness = Witness::new();
+    new_witness.push(signature.as_ref());
+    new_witness.push(reveal_script);
+    new_witness.push(control_block);
+
+    *witness = new_witness;
 }
 
 fn get_size_commit(inputs: &[TxIn], outputs: &[TxOut]) -> usize {
