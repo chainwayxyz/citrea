@@ -14,10 +14,12 @@ use bitcoin::absolute::LockTime;
 use bitcoin::blockdata::script;
 use bitcoin::hashes::Hash;
 use bitcoin::key::constants::SCHNORR_SIGNATURE_SIZE;
-use bitcoin::secp256k1::{self, Secp256k1, SecretKey};
-use bitcoin::taproot::ControlBlock;
+use bitcoin::secp256k1::{self, All, Keypair, Message, Secp256k1, SecretKey};
+use bitcoin::sighash::{Prevouts, SighashCache};
+use bitcoin::taproot::{ControlBlock, LeafVersion};
 use bitcoin::{
-    Address, Amount, OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
+    Address, Amount, OutPoint, ScriptBuf, Sequence, TapLeafHash, Transaction, TxIn, TxOut, Txid,
+    Witness,
 };
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
@@ -219,6 +221,42 @@ fn build_reveal_transaction(
     };
 
     Ok(tx)
+}
+
+fn build_witness(
+    commit_tx: &Transaction,
+    reveal_tx: &mut Transaction,
+    reveal_script: ScriptBuf,
+    control_block: ControlBlock,
+    key_pair: &Keypair,
+    secp256k1: &Secp256k1<All>,
+) {
+    // start signing reveal tx
+    let mut sighash_cache = SighashCache::new(reveal_tx);
+
+    // create data to sign
+    let signature_hash = sighash_cache
+        .taproot_script_spend_signature_hash(
+            0,
+            &Prevouts::All(&[&commit_tx.output[0]]),
+            TapLeafHash::from_script(&reveal_script, LeafVersion::TapScript),
+            bitcoin::sighash::TapSighashType::Default,
+        )
+        .expect("Cannot create hash for signature");
+
+    // sign reveal tx data
+    let signature = secp256k1.sign_schnorr_with_rng(
+        &Message::from_digest_slice(signature_hash.as_byte_array())
+            .expect("should be cryptographically secure hash"),
+        key_pair,
+        &mut rand::thread_rng(),
+    );
+
+    // add signature to witness and finalize reveal tx
+    let witness = sighash_cache.witness_mut(0).unwrap();
+    witness.push(signature.as_ref());
+    witness.push(reveal_script);
+    witness.push(&control_block.serialize());
 }
 
 fn get_size_commit(inputs: &[TxIn], outputs: &[TxOut]) -> usize {
