@@ -87,7 +87,7 @@ impl TxListWithReveal for LightClientTxs {
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_zkproof_transactions(
     body: Vec<u8>,
-    da_private_key: &SecretKey,
+    da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
     change_address: Address,
@@ -95,12 +95,12 @@ pub fn create_zkproof_transactions(
     commit_fee_rate: u64,
     reveal_fee_rate: u64,
     network: Network,
-    reveal_tx_prefix: &[u8],
+    reveal_tx_prefix: Vec<u8>,
 ) -> Result<LightClientTxs, anyhow::Error> {
     if body.len() < MAX_TXBODY_SIZE {
         create_inscription_type_0(
             body,
-            da_private_key,
+            &da_private_key,
             prev_utxo,
             utxos,
             change_address,
@@ -108,12 +108,12 @@ pub fn create_zkproof_transactions(
             commit_fee_rate,
             reveal_fee_rate,
             network,
-            reveal_tx_prefix,
+            &reveal_tx_prefix,
         )
     } else {
         create_inscription_type_1(
             body,
-            da_private_key,
+            &da_private_key,
             prev_utxo,
             utxos,
             change_address,
@@ -121,7 +121,7 @@ pub fn create_zkproof_transactions(
             commit_fee_rate,
             reveal_fee_rate,
             network,
-            reveal_tx_prefix,
+            &reveal_tx_prefix,
         )
     }
 }

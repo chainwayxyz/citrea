@@ -452,6 +452,7 @@ fn build_reveal_transaction() {
     assert!(tx.is_err());
     assert_eq!(format!("{}", tx.unwrap_err()), "input UTXO not big enough");
 }
+
 #[test]
 fn create_inscription_transactions() {
     let (body, address, utxos) = get_mock_data();
@@ -465,7 +466,7 @@ fn create_inscription_transactions() {
     let LightClientTxs::Complete { commit, reveal } =
         super::light_client_proof_namespace::create_zkproof_transactions(
             body.clone(),
-            &da_private_key,
+            da_private_key,
             None,
             utxos.clone(),
             address.clone(),
@@ -473,7 +474,7 @@ fn create_inscription_transactions() {
             12,
             10,
             bitcoin::Network::Bitcoin,
-            tx_prefix,
+            tx_prefix.to_vec(),
         )
         .unwrap()
     else {
