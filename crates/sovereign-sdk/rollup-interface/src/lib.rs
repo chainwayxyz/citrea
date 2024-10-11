@@ -12,7 +12,7 @@ extern crate alloc;
 ///
 /// Mostly used for web3_clientVersion RPC calls and might be used for other purposes.
 #[cfg(feature = "native")]
-pub const CITREA_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const CITREA_VERSION: &str = "v0.5.4";
 
 mod state_machine;
 pub use state_machine::*;
