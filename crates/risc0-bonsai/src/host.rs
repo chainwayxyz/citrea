@@ -314,11 +314,10 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     /// Proofs are created on the Bonsai API.
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
         if !with_proof {
-            let env =
-                sov_risc0_adapter::host::add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
+            let env = ExecutorEnvBuilder::default()
+                .write_slice(&self.env)
+                .build()
+                .unwrap();
             let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
 
             let session = executor.run()?;

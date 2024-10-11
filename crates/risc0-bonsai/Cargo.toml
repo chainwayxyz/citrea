@@ -42,7 +42,3 @@ native = [
   "sov-risc0-adapter/native",
 ]
 bench = ["once_cell", "parking_lot", "native"]
-
-[[test]]
-name = "native"
-required-features = ["native"]

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use anyhow::Context;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
-use risc0_zkvm::Bytes;
+use risc0_zkvm::{Bytes, ExecutorEnvBuilder};
 
 /// A global hashmap mapping metric names to their values.
 pub static GLOBAL_HASHMAP: Lazy<Mutex<HashMap<String, (u64, u64)>>> =
@@ -46,4 +46,20 @@ pub fn metrics_callback(input: Bytes) -> Result<Bytes, anyhow::Error> {
     let met_tuple = deserialize_custom(input)?;
     add_value(met_tuple.0, met_tuple.1);
     Ok(Bytes::new())
+}
+
+#[cfg(feature = "bench")]
+/// Add benchmarking callbacks to the executor environment.
+pub fn add_benchmarking_callbacks(mut env: ExecutorEnvBuilder<'_>) -> ExecutorEnvBuilder<'_> {
+    use sov_zk_cycle_utils::{cycle_count_callback, get_syscall_name, get_syscall_name_cycles};
+
+    use crate::metrics::metrics_callback;
+
+    let metrics_syscall_name = get_syscall_name();
+    env.io_callback(metrics_syscall_name, metrics_callback);
+
+    let cycles_syscall_name = get_syscall_name_cycles();
+    env.io_callback(cycles_syscall_name, cycle_count_callback);
+
+    env
 }
