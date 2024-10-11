@@ -14,6 +14,7 @@ members = [
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
+  "crates/sp1",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/risc0",
@@ -128,8 +129,12 @@ risc0-circuit-rv32im = { version = "1.1.2" }
 risc0-build = { version = "1.1.2" }
 bonsai-sdk = { version = "1.1.2" }
 
-# EVM dependencies
+# SP1 dependencies
+sp1-helper = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["lib"] }
 
+# EVM dependencies
 revm-inspectors = { version = "=0.5.5", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
 reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
