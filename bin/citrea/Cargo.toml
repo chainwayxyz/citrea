@@ -79,7 +79,7 @@ tokio = { workspace = true }
 
 revm = { workspace = true }
 
-log = "0.4"
+log = "0.4.22"
 regex = "1.10"
 rustc_version_runtime = { workspace = true }
 

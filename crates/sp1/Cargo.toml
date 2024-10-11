@@ -1,0 +1,26 @@
+[package]
+name = "citrea-sp1"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+readme = "README.md"
+resolver = "2"
+
+[dependencies]
+anyhow = { workspace = true }
+borsh = { workspace = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sp1-helper = { workspace = true }
+sp1-sdk = { workspace = true }
+sp1-zkvm = { workspace = true }
+
+[dev-dependencies]
+
+[features]
+default = []
+native = []
