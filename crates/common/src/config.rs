@@ -52,7 +52,7 @@ impl FromEnv for RunnerConfig {
             sync_blocks_count: std::env::var("SYNC_BLOCKS_COUNT")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_sync_blocks_count()),
+                .unwrap_or_else(default_sync_blocks_count),
             pruning_config: PruningConfig::from_env().ok(),
         })
     }
@@ -93,27 +93,27 @@ impl FromEnv for RpcConfig {
             max_connections: std::env::var("RPC_MAX_CONNECTIONS")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_max_connections()),
+                .unwrap_or_else(default_max_connections),
             max_request_body_size: std::env::var("RPC_MAX_REQUEST_BODY_SIZE")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_max_request_body_size()),
+                .unwrap_or_else(default_max_request_body_size),
             max_response_body_size: std::env::var("RPC_MAX_RESPONSE_BODY_SIZE")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_max_response_body_size()),
+                .unwrap_or_else(default_max_response_body_size),
             batch_requests_limit: std::env::var("RPC_BATCH_REQUESTS_LIMIT")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_batch_requests_limit()),
+                .unwrap_or_else(default_batch_requests_limit),
             enable_subscriptions: std::env::var("RPC_ENABLE_SUBSCRIPTIONS")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_enable_subscriptions()),
+                .unwrap_or_else(default_enable_subscriptions),
             max_subscriptions_per_connection: std::env::var("RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION")
                 .ok()
                 .and_then(|val| val.parse().ok())
-                .unwrap_or(default_max_subscriptions_per_connection()),
+                .unwrap_or_else(default_max_subscriptions_per_connection),
         })
     }
 }
