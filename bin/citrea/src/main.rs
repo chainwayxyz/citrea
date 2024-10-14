@@ -29,9 +29,9 @@ struct Args {
     #[arg(long, default_value = "mock")]
     da_layer: SupportedDaLayer,
 
-    /// The path to the rollup config.
+    /// The path to the rollup config, if a string is provided, it will be used as the path to the rollup config, otherwise environment variables will be used.
     #[arg(long, default_value = "resources/configs/mock/rollup_config.toml")]
-    rollup_config_path: String,
+    rollup_config_path: Option<Option<String>>,
 
     /// The option to run the node in sequencer mode, if a string is provided, it will be used as the path to the sequencer config, otherwise environment variables will be used.
     #[arg(long, conflicts_with = "prover")]
@@ -72,7 +72,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     initialize_logging(logging_level);
 
-    let rollup_config_path = args.rollup_config_path.as_str();
+    let rollup_config_path = args.rollup_config_path.unwrap();
 
     let sequencer_config = match args.sequencer {
         Some(Some(path)) => Some(
@@ -133,7 +133,7 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::NativeContext,
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
-    rollup_config_path: &str,
+    rollup_config_path: Option<String>,
     prover_config: Option<ProverConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
@@ -142,12 +142,12 @@ where
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let rollup_config: FullNodeConfig<DaC> =
-        from_toml_path(rollup_config_path).unwrap_or_else(|_| {
-            FullNodeConfig::<DaC>::from_env()
-                .context("Failed to read rollup configuration")
-                .unwrap()
-        });
+    let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {
+        Some(path) => from_toml_path(path)
+            .context("Failed to read rollup configuration from the config file")?,
+        None => FullNodeConfig::from_env()
+            .context("Failed to read rollup configuration from the environment")?,
+    };
     let rollup_blueprint = S::new();
 
     if let Some(sequencer_config) = sequencer_config {
