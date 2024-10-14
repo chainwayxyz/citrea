@@ -12,6 +12,7 @@ node_username = ""
 node_password = ""
 network = "regtest"
 tx_backup_dir = "resources/bitcoin/inscription_txs"
+da_private_key = "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707"
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
