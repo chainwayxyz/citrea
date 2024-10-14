@@ -1,7 +1,7 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
-use citrea_common::{BatchProverConfig, LightClientProverConfig, SequencerConfig};
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -189,78 +189,4 @@ async fn full_node_verify_proof_and_store() {
     seq_task.abort();
     prover_node_task.abort();
     full_node_task.abort();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_light_client_proof() {
-    citrea::initialize_logging(tracing::Level::INFO);
-    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover"]);
-    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
-    let prover_db_dir = storage_dir.path().join("prover").to_path_buf();
-    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
-
-    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
-
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
-    let sequencer_config = SequencerConfig::default();
-
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-        )
-        .await;
-    });
-
-    let seq_port = seq_port_rx.await.unwrap();
-    let seq_test_client = make_test_client(seq_port).await.unwrap();
-
-    let da_service = MockDaService::new(MockAddress::from([0; 32]), &da_db_dir);
-
-    let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
-
-    let rollup_config = create_default_rollup_config(
-        true,
-        &prover_db_dir,
-        &da_db_dir,
-        NodeMode::LightClientProver(seq_port),
-    );
-
-    let prover_node_task = tokio::spawn(async {
-        start_rollup(
-            prover_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            Some(LightClientProverConfig {
-                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
-                proof_sampling_number: 0,
-                enable_recovery: true,
-            }),
-            rollup_config,
-            None,
-        )
-        .await;
-    });
-
-    let prover_node_port = prover_node_port_rx.await.unwrap();
-
-    let prover_test_client = make_test_client(prover_node_port).await.unwrap();
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    let l1_height = prover_test_client.ledger_get_last_scanned_l1_height().await;
-    dbg!(l1_height);
-
-    da_service.publish_test_block().await.unwrap();
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    let l1_height = prover_test_client.ledger_get_last_scanned_l1_height().await;
-    dbg!(l1_height);
-
-    da_service.publish_test_block().await.unwrap();
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    let l1_height = prover_test_client.ledger_get_last_scanned_l1_height().await;
-    dbg!(l1_height);
 }

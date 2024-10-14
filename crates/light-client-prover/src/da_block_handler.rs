@@ -29,13 +29,13 @@ where
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
     Ps: ProverService<Vm>,
 {
-    prover_config: LightClientProverConfig,
+    _prover_config: LightClientProverConfig,
     prover_service: Arc<Ps>,
     ledger_db: DB,
     da_service: Arc<Da>,
     batch_prover_da_pub_key: Vec<u8>,
-    batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    light_client_proof_code_commitment: Vm::CodeCommitment,
+    _batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    _light_client_proof_code_commitment: Vm::CodeCommitment,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
 }
@@ -58,13 +58,13 @@ where
         light_client_proof_code_commitment: Vm::CodeCommitment,
     ) -> Self {
         Self {
-            prover_config,
+            _prover_config: prover_config,
             prover_service,
             ledger_db,
             da_service,
             batch_prover_da_pub_key,
-            batch_proof_code_commitments_by_spec,
-            light_client_proof_code_commitment,
+            _batch_proof_code_commitments_by_spec: batch_proof_code_commitments_by_spec,
+            _light_client_proof_code_commitment: light_client_proof_code_commitment,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
         }

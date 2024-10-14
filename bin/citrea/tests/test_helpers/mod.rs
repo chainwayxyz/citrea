@@ -29,8 +29,8 @@ use crate::DEFAULT_PROOF_WAIT_DURATION;
 pub enum NodeMode {
     FullNode(SocketAddr),
     SequencerNode,
-    #[allow(dead_code)]
     Prover(SocketAddr),
+    #[allow(unused)]
     LightClientProver(SocketAddr),
 }
 

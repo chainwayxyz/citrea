@@ -13,8 +13,8 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
+use tokio::signal;
 use tokio::sync::oneshot;
-use tokio::{select, signal};
 use tracing::{error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
@@ -61,7 +61,7 @@ where
     Ps: ProverService<Vm>,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
-    runner_config: RunnerConfig,
+    _runner_config: RunnerConfig,
     public_keys: RollupPublicKeys,
     rpc_config: RpcConfig,
     da_service: Arc<Da>,
@@ -93,7 +93,7 @@ where
         light_client_proof_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            runner_config,
+            _runner_config: runner_config,
             public_keys,
             rpc_config,
             da_service,
@@ -199,15 +199,19 @@ where
                 .await
         });
 
-        loop {
-            // TODO: update this once l2 sync is implemented
-            select! {
-                _ = signal::ctrl_c() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
-            }
-        }
+        // Temporary fix
+        signal::ctrl_c().await.expect("Failed to listen ctrl+c");
+        Ok(())
+
+        // TODO: update this once l2 sync is implemented
+        // loop {
+        //     select! {
+        //         _ = signal::ctrl_c() => {
+        //             info!("Shutting down");
+        //             self.task_manager.abort().await;
+        //             return Ok(());
+        //         }
+        //     }
+        // }
     }
 }
