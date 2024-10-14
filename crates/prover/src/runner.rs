@@ -77,7 +77,7 @@ where
     C: Context,
     Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Vm: ZkvmHost,
+    Vm: ZkvmHost + 'static,
     Stf: StateTransitionFunction<
             Vm,
             Da::Spec,
@@ -164,14 +164,17 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    fn create_rpc_context(&self) -> RpcContext<C, Da, DB> {
+    fn create_rpc_context(&self) -> RpcContext<C, Da, Ps, Vm, DB, Stf::StateRoot, Stf::Witness> {
         RpcContext {
             ledger: self.ledger_db.clone(),
             da_service: self.da_service.clone(),
             sequencer_da_pub_key: self.sequencer_da_pub_key.clone(),
             sequencer_pub_key: self.sequencer_pub_key.clone(),
             l1_block_cache: self.l1_block_cache.clone(),
-            phantom: std::marker::PhantomData,
+            prover_service: self.prover_service.clone(),
+            code_commitments_by_spec: self.code_commitments_by_spec.clone(),
+            c: std::marker::PhantomData,
+            vm: std::marker::PhantomData,
         }
     }
 

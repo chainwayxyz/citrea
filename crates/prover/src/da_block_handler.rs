@@ -618,7 +618,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: ProverLedgerOps>(
     Ok(result_range)
 }
 
-async fn generate_and_submit_proof<Ps, Vm, Da, StateRoot, Witness>(
+pub(crate) async fn generate_and_submit_proof<Ps, Vm, Da, StateRoot, Witness>(
     prover_service: Arc<Ps>,
     da_service: Arc<Da>,
     transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
@@ -628,14 +628,6 @@ where
     Vm: ZkvmHost + Zkvm,
     Ps: ProverService<Vm, DaService = Da, StateRoot = StateRoot, Witness = Witness>,
     Da: DaService,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
 {
     prover_service.submit_witness(transition_data).await;
 
@@ -647,7 +639,7 @@ where
         .map_err(|e| anyhow!("Failed to prove and send to DA: {}", e))
 }
 
-fn state_transition_already_proven<StateRoot, Witness, Da>(
+pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
     state_transition: &StateTransitionData<StateRoot, Witness, Da::Spec>,
     proofs: &Vec<StoredProof>,
 ) -> bool
@@ -674,7 +666,7 @@ where
     false
 }
 
-async fn extract_and_store_proof<DB, Da, Vm, StateRoot>(
+pub(crate) async fn extract_and_store_proof<DB, Da, Vm, StateRoot>(
     ledger_db: DB,
     tx_id: <Da as DaService>::TransactionId,
     proof: Proof,
