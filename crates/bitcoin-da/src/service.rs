@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -560,9 +560,12 @@ impl BitcoinService {
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         // If network is regtest or signet, mempool space is not available
-        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await? {
-            Some(fee_rate) => Some(fee_rate),
-            None => self.client.estimate_smart_fee(1, None).await?.fee_rate,
+        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await {
+            Ok(fee_rate) => Some(fee_rate),
+            Err(e) => {
+                tracing::warn!(?e, "Failed to get fee rate from mempool.space");
+                self.client.estimate_smart_fee(1, None).await?.fee_rate
+            }
         };
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
@@ -999,9 +1002,7 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
     BitcoinMerkleTree::new(hashes).root()
 }
 
-pub(crate) async fn get_fee_rate_from_mempool_space(
-    network: bitcoin::Network,
-) -> Result<Option<Amount>> {
+pub(crate) async fn get_fee_rate_from_mempool_space(network: bitcoin::Network) -> Result<Amount> {
     let url = match network {
         bitcoin::Network::Bitcoin => format!(
             // Mainnet
@@ -1012,7 +1013,11 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
             "{}testnet4/{}",
             MEMPOOL_SPACE_URL, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
         ),
-        _ => return Ok(None),
+        _ => {
+            return Err(anyhow!(
+                "Unsupported network for mempool space fee estimation"
+            ))
+        }
     };
     let fee_rate = reqwest::get(url)
         .await?
@@ -1020,7 +1025,8 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .await?
         .get("fastestFee")
         .and_then(|fee| fee.as_u64())
-        .map(|fee| Amount::from_sat(fee * 1000)); // multiply by 1000 to convert to sat/vkb
+        .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
+        .ok_or(anyhow!("Failed to get fee rate from mempool space"))?;
 
     Ok(fee_rate)
 }
@@ -1503,19 +1509,15 @@ mod tests {
     async fn test_mempool_space_fee_rate() {
         let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Bitcoin)
             .await
-            .unwrap()
             .unwrap();
         let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Testnet)
             .await
-            .unwrap()
             .unwrap();
         assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Regtest)
             .await
-            .unwrap()
-            .is_none());
+            .is_err());
         assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Signet)
             .await
-            .unwrap()
-            .is_none());
+            .is_err());
     }
 }
