@@ -35,7 +35,6 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # Citrea
-bitcoin-da = { path = "../bitcoin-da", features = ["native"] }
 citrea-primitives = { path = "../primitives/" }
 citrea-pruning = { path = "../pruning" }
 

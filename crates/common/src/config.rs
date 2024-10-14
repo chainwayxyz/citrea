@@ -26,19 +26,6 @@ impl FromEnv for sov_mock_da::MockDaConfig {
     }
 }
 
-impl FromEnv for bitcoin_da::service::BitcoinServiceConfig {
-    fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            node_url: std::env::var("NODE_URL")?,
-            node_username: std::env::var("NODE_USERNAME")?,
-            node_password: std::env::var("NODE_PASSWORD")?,
-            network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
-            da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
-            tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
-        })
-    }
-}
-
 /// Runner configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RunnerConfig {
@@ -222,16 +209,13 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
 }
-impl<BitcoinServiceConfig> FromEnv for FullNodeConfig<BitcoinServiceConfig>
-where
-    BitcoinServiceConfig: FromEnv + DeserializeOwned,
-{
+impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             rpc: RpcConfig::from_env()?,
             storage: StorageConfig::from_env()?,
             runner: RunnerConfig::from_env().ok(),
-            da: BitcoinServiceConfig::from_env()?,
+            da: DaC::from_env()?,
             public_keys: RollupPublicKeys::from_env()?,
         })
     }

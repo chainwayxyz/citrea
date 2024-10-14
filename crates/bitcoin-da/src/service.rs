@@ -84,7 +84,18 @@ pub struct BitcoinServiceConfig {
     // absolute path to the directory where the txs will be written to
     pub tx_backup_dir: String,
 }
-
+impl citrea_common::FromEnv for BitcoinServiceConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            node_url: std::env::var("NODE_URL")?,
+            node_username: std::env::var("NODE_USERNAME")?,
+            node_password: std::env::var("NODE_PASSWORD")?,
+            network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
+            da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
+            tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
+        })
+    }
+}
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
 pub struct BitcoinService {
