@@ -1,4 +1,5 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
+use core::panic;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use std::thread;
@@ -24,7 +25,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use boundless_market::contracts::{Input, Offer, Predicate, ProvingRequest, Requirements};
 use boundless_market::sdk::client::{self, Client};
 use boundless_market::storage::{
-    storage_provider_from_env, BuiltinStorageProvider, BuiltinStorageProviderError, StorageProvider,
+    storage_provider_from_env, BuiltinStorageProvider, BuiltinStorageProviderError,
+    StorageProvider, TempFileStorageProviderError,
 };
 use reqwest::Client as HttpClient;
 use risc0_zkvm::sha::{Digest, Digestible};
@@ -69,7 +71,11 @@ enum BoundlessRequest {
         request_id: U256,
         check_interval: std::time::Duration,
         timeout: Option<std::time::Duration>,
-        notify: Sender<(Bytes, Bytes)>,
+        notify: Sender<Result<(Bytes, Bytes), client::ClientError>>,
+    },
+    Slash {
+        request_id: U256,
+        notify: Sender<()>,
     },
 }
 
@@ -80,26 +86,11 @@ struct BoundlessClient {
 }
 
 impl BoundlessClient {
-    async fn create_client(
+    async fn from_parts(
         requestor_private_key: PrivateKeySigner,
         rpc_url: Url,
         proof_market_address: Address,
         set_verifier_address: Address,
-    ) -> Result<Client<Http<HttpClient>, ProviderWallet, BuiltinStorageProvider>, anyhow::Error>
-    {
-        let client = Client::from_parts(
-            requestor_private_key,
-            rpc_url,
-            proof_market_address,
-            set_verifier_address,
-        )
-        .await
-        .map_err(|e| anyhow!(e))?;
-        Ok(client)
-    }
-
-    async fn from_parts(
-        client: Client<Http<HttpClient>, ProviderWallet, BuiltinStorageProvider>,
     ) -> Self {
         macro_rules! unwrap_boundless_response {
             ($response:expr, $queue_loop:lifetime) => (
@@ -137,56 +128,86 @@ impl BoundlessClient {
         let (queue, rx) = std::sync::mpsc::channel();
         let join_handle = tokio::spawn(async move {
             let mut last_request: Option<BoundlessRequest> = None;
-            'queue: loop {
-                let request = if let Some(last_request) = last_request.clone() {
-                    debug!("Retrying last request after reconnection");
-                    last_request
-                } else {
-                    trace!("Waiting for a new request");
-                    let req: BoundlessRequest = rx.recv().expect("bonsai client sender is dead");
-                    // Save request for retries
-                    last_request = Some(req.clone());
-                    req
+            'client: loop {
+                debug!("Boundless client loop");
+                let client = match Client::from_parts(
+                    requestor_private_key,
+                    rpc_url,
+                    proof_market_address,
+                    set_verifier_address,
+                )
+                .await
+                {
+                    Ok(client) => client,
+                    Err(client::ClientError::StorageProviderError(
+                        BuiltinStorageProviderError::File(_),
+                    ))
+                    | Err(client::ClientError::StorageProviderError(
+                        BuiltinStorageProviderError::NoProvider,
+                    )) => {
+                        panic!("Failed to create boundless client: no storage provider or temp file storage provider error");
+                    }
+                    Err(e) => {
+                        error!(?e, "Failed to create boundless client");
+                        continue 'client;
+                    }
                 };
-                match request {
-                    BoundlessRequest::UploadImg { elf, notify } => {
-                        let res = client.upload_image(&elf);
-                        let res = unwrap_boundless_response!(res, 'queue);
-                        let _ = notify.send(res);
-                    }
-                    BoundlessRequest::UploadInput { input, notify } => {
-                        debug!("Boundless: upload_input");
-                        let res = client.upload_input(&input);
-                        let res = unwrap_boundless_response!(res, 'queue);
-                        let _ = notify.send(res);
-                    }
-                    BoundlessRequest::SubmitReq {
-                        proving_request,
-                        notify,
-                    } => {
-                        debug!("Boundless: submit_req");
-                        let res = client.submit_request(&proving_request);
-                        let res = unwrap_boundless_response!(res, 'queue);
-                        let _ = notify.send(res);
-                    }
-                    BoundlessRequest::WaitForReqFulfillment {
-                        request_id,
-                        check_interval,
-                        timeout,
-                        notify,
-                    } => {
-                        debug!("Boundless: wait_for_req_fulfillment");
-                        let res = client.wait_for_request_fulfillment(
+                'queue: loop {
+                    let request = if let Some(last_request) = last_request.clone() {
+                        debug!("Retrying last request after reconnection");
+                        last_request
+                    } else {
+                        trace!("Waiting for a new request");
+                        let req: BoundlessRequest =
+                            rx.recv().expect("bonsai client sender is dead");
+                        // Save request for retries
+                        last_request = Some(req.clone());
+                        req
+                    };
+                    match request {
+                        BoundlessRequest::UploadImg { elf, notify } => {
+                            let res = client.upload_image(&elf);
+                            let res = unwrap_boundless_response!(res, 'queue);
+                            let _ = notify.send(res);
+                        }
+                        BoundlessRequest::UploadInput { input, notify } => {
+                            debug!("Boundless: upload_input");
+                            let res = client.upload_input(&input);
+                            let res = unwrap_boundless_response!(res, 'queue);
+                            let _ = notify.send(res);
+                        }
+                        BoundlessRequest::SubmitReq {
+                            proving_request,
+                            notify,
+                        } => {
+                            debug!("Boundless: submit_req");
+                            let res = client.submit_request(&proving_request);
+                            let res = unwrap_boundless_response!(res, 'queue);
+                            let _ = notify.send(res);
+                        }
+                        BoundlessRequest::WaitForReqFulfillment {
                             request_id,
                             check_interval,
                             timeout,
-                        );
-                        let res = unwrap_boundless_response!(res, 'queue);
-                        let _ = notify.send(res);
-                    }
-                };
-                // We arrive here only on a successful response
-                last_request = None;
+                            notify,
+                        } => {
+                            debug!("Boundless: wait_for_req_fulfillment");
+                            let res = client
+                                .wait_for_request_fulfillment(request_id, check_interval, timeout)
+                                .await;
+                            // There is no need to retry this request as this already has a retry mechanism inside
+                            let _ = notify.send(res);
+                        }
+                        BoundlessRequest::Slash { request_id, notify } => {
+                            debug!("Boundless: slash");
+                            let res = client.proof_market.slash(request_id);
+                            let res = unwrap_boundless_response!(res, 'queue);
+                            let _ = notify.send(res);
+                        }
+                    };
+                    // We arrive here only on a successful response
+                    last_request = None;
+                }
             }
         });
         let _join_handle = Arc::new(join_handle);
@@ -233,7 +254,7 @@ impl BoundlessClient {
         request_id: U256,
         check_interval: std::time::Duration,
         timeout: Option<std::time::Duration>,
-    ) -> (Bytes, Bytes) {
+    ) -> Result<(Bytes, Bytes), client::ClientError> {
         let (notify, rx) = mpsc::channel();
         self.queue
             .send(BoundlessRequest::WaitForReqFulfillment {
@@ -242,6 +263,15 @@ impl BoundlessClient {
                 timeout,
                 notify,
             })
+            .expect("Bonsai processing queue is dead");
+        rx.recv().unwrap()
+    }
+
+    #[instrument(level = "trace", skip_all, ret)]
+    fn slash(&self, request_id: U256) -> () {
+        let (notify, rx) = mpsc::channel();
+        self.queue
+            .send(BoundlessRequest::Slash { request_id, notify })
             .expect("Bonsai processing queue is dead");
         rx.recv().unwrap()
     }
@@ -277,20 +307,13 @@ impl<'a> Risc0BoundlessHost<'a> {
         /// Otherwise, the following environment variables are checked in order:
         /// - `PINATA_JWT`, `PINATA_API_URL`, `IPFS_GATEWAY_URL`: Pinata storage provider;
         /// - `S3_ACCESS`, `S3_SECRET`, `S3_BUCKET`, `S3_URL`, `AWS_REGION`: S3 storage provider.
-        let boundless_client: Client<
-            Http<HttpClient>,
-            ProviderWallet,
-            BuiltinStorageProvider,
-        > = BoundlessClient::create_client(
+        let client = BoundlessClient::from_parts(
             requestor_private_key,
             rpc_url,
             proof_market_address,
             set_verifier_address,
         )
-        .await
-        .expect("Failed to create boundless client");
-
-        let client = BoundlessClient::from_parts(boundless_client.clone()).await;
+        .await;
 
         let image_id = compute_image_id(elf).unwrap();
 
@@ -432,13 +455,31 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
             // Wait for the request to be fulfilled by the market. The market will return the journal and
             // seal.
             tracing::info!("Waiting for request {} to be fulfilled", request_id);
-            let (journal, seal) = self.client.wait_for_request_fulfillment(
+            let (journal, seal) = match self.client.wait_for_request_fulfillment(
                 request_id,
                 Duration::from_secs(5), // check every 5 seconds
                 None,                   // no timeout
-            );
-            tracing::info!("Request {} fulfilled", request_id);
+            ) {
+                Ok((journal, seal)) => {
+                    tracing::info!("Request {} fulfilled", request_id);
+                    (journal, seal)
+                }
+                Err(e) => {
+                    tracing::error!("Request {} failed: {:?}", request_id, e);
+                    // Slash operator and retry
+                    self.client.slash(request_id);
+                    // TODO: Retry mechanism, maybe a retry trait with:
+                    // - max retries
+                    // - backoff strategy
+                    // - retry condition : sp1, risc0bonsai, risc0 boundless, risc0 local, sp1 local everything will have different retry conditions, for every host we will have a retry condition
+                    // - retry action : sp1, risc0bonsai, risc0 boundless, risc0 local, sp1 local everything will have different retry actions, for every host we will have a retry action
+                    // - retry error    : sp1, risc0bonsai, risc0 boundless, risc0 local, sp1 local everything will have different retry errors, for every host we will have a retry error
+                    return Err(anyhow!("Request {} failed: {:?}", request_id, e));
+                }
+            };
+
             // TODO: Convert to proof and submit
+            Ok(Proof::PublicInput(vec![0u8; 32]))
         }
     }
 
