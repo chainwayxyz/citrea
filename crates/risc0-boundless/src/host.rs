@@ -22,7 +22,9 @@ use anyhow::anyhow;
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::{retry as retry_backoff, SystemClock};
 use borsh::{BorshDeserialize, BorshSerialize};
+use boundless_market::contracts::proof_market::MarketError;
 use boundless_market::contracts::{Input, Offer, Predicate, ProvingRequest, Requirements};
+use boundless_market::sdk::client::ClientError::{self, *};
 use boundless_market::sdk::client::{self, Client};
 use boundless_market::storage::{
     storage_provider_from_env, BuiltinStorageProvider, BuiltinStorageProviderError,
@@ -32,7 +34,7 @@ use reqwest::Client as HttpClient;
 use risc0_zkvm::sha::{Digest, Digestible};
 use risc0_zkvm::{
     compute_image_id, default_executor, stark_to_snark, ExecutorEnv, ExecutorImpl, Groth16Receipt,
-    InnerReceipt, Journal, Receipt,
+    InnerReceipt, Journal, MaybePruned, Receipt, ReceiptClaim,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -71,11 +73,11 @@ enum BoundlessRequest {
         request_id: U256,
         check_interval: std::time::Duration,
         timeout: Option<std::time::Duration>,
-        notify: Sender<Result<(Bytes, Bytes), client::ClientError>>,
+        notify: Sender<Result<(Bytes, Bytes), ClientError>>,
     },
     Slash {
         request_id: U256,
-        notify: Sender<()>,
+        notify: Sender<Result<U256, ClientError>>,
     },
 }
 
@@ -97,26 +99,25 @@ impl BoundlessClient {
                 match $response.await {
                     Ok(r) => r,
                     Err(e) => {
-                        use ::boundless_market::sdk::client::ClientError::*;
+                        use ::boundless_market::sdk::client::ClientError;
                         match e {
-                            // TODO fix continue loop types
-                            StorageProviderError(s) => {
-                                warn!(%s, "Boundless Storage Provider Error");
-                                std::thread::sleep(Duration::from_secs(10));
-                                continue $queue_loop
-                            }
-                            // Should this be a transient error?
-                            MarketError(e) => {
+                            // Match against the ClientError enum variants
+                            ClientError::MarketError(e) => {
                                 error!(?e, "Boundless Market Error");
                                 std::thread::sleep(Duration::from_secs(5));
                                 continue $queue_loop
                             }
-                            Error(e) => {
+                            ClientError::StorageProviderError(s) => {
+                                warn!(%s, "Boundless Storage Provider Error");
+                                std::thread::sleep(Duration::from_secs(10));
+                                continue $queue_loop
+                            }
+                            ClientError::Error(e) => {
                                 error!(?e, "Boundless Error");
                                 std::thread::sleep(Duration::from_secs(5));
                                 continue $queue_loop
                             }
-                            e => {
+                            _ => {
                                 error!(?e, "Got unrecoverable error from Boundless");
                                 panic!("Boundless API error: {}", e);
                             }
@@ -131,18 +132,18 @@ impl BoundlessClient {
             'client: loop {
                 debug!("Boundless client loop");
                 let client = match Client::from_parts(
-                    requestor_private_key,
-                    rpc_url,
+                    requestor_private_key.clone(),
+                    rpc_url.clone(),
                     proof_market_address,
                     set_verifier_address,
                 )
                 .await
                 {
                     Ok(client) => client,
-                    Err(client::ClientError::StorageProviderError(
-                        BuiltinStorageProviderError::File(_),
-                    ))
-                    | Err(client::ClientError::StorageProviderError(
+                    Err(ClientError::StorageProviderError(BuiltinStorageProviderError::File(
+                        _,
+                    )))
+                    | Err(ClientError::StorageProviderError(
                         BuiltinStorageProviderError::NoProvider,
                     )) => {
                         panic!("Failed to create boundless client: no storage provider or temp file storage provider error");
@@ -200,8 +201,11 @@ impl BoundlessClient {
                         }
                         BoundlessRequest::Slash { request_id, notify } => {
                             debug!("Boundless: slash");
-                            let res = client.proof_market.slash(request_id);
-                            let res = unwrap_boundless_response!(res, 'queue);
+                            let res = client
+                                .proof_market
+                                .slash(request_id)
+                                .await
+                                .map_err(|e| ClientError::MarketError(e));
                             let _ = notify.send(res);
                         }
                     };
@@ -268,7 +272,7 @@ impl BoundlessClient {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    fn slash(&self, request_id: U256) -> () {
+    fn slash(&self, request_id: U256) -> Result<U256, ClientError> {
         let (notify, rx) = mpsc::channel();
         self.queue
             .send(BoundlessRequest::Slash { request_id, notify })
@@ -467,7 +471,8 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
                 Err(e) => {
                     tracing::error!("Request {} failed: {:?}", request_id, e);
                     // Slash operator and retry
-                    self.client.slash(request_id);
+                    // TODO: Handle error
+                    let _ = self.client.slash(request_id);
                     // TODO: Retry mechanism, maybe a retry trait with:
                     // - max retries
                     // - backoff strategy
@@ -478,8 +483,21 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
                 }
             };
 
-            // TODO: Convert to proof and submit
-            Ok(Proof::PublicInput(vec![0u8; 32]))
+            let claim = ReceiptClaim::ok(self.image_id, journal.clone().to_vec());
+
+            let inner = InnerReceipt::Groth16(Groth16Receipt::new(
+                seal.clone().to_vec(),
+                MaybePruned::Value(claim),
+                risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
+            ));
+
+            let full_snark_receipt = Receipt::new(inner, journal.to_vec());
+
+            tracing::info!("Full snark proof!: {full_snark_receipt:?}");
+
+            let full_serialized_snark_receipt = bincode::serialize(&full_snark_receipt)?;
+
+            Ok(Proof::Full(full_serialized_snark_receipt))
         }
     }
 
