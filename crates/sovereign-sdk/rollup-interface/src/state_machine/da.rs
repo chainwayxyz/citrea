@@ -1,5 +1,6 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
