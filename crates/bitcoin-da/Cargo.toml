@@ -11,7 +11,6 @@ repository = { workspace = true }
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"], optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 

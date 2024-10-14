@@ -29,7 +29,6 @@ serde_json = { workspace = true, optional = true }
 tracing = { workspace = true, features = ["attributes"]}
 
 sov-rollup-interface = { path = "../../rollup-interface" }
-citrea-common = { path = "../../../common" }
 
 [dev-dependencies]
 futures = { workspace = true }
