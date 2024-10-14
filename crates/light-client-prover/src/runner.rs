@@ -9,6 +9,7 @@ use jsonrpsee::RpcModule;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::SlotNumber;
+use sov_modules_api::DaSpec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
@@ -178,13 +179,7 @@ where
         let last_l1_height_scanned = match self.ledger_db.get_last_scanned_l1_height()? {
             Some(l1_height) => l1_height,
             // If not found, start from the first L2 block's L1 height
-            None => self
-                .sequencer_client
-                .get_soft_confirmation::<Da::Spec>(1)
-                .await?
-                .map_or(SlotNumber(1), |soft_confirmation| {
-                    SlotNumber(soft_confirmation.da_slot_height)
-                }),
+            None => SlotNumber(get_initial_da_height::<Da::Spec>(&self.sequencer_client).await),
         };
 
         let prover_config = self.prover_config.clone();
@@ -224,5 +219,18 @@ where
         //         }
         //     }
         // }
+    }
+}
+
+async fn get_initial_da_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
+    loop {
+        match client.get_soft_confirmation::<Da>(1).await {
+            Ok(Some(batch)) => return batch.da_slot_height,
+            _ => {
+                // sleep 1
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                continue;
+            }
+        }
     }
 }

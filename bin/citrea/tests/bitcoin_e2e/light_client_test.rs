@@ -11,7 +11,6 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
-const TWENTY_MINS: Duration = Duration::from_secs(20 * 60);
 
 struct LightClientProvingTest;
 
@@ -102,11 +101,8 @@ impl TestCase for LightClientProvingTest {
         let batch_proof_l1_height = da.get_finalized_height().await.unwrap();
 
         // Wait for light client prover to process batch proofs.
-        // Waiting extra here because currently light client
-        // starts from L1 block number 1 and it takes longer time
-        // to process up to 200s.
         light_client_prover
-            .wait_for_l1_height(batch_proof_l1_height, Some(TWENTY_MINS))
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await
             .unwrap();
 
