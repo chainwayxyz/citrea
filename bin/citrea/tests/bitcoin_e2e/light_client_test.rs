@@ -3,7 +3,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::config::{BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{
+    BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
+};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
@@ -77,10 +79,14 @@ impl TestCase for LightClientProvingTest {
         let commitment_l1_height = da.get_finalized_height().await.unwrap();
 
         // Wait for batch prover to generate proof for commitment
-        batch_prover.wait_for_l1_height(commitment_l1_height, Some(TEN_MINS)).await.unwrap();
+        batch_prover
+            .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
 
         // Assert that commitment is queryable
-        let commitments = batch_prover.client
+        let commitments = batch_prover
+            .client
             .ledger_get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
             .await
             .unwrap()
@@ -99,7 +105,10 @@ impl TestCase for LightClientProvingTest {
         // Waiting extra here because currently light client
         // starts from L1 block number 1 and it takes longer time
         // to process up to 200s.
-        light_client_prover.wait_for_l1_height(batch_proof_l1_height, Some(TWENTY_MINS)).await.unwrap();
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TWENTY_MINS))
+            .await
+            .unwrap();
 
         Ok(())
     }
