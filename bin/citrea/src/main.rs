@@ -33,13 +33,13 @@ struct Args {
     #[arg(long, default_value = "resources/configs/mock/rollup_config.toml")]
     rollup_config_path: String,
 
-    /// The path to the sequencer config. If set, runs the node in sequencer mode, otherwise in full node mode.
-    #[arg(long, conflicts_with = "prover_config_path")]
-    sequencer_config_path: Option<String>,
+    /// The option to run the node in sequencer mode, if a string is provided, it will be used as the path to the sequencer config, otherwise environment variables will be used.
+    #[arg(long, conflicts_with = "prover")]
+    sequencer: Option<Option<String>>,
 
-    /// The path to the prover config. If set, runs the node in prover mode, otherwise in full node mode.
-    #[arg(long, conflicts_with = "sequencer_config_path")]
-    prover_config_path: Option<String>,
+    /// The option to run the node in prover mode, if a string is provided, it will be used as the path to the prover config, otherwise the environment variables will be used.
+    #[arg(long, conflicts_with = "sequencer")]
+    prover: Option<Option<String>>,
 
     /// Logging verbosity
     #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
@@ -74,21 +74,28 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let rollup_config_path = args.rollup_config_path.as_str();
 
-    let sequencer_config: Option<SequencerConfig> =
-        args.sequencer_config_path.clone().map(|path| {
-            from_toml_path(path).unwrap_or_else( |_| {
-                SequencerConfig::from_env()
-                    .context("Failed to read sequencer configuration")
-                    .unwrap()
-            })
-        });
-    let prover_config: Option<ProverConfig> = args.prover_config_path.clone().map(|path| {
-        from_toml_path(path).unwrap_or_else(|_| {
+    let sequencer_config = match args.sequencer {
+        Some(Some(path)) => Some(
+            from_toml_path(path)
+                .context("Failed to read sequencer configuration from the config file")?,
+        ),
+        Some(None) => Some(
+            SequencerConfig::from_env()
+                .context("Failed to read sequencer configuration from the environment")?,
+        ),
+        None => None,
+    };
+    let prover_config = match args.prover {
+        Some(Some(path)) => Some(
+            from_toml_path(path)
+                .context("Failed to read prover configuration from the config file")?,
+        ),
+        Some(None) => Some(
             ProverConfig::from_env()
-                .context("Failed to read prover configuration")
-                .unwrap()
-        })
-    });
+                .context("Failed to read prover configuration from the environment")?,
+        ),
+        None => None,
+    };
 
     if prover_config.is_some() && sequencer_config.is_some() {
         return Err(anyhow::anyhow!(
@@ -135,7 +142,8 @@ where
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
-    let rollup_config: FullNodeConfig<DaC> = from_toml_path(rollup_config_path).unwrap_or_else(|_| {
+    let rollup_config: FullNodeConfig<DaC> =
+        from_toml_path(rollup_config_path).unwrap_or_else(|_| {
             FullNodeConfig::<DaC>::from_env()
                 .context("Failed to read rollup configuration")
                 .unwrap()
