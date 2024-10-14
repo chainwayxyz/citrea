@@ -6,6 +6,7 @@ use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::SlotNumber;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -66,6 +67,7 @@ where
     rpc_config: RpcConfig,
     da_service: Arc<Da>,
     ledger_db: DB,
+    sequencer_client: SequencerClient,
     prover_service: Arc<Ps>,
     prover_config: LightClientProverConfig,
     task_manager: TaskManager<()>,
@@ -92,12 +94,14 @@ where
         batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_commitment: Vm::CodeCommitment,
     ) -> Result<Self, anyhow::Error> {
+        let sequencer_client_url = runner_config.sequencer_client_url.clone();
         Ok(Self {
             _runner_config: runner_config,
             public_keys,
             rpc_config,
             da_service,
             ledger_db,
+            sequencer_client: SequencerClient::new(sequencer_client_url),
             prover_service,
             prover_config,
             task_manager: TaskManager::default(),
@@ -171,10 +175,17 @@ where
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        let last_l1_height_scanned = self
-            .ledger_db
-            .get_last_scanned_l1_height()?
-            .unwrap_or(SlotNumber(1));
+        let last_l1_height_scanned = match self.ledger_db.get_last_scanned_l1_height()? {
+            Some(l1_height) => l1_height,
+            // If not found, start from the first L2 block's L1 height
+            None => self
+                .sequencer_client
+                .get_soft_confirmation::<Da::Spec>(1)
+                .await?
+                .map_or(SlotNumber(1), |soft_confirmation| {
+                    SlotNumber(soft_confirmation.da_slot_height)
+                }),
+        };
 
         let prover_config = self.prover_config.clone();
         let prover_service = self.prover_service.clone();

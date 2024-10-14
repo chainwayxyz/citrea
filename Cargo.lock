@@ -1929,6 +1929,7 @@ dependencies = [
  "citrea-common",
  "hex",
  "jsonrpsee",
+ "sequencer-client",
  "sov-db",
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
