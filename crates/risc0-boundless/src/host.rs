@@ -438,7 +438,7 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
                         // `with_max_price` methods to set the price directly.
                         // TODO: Work on pricing
                         .with_min_price_per_mcycle(
-                            U96::from::<u128>(parse_ether("0.001")?.try_into()?),
+                            U96::from::<u128>(parse_ether("0.0001")?.try_into()?),
                             mcycles_count,
                         )
                         // NOTE: If your offer is not being accepted, try increasing the max price.
@@ -450,7 +450,7 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
                         // unfulfilled in the market before it expires. If a prover locks in
                         // the request and does not fulfill it before the timeout, the prover can be
                         // slashed.
-                        .with_timeout(1000),
+                        .with_timeout(2000),
                 );
             // Send the request and wait for it to be completed.
             let request_id = self.client.submit_request(request);
