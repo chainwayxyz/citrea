@@ -16,7 +16,6 @@ citrea-stf = { path = "../citrea-stf" }
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
-sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 

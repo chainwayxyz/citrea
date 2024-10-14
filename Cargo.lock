@@ -5142,7 +5142,6 @@ dependencies = [
  "sha2",
  "sov-db",
  "sov-modules-api",
- "sov-modules-rollup-blueprint",
  "sov-rollup-interface 0.5.0-rc.1",
  "sov-stf-runner",
  "tempfile",
