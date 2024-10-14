@@ -1217,6 +1217,7 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "brotli",
+ "citrea-common",
  "citrea-primitives",
  "futures",
  "hex",
@@ -1748,7 +1749,6 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "backoff",
- "bitcoin-da",
  "borsh",
  "citrea-primitives",
  "citrea-pruning",
@@ -7517,6 +7517,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
+ "citrea-common",
  "futures",
  "hex",
  "lazy_static",

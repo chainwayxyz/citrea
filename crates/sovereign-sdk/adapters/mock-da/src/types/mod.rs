@@ -6,13 +6,13 @@ use std::path::PathBuf;
 
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_common::FromEnv;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHashTrait, BlockHeaderTrait, CountedBufReader, Time};
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
 
 use crate::validity_condition::MockValidityCond;
-
 /// A mock hash digest.
 #[derive(
     Clone,
@@ -150,6 +150,14 @@ pub struct MockDaConfig {
     pub db_path: PathBuf,
 }
 
+impl FromEnv for MockDaConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            sender_address: std::env::var("SENDER_ADDRESS")?.parse()?,
+            db_path: std::env::var("DB_PATH")?.into(),
+        })
+    }
+}
 #[derive(Clone, Default)]
 /// DaVerifier used in tests.
 pub struct MockDaVerifier {}
