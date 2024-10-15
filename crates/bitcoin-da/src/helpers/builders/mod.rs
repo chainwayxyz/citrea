@@ -52,6 +52,7 @@ pub(crate) trait TxListWithReveal: Serialize {
 }
 
 /// Return (tx, leftover_utxos)
+/// Includes an indirect change of at least 546 sat
 #[instrument(level = "trace", skip(utxos), err)]
 fn build_commit_transaction(
     prev_utxo: Option<UTXO>, // reuse outputs to add commit tx order
@@ -61,6 +62,8 @@ fn build_commit_transaction(
     output_value: u64,
     fee_rate: u64,
 ) -> Result<(Transaction, Vec<UTXO>), anyhow::Error> {
+    // Non-dust change - is a minimal change to make change non_dust
+    let non_dust_change = 546;
     // get single input single output transaction size
     let size = get_size_commit(
         &[TxIn {
@@ -79,7 +82,7 @@ fn build_commit_transaction(
             },
             TxOut {
                 script_pubkey: change_address.script_pubkey(),
-                value: Amount::ZERO,
+                value: Amount::from_sat(non_dust_change),
             },
         ],
     );
@@ -103,7 +106,7 @@ fn build_commit_transaction(
         }
         let fee = (last_size as u64) * fee_rate;
 
-        let input_total = output_value + fee;
+        let input_total = output_value + fee + non_dust_change;
 
         let (chosen_utxos, sum, leftover_utxos) =
             choose_utxos(prev_utxo.clone(), &utxos, input_total)?;
@@ -118,7 +121,7 @@ fn build_commit_transaction(
                 },
                 TxOut {
                     script_pubkey: change_address.script_pubkey(),
-                    value: Amount::ZERO,
+                    value: Amount::from_sat(non_dust_change),
                 },
             ]
         } else {
@@ -128,7 +131,7 @@ fn build_commit_transaction(
                     script_pubkey: recipient.script_pubkey(),
                 },
                 TxOut {
-                    value: Amount::from_sat(sum - input_total),
+                    value: Amount::from_sat(sum - input_total + non_dust_change),
                     script_pubkey: change_address.script_pubkey(),
                 },
             ]

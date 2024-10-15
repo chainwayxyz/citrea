@@ -230,15 +230,15 @@ fn build_commit_transaction() {
     // input: 10000
     // outputs: 5_000 + 72
     // instead do
-    // input: 10000
-    // outputs: 5_000
+    // input: 100000
+    // outputs: 5_000 + 90_072
     // so size is actually 154
     assert_eq!(tx.vsize(), 154);
     assert_eq!(tx.input.len(), 1);
     assert_eq!(tx.output.len(), 2);
     assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
     assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
-    assert_eq!(tx.output[1].value, Amount::from_sat(0));
+    assert_eq!(tx.output[1].value, Amount::from_sat(90_072));
     assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
     let (mut tx, leftover_utxos) = super::build_commit_transaction(
