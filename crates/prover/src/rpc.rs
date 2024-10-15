@@ -12,20 +12,14 @@ use jsonrpsee::types::ErrorObjectOwned;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::ProverLedgerOps;
-use sov_modules_api::{SlotData, SpecId, Zkvm};
-use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_modules_api::{SpecId, Zkvm};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 use tracing::debug;
 
-use crate::da_block_handler::{
-    extract_and_store_proof, generate_and_submit_proof, save_commitments,
-    state_transition_already_proven,
-};
-
-mod utils;
+use crate::proving::{data_to_prove, prove_l1};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProverInputResponse {
@@ -163,8 +157,12 @@ where
                 )
             })?;
 
-        let (_, state_transitions) = utils::get_sequencer_commitments_for_proving(
-            self.context.clone(),
+        let (_, state_transitions) = data_to_prove::<Da, DB, StateRoot, Witness>(
+            self.context.da_service.clone(),
+            self.context.ledger.clone(),
+            self.context.sequencer_pub_key.clone(),
+            self.context.sequencer_da_pub_key.clone(),
+            self.context.l1_block_cache.clone(),
             l1_block,
             group_commitments,
         )
@@ -212,78 +210,41 @@ where
                 )
             })?;
 
-        let da_block_hash = l1_block.header().hash();
-
-        let (sequencer_commitments, state_transitions) =
-            utils::get_sequencer_commitments_for_proving(
-                self.context.clone(),
-                l1_block,
-                group_commitments,
+        let (sequencer_commitments, state_transitions) = data_to_prove(
+            self.context.da_service.clone(),
+            self.context.ledger.clone(),
+            self.context.sequencer_pub_key.clone(),
+            self.context.sequencer_da_pub_key.clone(),
+            self.context.l1_block_cache.clone(),
+            l1_block.clone(),
+            group_commitments,
+        )
+        .await
+        .map_err(|e| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(format!("{e}",)),
             )
-            .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
+        })?;
 
-        let submitted_proofs = self
-            .context
-            .ledger
-            .get_proofs_by_l1_height(l1_height)
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?
-            .unwrap_or(vec![]);
-
-        for state_transition_data in state_transitions {
-            if !state_transition_already_proven::<StateRoot, Witness, Da>(
-                &state_transition_data,
-                &submitted_proofs,
-            ) {
-                let (tx_id, proof) = generate_and_submit_proof(
-                    self.context.prover_service.clone(),
-                    self.context.da_service.clone(),
-                    state_transition_data,
-                    da_block_hash.clone(),
-                )
-                .await
-                .map_err(|e| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("{e}",)),
-                    )
-                })?;
-
-                extract_and_store_proof::<DB, Da, Vm, StateRoot>(
-                    self.context.ledger.clone(),
-                    tx_id,
-                    proof,
-                    self.context.code_commitments_by_spec.clone(),
-                )
-                .await
-                .map_err(|e| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("{e}",)),
-                    )
-                })?;
-
-                save_commitments(
-                    self.context.ledger.clone(),
-                    &sequencer_commitments,
-                    l1_height,
-                );
-            }
-        }
+        prove_l1(
+            self.context.da_service.clone(),
+            self.context.prover_service.clone(),
+            self.context.ledger.clone(),
+            self.context.code_commitments_by_spec.clone(),
+            l1_block,
+            sequencer_commitments,
+            state_transitions,
+        )
+        .await
+        .map_err(|e| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(format!("{e}",)),
+            )
+        })?;
 
         Ok(())
     }
