@@ -22,11 +22,11 @@ risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", optional = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tracing = { workspace = true }
 
 [features]
-default = ["sov-rollup-interface/std"]
+default = []
 native = [
   "dep:backoff",
   "dep:bonsai-sdk",
