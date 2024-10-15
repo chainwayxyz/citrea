@@ -1,12 +1,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use anyhow::{anyhow, bail};
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::da::extract_sorted_sequencer_commitments;
 use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
-use jsonrpsee::types::ErrorObjectOwned;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
@@ -27,7 +25,7 @@ pub(super) async fn get_sequencer_commitments_for_proving<C, Da, Ps, Vm, DB, Sta
     context: Arc<RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness>>,
     l1_block: <Da as DaService>::FilteredBlock,
     group_commitments: Option<bool>,
-) -> RpcResult<(
+) -> anyhow::Result<(
     Vec<SequencerCommitment>,
     Vec<StateTransitionData<StateRoot, Witness, Da::Spec>>,
 )>
@@ -63,13 +61,7 @@ where
     );
 
     if sequencer_commitments.is_empty() {
-        return Err(ErrorObjectOwned::owned(
-            INTERNAL_ERROR_CODE,
-            INTERNAL_ERROR_MSG,
-            Some(format!(
-                "No sequencer commitments found in block: {l1_height}",
-            )),
-        ));
+        bail!("No sequencer commitments found in block: {l1_height}",);
     }
 
     // If the L2 range does not exist, we break off the local loop getting back to
@@ -81,34 +73,22 @@ where
 
     // If range is not synced yet return error
     if !check_l2_range_exists(&context.ledger, start_block_number, end_block_number) {
-        return Err(ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!(
-                    "L2 Range of commitments is not synced yet: {start_block_number} - {end_block_number}"
-                )),
-            ));
+        bail!(
+            "L2 Range of commitments is not synced yet: {start_block_number} - {end_block_number}"
+        );
     }
 
     let (sequencer_commitments, preproven_commitments) =
         filter_out_proven_commitments(&context.ledger, &sequencer_commitments).map_err(|e| {
             error!("Error filtering out proven commitments: {:?}", e);
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
+            anyhow!("{}", e)
         })?;
 
     if sequencer_commitments.is_empty() {
-        return Err(ErrorObjectOwned::owned(
-            INTERNAL_ERROR_CODE,
-            INTERNAL_ERROR_MSG,
-            Some(format!(
-                "All sequencer commitments are duplicates from a former DA block {}",
-                l1_height
-            )),
-        ));
+        bail!(
+            "All sequencer commitments are duplicates from a former DA block {}",
+            l1_height
+        );
     }
 
     let da_block_header_of_commitments: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
@@ -119,11 +99,7 @@ where
             break_sequencer_commitments_into_groups(&context.ledger, &sequencer_commitments)
                 .map_err(|e| {
                     error!("Error breaking sequencer commitments into groups: {:?}", e);
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("{e}",)),
-                    )
+                    anyhow!("{}", e)
                 })?
         }
         _ => vec![(0..=sequencer_commitments.len() - 1)],
@@ -152,22 +128,14 @@ where
                 "Error getting state transition data from commitments: {:?}",
                 e
             );
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
-            )
+            anyhow!("{}", e)
         })?;
         let initial_state_root = context
             .ledger
             .get_l2_state_root::<StateRoot>(first_l2_height_of_l1 - 1)
             .map_err(|e| {
                 error!("Error getting initial state root: {:?}", e);
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
+                anyhow!("{}", e)
             })?
             .expect("There should be a state root");
         let initial_batch_hash = context
@@ -175,19 +143,11 @@ where
             .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))
             .map_err(|e| {
                 error!("Error getting initial batch hash: {:?}", e);
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
+                anyhow!("{}", e)
             })?
-            .ok_or(ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!(
-                    "Could not find soft batch at height {}",
-                    first_l2_height_of_l1
-                )),
+            .ok_or(anyhow!(
+                "Could not find soft batch at height {}",
+                first_l2_height_of_l1
             ))?
             .prev_hash;
 
@@ -196,11 +156,7 @@ where
             .get_l2_state_root::<StateRoot>(last_l2_height_of_l1)
             .map_err(|e| {
                 error!("Error getting final state root: {:?}", e);
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
+                anyhow!("{}", e)
             })?
             .expect("There should be a state root");
 

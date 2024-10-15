@@ -168,7 +168,14 @@ where
             l1_block,
             group_commitments,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(format!("{e}",)),
+            )
+        })?;
 
         let mut state_transition_responses = vec![];
 
@@ -213,7 +220,14 @@ where
                 l1_block,
                 group_commitments,
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}",)),
+                )
+            })?;
 
         let submitted_proofs = self
             .context
