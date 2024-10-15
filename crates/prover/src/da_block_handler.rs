@@ -300,7 +300,7 @@ where
                             .await?;
                         }
 
-                        self.save_commitments(&sequencer_commitments, l1_height);
+                        save_commitments(self.ledger_db.clone(), &sequencer_commitments, l1_height);
                     }
                 } else {
                     info!("Skipping proving for l1 height {}", l1_height);
@@ -390,28 +390,6 @@ where
                 sequencer_da_public_key: self.sequencer_da_pub_key.clone(),
             };
         Ok(transition_data)
-    }
-
-    fn save_commitments(&self, sequencer_commitments: &[SequencerCommitment], l1_height: u64) {
-        for sequencer_commitment in sequencer_commitments.iter() {
-            // Save commitments on prover ledger db
-            self.ledger_db
-                .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
-                .unwrap();
-
-            let l2_start_height = sequencer_commitment.l2_start_block_number;
-            let l2_end_height = sequencer_commitment.l2_end_block_number;
-            for i in l2_start_height..=l2_end_height {
-                self.ledger_db
-                    .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "Failed to put soft confirmation status in the ledger db {}",
-                            i
-                        )
-                    });
-            }
-        }
     }
 
     async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<(), anyhow::Error> {
@@ -733,4 +711,32 @@ where
         panic!("Failed to put proof data in the ledger db: {}", e);
     }
     Ok(())
+}
+
+pub(crate) fn save_commitments<DB>(
+    ledger_db: DB,
+    sequencer_commitments: &[SequencerCommitment],
+    l1_height: u64,
+) where
+    DB: ProverLedgerOps,
+{
+    for sequencer_commitment in sequencer_commitments.iter() {
+        // Save commitments on prover ledger db
+        ledger_db
+            .update_commitments_on_da_slot(l1_height, sequencer_commitment.clone())
+            .unwrap();
+
+        let l2_start_height = sequencer_commitment.l2_start_block_number;
+        let l2_end_height = sequencer_commitment.l2_end_block_number;
+        for i in l2_start_height..=l2_end_height {
+            ledger_db
+                .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to put soft confirmation status in the ledger db {}",
+                        i
+                    )
+                });
+        }
+    }
 }

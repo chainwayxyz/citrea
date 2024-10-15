@@ -21,7 +21,8 @@ use tokio::sync::Mutex;
 use tracing::debug;
 
 use crate::da_block_handler::{
-    extract_and_store_proof, generate_and_submit_proof, state_transition_already_proven,
+    extract_and_store_proof, generate_and_submit_proof, save_commitments,
+    state_transition_already_proven,
 };
 
 mod utils;
@@ -162,7 +163,7 @@ where
                 )
             })?;
 
-        let state_transitions = utils::get_sequencer_commitments_for_proving(
+        let (_, state_transitions) = utils::get_sequencer_commitments_for_proving(
             self.context.clone(),
             l1_block,
             group_commitments,
@@ -206,12 +207,13 @@ where
 
         let da_block_hash = l1_block.header().hash();
 
-        let state_transitions = utils::get_sequencer_commitments_for_proving(
-            self.context.clone(),
-            l1_block,
-            group_commitments,
-        )
-        .await?;
+        let (sequencer_commitments, state_transitions) =
+            utils::get_sequencer_commitments_for_proving(
+                self.context.clone(),
+                l1_block,
+                group_commitments,
+            )
+            .await?;
 
         let submitted_proofs = self
             .context
@@ -260,6 +262,12 @@ where
                         Some(format!("{e}",)),
                     )
                 })?;
+
+                save_commitments(
+                    self.context.ledger.clone(),
+                    &sequencer_commitments,
+                    l1_height,
+                );
             }
         }
 

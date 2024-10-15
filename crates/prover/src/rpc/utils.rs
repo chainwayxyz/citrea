@@ -28,7 +28,10 @@ pub(super) async fn get_sequencer_commitments_for_proving<C, Da, Ps, Vm, DB, Sta
     context: Arc<RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness>>,
     l1_block: <Da as DaService>::FilteredBlock,
     group_commitments: Option<bool>,
-) -> RpcResult<Vec<StateTransitionData<StateRoot, Witness, Da::Spec>>>
+) -> RpcResult<(
+    Vec<SequencerCommitment>,
+    Vec<StateTransitionData<StateRoot, Witness, Da::Spec>>,
+)>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -227,5 +230,5 @@ where
         state_transitions.push(state_transition_data);
     }
 
-    Ok(state_transitions)
+    Ok((sequencer_commitments, state_transitions))
 }
