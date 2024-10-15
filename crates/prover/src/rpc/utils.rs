@@ -11,7 +11,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::ProverLedgerOps;
 use sov_db::schema::types::BatchNumber;
-use sov_modules_api::{SlotData, Zkvm};
+use sov_modules_api::{BlobReaderTrait, SlotData, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{StateTransitionData, ZkvmHost};
@@ -48,8 +48,13 @@ where
 {
     let l1_height = l1_block.header().height();
 
-    let da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
+    let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
         context.da_service.extract_relevant_blobs(&l1_block);
+
+    // if we don't do this, the zk circuit can't read the sequencer commitments
+    da_data.iter_mut().for_each(|blob| {
+        blob.full_data();
+    });
 
     let sequencer_commitments: Vec<SequencerCommitment> = extract_sorted_sequencer_commitments::<Da>(
         context.da_service.clone(),
