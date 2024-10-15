@@ -13,22 +13,26 @@ description = "An adapter allowing Citrea to connect with Bonsai"
 
 [dependencies]
 anyhow = { workspace = true }
-backoff = { workspace = true }
+backoff = { workspace = true, optional = true }
 bincode = { workspace = true }
-bonsai-sdk = { workspace = true }
+bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 serde = { workspace = true }
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
-sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", optional = true }
 tracing = { workspace = true }
 
 [features]
-default = []
+default = ["sov-rollup-interface/std"]
 native = [
+  "dep:backoff",
+  "dep:bonsai-sdk",
+  "dep:sov-db",
   "risc0-zkvm/prove",
   "sov-risc0-adapter/native",
+  "sov-rollup-interface/native",
 ]
 bench = ["native"]
