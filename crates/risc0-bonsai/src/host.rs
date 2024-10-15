@@ -10,7 +10,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
-    Receipt,
+    LocalProver, Prover, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -321,7 +321,23 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             }
             // Local proving
             (None, true) => {
-                todo!()
+                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
+                    .write_slice(&self.env)
+                    .build()
+                    .unwrap();
+
+                let prover = LocalProver::new("citrea");
+                let receipt = prover.prove(env, self.elf)?.receipt;
+
+                tracing::info!("Local proving completed");
+
+                receipt.verify(self.image_id)?;
+
+                tracing::info!("Verified the receipt");
+
+                let serialized_receipt = bincode::serialize(&receipt)?;
+
+                Ok(Proof::Full(serialized_receipt))
             }
             // Bonsai proving
             (Some(client), true) => {
