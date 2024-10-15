@@ -8,10 +8,9 @@ use anyhow::anyhow;
 use bitcoin_da::helpers::compression::compress_blob;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::get_da_block_at_height;
+use citrea_common::da::{extract_sorted_sequencer_commitments, get_da_block_at_height};
 use citrea_common::utils::{
-    check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
-    merge_state_diffs,
+    check_l2_range_exists, filter_out_proven_commitments, merge_state_diffs,
 };
 use citrea_common::ProverConfig;
 use citrea_primitives::MAX_TXBODY_SIZE;
@@ -180,10 +179,12 @@ where
             da_data.iter_mut().for_each(|blob| {
                 blob.full_data();
             });
-            let mut sequencer_commitments: Vec<SequencerCommitment> =
-                extract_sequencer_commitments::<Da>(
+
+            let sequencer_commitments: Vec<SequencerCommitment> =
+                extract_sorted_sequencer_commitments::<Da>(
+                    self.da_service.clone(),
+                    l1_block.clone(),
                     self.sequencer_da_pub_key.as_slice(),
-                    &mut da_data,
                 );
 
             if sequencer_commitments.is_empty() {
@@ -206,10 +207,6 @@ where
                 sequencer_commitments.len(),
                 l1_block.header().height(),
             );
-
-            // Make sure all sequencer commitments are stored in ascending order.
-            // We sort before checking ranges to prevent substraction errors.
-            sequencer_commitments.sort();
 
             // If the L2 range does not exist, we break off the local loop getting back to
             // the outer loop / select to make room for other tasks to run.

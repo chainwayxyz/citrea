@@ -2,9 +2,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use citrea_common::utils::{
-    check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
-};
+use citrea_common::da::extract_sorted_sequencer_commitments;
+use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
@@ -49,11 +48,14 @@ where
 {
     let l1_height = l1_block.header().height();
 
-    let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
+    let da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
         context.da_service.extract_relevant_blobs(&l1_block);
 
-    let mut sequencer_commitments: Vec<SequencerCommitment> =
-        extract_sequencer_commitments::<Da>(context.sequencer_da_pub_key.as_slice(), &mut da_data);
+    let sequencer_commitments: Vec<SequencerCommitment> = extract_sorted_sequencer_commitments::<Da>(
+        context.da_service.clone(),
+        l1_block.clone(),
+        context.sequencer_da_pub_key.as_slice(),
+    );
 
     if sequencer_commitments.is_empty() {
         return Err(ErrorObjectOwned::owned(
@@ -64,10 +66,6 @@ where
             )),
         ));
     }
-
-    // Make sure all sequencer commitments are stored in ascending order.
-    // We sort before checking ranges to prevent substraction errors.
-    sequencer_commitments.sort();
 
     // If the L2 range does not exist, we break off the local loop getting back to
     // the outer loop / select to make room for other tasks to run.

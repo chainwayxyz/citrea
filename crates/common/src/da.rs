@@ -4,8 +4,13 @@ use std::time::Duration;
 use anyhow::anyhow;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use sov_rollup_interface::da::BlockHeaderTrait;
+use borsh::de::BorshDeserialize;
+use sov_rollup_interface::da::{
+    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec,
+    SequencerCommitment,
+};
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::zk::Proof;
 use tokio::sync::Mutex;
 
 use crate::cache::L1BlockCache;
@@ -36,4 +41,69 @@ pub async fn get_da_block_at_height<Da: DaService>(
         .await
         .put(l1_block.header().height(), l1_block.clone());
     Ok(l1_block)
+}
+
+pub fn extract_sorted_sequencer_commitments<Da>(
+    da_service: Arc<Da>,
+    l1_block: Da::FilteredBlock,
+    sequencer_da_pub_key: &[u8],
+) -> Vec<SequencerCommitment>
+where
+    Da: DaService,
+{
+    let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
+        da_service.extract_relevant_blobs(&l1_block);
+
+    let mut sequencer_commitments: Vec<SequencerCommitment> =
+        extract_sequencer_commitments::<Da>(sequencer_da_pub_key, &mut da_data);
+
+    if sequencer_commitments.is_empty() {
+        return vec![];
+    }
+
+    // Make sure all sequencer commitments are stored in ascending order.
+    // We sort before checking ranges to prevent substraction errors.
+    sequencer_commitments.sort();
+
+    sequencer_commitments
+}
+
+pub fn extract_sequencer_commitments<Da: DaService>(
+    sequencer_da_pub_key: &[u8],
+    da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
+) -> Vec<SequencerCommitment> {
+    let mut sequencer_commitments = vec![];
+    // if we don't do this, the zk circuit can't read the sequencer commitments
+    da_data.iter_mut().for_each(|blob| {
+        blob.full_data();
+    });
+    da_data.iter_mut().for_each(|tx| {
+        let data = DaDataBatchProof::try_from_slice(tx.full_data());
+        // Check for commitment
+        if tx.sender().as_ref() == sequencer_da_pub_key {
+            if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
+                sequencer_commitments.push(seq_com);
+            }
+        }
+    });
+    sequencer_commitments
+}
+
+pub async fn extract_zk_proofs<Da: DaService>(
+    da_service: Arc<Da>,
+    l1_block: Da::FilteredBlock,
+    prover_da_pub_key: &[u8],
+) -> anyhow::Result<Vec<Proof>> {
+    let mut zk_proofs = vec![];
+    da_service
+        .extract_relevant_proofs(&l1_block, &prover_da_pub_key)
+        .await?
+        .into_iter()
+        .for_each(|data| match data {
+            DaDataLightClient::ZKProof(proof) => {
+                zk_proofs.push(proof);
+            }
+        });
+
+    Ok(zk_proofs)
 }
