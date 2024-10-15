@@ -173,7 +173,6 @@ pub fn create_inscription_type_0(
 
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
-    let now = std::time::Instant::now();
     loop {
         if nonce % 1000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
@@ -261,8 +260,6 @@ pub fn create_inscription_type_0(
                     ),
                     commit_tx_address
                 );
-
-                tracing::info!("da proof elapsed: {:?}", now.elapsed());
 
                 return Ok(LightClientTxs::Complete {
                     commit: unsigned_commit_tx,
