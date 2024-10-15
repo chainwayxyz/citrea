@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
+use alloy::primitives::Address as AlloyAddress;
+use alloy::signers::local::PrivateKeySigner;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
@@ -9,11 +12,13 @@ use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{FullNodeConfig, ProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_prover::prover_service::ParallelProverService;
-use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
-use citrea_risc0_bonsai_adapter::Digest;
+// use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
+// use citrea_risc0_bonsai_adapter::Digest;
+use citrea_risc0_boundless_adapter::host::Risc0BoundlessHost;
+use citrea_risc0_boundless_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{self, LedgerDB};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -27,6 +32,7 @@ use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
+use url::Url;
 
 use crate::CitreaRollupBlueprint;
 
@@ -40,7 +46,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaService = BitcoinService;
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
-    type Vm = Risc0BonsaiHost<'static>;
+    type Vm = Risc0BoundlessHost<'static>;
 
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -153,6 +159,40 @@ impl RollupBlueprint for BitcoinRollup {
         Ok(service)
     }
 
+    // // Bonsai
+    // #[instrument(level = "trace", skip_all)]
+    // async fn create_prover_service(
+    //     &self,
+    //     prover_config: ProverConfig,
+    //     _rollup_config: &FullNodeConfig<Self::DaConfig>,
+    //     _da_service: &Arc<Self::DaService>,
+    //     ledger_db: LedgerDB,
+    // ) -> Self::ProverService {
+    //     let vm = Risc0BonsaiHost::new(
+    //         citrea_risc0::BITCOIN_DA_ELF,
+    //         std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+    //         std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+    //         ledger_db.clone(),
+    //     );
+    //     let zk_stf = StfBlueprint::new();
+    //     let zk_storage = ZkStorage::new();
+
+    //     let da_verifier = BitcoinVerifier::new(RollupParams {
+    //         reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+    //         reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+    //     });
+
+    //     ParallelProverService::new_with_default_workers(
+    //         vm,
+    //         zk_stf,
+    //         da_verifier,
+    //         prover_config,
+    //         zk_storage,
+    //         ledger_db,
+    //     )
+    //     .expect("Should be able to instantiate prover service")
+    // }
+
     #[instrument(level = "trace", skip_all)]
     async fn create_prover_service(
         &self,
@@ -161,12 +201,20 @@ impl RollupBlueprint for BitcoinRollup {
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(
+        let requestor_private_key: String = std::env::var("REQUESTOR_PRIVATE_KEY")
+            .expect("REQUESTOR_PRIVATE_KEY not set")
+            .parse()
+            .expect("Invalid REQUESTOR_PRIVATE_KEY");
+        let pk = PrivateKeySigner::from_str(&requestor_private_key).unwrap();
+        let vm = Risc0BoundlessHost::new(
             citrea_risc0::BITCOIN_DA_ELF,
-            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
-            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
             ledger_db.clone(),
-        );
+            pk,
+            Url::parse("https://sepolia.drpc.org").unwrap(),
+            AlloyAddress::from_str("0xb3e579794B6ce24bC7233713289790d9bBEB656c").unwrap(),
+            AlloyAddress::from_str("0x6860e6cC6E4705309b3e946947706b4a346422DB").unwrap(),
+        )
+        .await;
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 
@@ -185,4 +233,9 @@ impl RollupBlueprint for BitcoinRollup {
         )
         .expect("Should be able to instantiate prover service")
     }
+}
+
+#[test]
+fn test_a() {
+    Address::from_str("0xb3e579794B6ce24bC7233713289790d9bBEB656c").unwrap();
 }

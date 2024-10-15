@@ -31,7 +31,7 @@ sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true 
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tokio = { workspace = true }
 tracing = { workspace = true }
-url = "2.5"
+url = { workspace = true }
 
 # # boundless monorepo dependencies.
 # aggregation-set = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
