@@ -124,9 +124,9 @@ pub fn create_batchproof_type_0(
     let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
     let now = std::time::Instant::now();
     loop {
-        if nonce % 10000 == 0 {
+        if nonce % 1000 == 0 {
             trace!(nonce, "Trying to find commit & reveal nonce");
-            if nonce > 65536 {
+            if nonce > 16384 {
                 warn!("Too many iterations finding nonce");
             }
         }
