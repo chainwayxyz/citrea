@@ -13,12 +13,12 @@ use citrea_common::utils::{
     check_l2_range_exists, extract_sequencer_commitments, filter_out_proven_commitments,
     merge_state_diffs,
 };
-use citrea_common::ProverConfig;
+use citrea_common::BatchProverConfig;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_db::ledger_db::ProverLedgerOps;
+use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber, StoredProof, StoredStateTransition};
 use sov_modules_api::{BlobReaderTrait, DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -44,7 +44,7 @@ pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    DB: ProverLedgerOps,
+    DB: BatchProverLedgerOps,
     Ps: ProverService<Vm>,
     StateRoot: BorshDeserialize
         + BorshSerialize
@@ -53,9 +53,9 @@ where
         + Clone
         + AsRef<[u8]>
         + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
+    Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
 {
-    prover_config: ProverConfig,
+    prover_config: BatchProverConfig,
     prover_service: Arc<Ps>,
     ledger_db: DB,
     da_service: Arc<Da>,
@@ -73,8 +73,8 @@ impl<Vm, Da, Ps, DB, StateRoot, Witness> L1BlockHandler<Vm, Da, Ps, DB, StateRoo
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da, StateRoot = StateRoot, Witness = Witness>,
-    DB: ProverLedgerOps + Clone,
+    Ps: ProverService<Vm, DaService = Da>,
+    DB: BatchProverLedgerOps + Clone,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -82,11 +82,11 @@ where
         + Clone
         + AsRef<[u8]>
         + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
+    Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         prover_service: Arc<Ps>,
         ledger_db: DB,
         da_service: Arc<Da>,
@@ -398,7 +398,9 @@ where
     ) -> Result<(), anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
 
-        prover_service.submit_witness(transition_data).await;
+        prover_service
+            .submit_witness(borsh::to_vec(&transition_data)?, hash.clone())
+            .await;
 
         prover_service.prove(hash.clone()).await?;
 
@@ -580,7 +582,7 @@ async fn sync_l1<Da>(
 
 pub(crate) async fn get_state_transition_data_from_commitments<
     Da: DaService,
-    DB: ProverLedgerOps,
+    DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
 >(
     sequencer_commitments: &[SequencerCommitment],
@@ -659,7 +661,7 @@ pub(crate) async fn get_state_transition_data_from_commitments<
     ))
 }
 
-pub(crate) fn break_sequencer_commitments_into_groups<DB: ProverLedgerOps>(
+pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
     ledger_db: &DB,
     sequencer_commitments: &[SequencerCommitment],
 ) -> anyhow::Result<Vec<RangeInclusive<usize>>> {

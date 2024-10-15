@@ -51,6 +51,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(config1),
         )
@@ -73,6 +74,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -129,6 +131,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(config1),
@@ -195,6 +198,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(config1),
@@ -272,6 +276,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(config1),
@@ -369,6 +374,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -391,6 +397,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             None,
         )
@@ -412,6 +419,7 @@ async fn test_soft_confirmation_save() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx_2,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,

@@ -7,16 +7,15 @@ use tokio::sync::oneshot;
 use tracing::instrument;
 
 mod da_block_handler;
-pub mod prover_service;
 mod runner;
 pub use runner::*;
 mod rpc;
 
 /// Dependencies needed to run the rollup.
-pub struct Prover<S: RollupBlueprint> {
+pub struct BatchProver<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
-    pub runner: CitreaProver<
+    pub runner: CitreaBatchProver<
         S::NativeContext,
         S::DaService,
         S::StorageManager,
@@ -29,7 +28,7 @@ pub struct Prover<S: RollupBlueprint> {
     pub rpc_methods: jsonrpsee::RpcModule<()>,
 }
 
-impl<S: RollupBlueprint> Prover<S> {
+impl<S: RollupBlueprint> BatchProver<S> {
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
     pub async fn run(self) -> Result<(), anyhow::Error> {

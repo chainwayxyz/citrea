@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use citrea_common::{FullNodeConfig, ProverConfig};
+use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 pub use runtime_rpc::*;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -18,7 +18,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::Storage;
 use sov_stf_runner::ProverService;
 use tokio::sync::broadcast;
 pub use wallet::*;
@@ -57,20 +56,18 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type NativeRuntime: RuntimeTrait<Self::NativeContext, Self::DaSpec> + Default + Send + Sync;
 
     /// Prover service.
-    type ProverService: ProverService<
-            Self::Vm,
-            StateRoot = <<Self::NativeContext as Spec>::Storage as Storage>::Root,
-            Witness = <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
-            DaService = Self::DaService,
-        > + Send
-        + Sync
-        + 'static;
+    type ProverService: ProverService<Self::Vm, DaService = Self::DaService> + Send + Sync + 'static;
 
     /// Creates a new instance of the blueprint.
     fn new() -> Self;
 
-    /// Get code commitments by fork.
-    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
+    /// Get batch prover code commitments by fork.
+    fn get_batch_prover_code_commitments_by_spec(
+        &self,
+    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
+
+    /// Get light client prover code commitment.
+    fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment;
 
     /// Creates RPC methods for the rollup.
     fn create_rpc_methods(
@@ -114,9 +111,18 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
     /// Creates instance of [`ProverService`].
-    async fn create_prover_service(
+    async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService;
+
+    /// Creates instance of [`ProverService`].
+    async fn create_light_client_prover_service(
+        &self,
+        prover_config: LightClientProverConfig,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,

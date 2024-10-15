@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{Proof, StateTransitionData};
+use sov_rollup_interface::zk::Proof;
 use thiserror::Error;
 
 /// The possible configurations of the prover.
@@ -27,7 +28,7 @@ impl<'de> Deserialize<'de> for ProverGuestRunConfig {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
+        let s = <std::string::String as Deserialize>::deserialize(deserializer)?;
         match s.as_str() {
             "skip" => Ok(ProverGuestRunConfig::Skip),
             "simulate" => Ok(ProverGuestRunConfig::Simulate),
@@ -85,21 +86,14 @@ pub enum ProverServiceError {
 /// but this functionality will be added in the future (#1185).
 #[async_trait]
 pub trait ProverService<Vm: Zkvm> {
-    /// Ths root hash of state merkle tree.
-    type StateRoot: Serialize + Clone + AsRef<[u8]>;
-    /// Data that is produced during batch execution.
-    type Witness: Serialize;
     /// Data Availability service.
     type DaService: DaService;
 
     /// Submit a witness for proving.
     async fn submit_witness(
         &self,
-        state_transition_data: StateTransitionData<
-            Self::StateRoot,
-            Self::Witness,
-            <Self::DaService as DaService>::Spec,
-        >,
+        input: Vec<u8>,
+        da_slot_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
     ) -> WitnessSubmissionStatus;
 
     /// Creates ZKP prove for a block corresponding to `block_header_hash`.
@@ -107,6 +101,13 @@ pub trait ProverService<Vm: Zkvm> {
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
     ) -> Result<ProofProcessingStatus, ProverServiceError>;
+
+    /// Wait for proving to be complete and extract the output
+    /// from the prover service.
+    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
+        &self,
+        block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
+    ) -> Result<T, anyhow::Error>;
 
     /// Sends the ZK proof to the DA.
     async fn wait_for_proving_and_send_to_da(

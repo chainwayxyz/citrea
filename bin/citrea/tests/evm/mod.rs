@@ -44,6 +44,7 @@ async fn web3_rpc_tests() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequener_config),
         )
@@ -99,6 +100,7 @@ async fn evm_tx_tests() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -133,6 +135,7 @@ async fn test_eth_get_logs() -> Result<(), anyhow::Error> {
         start_rollup(
             port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(sequencer_config),
@@ -169,6 +172,7 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
+            None,
             None,
             rollup_config,
             Some(sequencer_config),

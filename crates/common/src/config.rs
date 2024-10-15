@@ -127,7 +127,7 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
 
 /// Prover configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct ProverConfig {
+pub struct BatchProverConfig {
     /// Prover run mode
     pub proving_mode: ProverGuestRunConfig,
     /// Average number of commitments to prove
@@ -136,7 +136,31 @@ pub struct ProverConfig {
     pub enable_recovery: bool,
 }
 
-impl Default for ProverConfig {
+/// Prover configuration
+///
+/// TODO: leaving as the same with batch prover config for now
+/// but it will most probably have different fields in the future
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LightClientProverConfig {
+    /// Prover run mode
+    pub proving_mode: ProverGuestRunConfig,
+    /// Average number of commitments to prove
+    pub proof_sampling_number: usize,
+    /// If true prover will try to recover ongoing proving sessions
+    pub enable_recovery: bool,
+}
+
+impl Default for BatchProverConfig {
+    fn default() -> Self {
+        Self {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }
+    }
+}
+
+impl Default for LightClientProverConfig {
     fn default() -> Self {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
@@ -322,8 +346,8 @@ mod tests {
 
         let config_file = create_config_from(config);
 
-        let config: ProverConfig = from_toml_path(config_file.path()).unwrap();
-        let expected = ProverConfig {
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+        let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,

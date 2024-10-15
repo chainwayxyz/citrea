@@ -9,7 +9,9 @@ use tokio::sync::oneshot::Sender as OneshotSender;
 
 use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaData, DaDataLightClient, DaSpec, DaVerifier};
+use crate::da::{DaData, DaSpec, DaVerifier};
+#[cfg(feature = "native")]
+use crate::zk::Proof;
 use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
@@ -92,12 +94,18 @@ pub trait DaService: Send + Sync + 'static {
         block: &Self::FilteredBlock,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
 
+    /// Extract the relevant LightClient transactions from a block.
+    fn extract_relevant_blobs_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
+
     /// Extract the relevant proofs from a block.
     async fn extract_relevant_proofs(
         &self,
         block: &Self::FilteredBlock,
         prover_pk: &[u8],
-    ) -> anyhow::Result<Vec<DaDataLightClient>>;
+    ) -> anyhow::Result<Vec<Proof>>;
 
     /// Generate a proof that the relevant blob transactions have been extracted correctly from the DA layer
     /// block.
@@ -105,6 +113,16 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         block: &Self::FilteredBlock,
         blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
+    ) -> (
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    );
+
+    /// Generate a proof that the relevant LightClient blob transactions have been extracted correctly from the DA layer
+    /// block.
+    async fn get_extraction_proof_light_client(
+        &self,
+        block: &Self::FilteredBlock,
     ) -> (
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
@@ -131,6 +149,17 @@ pub trait DaService: Send + Sync + 'static {
 
         (relevant_txs, etx_proofs, rollup_row_proofs)
     }
+
+    /// TODO doc
+    #[allow(clippy::type_complexity)]
+    async fn extract_relevant_blobs_with_proof_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> (
+        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    );
 
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.

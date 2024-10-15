@@ -35,6 +35,7 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
             port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )

@@ -2,31 +2,27 @@ mod prover;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
-use citrea_common::config::ProverConfig;
+use borsh::BorshDeserialize;
 use citrea_stf::verifier::StateTransitionVerifier;
 use parking_lot::Mutex;
 use prover::Prover;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use risc0_zkvm::{Journal, Receipt};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{
     ProofProcessingStatus, ProverGuestRunConfig, ProverService, ProverServiceError,
     WitnessSubmissionStatus,
 };
 
 use self::prover::ProverStatus;
-use crate::prover_service::ProofGenConfig;
+use crate::ProofGenConfig;
 
 /// Prover service that generates proofs in parallel.
-pub struct ParallelProverService<StateRoot, Witness, Da, Vm, V>
+pub struct ParallelProverService<Da, Vm, V>
 where
-    StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]>,
-    Witness: Serialize + DeserializeOwned,
     Da: DaService,
     Vm: ZkvmHost,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
@@ -35,23 +31,12 @@ where
     prover_config: Arc<Mutex<ProofGenConfig<V, Da, Vm>>>,
 
     zk_storage: V::PreState,
-    prover_state: Prover<StateRoot, Witness, Da>,
+    prover_state: Prover<Da>,
     ledger_db: LedgerDB,
 }
 
-impl<StateRoot, Witness, Da, Vm, V> ParallelProverService<StateRoot, Witness, Da, Vm, V>
+impl<Da, Vm, V> ParallelProverService<Da, Vm, V>
 where
-    StateRoot: BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Send
-        + Sync
-        + 'static,
-    Witness:
-        BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
@@ -109,7 +94,7 @@ where
         vm: Vm,
         zk_stf: V,
         da_verifier: Da::Verifier,
-        prover_config: ProverConfig,
+        proving_mode: ProverGuestRunConfig,
         zk_storage: V::PreState,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
@@ -120,7 +105,7 @@ where
             vm,
             zk_stf,
             da_verifier,
-            prover_config.proving_mode,
+            proving_mode,
             zk_storage,
             num_cpus - 1,
             ledger_db,
@@ -129,40 +114,21 @@ where
 }
 
 #[async_trait]
-impl<StateRoot, Witness, Da, Vm, V> ProverService<Vm>
-    for ParallelProverService<StateRoot, Witness, Da, Vm, V>
+impl<Da, Vm, V> ProverService<Vm> for ParallelProverService<Da, Vm, V>
 where
-    StateRoot: BorshSerialize
-        + BorshDeserialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Send
-        + Sync
-        + 'static,
-    Witness:
-        BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     Vm: ZkvmHost + 'static,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
     V::PreState: Clone + Send + Sync,
 {
-    type StateRoot = StateRoot;
-
-    type Witness = Witness;
-
     type DaService = Da;
 
     async fn submit_witness(
         &self,
-        state_transition_data: StateTransitionData<
-            Self::StateRoot,
-            Self::Witness,
-            <Self::DaService as DaService>::Spec,
-        >,
+        input: Vec<u8>,
+        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> WitnessSubmissionStatus {
-        self.prover_state.submit_witness(state_transition_data)
+        self.prover_state.submit_witness(input, da_slot_hash)
     }
 
     async fn prove(
@@ -181,35 +147,46 @@ where
         )
     }
 
+    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
+        &self,
+        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+    ) -> Result<T, anyhow::Error> {
+        let proof = self.wait_for_proof(block_header_hash).await?;
+
+        // TODO: maybe extract this to Vm?
+        // Extract journal
+        let journal = match proof {
+            Proof::PublicInput(journal) => {
+                let journal: Journal = bincode::deserialize(&journal)?;
+                journal
+            }
+            Proof::Full(data) => {
+                let receipt: Receipt = bincode::deserialize(&data)?;
+                receipt.journal
+            }
+        };
+
+        self.ledger_db.clear_pending_proving_sessions()?;
+
+        Ok(T::try_from_slice(&journal.bytes)?)
+    }
+
     async fn wait_for_proving_and_send_to_da(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
         da_service: &Arc<Self::DaService>,
     ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
-        loop {
-            let status = self
-                .prover_state
-                .get_prover_status_for_da_submission(block_header_hash.clone())?;
+        let proof = self.wait_for_proof(block_header_hash).await?;
+        let da_data = DaData::ZKProof(proof.clone());
 
-            match status {
-                ProverStatus::Proved(proof) => {
-                    let da_data = DaData::ZKProof(proof.clone());
+        let tx_id = da_service
+            .send_transaction(da_data)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
-                    let tx_id = da_service
-                        .send_transaction(da_data)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?;
-                    self.ledger_db.clear_pending_proving_sessions()?;
-                    break Ok((tx_id, proof));
-                }
-                ProverStatus::ProvingInProgress => {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                }
-                _ => {
-                    // function will not return any other type of status
-                }
-            }
-        }
+        self.ledger_db.clear_pending_proving_sessions()?;
+
+        Ok((tx_id, proof))
     }
 
     async fn recover_proving_sessions_and_send_to_da(
@@ -233,5 +210,34 @@ where
         }
         self.ledger_db.clear_pending_proving_sessions()?;
         Ok(results)
+    }
+}
+
+impl<Da, Vm, V> ParallelProverService<Da, Vm, V>
+where
+    Da: DaService,
+    Vm: ZkvmHost + 'static,
+    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    V::PreState: Clone + Send + Sync,
+{
+    async fn wait_for_proof(
+        &self,
+        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
+    ) -> anyhow::Result<Proof> {
+        loop {
+            let status = self
+                .prover_state
+                .get_prover_status_for_da_submission(block_header_hash.clone())?;
+
+            match status {
+                ProverStatus::Proved(proof) => break Ok(proof),
+                ProverStatus::ProvingInProgress => {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+                _ => {
+                    // function will not return any other type of status
+                }
+            }
+        }
     }
 }
