@@ -96,7 +96,7 @@ pub async fn extract_zk_proofs<Da: DaService>(
 ) -> anyhow::Result<Vec<Proof>> {
     let mut zk_proofs = vec![];
     da_service
-        .extract_relevant_proofs(&l1_block, &prover_da_pub_key)
+        .extract_relevant_proofs(&l1_block, prover_da_pub_key)
         .await?
         .into_iter()
         .for_each(|data| match data {
