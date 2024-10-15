@@ -68,15 +68,11 @@ where
     sequencer_commitments
 }
 
-pub fn extract_sequencer_commitments<Da: DaService>(
+fn extract_sequencer_commitments<Da: DaService>(
     sequencer_da_pub_key: &[u8],
     da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
 ) -> Vec<SequencerCommitment> {
     let mut sequencer_commitments = vec![];
-    // if we don't do this, the zk circuit can't read the sequencer commitments
-    da_data.iter_mut().for_each(|blob| {
-        blob.full_data();
-    });
     da_data.iter_mut().for_each(|tx| {
         let data = DaDataBatchProof::try_from_slice(tx.full_data());
         // Check for commitment
