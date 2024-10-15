@@ -30,8 +30,8 @@ struct Args {
     da_layer: SupportedDaLayer,
 
     /// The path to the rollup config, if a string is provided, it will be used as the path to the rollup config, otherwise environment variables will be used.
-    #[arg(long, default_value = "resources/configs/mock/rollup_config.toml")]
-    rollup_config_path: Option<Option<String>>,
+    #[arg(long)]
+    rollup_config_path: Option<String>,
 
     /// The option to run the node in sequencer mode, if a string is provided, it will be used as the path to the sequencer config, otherwise environment variables will be used.
     #[arg(long, conflicts_with = "prover")]
@@ -72,8 +72,6 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     initialize_logging(logging_level);
 
-    let rollup_config_path = args.rollup_config_path.unwrap();
-
     let sequencer_config = match args.sequencer {
         Some(Some(path)) => Some(
             from_toml_path(path)
@@ -107,7 +105,7 @@ async fn main() -> Result<(), anyhow::Error> {
         SupportedDaLayer::Mock => {
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
-                rollup_config_path,
+                args.rollup_config_path,
                 prover_config,
                 sequencer_config,
             )
@@ -116,7 +114,7 @@ async fn main() -> Result<(), anyhow::Error> {
         SupportedDaLayer::Bitcoin => {
             start_rollup::<BitcoinRollup, BitcoinServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
-                rollup_config_path,
+                args.rollup_config_path,
                 prover_config,
                 sequencer_config,
             )
