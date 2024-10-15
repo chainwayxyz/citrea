@@ -3,14 +3,14 @@ mod db_provider;
 mod deposit_data_mempool;
 mod mempool;
 mod rpc;
-mod sequencer;
+mod runner;
 mod utils;
 
 use std::net::SocketAddr;
 
 pub use citrea_common::{SequencerConfig, SequencerMempoolConfig};
 pub use rpc::SequencerRpcClient;
-pub use sequencer::CitreaSequencer;
+pub use runner::CitreaSequencer;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
