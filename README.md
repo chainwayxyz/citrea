@@ -36,7 +36,7 @@ Citrea's vision is to build scalable infrastructure that advances Bitcoin into i
 - [Docs](https://docs.citrea.xyz)
 - [Blog](https://blog.citrea.xyz)
 - [X](https://x.com/citrea_xyz)
-- [Discord](https://discord.citrea.xyz)
+- [Discord](https://discord.gg/citrea)
 
 ## Acknowledgments
 
