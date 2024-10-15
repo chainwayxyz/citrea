@@ -6,7 +6,9 @@ use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{
+    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, TestCaseConfig, TestCaseEnv,
+};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -105,6 +107,11 @@ impl TestCase for BasicProverTest {
 
         Ok(())
     }
+}
+
+#[tokio::test]
+async fn basic_prover_test() -> Result<()> {
+    TestCaseRunner::new(BasicProverTest).run().await
 }
 
 #[derive(Default)]
@@ -308,13 +315,99 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 }
 
 #[tokio::test]
-async fn basic_prover_test() -> Result<()> {
-    TestCaseRunner::new(BasicProverTest).run().await
-}
-
-#[tokio::test]
 async fn prover_skips_preproven_commitments_test() -> Result<()> {
     TestCaseRunner::new(SkipPreprovenCommitmentsTest::default())
         .run()
         .await
+}
+
+struct LocalProvingTest;
+
+#[async_trait]
+impl TestCase for LocalProvingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn test_env() -> TestCaseEnv {
+        TestCaseEnv {
+            test: vec![
+                ("SHORT_PREFIX", "1"),
+                ("BONSAI_API_URL", ""),
+                ("BONSAI_API_KEY", ""),
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proving_mode: ProverGuestRunConfig::Prove,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            // Made this 1 or-else proving takes forever
+            min_soft_confirmations_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        citrea::initialize_logging(tracing::Level::INFO);
+        f.show_log_paths();
+
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+        // Generate soft confirmations to invoke commitment creation
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for commitment tx to hit mempool
+        da.wait_mempool_len(1, None).await?;
+
+        // Make commitment tx into a finalized block
+        da.generate(FINALITY_DEPTH, None).await?;
+
+        let finalized_height = da.get_finalized_height().await?;
+        // Wait for batch prover to process the proof
+        batch_prover
+            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(7200)))
+            .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(1, None).await?;
+
+        // Make batch proof tx into a finalized block
+        da.generate(FINALITY_DEPTH, None).await?;
+
+        let finalized_height = da.get_finalized_height().await?;
+        // Wait for full node to see zkproofs
+        let proofs = full_node
+            .wait_for_zkproofs(finalized_height, Some(Duration::from_secs(7200)))
+            .await
+            .unwrap();
+
+        assert_eq!(proofs.len(), 1);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn local_proving_test() -> Result<()> {
+    TestCaseRunner::new(LocalProvingTest).run().await
 }
