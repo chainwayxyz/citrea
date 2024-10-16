@@ -119,8 +119,8 @@ pub fn create_zkproof_transactions(
             network,
             &reveal_tx_prefix,
         ),
-        RawLightClientData::Chunks(chunks) => create_inscription_type_1(
-            chunks,
+        RawLightClientData::Chunks(body) => create_inscription_type_1(
+            body,
             &da_private_key,
             prev_utxo,
             utxos,

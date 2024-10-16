@@ -405,11 +405,10 @@ impl DaService for MockDaService {
         let mut res = vec![];
         for mut b in block.blobs.clone() {
             if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
-                match r {
-                    DaDataLightClient::Complete(proof) => res.push(proof),
-                    _ => {
-                        panic!("unexpected type")
-                    }
+                if let DaDataLightClient::Complete(proof) = r {
+                    res.push(proof);
+                } else {
+                    panic!("Unexpected proof Aggregate/Chunk in MockDa");
                 }
             }
         }
