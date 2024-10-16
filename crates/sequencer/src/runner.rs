@@ -530,9 +530,6 @@ where
                 // the new fork on the next block
                 self.fork_manager.register_block(l2_height)?;
 
-                // Only errors when there are no receivers
-                let _ = self.soft_confirmation_tx.send(l2_height);
-
                 let l1_height = da_block.header().height();
                 info!(
                     "New block #{}, DA #{}, Tx count: #{}",
@@ -579,6 +576,9 @@ where
                 if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
                     warn!("Failed to remove txs from mempool: {:?}", e);
                 }
+
+                // Only errors when there are no receivers
+                let _ = self.soft_confirmation_tx.send(l2_height);
 
                 Ok((da_block.header().height(), state_diff_threshold_reached))
             }
