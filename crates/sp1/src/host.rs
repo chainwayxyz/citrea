@@ -5,6 +5,7 @@ use sp1_sdk::{ProverClient, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 use tracing::info;
 
 use crate::guest::SP1Guest;
+use crate::VerifyingKey;
 
 pub struct SP1Host {
     client: ProverClient,
@@ -113,7 +114,7 @@ impl ZkvmHost for SP1Host {
 }
 
 impl Zkvm for SP1Host {
-    type CodeCommitment = ();
+    type CodeCommitment = VerifyingKey;
     type Error = anyhow::Error;
 
     fn verify(
