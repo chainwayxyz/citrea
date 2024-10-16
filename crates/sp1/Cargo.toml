@@ -18,7 +18,7 @@ borsh = { workspace = true }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sp1-sdk = { workspace = true, features = ["network-v2"] }
+sp1-sdk = { workspace = true, features = ["network-v2"], optional = true }
 sp1-zkvm = { workspace = true }
 tracing = { workspace = true }
 
