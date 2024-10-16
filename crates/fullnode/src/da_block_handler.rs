@@ -6,9 +6,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{
-    extract_sorted_sequencer_commitments, extract_zk_proofs, get_da_block_at_height,
-};
+use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, get_da_block_at_height};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_range_exists;
 use rs_merkle::algorithms::Sha256;
@@ -143,7 +141,7 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
-        let sequencer_commitments = extract_sorted_sequencer_commitments(
+        let sequencer_commitments = extract_sequencer_commitments(
             self.da_service.clone(),
             l1_block.clone(),
             &self.sequencer_da_pub_key,

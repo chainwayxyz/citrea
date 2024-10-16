@@ -28,7 +28,7 @@ use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::errors::L1ProcessingError;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1};
@@ -186,13 +186,8 @@ where
                     L1ProcessingError::NoSeqCommitments { l1_height } => {
                         info!("No sequencer commitment found at height {}", l1_height,);
                         self.ledger_db
-                                .set_last_scanned_l1_height(SlotNumber(l1_height))
-                                .unwrap_or_else(|_| {
-                                    panic!(
-                                        "Failed to put prover last scanned l1 height in the ledger db {}",
-                                        l1_height
-                                    )
-                                });
+                            .set_last_scanned_l1_height(SlotNumber(l1_height))
+                            .unwrap_or_else(|_| panic!("Failed to put prover last scanned l1 height in the ledger db {}", l1_height));
 
                         self.pending_l1_blocks.pop_front();
                         continue;
@@ -218,7 +213,7 @@ where
                         start_block_number,
                         end_block_number,
                     } => {
-                        error!("L2 range of commitments is not synced yet: {start_block_number} - {end_block_number}");
+                        warn!("L2 range of commitments is not synced yet: {start_block_number} - {end_block_number}");
                         break;
                     }
                     L1ProcessingError::Other(msg) => {

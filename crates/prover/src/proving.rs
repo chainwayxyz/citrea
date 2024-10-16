@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::extract_sorted_sequencer_commitments;
+use citrea_common::da::extract_sequencer_commitments;
 use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -18,7 +18,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::da_block_handler::{
     break_sequencer_commitments_into_groups, get_state_transition_data_from_commitments,
@@ -64,7 +64,7 @@ where
         blob.full_data();
     });
 
-    let sequencer_commitments: Vec<SequencerCommitment> = extract_sorted_sequencer_commitments::<Da>(
+    let sequencer_commitments: Vec<SequencerCommitment> = extract_sequencer_commitments::<Da>(
         da_service.clone(),
         l1_block.clone(),
         &sequencer_da_pub_key,
@@ -93,8 +93,7 @@ where
 
     let (sequencer_commitments, preproven_commitments) =
         filter_out_proven_commitments(&ledger, &sequencer_commitments).map_err(|e| {
-            error!("Error filtering out proven commitments: {:?}", e);
-            L1ProcessingError::Other(format!("{}", e))
+            L1ProcessingError::Other(format!("Error filtering out proven commitments: {}", e))
         })?;
 
     if sequencer_commitments.is_empty() {

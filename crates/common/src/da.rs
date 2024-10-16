@@ -43,7 +43,7 @@ pub async fn get_da_block_at_height<Da: DaService>(
     Ok(l1_block)
 }
 
-pub fn extract_sorted_sequencer_commitments<Da>(
+pub fn extract_sequencer_commitments<Da>(
     da_service: Arc<Da>,
     l1_block: Da::FilteredBlock,
     sequencer_da_pub_key: &[u8],
@@ -54,24 +54,6 @@ where
     let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
         da_service.extract_relevant_blobs(&l1_block);
 
-    let mut sequencer_commitments: Vec<SequencerCommitment> =
-        extract_sequencer_commitments::<Da>(sequencer_da_pub_key, &mut da_data);
-
-    if sequencer_commitments.is_empty() {
-        return vec![];
-    }
-
-    // Make sure all sequencer commitments are stored in ascending order.
-    // We sort before checking ranges to prevent substraction errors.
-    sequencer_commitments.sort();
-
-    sequencer_commitments
-}
-
-fn extract_sequencer_commitments<Da: DaService>(
-    sequencer_da_pub_key: &[u8],
-    da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
-) -> Vec<SequencerCommitment> {
     let mut sequencer_commitments = vec![];
     da_data.iter_mut().for_each(|tx| {
         let data = DaDataBatchProof::try_from_slice(tx.full_data());
@@ -82,6 +64,11 @@ fn extract_sequencer_commitments<Da: DaService>(
             }
         }
     });
+
+    // Make sure all sequencer commitments are stored in ascending order.
+    // We sort before checking ranges to prevent substraction errors.
+    sequencer_commitments.sort();
+
     sequencer_commitments
 }
 

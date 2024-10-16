@@ -190,7 +190,7 @@ async fn full_node_verify_proof_and_store() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_prover_prove_rpc() {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();

@@ -17,7 +17,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
-use tracing::debug;
 
 use crate::proving::{data_to_prove, prove_l1};
 
@@ -51,8 +50,8 @@ where
     pub sequencer_pub_key: Vec<u8>,
     pub l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pub code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    pub(crate) c: PhantomData<fn() -> C>,
-    pub(crate) vm: PhantomData<fn() -> Vm>,
+    pub(crate) phantom_c: PhantomData<fn() -> C>,
+    pub(crate) phantom_vm: PhantomData<fn() -> Vm>,
 }
 
 #[rpc(client, server)]
@@ -142,8 +141,6 @@ where
         l1_height: u64,
         group_commitments: Option<bool>,
     ) -> RpcResult<Vec<ProverInputResponse>> {
-        debug!("Prover: prover_generateInput");
-
         let l1_block: <Da as DaService>::FilteredBlock = self
             .context
             .da_service
@@ -195,8 +192,6 @@ where
     }
 
     async fn prove(&self, l1_height: u64, group_commitments: Option<bool>) -> RpcResult<()> {
-        debug!("Prover: prover_prove");
-
         let l1_block: <Da as DaService>::FilteredBlock = self
             .context
             .da_service

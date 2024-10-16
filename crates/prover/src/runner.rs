@@ -173,8 +173,8 @@ where
             l1_block_cache: self.l1_block_cache.clone(),
             prover_service: self.prover_service.clone(),
             code_commitments_by_spec: self.code_commitments_by_spec.clone(),
-            c: std::marker::PhantomData,
-            vm: std::marker::PhantomData,
+            phantom_c: std::marker::PhantomData,
+            phantom_vm: std::marker::PhantomData,
         }
     }
 
