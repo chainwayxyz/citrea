@@ -1,5 +1,4 @@
 mod commitment;
-mod commitment_controller;
 mod db_provider;
 mod deposit_data_mempool;
 mod mempool;
