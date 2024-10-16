@@ -5,9 +5,9 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use bitcoin_da::helpers::compression::compress_blob;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
+use citrea_common::compression::compress_blob;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::ProverConfig;
