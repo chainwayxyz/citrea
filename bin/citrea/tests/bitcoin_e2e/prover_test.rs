@@ -18,6 +18,8 @@ use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use tokio::sync::mpsc::UnboundedSender;
 
+use super::get_citrea_path;
+
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates soft confirmations and wait until it reaches the first commitment.
 /// It asserts that the blob inscribe txs have been sent.
@@ -111,7 +113,10 @@ impl TestCase for BasicProverTest {
 
 #[tokio::test]
 async fn basic_prover_test() -> Result<()> {
-    TestCaseRunner::new(BasicProverTest).run().await
+    TestCaseRunner::new(BasicProverTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
 
 #[derive(Default)]
@@ -317,6 +322,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 #[tokio::test]
 async fn prover_skips_preproven_commitments_test() -> Result<()> {
     TestCaseRunner::new(SkipPreprovenCommitmentsTest::default())
+        .set_citrea_path(get_citrea_path())
         .run()
         .await
 }
@@ -409,5 +415,8 @@ impl TestCase for LocalProvingTest {
 #[tokio::test]
 #[ignore]
 async fn local_proving_test() -> Result<()> {
-    TestCaseRunner::new(LocalProvingTest).run().await
+    TestCaseRunner::new(LocalProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }

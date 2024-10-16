@@ -10,6 +10,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 
+use super::get_citrea_path;
+
 struct BasicSyncTest;
 
 #[async_trait]
@@ -104,10 +106,16 @@ impl TestCase for RestartBitcoinTest {
 
 #[tokio::test]
 async fn test_basic_sync() -> Result<()> {
-    TestCaseRunner::new(BasicSyncTest).run().await
+    TestCaseRunner::new(BasicSyncTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_restart_bitcoin() -> Result<()> {
-    TestCaseRunner::new(RestartBitcoinTest).run().await
+    TestCaseRunner::new(RestartBitcoinTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
