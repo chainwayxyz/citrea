@@ -13,14 +13,21 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
+bincode = { workspace = true }
 borsh = { workspace = true }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sp1-helper = { workspace = true }
-sp1-sdk = { workspace = true }
+sp1-sdk = { workspace = true, features = ["network-v2"], optional = true }
 sp1-zkvm = { workspace = true }
+tracing = { workspace = true }
 
-[dev-dependencies]
+[build-dependencies]
+sp1-helper = { workspace = true }
 
 [features]
-default = []
-native = []
+default = ["native"]
+native = [
+  "dep:sov-db",
+  "dep:sp1-sdk",
+  "sov-rollup-interface/native",
+]
