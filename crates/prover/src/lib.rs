@@ -7,9 +7,11 @@ use tokio::sync::oneshot;
 use tracing::instrument;
 
 mod da_block_handler;
+mod errors;
 pub mod prover_service;
 mod runner;
 pub use runner::*;
+mod proving;
 mod rpc;
 
 /// Dependencies needed to run the rollup.
