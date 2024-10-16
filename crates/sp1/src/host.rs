@@ -1,7 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
-use sp1_sdk::{ProverClient, SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
+use sp1_sdk::{
+    ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin,
+    SP1VerifyingKey,
+};
 use tracing::info;
 
 use crate::guest::SP1Guest;
@@ -103,9 +106,20 @@ impl ZkvmHost for SP1Host {
     }
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
-        _proof: &Proof,
+        proof: &Proof,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        todo!()
+        let public_values = match proof {
+            Proof::PublicInput(data) => {
+                let public_values: SP1PublicValues = bincode::deserialize(data)?;
+                public_values
+            }
+            Proof::Full(data) => {
+                let proof: SP1ProofWithPublicValues = bincode::deserialize(data)?;
+                proof.public_values
+            }
+        };
+
+        Ok(BorshDeserialize::try_from_slice(public_values.as_slice())?)
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
@@ -118,16 +132,26 @@ impl Zkvm for SP1Host {
     type Error = anyhow::Error;
 
     fn verify(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error> {
-        todo!()
+        let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
+
+        ProverClient::new().verify(&proof, &code_commitment.0)?;
+
+        Ok(proof.public_values.to_vec())
     }
 
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        todo!()
+        let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
+
+        ProverClient::new().verify(&proof, &code_commitment.0)?;
+
+        Ok(BorshDeserialize::try_from_slice(
+            proof.public_values.as_slice(),
+        )?)
     }
 }
