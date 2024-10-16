@@ -2,7 +2,6 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use borsh::BorshDeserialize;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::StreamExt;
 use parking_lot::RwLock;
@@ -10,13 +9,13 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_modules_api::{BlobReaderTrait, StateDiff};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaDataBatchProof, SequencerCommitment};
+use sov_modules_api::StateDiff;
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use tokio::select;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument};
 
 use self::strategy::{CommitmentController, MinSoftConfirmations, StateDiffThreshold};
 use crate::commitment::strategy::CommitmentStrategy;
@@ -279,27 +278,8 @@ where
 
     async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
         self.da_service
-            .get_relevant_blobs_of_pending_transactions()
+            .get_pending_sequencer_commitments(&self.sequencer_da_pub_key)
             .await
-            .into_iter()
-            .filter_map(
-                |mut blob| match DaDataBatchProof::try_from_slice(blob.full_data()) {
-                    Ok(da_data)
-                    // we check on da pending txs of our wallet however let's keep consistency
-                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
-                    {
-                        match da_data {
-                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
-                        }
-                    }
-                    Ok(_) => None,
-                    Err(err) => {
-                        warn!("Pending transaction blob failed to be parsed: {}", err);
-                        None
-                    }
-                },
-            )
-            .collect()
     }
 
     async fn get_mined_commitments_from(
@@ -319,23 +299,10 @@ where
                 .get_block_at(height)
                 .await
                 .map_err(|e| anyhow!(e))?;
-            let blobs = self.da_service.extract_relevant_blobs(&block);
-            let iter = blobs.into_iter().filter_map(|mut blob| {
-                match DaDataBatchProof::try_from_slice(blob.full_data()) {
-                    Ok(da_data)
-                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
-                    {
-                        match da_data {
-                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
-                        }
-                    }
-                    Ok(_) => None,
-                    Err(err) => {
-                        warn!("Pending transaction blob failed to be parsed: {}", err);
-                        None
-                    }
-                }
-            });
+            let iter = self
+                .da_service
+                .extract_relevant_sequencer_commitments(&block, &self.sequencer_da_pub_key)
+                .unwrap_or_default();
             mined_commitments.extend(iter);
         }
 

@@ -4,7 +4,9 @@ use bitcoin::hashes::Hash;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::compression::decompress_blob;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
+use sov_rollup_interface::da::{
+    BlockHeaderTrait, CountedBufReader, DaNamespace, DaSpec, DaVerifier,
+};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
@@ -14,6 +16,7 @@ use crate::helpers::parsers::{
     ParsedLightClientTransaction, VerifyParsed,
 };
 use crate::helpers::{calculate_double_sha256, merkle_tree};
+use crate::spec::blob::{BlobBuf, BlobWithSender};
 use crate::spec::BitcoinSpec;
 
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
@@ -74,6 +77,35 @@ impl ValidityCondition for ChainValidityCondition {
     }
 }
 
+// Get associated blob content only if signatures, hashes and public keys match
+fn verified_blob_content(
+    tx: &dyn VerifyParsed,
+    blobs_iter: &mut dyn Iterator<Item = &BlobWithSender>,
+) -> Result<Option<CountedBufReader<BlobBuf>>, ValidationError> {
+    if let Some(blob_hash) = tx.get_sig_verified_hash() {
+        let blob = blobs_iter.next();
+
+        let Some(blob) = blob else {
+            return Err(ValidationError::ValidBlobNotFoundInBlobs);
+        };
+
+        if blob.hash != blob_hash {
+            return Err(ValidationError::BlobWasTamperedWith);
+        }
+
+        if tx.public_key() != blob.sender.0 {
+            return Err(ValidationError::IncorrectSenderInBlob);
+        }
+
+        // read the supplied blob from txs
+        let mut blob_content = blob.blob.clone();
+        blob_content.advance(blob_content.total_len());
+        Ok(Some(blob_content))
+    } else {
+        Ok(None)
+    }
+}
+
 impl DaVerifier for BitcoinVerifier {
     type Spec = BitcoinSpec;
 
@@ -85,21 +117,23 @@ impl DaVerifier for BitcoinVerifier {
             reveal_light_client_prefix: params.reveal_light_client_prefix,
         }
     }
-
-    // Verify that the given list of blob transactions is complete and correct.
-    fn verify_relevant_tx_list(
+    fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        namespace: DaNamespace,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
         let mut inclusion_iter = inclusion_proof.wtxids.iter();
 
-        let prefix = self.reveal_batch_prover_prefix.as_slice();
+        let prefix = match namespace {
+            DaNamespace::BatchProof => self.reveal_batch_prover_prefix.as_slice(),
+            DaNamespace::LightClient => self.reveal_light_client_prefix.as_slice(),
+        };
         // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = BTreeSet::new();
 
@@ -120,222 +154,57 @@ impl DaVerifier for BitcoinVerifier {
             }
 
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
-                match parsed_tx {
-                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                        if let Some(blob_hash) = seq_comm.get_sig_verified_hash() {
-                            let blob = blobs_iter.next();
+            match namespace {
+                DaNamespace::BatchProof => {
+                    if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
+                        match parsed_tx {
+                            ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                                if let Some(blob_content) =
+                                    verified_blob_content(&seq_comm, &mut blobs_iter)?
+                                {
+                                    let blob_content = blob_content.accumulator();
 
-                            if blob.is_none() {
-                                return Err(ValidationError::ValidBlobNotFoundInBlobs);
-                            }
-
-                            let blob = blob.unwrap();
-                            if blob.hash != blob_hash {
-                                return Err(ValidationError::BlobWasTamperedWith);
-                            }
-
-                            if seq_comm.public_key != blob.sender.0 {
-                                return Err(ValidationError::IncorrectSenderInBlob);
-                            }
-
-                            // read the supplied blob from txs
-                            let mut blob_content = blob.blob.clone();
-                            blob_content.advance(blob_content.total_len());
-                            let blob_content = blob_content.accumulator();
-
-                            // assert tx content is not modified
-                            if blob_content != seq_comm.body {
-                                return Err(ValidationError::BlobContentWasModified);
+                                    // assert tx content is not modified
+                                    if blob_content != seq_comm.body {
+                                        return Err(ValidationError::BlobContentWasModified);
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
+                DaNamespace::LightClient => {
+                    if let Ok(parsed_tx) = parse_light_client_transaction(tx) {
+                        match parsed_tx {
+                            ParsedLightClientTransaction::Complete(complete) => {
+                                if let Some(blob_content) =
+                                    verified_blob_content(&complete, &mut blobs_iter)?
+                                {
+                                    let blob_content = blob_content.accumulator();
 
-            completeness_tx_hashes.insert(wtxid.to_byte_array());
-        }
-
-        // assert no extra txs than the ones in the completeness proof are left
-        if blobs_iter.next().is_some() {
-            return Err(ValidationError::IncorrectCompletenessProof);
-        }
-
-        // no prefix bytes left behind completeness proof
-        inclusion_proof.wtxids.iter().try_for_each(|wtxid| {
-            if wtxid.starts_with(prefix) {
-                // assert all prefixed transactions are included in completeness proof
-                if !completeness_tx_hashes.remove(wtxid) {
-                    return Err(ValidationError::RelevantTxNotInProof);
-                }
-            }
-            Ok(())
-        })?;
-
-        // assert no other (irrelevant) tx is in completeness proof
-        if !completeness_tx_hashes.is_empty() {
-            return Err(ValidationError::NonRelevantTxInProof);
-        }
-
-        // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
-        // and the rest of the script pub key is the commitment of witness data.
-        let coinbase_tx = &inclusion_proof.coinbase_tx;
-        // If there are more than one scriptPubKey matching the pattern,
-        // the one with highest output index is assumed to be the commitment.
-        // That  is why the iterator is reversed.
-        let commitment_idx = coinbase_tx.output.iter().rev().position(|output| {
-            output
-                .script_pubkey
-                .as_bytes()
-                .starts_with(WITNESS_COMMITMENT_PREFIX)
-        });
-        match commitment_idx {
-            // If commitment does not exist
-            None => {
-                // Relevant txs should be empty if there is no witness data because data is inscribed in the witness
-                if !blobs.is_empty() {
-                    return Err(ValidationError::InvalidBlock);
-                }
-            }
-            Some(mut commitment_idx) => {
-                let merkle_root =
-                    merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
-
-                let input_witness_value = coinbase_tx.input[0].witness.iter().next().unwrap();
-
-                let mut vec_merkle = merkle_root.to_vec();
-
-                vec_merkle.extend_from_slice(input_witness_value);
-
-                // check with sha256(sha256(<merkle root><witness value>))
-                let commitment = calculate_double_sha256(&vec_merkle);
-
-                // check if the commitment is correct
-                // on signet there is an additional commitment after the segwit commitment
-                // so we check only the first 32 bytes after commitment header (bytes [2, 5])
-                commitment_idx = coinbase_tx.output.len() - commitment_idx - 1; // The index is reversed
-                let script_pubkey = coinbase_tx.output[commitment_idx].script_pubkey.as_bytes();
-                if script_pubkey[6..38] != commitment {
-                    return Err(ValidationError::IncorrectInclusionProof);
-                }
-            }
-        }
-
-        let claimed_root = merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
-            inclusion_proof
-                .coinbase_tx
-                .compute_txid()
-                .as_raw_hash()
-                .to_byte_array(),
-            0,
-            inclusion_proof.coinbase_merkle_proof,
-        );
-
-        // Check that the tx root in the block header matches the tx root in the inclusion proof.
-        if block_header.merkle_root() != claimed_root {
-            return Err(ValidationError::IncorrectInclusionProof);
-        }
-
-        Ok(ChainValidityCondition {
-            prev_hash: block_header.prev_hash().to_byte_array(),
-            block_hash: block_header.block_hash().to_byte_array(),
-        })
-    }
-
-    fn verify_relevant_tx_list_light_client(
-        &self,
-        block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        // create hash set of blobs
-        let mut blobs_iter = blobs.iter();
-
-        let mut inclusion_iter = inclusion_proof.wtxids.iter();
-
-        let prefix = self.reveal_light_client_prefix.as_slice();
-        // Check starting bytes tx that parsed correctly is in blobs
-        let mut completeness_tx_hashes = BTreeSet::new();
-
-        for tx in completeness_proof.iter() {
-            let wtxid = tx.compute_wtxid();
-            // make sure it starts with the correct prefix
-            if !wtxid.as_byte_array().starts_with(prefix) {
-                return Err(ValidationError::NonRelevantTxInProof);
-            }
-
-            // make sure completeness txs are ordered same in inclusion proof
-            // this logic always start seaching from the last found index
-            // ordering should be preserved naturally
-            let is_found_in_block =
-                inclusion_iter.any(|wtxid_inc| wtxid_inc == wtxid.as_byte_array());
-            if !is_found_in_block {
-                return Err(ValidationError::RelevantTxNotFoundInBlock);
-            }
-
-            // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_light_client_transaction(tx) {
-                match parsed_tx {
-                    ParsedLightClientTransaction::Complete(complete) => {
-                        if let Some(blob_hash) = complete.get_sig_verified_hash() {
-                            let blob = blobs_iter.next();
-
-                            if blob.is_none() {
-                                return Err(ValidationError::ValidBlobNotFoundInBlobs);
+                                    // assert tx content is not modified
+                                    let body = decompress_blob(&complete.body);
+                                    if blob_content != body {
+                                        return Err(ValidationError::BlobContentWasModified);
+                                    }
+                                }
                             }
+                            ParsedLightClientTransaction::Aggregate(aggregate) => {
+                                if let Some(blob_content) =
+                                    verified_blob_content(&aggregate, &mut blobs_iter)?
+                                {
+                                    let blob_content = blob_content.accumulator();
 
-                            let blob = blob.unwrap();
-                            if blob.hash != blob_hash {
-                                return Err(ValidationError::BlobWasTamperedWith);
+                                    // assert tx content is not modified
+                                    if blob_content != aggregate.body {
+                                        return Err(ValidationError::BlobContentWasModified);
+                                    }
+                                }
                             }
-
-                            if complete.public_key != blob.sender.0 {
-                                return Err(ValidationError::IncorrectSenderInBlob);
-                            }
-
-                            // read the supplied blob from txs
-                            let mut blob_content = blob.blob.clone();
-                            blob_content.advance(blob_content.total_len());
-                            let blob_content = blob_content.accumulator();
-
-                            // assert tx content is not modified
-                            let body = decompress_blob(&complete.body);
-                            if blob_content != body {
-                                return Err(ValidationError::BlobContentWasModified);
+                            ParsedLightClientTransaction::Chunk(_chunk) => {
+                                // ignore
                             }
                         }
-                    }
-                    ParsedLightClientTransaction::Aggregate(aggregate) => {
-                        if let Some(blob_hash) = aggregate.get_sig_verified_hash() {
-                            let blob = blobs_iter.next();
-
-                            if blob.is_none() {
-                                return Err(ValidationError::ValidBlobNotFoundInBlobs);
-                            }
-
-                            let blob = blob.unwrap();
-                            if blob.hash != blob_hash {
-                                return Err(ValidationError::BlobWasTamperedWith);
-                            }
-
-                            if aggregate.public_key != blob.sender.0 {
-                                return Err(ValidationError::IncorrectSenderInBlob);
-                            }
-
-                            // read the supplied blob from txs
-                            let mut blob_content = blob.blob.clone();
-                            blob_content.advance(blob_content.total_len());
-                            let blob_content = blob_content.accumulator();
-
-                            // assert tx content is not modified
-                            if blob_content != aggregate.body {
-                                return Err(ValidationError::BlobContentWasModified);
-                            }
-                        }
-                    }
-                    ParsedLightClientTransaction::Chunk(_chunk) => {
-                        // ignore
                     }
                 }
             }
@@ -430,13 +299,6 @@ impl DaVerifier for BitcoinVerifier {
     }
 }
 
-// impl BitcoinVerifier {
-//     fn verify_batch_proofs(&self, batch_proofs: &[ParsedLightClientTransaction]) -> bool {
-
-//         return true;
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
 
@@ -449,7 +311,7 @@ mod tests {
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
-    use sov_rollup_interface::da::DaVerifier;
+    use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 
     use super::BitcoinVerifier;
     use crate::helpers::merkle_tree::BitcoinMerkleTree;
@@ -474,11 +336,12 @@ mod tests {
         let (block_header, inclusion_proof, completeness_proof, txs) = get_mock_data();
 
         assert!(verifier
-            .verify_relevant_tx_list(
+            .verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
-                completeness_proof
+                completeness_proof,
+                DaNamespace::BatchProof,
             )
             .is_ok());
     }
@@ -550,11 +413,12 @@ mod tests {
         let txs: Vec<BlobWithSender> = vec![];
 
         assert!(matches!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &header,
                 txs.as_slice(),
                 inclusion_proof,
-                completeness_proof
+                completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Ok(ChainValidityCondition {
                 prev_hash: _,
@@ -634,11 +498,12 @@ mod tests {
             .collect();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &header,
                 txs.as_slice(),
                 inclusion_proof,
-                completeness_proof
+                completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -731,11 +596,12 @@ mod tests {
             .collect();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &header,
                 txs.as_slice(),
                 inclusion_proof,
-                completeness_proof
+                completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -820,11 +686,12 @@ mod tests {
             .collect();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &header,
                 txs.as_slice(),
                 inclusion_proof,
-                completeness_proof
+                completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::NonRelevantTxInProof)
         );
@@ -841,11 +708,12 @@ mod tests {
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
 
         assert!(verifier
-            .verify_relevant_tx_list(
+            .verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof.clone(),
-                completeness_proof.clone()
+                completeness_proof.clone(),
+                DaNamespace::BatchProof,
             )
             .is_ok());
 
@@ -853,11 +721,12 @@ mod tests {
         inclusion_proof.wtxids[0] = [1; 32];
 
         assert!(verifier
-            .verify_relevant_tx_list(
+            .verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof.clone(),
-                completeness_proof.clone()
+                completeness_proof.clone(),
+                DaNamespace::BatchProof,
             )
             .is_err());
 
@@ -866,11 +735,12 @@ mod tests {
         inclusion_proof.wtxids[1] = [16; 32];
 
         assert!(verifier
-            .verify_relevant_tx_list(
+            .verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
-                completeness_proof
+                completeness_proof,
+                DaNamespace::BatchProof,
             )
             .is_err());
     }
@@ -887,11 +757,12 @@ mod tests {
         inclusion_proof.wtxids.push([5; 32]);
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -909,11 +780,12 @@ mod tests {
         inclusion_proof.wtxids.pop();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -931,11 +803,12 @@ mod tests {
         inclusion_proof.wtxids.clear();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -953,11 +826,12 @@ mod tests {
         inclusion_proof.wtxids.swap(0, 1);
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -975,11 +849,12 @@ mod tests {
         completeness_proof.pop();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectCompletenessProof)
         );
@@ -997,11 +872,12 @@ mod tests {
         completeness_proof.clear();
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectCompletenessProof)
         );
@@ -1019,11 +895,12 @@ mod tests {
         completeness_proof.push(get_mock_txs().get(1).unwrap().clone().into());
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::NonRelevantTxInProof)
         );
@@ -1042,11 +919,12 @@ mod tests {
         txs.swap(2, 3);
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -1064,11 +942,12 @@ mod tests {
         txs.swap(0, 1);
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::BlobWasTamperedWith)
         );
@@ -1087,11 +966,12 @@ mod tests {
         completeness_proof.swap(0, 1);
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -1110,11 +990,12 @@ mod tests {
 
         txs[1] = BlobWithSender::new(new_blob, txs[1].sender.0.clone(), txs[1].hash);
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::BlobContentWasModified)
         );
@@ -1137,11 +1018,12 @@ mod tests {
         txs[1] = BlobWithSender::new(body, vec![2; 33], txs[1].hash);
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::IncorrectSenderInBlob)
         );
@@ -1159,11 +1041,12 @@ mod tests {
         txs = vec![txs[0].clone(), txs[1].clone(), txs[2].clone()];
 
         assert_eq!(
-            verifier.verify_relevant_tx_list(
+            verifier.verify_transactions(
                 &block_header,
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
+                DaNamespace::BatchProof,
             ),
             Err(ValidationError::ValidBlobNotFoundInBlobs)
         );
