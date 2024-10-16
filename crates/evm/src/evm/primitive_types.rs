@@ -1,6 +1,7 @@
 use std::ops::Range;
 
-use reth_primitives::{Address, Header, SealedHeader, TransactionSigned, B256};
+use alloy_primitives::{Address, B256};
+use reth_primitives::{Header, SealedHeader, TransactionSigned};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Copy, Clone)]
 pub(crate) struct BlockEnv {

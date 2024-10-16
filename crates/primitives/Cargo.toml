@@ -12,8 +12,11 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 alloy-eips = { workspace = true }
+alloy-consensus = { workspace = true }
+alloy-rpc-types = { workspace = true }
+alloy-network = { workspace = true }
+alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
-reth-primitives = { workspace = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }

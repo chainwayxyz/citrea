@@ -32,8 +32,8 @@ pub mod smart_contracts;
 #[cfg(all(test, feature = "native"))]
 mod tests;
 
+use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
-use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId;
 use revm::primitives::U256;
 #[cfg(feature = "native")]
@@ -81,7 +81,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
     pub(crate) code:
-        sov_modules_api::StateMap<reth_primitives::B256, revm::primitives::Bytecode, BcsCodec>,
+        sov_modules_api::StateMap<alloy_primitives::B256, revm::primitives::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state]

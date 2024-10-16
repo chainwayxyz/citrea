@@ -979,8 +979,8 @@ where
             .unseal();
 
         let base_fee = calculate_next_block_base_fee(
-            latest_header.gas_used as u128,
-            latest_header.gas_limit as u128,
+            latest_header.gas_used,
+            latest_header.gas_limit,
             latest_header.base_fee_per_gas,
             cfg.base_fee_params,
         )

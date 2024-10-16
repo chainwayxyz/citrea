@@ -1,10 +1,10 @@
 use std::ops::RangeInclusive;
 
+use alloy_primitives::{Bytes, B256};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
-use reth_primitives::{Bytes, B256};
 use serde::Deserialize;
 use sov_rollup_interface::rpc::HexTx;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
@@ -91,7 +91,7 @@ impl SequencerClient {
         &self,
         tx_hash: B256,
         mempool_only: Option<bool>,
-    ) -> Result<Option<reth_rpc_types::Transaction>, Error> {
+    ) -> Result<Option<alloy_rpc_types::Transaction>, Error> {
         self.client
             .request(
                 "eth_getTransactionByHash",

@@ -160,7 +160,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         let end_block = self
             .provider
-            .block_number_for_id(&newest_block, working_set)?;
+            .block_number_for_id(&newest_block.into(), working_set)?;
 
         // need to add 1 to the end block to get the correct (inclusive) range
         let end_block_plus = end_block + 1;
@@ -219,8 +219,8 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let last_entry = fee_entries.last().expect("is not empty");
         base_fee_per_gas.push(
             calculate_next_block_base_fee(
-                last_entry.gas_used as u128,
-                last_entry.gas_limit as u128,
+                last_entry.gas_used,
+                last_entry.gas_limit,
                 Some(last_entry.base_fee_per_gas),
                 self.provider.get_chain_config(working_set).base_fee_params,
             )

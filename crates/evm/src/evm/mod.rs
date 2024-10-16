@@ -1,5 +1,5 @@
 use alloy_eips::eip1559::BaseFeeParams;
-use reth_primitives::{address, Address, B256, U256};
+use alloy_primitives::{address, Address, B256, U256};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};

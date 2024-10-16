@@ -31,15 +31,19 @@ tracing = { workspace = true, optional = true }
 
 alloy-consensus = { workspace = true }
 alloy-eips = { workspace = true }
+alloy-network = { version = "0.4.2", default-features = false }
 alloy-primitives = { workspace = true, features = ["rand", "serde"] }
 alloy-rlp = { workspace = true, optional = true }
+alloy-rpc-types = { workspace = true, optional = true }
+alloy-rpc-types-trace = { workspace = true, optional = true }
+alloy-serde = { version = "0.4.2", default-features = false }
 alloy-sol-types = { workspace = true }
 itertools = { workspace = true, optional = true }
 reth-primitives = { workspace = true, default-features = false }
 reth-provider = { workspace = true, optional = true }
 reth-rpc-eth-types = { workspace = true, optional = true }
+reth-rpc-eth-api = { workspace = true, optional = true }
 reth-rpc-server-types = { workspace = true, optional = true }
-reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
 revm = { workspace = true }
 revm-inspectors = { workspace = true, optional = true }
@@ -70,8 +74,10 @@ native = [
   "sov-state/native",
   "sov-modules-api/native",
 
-  "reth-rpc-types",
+  "alloy-rpc-types",
+  "alloy-rpc-types-trace",
   "reth-rpc-eth-types",
+  "reth-rpc-eth-api",
   "reth-rpc-server-types",
   "reth-rpc-types-compat",
   "revm-inspectors",

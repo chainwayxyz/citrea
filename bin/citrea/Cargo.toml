@@ -49,7 +49,7 @@ hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 log-panics = { workspace = true }
 reth-primitives = { workspace = true }
-reth-rpc-types = { workspace = true }
+alloy-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }
 secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

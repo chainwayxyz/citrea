@@ -31,7 +31,7 @@ tracing = { workspace = true }
 # Reth deps
 reth-primitives = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
-reth-rpc-types = { workspace = true }
+alloy-rpc-types = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
 
 # Sovereign-SDK deps

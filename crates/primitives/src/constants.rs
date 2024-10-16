@@ -30,7 +30,7 @@ pub const TEST_PRIVATE_KEY: &str =
 
 pub const MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD: u64 = 300 * 1024;
 
-pub const MIN_BASE_FEE_PER_GAS: u128 = 10_000_000; // 0.01 gwei
+pub const MIN_BASE_FEE_PER_GAS: u64 = 10_000_000; // 0.01 gwei
 
 /// Maximum size of a bitcoin transaction body in bytes
 pub const MAX_TXBODY_SIZE: usize = 397000;
