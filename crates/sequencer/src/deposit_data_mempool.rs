@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use citrea_evm::system_contracts::Bridge;
+use citrea_evm::system_contracts::BridgeWrapper;
 use citrea_evm::SYSTEM_SIGNER;
 use reth_primitives::TxKind;
 use reth_rpc_types::{TransactionInput, TransactionRequest};
@@ -21,8 +21,8 @@ impl DepositDataMempool {
     pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Vec<u8>) -> TransactionRequest {
         TransactionRequest {
             from: Some(SYSTEM_SIGNER),
-            to: Some(TxKind::Call(Bridge::address())),
-            input: TransactionInput::new(Bridge::deposit(deposit_tx_data)),
+            to: Some(TxKind::Call(BridgeWrapper::address())),
+            input: TransactionInput::new(BridgeWrapper::deposit(deposit_tx_data)),
             ..Default::default()
         }
     }

@@ -70,9 +70,9 @@ sol! {
 }
 
 /// Bridge wrapper.
-pub struct Bridge {}
+pub struct BridgeWrapper {}
 
-impl Bridge {
+impl BridgeWrapper {
     /// Return the address of the Bridge contract.
     pub fn address() -> Address {
         address!("3100000000000000000000000000000000000002")

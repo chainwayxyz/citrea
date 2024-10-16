@@ -6,7 +6,7 @@ use reth_primitives::{
     TransactionSignedNoHash,
 };
 
-use super::system_contracts::{BitcoinLightClient, Bridge};
+use super::system_contracts::{BitcoinLightClient, BridgeWrapper};
 
 /// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
 pub static SYSTEM_SIGNATURE: Lazy<Signature> = Lazy::new(|| {
@@ -53,8 +53,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BridgeInitialize => TxEip1559 {
-            to: TxKind::Call(Bridge::address()),
-            input: Bridge::initialize(),
+            to: TxKind::Call(BridgeWrapper::address()),
+            input: BridgeWrapper::initialize(),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -63,8 +63,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BridgeDeposit(params) => TxEip1559 {
-            to: TxKind::Call(Bridge::address()),
-            input: Bridge::deposit(params),
+            to: TxKind::Call(BridgeWrapper::address()),
+            input: BridgeWrapper::deposit(params),
             nonce,
             chain_id,
             value: U256::ZERO,
