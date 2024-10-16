@@ -7,7 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot::Sender as OneshotSender;
 
-use crate::da::BlockHeaderTrait;
+use crate::da::{BlockHeaderTrait, DaDataBatchProof, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::da::{DaData, DaSpec, DaVerifier};
 #[cfg(feature = "native")]
@@ -75,11 +75,6 @@ pub trait DaService: Send + Sync + 'static {
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>;
 
-    /// Subscribe to finalized headers as they are finalized.
-    /// Expect only to receive headers which were finalized after subscription
-    /// Optimized version of `get_last_finalized_block_header`.
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error>;
-
     /// Fetch the head block of the most popular fork.
     ///
     /// More like utility method, to provide better user experience
@@ -87,46 +82,23 @@ pub trait DaService: Send + Sync + 'static {
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>;
 
+    // ==================================================================================================
+
     /// Extract the relevant transactions from a block. For example, this method might return
     /// all of the blob transactions in rollup's namespace on Celestia.
-    fn extract_relevant_blobs(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
-
-    /// Extract the relevant LightClient transactions from a block.
-    fn extract_relevant_blobs_light_client(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
 
     /// Extract the relevant proofs from a block.
-    async fn extract_relevant_proofs(
+    async fn extract_relevant_zk_proofs(
         &self,
         block: &Self::FilteredBlock,
-        prover_pk: &[u8],
+        prover_da_pub_key: &[u8],
     ) -> anyhow::Result<Vec<Proof>>;
 
-    /// Generate a proof that the relevant blob transactions have been extracted correctly from the DA layer
-    /// block.
-    async fn get_extraction_proof(
+    fn extract_relevant_sequencer_commitments(
         &self,
         block: &Self::FilteredBlock,
-        blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-    ) -> (
-        <Self::Spec as DaSpec>::InclusionMultiProof,
-        <Self::Spec as DaSpec>::CompletenessProof,
-    );
-
-    /// Generate a proof that the relevant LightClient blob transactions have been extracted correctly from the DA layer
-    /// block.
-    async fn get_extraction_proof_light_client(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> (
-        <Self::Spec as DaSpec>::InclusionMultiProof,
-        <Self::Spec as DaSpec>::CompletenessProof,
-    );
+        sequencer_da_pub_key: &[u8],
+    ) -> anyhow::Result<Vec<SequencerCommitment>>;
 
     /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
     /// For example, this method might return all of the blob transactions in rollup's namespace on Celestia,
@@ -136,30 +108,14 @@ pub trait DaService: Send + Sync + 'static {
     async fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
-    ) -> (
-        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
-        <Self::Spec as DaSpec>::InclusionMultiProof,
-        <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
-        let relevant_txs = self.extract_relevant_blobs(block);
-
-        let (etx_proofs, rollup_row_proofs) = self
-            .get_extraction_proof(block, relevant_txs.as_slice())
-            .await;
-
-        (relevant_txs, etx_proofs, rollup_row_proofs)
-    }
-
-    /// TODO doc
-    #[allow(clippy::type_complexity)]
-    async fn extract_relevant_blobs_with_proof_light_client(
-        &self,
-        block: &Self::FilteredBlock,
+        namespace_enum: NameSpaceEnum,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
     );
+
+    // ==================================================================================================
 
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
@@ -173,22 +129,11 @@ pub trait DaService: Send + Sync + 'static {
         unimplemented!()
     }
 
-    /// Sends am aggregated ZK proofs to the DA layer.
-    async fn send_aggregated_zk_proof(
-        &self,
-        aggregated_proof_data: &[u8],
-    ) -> Result<u64, Self::Error>;
-
-    /// Fetches all aggregated ZK proofs at a specified block height.
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
-
     /// Returns fee rate per byte on DA layer.
     async fn get_fee_rate(&self) -> Result<u128, Self::Error>;
 
     /// Returns the relevant blobs of pending transactions (transactions that are not yet included in a block).
-    async fn get_relevant_blobs_of_pending_transactions(
-        &self,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction>;
+    async fn get_pending_sequencer_commitments(&self) -> Vec<SequencerCommitment>;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

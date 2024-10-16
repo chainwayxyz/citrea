@@ -34,6 +34,8 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
+// TODO: rename to da service request smth smth
+// DaDataOutgoing
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -43,6 +45,9 @@ pub enum DaData {
     /// Or a zk proof and state diff
     ZKProof(Proof),
 }
+
+// TODO: create DaDataIncoming
+// consists of
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -125,21 +130,13 @@ pub trait DaVerifier: Send + Sync {
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self;
 
     /// Verify a claimed set of BatchProof transactions against a block header.
-    fn verify_relevant_tx_list(
+    fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
-
-    /// Verify a claimed set of LightClient transactions against a block header
-    fn verify_relevant_tx_list_light_client(
-        &self,
-        block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        namespace_enum: NameSpaceEnum,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
 }
 
