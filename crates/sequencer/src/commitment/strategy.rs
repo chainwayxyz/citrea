@@ -168,8 +168,7 @@ impl CommitmentStrategy for CommitmentController {
         let mut commitment_infos: Vec<Option<CommitmentInfo>> = self
             .strategies
             .iter_mut()
-            .map(|strategy| strategy.should_commit(l2_height, l2_state_diff.clone()))
-            .flatten()
+            .flat_map(|strategy| strategy.should_commit(l2_height, l2_state_diff.clone()))
             .collect();
         commitment_infos.retain(|s| s.is_some());
         Ok(commitment_infos.first().cloned().flatten())
