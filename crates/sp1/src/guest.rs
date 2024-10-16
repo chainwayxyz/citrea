@@ -20,16 +20,16 @@ impl Zkvm for SP1Guest {
     type Error = anyhow::Error;
 
     fn verify(
-            _serialized_proof: &[u8],
-            _code_commitment: &Self::CodeCommitment,
-        ) -> Result<Vec<u8>, Self::Error> {
+        _serialized_proof: &[u8],
+        _code_commitment: &Self::CodeCommitment,
+    ) -> Result<Vec<u8>, Self::Error> {
         unimplemented!()
     }
 
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
-            _serialized_proof: &[u8],
-            _code_commitment: &Self::CodeCommitment,
-        ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+        _serialized_proof: &[u8],
+        _code_commitment: &Self::CodeCommitment,
+    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         unimplemented!()
     }
 }
@@ -37,8 +37,7 @@ impl Zkvm for SP1Guest {
 impl ZkvmGuest for SP1Guest {
     fn read_from_host<T: BorshDeserialize>(&self) -> T {
         let buf = io::read_vec();
-        T::try_from_slice(&buf)
-            .expect("Failed to deserialize input from host")
+        T::try_from_slice(&buf).expect("Failed to deserialize input from host")
     }
 
     fn commit<T: BorshSerialize>(&self, item: &T) {

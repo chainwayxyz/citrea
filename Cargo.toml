@@ -117,7 +117,7 @@ toml = "0.8.0"
 jsonrpsee = { version = "0.24.2", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
-tokio = { version = "1.39", features = ["full"] }
+tokio = { version = "1.40", features = ["full"] }
 tokio-util = { version = "0.7.12", features = ["rt"] }
 num_cpus = "1.0"
 
