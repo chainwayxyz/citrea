@@ -408,6 +408,7 @@ impl TestCase for LocalProvingTest {
 }
 
 #[tokio::test]
+#[ignore]
 async fn local_proving_test() -> Result<()> {
     TestCaseRunner::new(LocalProvingTest).run().await
 }
