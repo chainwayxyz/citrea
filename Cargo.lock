@@ -1217,6 +1217,7 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "brotli",
+ "citrea-common",
  "citrea-primitives",
  "futures",
  "hex",
@@ -1757,6 +1758,7 @@ dependencies = [
  "jsonrpsee",
  "lru",
  "serde",
+ "serde_json",
  "sov-db",
  "sov-mock-da",
  "sov-rollup-interface 0.5.0-rc.1",
@@ -1772,7 +1774,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=a96abcf#a96abcfe145b9d2467e2f6a5b996cf458bb2d079"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=72a77f0#72a77f0087dd604ffa2640c432254a16bb04b591"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1782,6 +1784,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
+ "log-panics",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -1791,6 +1794,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

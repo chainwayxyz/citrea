@@ -253,7 +253,7 @@ jobs:
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
@@ -294,7 +294,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
@@ -322,7 +322,7 @@ jobs:
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
