@@ -2,19 +2,20 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use borsh::BorshDeserialize;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::StreamExt;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::BatchNumber;
-use sov_modules_api::StateDiff;
-use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_modules_api::{BlobReaderTrait, StateDiff};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaDataBatchProof, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use tokio::select;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use self::strategy::{CommitmentController, MinSoftConfirmations, StateDiffThreshold};
 use crate::commitment::strategy::CommitmentStrategy;
@@ -34,6 +35,7 @@ where
 {
     ledger_db: Arc<Db>,
     da_service: Arc<Da>,
+    sequencer_da_pub_key: Vec<u8>,
     soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
     commitment_controller: CommitmentController,
 }
@@ -46,6 +48,7 @@ where
     pub fn new(
         ledger_db: Arc<Db>,
         da_service: Arc<Da>,
+        sequencer_da_pub_key: Vec<u8>,
         min_soft_confirmations: u64,
         soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
     ) -> Self {
@@ -59,6 +62,7 @@ where
         Self {
             ledger_db,
             da_service,
+            sequencer_da_pub_key,
             soft_confirmation_rx,
             commitment_controller,
         }
@@ -177,6 +181,63 @@ where
         Ok(())
     }
 
+    #[instrument(level = "trace", skip(self), err, ret)]
+    pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
+        info!("Resubmitting pending commitments");
+
+        let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
+        info!("Pending db commitments: {:?}", pending_db_commitments);
+
+        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
+        info!(
+            "Commitments that are already in DA mempool: {:?}",
+            pending_mempool_commitments
+        );
+
+        let last_commitment_l1_height = self
+            .ledger_db
+            .get_l1_height_of_last_commitment()?
+            .unwrap_or(SlotNumber(1));
+        let mined_commitments = self
+            .get_mined_commitments_from(last_commitment_l1_height)
+            .await?;
+        info!(
+            "Commitments that are already mined by DA: {:?}",
+            mined_commitments
+        );
+
+        let mut pending_commitments_to_remove = vec![];
+        pending_commitments_to_remove.extend(pending_mempool_commitments);
+        pending_commitments_to_remove.extend(mined_commitments);
+
+        for (l2_start, l2_end) in pending_db_commitments {
+            if pending_commitments_to_remove.iter().any(|commitment| {
+                commitment.l2_start_block_number == l2_start.0
+                    && commitment.l2_end_block_number == l2_end.0
+            }) {
+                // Update last sequencer commitment l2 height
+                match self.ledger_db.get_last_commitment_l2_height()? {
+                    Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
+                    _ => {
+                        self.ledger_db.set_last_commitment_l2_height(l2_end)?;
+                    }
+                };
+
+                // Delete from pending db if it is already in DA mempool or mined
+                self.ledger_db
+                    .delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
+            } else {
+                // Submit commitment
+                let commitment_info = CommitmentInfo {
+                    l2_height_range: l2_start..=l2_end,
+                };
+                self.commit(commitment_info, true).await?;
+            }
+        }
+
+        Ok(())
+    }
+
     #[instrument(level = "debug", skip_all, err)]
     pub fn get_commitment(
         &self,
@@ -200,5 +261,70 @@ where
             l2_start_block_number: commitment_info.l2_height_range.start().0,
             l2_end_block_number: commitment_info.l2_height_range.end().0,
         })
+    }
+
+    async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
+        self.da_service
+            .get_relevant_blobs_of_pending_transactions()
+            .await
+            .into_iter()
+            .filter_map(
+                |mut blob| match DaDataBatchProof::try_from_slice(blob.full_data()) {
+                    Ok(da_data)
+                    // we check on da pending txs of our wallet however let's keep consistency
+                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
+                    {
+                        match da_data {
+                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
+                        }
+                    }
+                    Ok(_) => None,
+                    Err(err) => {
+                        warn!("Pending transaction blob failed to be parsed: {}", err);
+                        None
+                    }
+                },
+            )
+            .collect()
+    }
+
+    async fn get_mined_commitments_from(
+        &self,
+        da_height: SlotNumber,
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let head_da_height = self
+            .da_service
+            .get_head_block_header()
+            .await
+            .map_err(|e| anyhow!(e))?
+            .height();
+        let mut mined_commitments = vec![];
+        for height in da_height.0..=head_da_height {
+            let block = self
+                .da_service
+                .get_block_at(height)
+                .await
+                .map_err(|e| anyhow!(e))?;
+            let blobs = self.da_service.extract_relevant_blobs(&block);
+            let iter = blobs.into_iter().filter_map(|mut blob| {
+                match DaDataBatchProof::try_from_slice(blob.full_data()) {
+                    Ok(da_data)
+                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
+                    {
+                        match da_data {
+                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
+                        }
+                    }
+                    Ok(_) => None,
+                    Err(err) => {
+                        warn!("Pending transaction blob failed to be parsed: {}", err);
+                        None
+                    }
+                }
+            });
+            mined_commitments.extend(iter);
+        }
+
+        Ok(mined_commitments)
     }
 }

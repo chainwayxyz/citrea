@@ -7,7 +7,6 @@ use std::vec;
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use borsh::BorshDeserialize;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
@@ -33,11 +32,11 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
     UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -90,7 +89,6 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
-    last_state_diff: StateDiff,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
@@ -161,9 +159,6 @@ where
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
-        // Initialize the sequencer with the last state diff from DB.
-        let last_state_diff = ledger_db.get_state_diff()?;
-
         let task_manager = TaskManager::default();
 
         Ok(Self {
@@ -184,7 +179,6 @@ where
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             rpc_config,
-            last_state_diff,
             fork_manager,
             soft_confirmation_tx,
             task_manager,
@@ -572,134 +566,7 @@ where
     }
 
     #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
-        info!("Resubmitting pending commitments");
-
-        let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
-        info!("Pending db commitments: {:?}", pending_db_commitments);
-
-        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
-        info!(
-            "Commitments that are already in DA mempool: {:?}",
-            pending_mempool_commitments
-        );
-
-        let last_commitment_l1_height = self
-            .ledger_db
-            .get_l1_height_of_last_commitment()?
-            .unwrap_or(SlotNumber(1));
-        let mined_commitments = self
-            .get_mined_commitments_from(last_commitment_l1_height)
-            .await?;
-        info!(
-            "Commitments that are already mined by DA: {:?}",
-            mined_commitments
-        );
-
-        let mut pending_commitments_to_remove = vec![];
-        pending_commitments_to_remove.extend(pending_mempool_commitments);
-        pending_commitments_to_remove.extend(mined_commitments);
-
-        for (l2_start, l2_end) in pending_db_commitments {
-            if pending_commitments_to_remove.iter().any(|commitment| {
-                commitment.l2_start_block_number == l2_start.0
-                    && commitment.l2_end_block_number == l2_end.0
-            }) {
-                // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_commitment_l2_height()? {
-                    Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
-                    _ => {
-                        self.ledger_db.set_last_commitment_l2_height(l2_end)?;
-                    }
-                };
-
-                // Delete from pending db if it is already in DA mempool or mined
-                self.ledger_db
-                    .delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
-            } else {
-                // Submit commitment
-                let commitment_info = commitment_controller::CommitmentInfo {
-                    l2_height_range: l2_start..=l2_end,
-                };
-                self.submit_commitment(commitment_info, true).await?;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
-        self.da_service
-            .get_relevant_blobs_of_pending_transactions()
-            .await
-            .into_iter()
-            .filter_map(
-                |mut blob| match DaDataBatchProof::try_from_slice(blob.full_data()) {
-                    Ok(da_data)
-                    // we check on da pending txs of our wallet however let's keep consistency
-                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
-                    {
-                        match da_data {
-                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
-                        }
-                    }
-                    Ok(_) => None,
-                    Err(err) => {
-                        warn!("Pending transaction blob failed to be parsed: {}", err);
-                        None
-                    }
-                },
-            )
-            .collect()
-    }
-
-    async fn get_mined_commitments_from(
-        &self,
-        da_height: SlotNumber,
-    ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let head_da_height = self
-            .da_service
-            .get_head_block_header()
-            .await
-            .map_err(|e| anyhow!(e))?
-            .height();
-        let mut mined_commitments = vec![];
-        for height in da_height.0..=head_da_height {
-            let block = self
-                .da_service
-                .get_block_at(height)
-                .await
-                .map_err(|e| anyhow!(e))?;
-            let blobs = self.da_service.extract_relevant_blobs(&block);
-            let iter = blobs.into_iter().filter_map(|mut blob| {
-                match DaDataBatchProof::try_from_slice(blob.full_data()) {
-                    Ok(da_data)
-                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
-                    {
-                        match da_data {
-                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
-                        }
-                    }
-                    Ok(_) => None,
-                    Err(err) => {
-                        warn!("Pending transaction blob failed to be parsed: {}", err);
-                        None
-                    }
-                }
-            });
-            mined_commitments.extend(iter);
-        }
-
-        Ok(mined_commitments)
-    }
-
-    #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        if self.batch_hash != [0; 32] {
-            // Resubmit if there were pending commitments on restart, skip it on first init
-            self.resubmit_pending_commitments().await?;
-        }
-
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
@@ -737,6 +604,20 @@ where
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
         let (da_commitment_tx, da_commitment_rx) = unbounded::<(u64, StateDiff)>();
 
+        let mut commitment_service = CommitmentService::new(
+            self.ledger_db.clone().into(),
+            self.da_service.clone(),
+            self.sequencer_da_pub_key.clone(),
+            self.config.min_soft_confirmations_per_commitment,
+            da_commitment_rx,
+        );
+        if self.batch_hash != [0; 32] {
+            // Resubmit if there were pending commitments on restart, skip it on first init
+            commitment_service.resubmit_pending_commitments().await?;
+        }
+        self.task_manager
+            .spawn(|cancellation_token| commitment_service.run(cancellation_token));
+
         self.task_manager.spawn(|cancellation_token| {
             da_block_monitor(
                 self.da_service.clone(),
@@ -745,15 +626,6 @@ where
                 cancellation_token,
             )
         });
-
-        let commitment_service = CommitmentService::new(
-            self.ledger_db.clone().into(),
-            self.da_service.clone(),
-            self.config.min_soft_confirmations_per_commitment,
-            da_commitment_rx,
-        );
-        self.task_manager
-            .spawn(|cancellation_token| commitment_service.run(cancellation_token));
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 
