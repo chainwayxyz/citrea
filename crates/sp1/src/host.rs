@@ -31,9 +31,9 @@ impl Clone for SP1Host {
 
 impl SP1Host {
     /// Creates an [`SP1Host`] instance. The type of [`ProverClient`]
-    /// is determined based on the SP1_PROVER environment variable.
+    /// is determined based on the `SP1_PROVER`` environment variable.
     /// Possible values are `local`, `mock`, `network`.
-    /// If set value is `network`, SP1_PRIVATE_KEY environment variable
+    /// If set value is `network`, `SP1_PRIVATE_KEY` environment variable
     /// must also be set. Default is `local`
     pub fn new(elf: &'static [u8], ledger_db: LedgerDB) -> Self {
         let client = ProverClient::new();
