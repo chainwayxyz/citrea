@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 
+use alloy_primitives::U256;
 #[cfg(feature = "local")]
 use citrea_evm::DevSigner;
 use citrea_evm::Evm;
-use reth_primitives::U256;
 use reth_rpc_types::trace::geth::GethTrace;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};

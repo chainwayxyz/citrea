@@ -61,7 +61,7 @@ impl BitcoinLightClient {
     }
 }
 
-// Bridge wrapper.
+/// Bridge wrapper.
 sol! {
     #[sol(abi)]
     #[allow(missing_docs)]

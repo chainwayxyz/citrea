@@ -7,7 +7,7 @@ use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::{Address, Bytes, B256, U256, U64};
 use alloy_primitives::TxKind::{Call, Create};
 use alloy_rlp::Encodable;
-use alloy_rpc_types::eth::TransactionRequest;
+use alloy_rpc_types::eth::{TransactionRequest, Block as AlloyRpcBlock};
 use alloy_rpc_types::state::StateOverride;
 use alloy_serde::OtherFields;
 use alloy_rpc_types::{eth::Index, TransactionInfo, Log, AnyReceiptEnvelope, AnyTransactionReceipt, BlockOverrides, ReceiptWithBloom,
@@ -21,6 +21,7 @@ use reth_primitives::{
 use reth_provider::ProviderError;
 use reth_rpc_eth_api::{RpcBlock, RpcReceipt, RpcTransaction};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RevertError, RpcInvalidTransactionError};
+use reth_rpc::eth::helpers::types::EthTxBuilder;
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types_compat::block::from_primitive_with_hash;
 use revm::primitives::{
@@ -196,7 +197,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                             base_fee: header.base_fee_per_gas.map(u128::from),
                             index: Some(idx as u64),
                         };
-                        reth_rpc_types_compat::transaction::from_recovered_with_block_context(tx.clone().into(), tx_info)
+                        reth_rpc_types_compat::transaction::from_recovered_with_block_context::<EthTxBuilder>(tx.clone().into(), tx_info)
                     })
                     .collect::<Vec<_>>(),
             ),
@@ -219,7 +220,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Build rpc block response
         let block = WithOtherFields {
             inner: {
-                RpcBlock {
+                AlloyRpcBlock {
                     header,
                     size: Some(U256::from(size)),
                     uncles,
@@ -425,7 +426,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             index: Some(index),
         };
 
-        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context(
+        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context::<EthTxBuilder>(
             tx.into(),
             tx_info,
         );
@@ -478,7 +479,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             index: Some(index),
         };
 
-        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context(
+        let transaction = reth_rpc_types_compat::transaction::from_recovered_with_block_context::<EthTxBuilder>(
             tx.into(),
             tx_info,
         );
@@ -1158,7 +1159,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 index: Some(number - block.transactions.start),
             };
 
-            reth_rpc_types_compat::transaction::from_recovered_with_block_context(
+            reth_rpc_types_compat::transaction::from_recovered_with_block_context::<EthTxBuilder>(
                 tx.into(),
                 tx_info,
             )

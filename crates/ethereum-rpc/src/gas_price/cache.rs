@@ -1,3 +1,4 @@
+use alloy_primitives::B256;
 use reth_primitives::{BlockNumberOrTag, B256};
 use reth_rpc_eth_types::EthResult;
 use reth_rpc_types::{AnyTransactionReceipt, Block, BlockTransactions, Rich};

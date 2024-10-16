@@ -56,7 +56,7 @@ use super::result::internal_rpc_err;
 //     HaltedDepositPostRegolith,
 // }
 
-// A helper error type that's mainly used to mirror `geth` Txpool's error messages
+/// A helper error type that's mainly used to mirror `geth` Txpool's error messages
 #[derive(Debug, thiserror::Error)]
 pub enum RpcPoolError {
     /// When the transaction is already known

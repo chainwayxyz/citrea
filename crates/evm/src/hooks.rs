@@ -202,7 +202,7 @@ where
             gas_limit: self.block_env.gas_limit,
             gas_used,
             mix_hash: self.block_env.prevrandao,
-            nonce: B64::from(0),
+            nonce: alloy_primitives::B64::ZERO,
             base_fee_per_gas,
             extra_data: Bytes::default(),
             // EIP-4844 related fields
