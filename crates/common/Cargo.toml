@@ -21,6 +21,7 @@ hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lru = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 toml = { workspace = true }
@@ -29,8 +30,9 @@ tracing = { workspace = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
+sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
 
 # Citrea
 citrea-primitives = { path = "../primitives/" }

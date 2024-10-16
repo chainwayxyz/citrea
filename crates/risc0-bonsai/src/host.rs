@@ -10,10 +10,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
-    Receipt,
+    LocalProver, Prover, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
+use sov_risc0_adapter::host::add_benchmarking_callbacks;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{error, info, warn};
 
@@ -87,7 +88,6 @@ pub struct Risc0BonsaiHost<'a> {
     env: Vec<u8>,
     image_id: Digest,
     client: Option<Client>,
-    last_input_id: Option<String>,
     ledger_db: LedgerDB,
 }
 
@@ -127,24 +127,19 @@ impl<'a> Risc0BonsaiHost<'a> {
             env: Default::default(),
             image_id,
             client,
-            last_input_id: None,
             ledger_db,
         }
     }
 
-    fn upload_to_bonsai(&mut self, buf: Vec<u8>) {
-        let client = self
-            .client
-            .clone()
-            .expect("Bonsai client is not initialized");
-        // handle error
+    fn upload_to_bonsai(&self, client: &Client, buf: Vec<u8>) -> String {
+        let client = client.clone();
         let input_id =
             thread::spawn(move || retry_backoff_bonsai!(client.upload_input(buf.clone())))
                 .join()
                 .unwrap()
                 .expect("Failed to upload input; qed");
         tracing::info!("Uploaded input with id: {}", input_id);
-        self.last_input_id = Some(input_id);
+        input_id
     }
 
     fn receipt_loop(&self, session: &str, client: &Client) -> Result<Vec<u8>, anyhow::Error> {
@@ -299,10 +294,6 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
         // write buf
         self.env.extend_from_slice(&buf);
-
-        if self.client.is_some() {
-            self.upload_to_bonsai(buf);
-        }
     }
 
     /// Guest simulation (execute mode) is run inside the Risc0 VM locally
@@ -313,93 +304,103 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
-        if !with_proof {
-            let env =
-                sov_risc0_adapter::host::add_benchmarking_callbacks(ExecutorEnvBuilder::default())
+        let proof = match (self.client.as_ref(), with_proof) {
+            // Local execution. If mode is Execute, we always do local execution.
+            (_, false) => {
+                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
                     .write_slice(&self.env)
                     .build()
                     .unwrap();
-            let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
+                let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
 
-            let session = executor.run()?;
-            // don't delete useful while benchmarking
-            // println!(
-            //     "user cycles: {}\ntotal cycles: {}\nsegments: {}",
-            //     session.user_cycles,
-            //     session.total_cycles,
-            //     session.segments.len()
-            // );
-            let data = bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
+                let session = executor.run()?;
+                let data =
+                    bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
 
-            Ok(Proof::PublicInput(data))
-        } else {
-            let client = self.client.as_ref().ok_or_else(|| {
-                anyhow!("Bonsai client is not initialized running in full node mode or missing API URL or API key")
-            })?;
+                Ok(Proof::PublicInput(data))
+            }
+            // Local proving
+            (None, true) => {
+                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
+                    .write_slice(&self.env)
+                    .build()
+                    .unwrap();
 
-            let input_id = self.last_input_id.take();
+                let prover = LocalProver::new("citrea");
+                let receipt = prover.prove(env, self.elf)?.receipt;
 
-            let input_id = match input_id {
-                Some(input_id) => input_id,
-                None => return Err(anyhow::anyhow!("No input data provided")),
-            };
+                tracing::info!("Local proving completed");
 
-            // Start a session running the prover
-            // execute only is set to false because we run bonsai only when proving
-            let client_clone = client.clone();
-            let image_id = hex::encode(self.image_id);
-            let input_id = input_id.clone();
-            let session = thread::spawn(move || {
-                let input_id = &input_id;
-                let image_id = &image_id;
-                retry_backoff_bonsai!(client_clone.create_session(
-                    image_id.clone(),
-                    input_id.clone(),
-                    vec![],
-                    false
-                ))
-                .expect("Failed to fetch status; qed")
-            })
-            .join()
-            .unwrap();
-            let stark_session = RecoveredBonsaiSession {
-                id: 0,
-                session: BonsaiSession::StarkSession(session.uuid.clone()),
-            };
-            let serialized_stark_session = borsh::to_vec(&stark_session)
-                .expect("Bonsai host should be able to serialize bonsai sessions");
-            self.ledger_db
-                .add_pending_proving_session(serialized_stark_session.clone())?;
+                receipt.verify(self.image_id)?;
 
-            tracing::info!("Session created: {}", session.uuid);
+                tracing::info!("Verified the receipt");
 
-            let receipt = self.wait_for_receipt(&session.uuid)?;
+                let serialized_receipt = bincode::serialize(&receipt)?;
 
-            tracing::info!("Creating the SNARK");
+                Ok(Proof::Full(serialized_receipt))
+            }
+            // Bonsai proving
+            (Some(client), true) => {
+                // Upload input to Bonsai
+                let input_id = self.upload_to_bonsai(client, self.env.clone());
 
-            let client_clone = client.clone();
-            let uuid = session.uuid.clone();
-            let snark_session = thread::spawn(move || {
-                let uuid = &uuid;
-                retry_backoff_bonsai!(client_clone.create_snark(uuid.clone()))
+                let image_id = hex::encode(self.image_id);
+                let client_clone = client.clone();
+                // Start a Bonsai session
+                let session = thread::spawn(move || {
+                    retry_backoff_bonsai!(client_clone.create_session(
+                        image_id.clone(),
+                        input_id.clone(),
+                        vec![],
+                        false
+                    ))
                     .expect("Failed to fetch status; qed")
-            })
-            .join()
-            .unwrap();
+                })
+                .join()
+                .unwrap();
+                let stark_session = RecoveredBonsaiSession {
+                    id: 0,
+                    session: BonsaiSession::StarkSession(session.uuid.clone()),
+                };
+                let serialized_stark_session = borsh::to_vec(&stark_session)
+                    .expect("Bonsai host should be able to serialize bonsai sessions");
+                self.ledger_db
+                    .add_pending_proving_session(serialized_stark_session.clone())?;
 
-            // Remove the stark session as it is finished
-            self.ledger_db
-                .remove_pending_proving_session(serialized_stark_session.clone())?;
+                tracing::info!("Session created: {}", session.uuid);
 
-            tracing::info!("SNARK session created: {}", snark_session.uuid);
+                let receipt = self.wait_for_receipt(&session.uuid)?;
 
-            // Snark session is saved in the function
-            self.wait_for_stark_to_snark_conversion(
-                Some(&snark_session.uuid),
-                &session.uuid,
-                receipt,
-            )
-        }
+                tracing::info!("Creating the SNARK");
+
+                let client_clone = client.clone();
+                let uuid = session.uuid.clone();
+                let snark_session = thread::spawn(move || {
+                    retry_backoff_bonsai!(client_clone.create_snark(uuid.clone()))
+                        .expect("Failed to fetch status; qed")
+                })
+                .join()
+                .unwrap();
+
+                // Remove the stark session as it is finished
+                self.ledger_db
+                    .remove_pending_proving_session(serialized_stark_session)?;
+
+                tracing::info!("SNARK session created: {}", snark_session.uuid);
+
+                // Snark session is saved in the function
+                self.wait_for_stark_to_snark_conversion(
+                    Some(&snark_session.uuid),
+                    &session.uuid,
+                    receipt,
+                )
+            }
+        }?;
+
+        // Cleanup env
+        self.env.clear();
+
+        Ok(proof)
     }
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
