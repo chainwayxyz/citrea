@@ -3,6 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
 use sp1_zkvm::io;
 
+use crate::VerifyingKey;
+
 /// A guest for the SP1 VM. Implements the `ZkvmGuest` trait
 ///  in terms of Risc0's env::read and env::commit functions.
 #[derive(Default)]
@@ -16,7 +18,7 @@ impl SP1Guest {
 }
 
 impl Zkvm for SP1Guest {
-    type CodeCommitment = ();
+    type CodeCommitment = VerifyingKey;
     type Error = anyhow::Error;
 
     fn verify(
