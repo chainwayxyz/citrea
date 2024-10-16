@@ -512,7 +512,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(number as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
-            Some(build_rpc_receipt(&block, tx, number, receipt))
+            build_rpc_receipt(&block, tx, number, receipt)
         });
 
         Ok(receipt)
@@ -732,7 +732,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         .get(&hash.block_hash, &mut working_set.accessory_state())
                         .ok_or(EthApiError::UnknownBlockOrTxIndex)?;
                     let block = self
-                        .get_sealed_block_by_number(Some(block_number), working_set)?
+                        .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)?
                         .ok_or(EthApiError::HeaderNotFound(block_id.expect("If block id is None should get latest block and not fail")))?;
                     (block.l1_fee_rate, BlockEnv::from(&block))
                 }
@@ -1460,7 +1460,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<u64, EthApiError> {
         match block_id {
             BlockId::Hash(hash) => self.block_hashes
-            .get(&hash.into(), &mut working_set.accessory_state()).map(Ok).transpose(),
+            .get(&(hash.clone()).into(), &mut working_set.accessory_state()).ok_or(EthApiError::HeaderNotFound(block_id.clone())),
             BlockId::Number(num) => {
                 let latest_block_number = self
                 .blocks

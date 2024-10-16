@@ -23,6 +23,7 @@ borsh = { workspace = true, features = ["rc"] }
 clap = { workspace = true, optional = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
+once_cell = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -45,6 +46,7 @@ reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-eth-api = { workspace = true, optional = true }
 reth-rpc-server-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
+reth-transaction-pool = { workspace = true, optional = true }
 revm = { workspace = true }
 revm-inspectors = { workspace = true, optional = true }
 secp256k1 = { workspace = true, optional = true }
@@ -80,6 +82,7 @@ native = [
   "reth-rpc-eth-api",
   "reth-rpc-server-types",
   "reth-rpc-types-compat",
+  "reth-transaction-pool",
   "revm-inspectors",
   "reth-provider",
   "alloy-rlp",

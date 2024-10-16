@@ -872,6 +872,7 @@ dependencies = [
  "borsh",
  "citrea-primitives",
  "hex",
+ "once_cell",
  "reth-primitives",
  "revm",
  "serde",

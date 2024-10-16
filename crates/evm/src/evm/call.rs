@@ -2,9 +2,9 @@
 
 use std::cmp::min;
 
-use reth_primitives::{B256, U256};
+use alloy_primitives::{B256, U256};
+use alloy_rpc_types::TransactionRequest;
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-use reth_rpc_types::TransactionRequest;
 use revm::primitives::{CfgEnvWithHandlerCfg, TxEnv};
 
 use crate::caller_gas_allowance;

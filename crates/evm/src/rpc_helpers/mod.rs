@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
+use alloy_primitives::map::FbBuildHasher;
+use alloy_primitives::{keccak256, Address};
+
+use alloy_rpc_types::state::AccountOverride;
+use alloy_rpc_types::BlockOverrides;
 pub use filter::*;
 pub use log_utils::*;
 pub use responses::*;
-use reth_primitives::{keccak256, Address};
 use reth_rpc_eth_types::{EthApiError, EthResult};
-use reth_rpc_types::state::AccountOverride;
-use reth_rpc_types::BlockOverrides;
 use revm::Database;
 
 mod filter;
@@ -23,7 +25,7 @@ use crate::primitive_types::BlockEnv;
 #[cfg(feature = "native")]
 /// Applies all instances [`AccountOverride`] to the [`EvmDb`].
 pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
-    state_overrides: HashMap<Address, AccountOverride>,
+    state_overrides: HashMap<Address, AccountOverride, FbBuildHasher<20>>,
     db: &mut EvmDb<C>,
 ) -> EthResult<()> {
     for (address, account_overrides) in state_overrides {
@@ -109,10 +111,10 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         block_env.gas_limit = gas_limit;
     }
     if let Some(coinbase) = coinbase {
-        block_env.coinbase = coinbase;
+        block_env.coinbase = coinbase.clone();
     }
     if let Some(random) = random {
-        block_env.prevrandao = random;
+        block_env.prevrandao = random.clone();
     }
     if let Some(base_fee) = base_fee {
         block_env.basefee = base_fee.saturating_to();

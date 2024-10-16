@@ -316,7 +316,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         if context.is_system_caller() {
             // Don't verify balance but nonce only.
             let tx_caller = context.evm.env.tx.caller;
-            let (caller_account, _) = context
+            let caller_account = context
                 .evm
                 .inner
                 .journaled_state
@@ -347,7 +347,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
             if context.evm.env.tx.transact_to.is_call() {
                 // Nonce is already checked
                 let tx_caller = context.evm.env.tx.caller;
-                let (caller_account, _) = context
+                let mut caller_account = context
                     .evm
                     .inner
                     .journaled_state
@@ -589,7 +589,7 @@ fn change_balance<EXT, DB: Database>(
         ..
     } = &mut context.evm.inner;
 
-    let (account, _) = journaled_state.load_account(address, db)?;
+    let mut account = journaled_state.load_account(address, db)?;
     account.mark_touch();
 
     let balance = &mut account.info.balance;

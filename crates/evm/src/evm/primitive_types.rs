@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, Sealable, B256};
 use reth_primitives::{Header, SealedHeader, TransactionSigned};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Copy, Clone)]
@@ -84,8 +84,9 @@ pub(crate) struct Block {
 
 impl Block {
     pub(crate) fn seal(self) -> SealedBlock {
+        let (header, seal) = self.header.seal_slow().into_parts();
         SealedBlock {
-            header: self.header.seal_slow(),
+            header: SealedHeader::new(header, seal),
             l1_fee_rate: self.l1_fee_rate,
             l1_hash: self.l1_hash,
             transactions: self.transactions,

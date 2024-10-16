@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use alloy_eips::eip1559::BaseFeeParams;
+use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
 use anyhow::Result;
-use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
+use reth_primitives::constants::{
+    EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, KECCAK_EMPTY,
+};
 use revm::primitives::{Bytecode, SpecId};
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
@@ -238,7 +240,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             gas_used: 0,
             timestamp: config.timestamp,
             mix_hash: B256::default(),
-            nonce: config.nonce,
+            nonce: config.nonce.into(),
             base_fee_per_gas: Some(config.starting_base_fee),
             extra_data: config.extra_data.clone(),
             // EIP-4844 related fields

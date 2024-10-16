@@ -209,7 +209,7 @@ pub struct Filter {
     // https://eips.ethereum.org/EIPS/eip-234
     pub block_option: FilterBlockOption,
     /// Filter for the address of the log, can be
-    pub address: FilterSet<reth_primitives::Address>,
+    pub address: FilterSet<alloy_primitives::Address>,
     /// Filter for the topics of the log
     pub topics: [Topic; 4],
 }

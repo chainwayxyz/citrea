@@ -1,6 +1,7 @@
+use alloy_primitives::Bytes as RethBytes;
+use alloy_rlp::Decodable;
 use reth_primitives::{
-    Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
-    KECCAK_EMPTY,
+    TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, KECCAK_EMPTY,
 };
 use revm::primitives::{
     AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, TransactTo, TxEnv, U256,
@@ -103,7 +104,7 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
             return Err(ConversionError::EmptyRawTransactionData);
         }
 
-        let transaction = TransactionSigned::decode_enveloped(&mut data.as_ref())
+        let transaction = TransactionSigned::decode(&mut data.as_ref())
             .map_err(|_| ConversionError::FailedToDecodeSignedTransaction)?;
 
         Ok(transaction.into())

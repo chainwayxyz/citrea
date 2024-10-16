@@ -1,8 +1,9 @@
 //! Implementation specific Errors for the `eth_` namespace.
 
+use alloy_primitives::Bytes;
 use jsonrpsee::types::ErrorObject;
-use reth_primitives::Bytes;
 use reth_rpc_eth_types::error::{EthResult, RevertError, RpcInvalidTransactionError};
+use reth_transaction_pool::error::Eip7702PoolTransactionError;
 use revm::primitives::{ExecutionResult, HaltReason, OutOfGasError};
 
 use super::pool::{
@@ -55,7 +56,7 @@ use super::result::internal_rpc_err;
 //     HaltedDepositPostRegolith,
 // }
 
-/// A helper error type that's mainly used to mirror `geth` Txpool's error messages
+// A helper error type that's mainly used to mirror `geth` Txpool's error messages
 #[derive(Debug, thiserror::Error)]
 pub enum RpcPoolError {
     /// When the transaction is already known
@@ -91,9 +92,12 @@ pub enum RpcPoolError {
     /// Custom pool error
     #[error(transparent)]
     PoolTransactionError(Box<dyn PoolTransactionError>),
-    /// Eip-4844 related error
+    /// EIP-4844 related error
     #[error(transparent)]
     Eip4844(#[from] Eip4844PoolTransactionError),
+    /// EIP-7702 related error
+    #[error(transparent)]
+    Eip7702(#[from] Eip7702PoolTransactionError),
     /// Thrown if a conflicting transaction type is already in the pool
     ///
     /// In other words, thrown if a transaction with the same sender that violates the exclusivity
@@ -102,7 +106,7 @@ pub enum RpcPoolError {
     AddressAlreadyReserved,
     /// Other unspecified error
     #[error(transparent)]
-    Other(Box<dyn std::error::Error + Send + Sync>),
+    Other(Box<dyn core::error::Error + Send + Sync>),
 }
 
 impl From<RpcPoolError> for ErrorObject<'static> {
@@ -115,39 +119,39 @@ impl From<RpcPoolError> for ErrorObject<'static> {
 }
 
 impl From<PoolError> for RpcPoolError {
-    fn from(err: PoolError) -> RpcPoolError {
+    fn from(err: PoolError) -> Self {
         match err.kind {
-            PoolErrorKind::ReplacementUnderpriced => RpcPoolError::ReplaceUnderpriced,
-            PoolErrorKind::FeeCapBelowMinimumProtocolFeeCap(_) => RpcPoolError::Underpriced,
-            PoolErrorKind::SpammerExceededCapacity(_) => RpcPoolError::TxPoolOverflow,
-            PoolErrorKind::DiscardedOnInsert => RpcPoolError::TxPoolOverflow,
-            PoolErrorKind::InvalidTransaction(err) => err.into(),
-            PoolErrorKind::Other(err) => RpcPoolError::Other(err),
-            PoolErrorKind::AlreadyImported => RpcPoolError::AlreadyKnown,
-            PoolErrorKind::ExistingConflictingTransactionType(_, _) => {
-                RpcPoolError::AddressAlreadyReserved
+            PoolErrorKind::ReplacementUnderpriced => Self::ReplaceUnderpriced,
+            PoolErrorKind::FeeCapBelowMinimumProtocolFeeCap(_) => Self::Underpriced,
+            PoolErrorKind::SpammerExceededCapacity(_) | PoolErrorKind::DiscardedOnInsert => {
+                Self::TxPoolOverflow
             }
+            PoolErrorKind::InvalidTransaction(err) => err.into(),
+            PoolErrorKind::Other(err) => Self::Other(err),
+            PoolErrorKind::AlreadyImported => Self::AlreadyKnown,
+            PoolErrorKind::ExistingConflictingTransactionType(_, _) => Self::AddressAlreadyReserved,
         }
     }
 }
 
 impl From<InvalidPoolTransactionError> for RpcPoolError {
-    fn from(err: InvalidPoolTransactionError) -> RpcPoolError {
+    fn from(err: InvalidPoolTransactionError) -> Self {
         match err {
-            InvalidPoolTransactionError::Consensus(err) => RpcPoolError::Invalid(err.into()),
-            InvalidPoolTransactionError::ExceedsGasLimit(_, _) => RpcPoolError::ExceedsGasLimit,
+            InvalidPoolTransactionError::Consensus(err) => Self::Invalid(err.into()),
+            InvalidPoolTransactionError::ExceedsGasLimit(_, _) => Self::ExceedsGasLimit,
             InvalidPoolTransactionError::ExceedsMaxInitCodeSize(_, _) => {
-                RpcPoolError::ExceedsMaxInitCodeSize
+                Self::ExceedsMaxInitCodeSize
             }
             InvalidPoolTransactionError::IntrinsicGasTooLow => {
-                RpcPoolError::Invalid(RpcInvalidTransactionError::GasTooLow)
+                Self::Invalid(RpcInvalidTransactionError::GasTooLow)
             }
-            InvalidPoolTransactionError::OversizedData(_, _) => RpcPoolError::OversizedData,
-            InvalidPoolTransactionError::Underpriced => RpcPoolError::Underpriced,
-            InvalidPoolTransactionError::Other(err) => RpcPoolError::PoolTransactionError(err),
-            InvalidPoolTransactionError::Eip4844(err) => RpcPoolError::Eip4844(err),
-            InvalidPoolTransactionError::Overdraft => {
-                RpcPoolError::Invalid(RpcInvalidTransactionError::InsufficientFunds)
+            InvalidPoolTransactionError::OversizedData(_, _) => Self::OversizedData,
+            InvalidPoolTransactionError::Underpriced => Self::Underpriced,
+            InvalidPoolTransactionError::Other(err) => Self::PoolTransactionError(err),
+            InvalidPoolTransactionError::Eip4844(err) => Self::Eip4844(err),
+            InvalidPoolTransactionError::Eip7702(err) => Self::Eip7702(err),
+            InvalidPoolTransactionError::Overdraft { cost, balance } => {
+                Self::Invalid(RpcInvalidTransactionError::InsufficientFunds { cost, balance })
             }
         }
     }

@@ -1,6 +1,6 @@
-use alloy_primitives::B256;
+use alloy_primitives::{Bloom, Bytes, U256};
+use alloy_primitives::{B256, B64};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use reth_primitives::{Bloom, Bytes, U256};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
@@ -202,7 +202,7 @@ where
             gas_limit: self.block_env.gas_limit,
             gas_used,
             mix_hash: self.block_env.prevrandao,
-            nonce: 0,
+            nonce: B64::from(0),
             base_fee_per_gas,
             extra_data: Bytes::default(),
             // EIP-4844 related fields
