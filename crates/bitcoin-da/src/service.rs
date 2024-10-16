@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
@@ -194,92 +194,85 @@ impl BitcoinService {
         self: Arc<Self>,
         mut rx: UnboundedReceiver<Option<SenderWithNotifier<TxidWrapper>>>,
     ) {
-        // This should be spawn_blocking, since it is a CPU-bound worker.
-        // When spawned with tokio::spawn, it blocks other futures and
-        // disrupts tokio runtime.
-        tokio::task::spawn_blocking(|| {
-            tokio::runtime::Handle::current().block_on(async move {
-                let mut prev_utxo = match self.get_prev_utxo().await {
-                    Ok(Some(prev_utxo)) => Some(prev_utxo),
-                    Ok(None) => {
-                        info!("No pending transactions found");
-                        None
-                    }
-                    Err(e) => {
-                        error!(?e, "Failed to get pending transactions");
-                        None
-                    }
-                };
+        tokio::spawn(async move {
+            let mut prev_utxo = match self.get_prev_utxo().await {
+                Ok(Some(prev_utxo)) => Some(prev_utxo),
+                Ok(None) => {
+                    info!("No pending transactions found");
+                    None
+                }
+                Err(e) => {
+                    error!(?e, "Failed to get pending transactions");
+                    None
+                }
+            };
 
-                trace!("BitcoinDA queue is initialized. Waiting for the first request...");
+            trace!("BitcoinDA queue is initialized. Waiting for the first request...");
 
-                loop {
-                    select! {
-                        request_opt = rx.recv() => {
-                            if let Some(request_opt) = request_opt {
-                                match request_opt {
-                                    Some(request) => {
-                                        trace!("A new request is received");
-                                        let prev = prev_utxo.take();
-                                        loop {
-                                            // Build and send tx with retries:
-                                            let fee_sat_per_vbyte = match self.get_fee_rate().await {
-                                                Ok(rate) => rate,
-                                                Err(e) => {
-                                                    error!(?e, "Failed to call get_fee_rate. Retrying...");
-                                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                                    continue;
-                                                }
-                                            };
-                                            match self
-                                                .send_transaction_with_fee_rate(
-                                                    prev.clone(),
-                                                    request.da_data.clone(),
-                                                    fee_sat_per_vbyte,
-                                                )
-                                                .await
-                                            {
-                                                Ok(tx) => {
-                                                    let tx_id = TxidWrapper(tx.id);
-                                                    info!(%tx.id, "Sent tx to BitcoinDA");
-                                                    prev_utxo = Some(UTXO {
-                                                        tx_id: tx.id,
-                                                        vout: 0,
-                                                        script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-                                                        address: None,
-                                                        amount: tx.tx.output[0].value.to_sat(),
-                                                        confirmations: 0,
-                                                        spendable: true,
-                                                        solvable: true,
-                                                    });
-
-                                                    let _ = request.notify.send(Ok(tx_id));
-                                                }
-                                                Err(e) => {
-                                                    error!(?e, "Failed to send transaction to DA layer");
-                                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                                    continue;
-                                                }
+            loop {
+                select! {
+                    request_opt = rx.recv() => {
+                        if let Some(request_opt) = request_opt {
+                            match request_opt {
+                                Some(request) => {
+                                    trace!("A new request is received");
+                                    let prev = prev_utxo.take();
+                                    loop {
+                                        // Build and send tx with retries:
+                                        let fee_sat_per_vbyte = match self.get_fee_rate().await {
+                                            Ok(rate) => rate,
+                                            Err(e) => {
+                                                error!(?e, "Failed to call get_fee_rate. Retrying...");
+                                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                                continue;
                                             }
-                                            break;
-                                        }
-                                    }
+                                        };
+                                        match self
+                                            .send_transaction_with_fee_rate(
+                                                prev.clone(),
+                                                request.da_data.clone(),
+                                                fee_sat_per_vbyte,
+                                            )
+                                            .await
+                                        {
+                                            Ok(tx) => {
+                                                let tx_id = TxidWrapper(tx.id);
+                                                info!(%tx.id, "Sent tx to BitcoinDA");
+                                                prev_utxo = Some(UTXO {
+                                                    tx_id: tx.id,
+                                                    vout: 0,
+                                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+                                                    address: None,
+                                                    amount: tx.tx.output[0].value.to_sat(),
+                                                    confirmations: 0,
+                                                    spendable: true,
+                                                    solvable: true,
+                                                });
 
-                                    None => {
-                                        info!("Shutdown signal received. Stopping BitcoinDA queue.");
+                                                let _ = request.notify.send(Ok(tx_id));
+                                            }
+                                            Err(e) => {
+                                                error!(?e, "Failed to send transaction to DA layer");
+                                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                                continue;
+                                            }
+                                        }
                                         break;
                                     }
                                 }
+
+                                None => {
+                                    info!("Shutdown signal received. Stopping BitcoinDA queue.");
+                                    break;
+                                }
                             }
-                        },
-                        _ = signal::ctrl_c() => {
-                            return;
                         }
+                    },
+                    _ = signal::ctrl_c() => {
+                        return;
                     }
                 }
-            });
-
-            error!("BitcoinDA queue stopped");
+            }
         });
     }
 
@@ -385,19 +378,26 @@ impl BitcoinService {
                 let data = DaDataLightClient::ZKProof(zkproof);
                 let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
                 let blob = compress_blob(&blob);
+
+                let reveal_light_client_prefix = self.reveal_light_client_prefix.clone();
                 // create inscribe transactions
-                let inscription_txs = create_zkproof_transactions(
-                    blob,
-                    &da_private_key,
-                    prev_utxo,
-                    utxos,
-                    address,
-                    REVEAL_OUTPUT_AMOUNT,
-                    fee_sat_per_vbyte,
-                    fee_sat_per_vbyte,
-                    network,
-                    &self.reveal_light_client_prefix,
-                )?;
+                let inscription_txs = tokio::task::spawn_blocking(move || {
+                    // Since this is CPU bound work, we use spawn_blocking
+                    // to release the tokio runtime execution
+                    create_zkproof_transactions(
+                        blob,
+                        da_private_key,
+                        prev_utxo,
+                        utxos,
+                        address,
+                        REVEAL_OUTPUT_AMOUNT,
+                        fee_sat_per_vbyte,
+                        fee_sat_per_vbyte,
+                        network,
+                        reveal_light_client_prefix,
+                    )
+                })
+                .await??;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
@@ -420,19 +420,26 @@ impl BitcoinService {
             DaData::SequencerCommitment(comm) => {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
+
+                let reveal_batch_prover_prefix = self.reveal_batch_prover_prefix.clone();
                 // create inscribe transactions
-                let inscription_txs = create_seqcommitment_transactions(
-                    blob,
-                    &da_private_key,
-                    prev_utxo,
-                    utxos,
-                    address,
-                    REVEAL_OUTPUT_AMOUNT,
-                    fee_sat_per_vbyte,
-                    fee_sat_per_vbyte,
-                    network,
-                    &self.reveal_batch_prover_prefix,
-                )?;
+                let inscription_txs = tokio::task::spawn_blocking(move || {
+                    // Since this is CPU bound work, we use spawn_blocking
+                    // to release the tokio runtime execution
+                    create_seqcommitment_transactions(
+                        blob,
+                        da_private_key,
+                        prev_utxo,
+                        utxos,
+                        address,
+                        REVEAL_OUTPUT_AMOUNT,
+                        fee_sat_per_vbyte,
+                        fee_sat_per_vbyte,
+                        network,
+                        reveal_batch_prover_prefix,
+                    )
+                })
+                .await??;
 
                 // write txs to file, it can be used to continue revealing blob if something goes wrong
                 inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
@@ -564,9 +571,12 @@ impl BitcoinService {
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
         // If network is regtest or signet, mempool space is not available
-        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await? {
-            Some(fee_rate) => Some(fee_rate),
-            None => self.client.estimate_smart_fee(1, None).await?.fee_rate,
+        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await {
+            Ok(fee_rate) => Some(fee_rate),
+            Err(e) => {
+                tracing::warn!(?e, "Failed to get fee rate from mempool.space");
+                self.client.estimate_smart_fee(1, None).await?.fee_rate
+            }
         };
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
@@ -1003,9 +1013,7 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
     BitcoinMerkleTree::new(hashes).root()
 }
 
-pub(crate) async fn get_fee_rate_from_mempool_space(
-    network: bitcoin::Network,
-) -> Result<Option<Amount>> {
+pub(crate) async fn get_fee_rate_from_mempool_space(network: bitcoin::Network) -> Result<Amount> {
     let url = match network {
         bitcoin::Network::Bitcoin => format!(
             // Mainnet
@@ -1016,7 +1024,11 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
             "{}testnet4/{}",
             MEMPOOL_SPACE_URL, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
         ),
-        _ => return Ok(None),
+        _ => {
+            return Err(anyhow!(
+                "Unsupported network for mempool space fee estimation"
+            ))
+        }
     };
     let fee_rate = reqwest::get(url)
         .await?
@@ -1024,7 +1036,8 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .await?
         .get("fastestFee")
         .and_then(|fee| fee.as_u64())
-        .map(|fee| Amount::from_sat(fee * 1000)); // multiply by 1000 to convert to sat/vkb
+        .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
+        .ok_or(anyhow!("Failed to get fee rate from mempool space"))?;
 
     Ok(fee_rate)
 }
@@ -1507,19 +1520,15 @@ mod tests {
     async fn test_mempool_space_fee_rate() {
         let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Bitcoin)
             .await
-            .unwrap()
             .unwrap();
         let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Testnet)
             .await
-            .unwrap()
             .unwrap();
         assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Regtest)
             .await
-            .unwrap()
-            .is_none());
+            .is_err());
         assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Signet)
             .await
-            .unwrap()
-            .is_none());
+            .is_err());
     }
 }

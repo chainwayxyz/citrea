@@ -67,7 +67,9 @@ Mine blocks so that the wallet has BTC:
 bitcoin-cli -regtest -generate 201
 ```
 
-Edit `resources/configs/bitcoin-regtest/sequencer_rollup_config.toml` and `resources/configs/bitcoin-regtest/sequencer_config.toml` files and put in your rpc url, username and password:
+Edit `resources/configs/bitcoin-regtest/sequencer_config.toml` to adjust the sequencer settings.
+
+Edit `resources/configs/bitcoin-regtest/sequencer_rollup_config.toml` file and put in your rpc url, username and password:
 
 ```toml
 [da]
