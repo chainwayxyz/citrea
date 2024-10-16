@@ -361,8 +361,7 @@ impl TestCase for LocalProvingTest {
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        citrea::initialize_logging(tracing::Level::INFO);
-        f.show_log_paths();
+        // citrea::initialize_logging(tracing::Level::INFO);
 
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
