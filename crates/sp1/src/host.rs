@@ -1,16 +1,15 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sp1_sdk::network_v2::proto::network::ProofMode;
 use sp1_sdk::provers::ProverType;
 use sp1_sdk::{
-    block_on, NetworkProverV2, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey,
-    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+    block_on, CpuProver, HashableKey, NetworkProverV2, Prover, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey
 };
 use tracing::info;
 
 use crate::guest::SP1Guest;
-use crate::VerifyingKey;
 
 pub struct SP1Host {
     client: ProverClient,
@@ -215,5 +214,22 @@ impl Zkvm for SP1Host {
         Ok(BorshDeserialize::try_from_slice(
             proof.public_values.as_slice(),
         )?)
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VerifyingKey(SP1VerifyingKey);
+
+impl std::fmt::Debug for VerifyingKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let key = self.0.bytes32();
+        write!(f, "VerifyingKey {{ SP1VerifyingKey {{ vk: {} }} }}", key)
+    }
+}
+
+impl VerifyingKey {
+    pub fn from_elf(elf: &[u8]) -> Self {
+        let (_, vk) = CpuProver::new().setup(elf);
+        Self(vk)
     }
 }
