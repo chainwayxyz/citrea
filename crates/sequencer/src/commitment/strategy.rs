@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use citrea_common::compression::compress_blob;
 use citrea_common::utils::merge_state_diffs;
-use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
+use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_api::StateDiff;
@@ -121,8 +121,7 @@ where
         let compressed_state_diff = compress_blob(&borsh::to_vec(&merged_state_diff)?);
 
         // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
-        let state_diff_threshold_reached =
-            compressed_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
+        let state_diff_threshold_reached = compressed_state_diff.len() as u64 > MAX_TXBODY_SIZE;
 
         if state_diff_threshold_reached {
             self.last_state_diff.clone_from(&l2_state_diff);
