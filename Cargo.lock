@@ -2508,7 +2508,6 @@ dependencies = [
  "citrea-prover",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
- "citrea-sp1",
  "citrea-stf",
  "clap",
  "ethereum-rpc",
