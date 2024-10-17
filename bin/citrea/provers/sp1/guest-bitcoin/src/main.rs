@@ -1,6 +1,9 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
+use sp1_zkvm::io;
+
 pub fn main() {
-    println!("hellyeah");
+    let data = io::read_vec();
+    println!("IN GUEST RECEIVED DATA SIZE: {}", data.len());
 }
