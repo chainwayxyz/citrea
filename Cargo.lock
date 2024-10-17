@@ -2838,7 +2838,6 @@ dependencies = [
  "serde",
  "sov-db",
  "sov-rollup-interface 0.5.0-rc.1",
- "sp1-helper",
  "sp1-sdk",
  "sp1-zkvm",
  "tracing",
