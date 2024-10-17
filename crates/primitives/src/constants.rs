@@ -7,15 +7,15 @@
 // This doesn't change any method ids, just the prefixes.
 const fn get_reveal_batch_proof_prefix() -> &'static [u8] {
     match option_env!("SHORT_PREFIX") {
-        Some(_) => &[1],
-        None => &[1, 1],
+        Some(v) if matches!(v.as_bytes(), b"1" | b"true") => &[1],
+        _ => &[1, 1],
     }
 }
 
 const fn get_reveal_light_client_prefix() -> &'static [u8] {
     match option_env!("SHORT_PREFIX") {
-        Some(_) => &[2],
-        None => &[2, 2],
+        Some(v) if matches!(v.as_bytes(), b"1" | b"true") => &[2],
+        _ => &[2, 2],
     }
 }
 

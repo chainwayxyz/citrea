@@ -13,6 +13,8 @@ use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_rollup_interface::da::{BlobReaderTrait, DaData};
+
+use super::get_citrea_path;
 struct LedgerGetCommitmentsProverTest;
 
 #[async_trait]
@@ -84,6 +86,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot_prover() -> Result<()> {
     TestCaseRunner::new(LedgerGetCommitmentsProverTest)
+        .set_citrea_path(get_citrea_path())
         .run()
         .await
 }
@@ -97,10 +100,6 @@ impl TestCase for LedgerGetCommitmentsTest {
             with_full_node: true,
             ..Default::default()
         }
-    }
-
-    fn sequencer_config() -> SequencerConfig {
-        SequencerConfig::default()
     }
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
@@ -157,7 +156,10 @@ impl TestCase for LedgerGetCommitmentsTest {
 
 #[tokio::test]
 async fn test_ledger_get_commitments_on_slot_full_node() -> Result<()> {
-    TestCaseRunner::new(LedgerGetCommitmentsTest).run().await
+    TestCaseRunner::new(LedgerGetCommitmentsTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
 
 struct SequencerSendCommitmentsToDaTest;
@@ -313,6 +315,7 @@ impl SequencerSendCommitmentsToDaTest {
 #[tokio::test]
 async fn test_sequencer_sends_commitments_to_da_layer() -> Result<()> {
     TestCaseRunner::new(SequencerSendCommitmentsToDaTest)
+        .set_citrea_path(get_citrea_path())
         .run()
         .await
 }

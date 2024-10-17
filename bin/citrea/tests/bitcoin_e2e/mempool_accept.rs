@@ -52,5 +52,8 @@ impl TestCase for MempoolAcceptTest {
 
 #[tokio::test]
 async fn test_mempool_accept() -> Result<()> {
-    TestCaseRunner::new(MempoolAcceptTest).run().await
+    TestCaseRunner::new(MempoolAcceptTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
