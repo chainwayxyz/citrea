@@ -18,8 +18,8 @@ borsh = { workspace = true }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sp1-sdk = { workspace = true, default-features = false, features = ["network-v2"], optional = true }
-sp1-zkvm = { workspace = true }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["network-v2"], optional = true }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["lib"] }
 tracing = { workspace = true }
 
 [features]
