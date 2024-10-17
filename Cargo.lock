@@ -1962,19 +1962,8 @@ dependencies = [
 name = "citrea-primitives"
 version = "0.5.0-rc.1"
 dependencies = [
- "alloy-consensus",
  "alloy-eips",
- "alloy-network",
- "alloy-primitives",
- "alloy-rpc-types",
- "alloy-rpc-types-eth",
- "alloy-serde",
- "anyhow",
- "futures-utils-wasm",
- "serde",
  "sov-rollup-interface 0.5.0-rc.1",
- "tokio",
- "tracing",
 ]
 
 [[package]]

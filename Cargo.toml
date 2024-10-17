@@ -119,7 +119,6 @@ tempfile = "3.8"
 tokio = { version = "1.39", features = ["full"] }
 tokio-util = { version = "0.7.12", features = ["rt"] }
 num_cpus = "1.0"
-futures-utils-wasm = "0.1.0"
 
 # Risc0 dependencies
 risc0-zkvm = { version = "1.1.2", default-features = false }
