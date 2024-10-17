@@ -99,9 +99,7 @@ impl TestCase for BasicProverTest {
                 .sum();
             let borshed_state_diff = borsh::to_vec(state_diff).unwrap();
             let compressed_state_diff =
-                citrea_primitives::compression::compress_blob(&borshed_state_diff)
-                    .await
-                    .unwrap();
+                citrea_primitives::compression::compress_blob(&borshed_state_diff);
             println!(
                 "StateDiff: size {}, compressed {}",
                 state_diff_size,
