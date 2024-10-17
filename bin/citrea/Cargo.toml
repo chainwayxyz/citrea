@@ -21,6 +21,7 @@ citrea-prover = { path = "../../crates/prover" }
 citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
 citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
+# citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 sequencer-client = { path = "../../crates/sequencer-client" }
@@ -79,7 +80,7 @@ tokio = { workspace = true }
 
 revm = { workspace = true }
 
-log = "0.4"
+log = "0.4.22"
 regex = "1.10"
 rustc_version_runtime = { workspace = true }
 
@@ -87,6 +88,9 @@ rustc_version_runtime = { workspace = true }
 bitcoin.workspace = true
 bitcoincore-rpc.workspace = true
 citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "fc12cb0" }
+
+[build-dependencies]
+sp1-helper = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false }
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
