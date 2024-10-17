@@ -14,7 +14,7 @@ members = [
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
-  "crates/sp1",
+  # "crates/sp1", # This is disabled so it doesn't build until we actually use it
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/risc0",
@@ -128,11 +128,6 @@ risc0-zkp = { version = "1.1.2" }
 risc0-circuit-rv32im = { version = "1.1.2" }
 risc0-build = { version = "1.1.2" }
 bonsai-sdk = { version = "1.1.2" }
-
-# SP1 dependencies
-sp1-helper = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false }
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false }
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["lib"] }
 
 # EVM dependencies
 revm-inspectors = { version = "=0.5.5", default-features = false }
