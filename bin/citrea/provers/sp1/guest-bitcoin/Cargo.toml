@@ -1,0 +1,10 @@
+[workspace]
+
+[package]
+name = "citrea-sp1-guest-bitcoin"
+version = "0.5.0-rc.1"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["lib"] }
