@@ -22,9 +22,6 @@ sp1-sdk = { workspace = true, features = ["network-v2"], optional = true }
 sp1-zkvm = { workspace = true }
 tracing = { workspace = true }
 
-[build-dependencies]
-sp1-helper = { workspace = true }
-
 [features]
 default = ["native"]
 native = [
