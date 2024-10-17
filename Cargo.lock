@@ -1216,7 +1216,6 @@ dependencies = [
  "bitcoin",
  "bitcoincore-rpc",
  "borsh",
- "brotli",
  "citrea-common",
  "citrea-primitives",
  "futures",
@@ -1888,6 +1887,7 @@ version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
+ "brotli",
  "reth-primitives",
  "serde",
  "sov-rollup-interface 0.5.0-rc.1",
@@ -1902,7 +1902,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backoff",
- "bitcoin-da",
  "borsh",
  "citrea-common",
  "citrea-primitives",

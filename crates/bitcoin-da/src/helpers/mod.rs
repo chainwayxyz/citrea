@@ -4,8 +4,6 @@ use sha2::{Digest, Sha256};
 
 #[cfg(feature = "native")]
 pub mod builders;
-#[cfg(feature = "native")]
-pub mod compression;
 pub mod merkle_tree;
 pub mod parsers;
 #[cfg(test)]
