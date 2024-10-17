@@ -2541,6 +2541,7 @@ dependencies = [
  "sov-rollup-interface 0.5.0-rc.1",
  "sov-state",
  "sov-stf-runner",
+ "sp1-helper",
  "tempfile",
  "tokio",
  "tracing",
