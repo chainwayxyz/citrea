@@ -54,6 +54,8 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::layer::SubscriberExt;
 
 use crate::commitment_controller;
 use crate::db_provider::DbProvider;
@@ -273,88 +275,95 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        match self.stf.begin_soft_confirmation(
-            pub_key,
-            prestate.clone(),
-            Default::default(),
-            &da_block_header,
-            &soft_confirmation_info,
-        ) {
-            (Ok(()), mut working_set_to_discard) => {
-                let block_gas_limit = self.db_provider.cfg().block_gas_limit;
+        let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
-                let evm = Evm::<C>::default();
+        tracing::subscriber::with_default(silent_subscriber, || {
+            match self.stf.begin_soft_confirmation(
+                pub_key,
+                prestate.clone(),
+                Default::default(),
+                &da_block_header,
+                &soft_confirmation_info,
+            ) {
+                (Ok(()), mut working_set_to_discard) => {
+                    let block_gas_limit = self.db_provider.cfg().block_gas_limit;
 
-                match l2_block_mode {
-                    L2BlockMode::NotEmpty => {
-                        let mut all_txs = vec![];
+                    let evm = Evm::<C>::default();
 
-                        for evm_tx in transactions {
-                            let rlp_tx = RlpEvmTransaction {
-                                rlp: evm_tx
-                                    .to_recovered_transaction()
-                                    .into_signed()
-                                    .envelope_encoded()
-                                    .to_vec(),
-                            };
+                    match l2_block_mode {
+                        L2BlockMode::NotEmpty => {
+                            let mut all_txs = vec![];
 
-                            let call_txs = CallMessage {
-                                txs: vec![rlp_tx.clone()],
-                            };
-                            let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
-                                citrea_evm::Evm<C>,
-                            >>::encode_call(call_txs);
-                            let signed_blob =
-                                self.make_blob(raw_message, &mut working_set_to_discard)?;
+                            for evm_tx in transactions {
+                                let rlp_tx = RlpEvmTransaction {
+                                    rlp: evm_tx
+                                        .to_recovered_transaction()
+                                        .into_signed()
+                                        .envelope_encoded()
+                                        .to_vec(),
+                                };
 
-                            let txs = vec![signed_blob.clone()];
+                                let call_txs = CallMessage {
+                                    txs: vec![rlp_tx.clone()],
+                                };
+                                let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+                                    citrea_evm::Evm<C>,
+                                >>::encode_call(
+                                    call_txs
+                                );
+                                let signed_blob =
+                                    self.make_blob(raw_message, &mut working_set_to_discard)?;
 
-                            let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
-                                soft_confirmation_info.clone(),
-                                txs.clone(),
-                                working_set_to_discard,
-                            );
+                                let txs = vec![signed_blob.clone()];
 
-                            working_set_to_discard = sc_workspace;
+                                let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
+                                    soft_confirmation_info.clone(),
+                                    txs.clone(),
+                                    working_set_to_discard,
+                                );
 
-                            let last_tx =
-                                evm.get_last_pending_transaction(&mut working_set_to_discard);
+                                working_set_to_discard = sc_workspace;
 
-                            if let Some(last_tx) = last_tx {
-                                if last_tx.hash() == *evm_tx.hash() {
-                                    all_txs.push(rlp_tx);
-                                }
+                                let last_tx =
+                                    evm.get_last_pending_transaction(&mut working_set_to_discard);
 
-                                if last_tx.cumulative_gas_used()
-                                    >= block_gas_limit - MIN_TRANSACTION_GAS
-                                {
-                                    break;
+                                if let Some(last_tx) = last_tx {
+                                    if last_tx.hash() == *evm_tx.hash() {
+                                        all_txs.push(rlp_tx);
+                                    }
+
+                                    if last_tx.cumulative_gas_used()
+                                        >= block_gas_limit - MIN_TRANSACTION_GAS
+                                    {
+                                        break;
+                                    }
                                 }
                             }
+
+                            // before finalize we can get tx hashes that failed due to L1 fees.
+                            // nasty hack to access state
+                            let l1_fee_failed_txs = evm.get_l1_fee_failed_txs(
+                                &mut working_set_to_discard.accessory_state(),
+                            );
+
+                            Ok((all_txs, l1_fee_failed_txs))
                         }
-
-                        // before finalize we can get tx hashes that failed due to L1 fees.
-                        // nasty hack to access state
-                        let l1_fee_failed_txs = evm
-                            .get_l1_fee_failed_txs(&mut working_set_to_discard.accessory_state());
-
-                        Ok((all_txs, l1_fee_failed_txs))
+                        L2BlockMode::Empty => Ok((vec![], vec![])),
                     }
-                    L2BlockMode::Empty => Ok((vec![], vec![])),
                 }
-            }
-            (Err(err), batch_workspace) => {
-                warn!(
+                (Err(err), batch_workspace) => {
+                    warn!(
                     "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
                     err
                 );
-                batch_workspace.revert();
-                Err(anyhow!(
-                    "DryRun: Failed to apply begin soft confirmation hook: {:?}",
-                    err
-                ))
+                    batch_workspace.revert();
+                    Err(anyhow!(
+                        "DryRun: Failed to apply begin soft confirmation hook: {:?}",
+                        err
+                    ))
+                }
             }
-        }
+        })
     }
 
     async fn produce_l2_block(
