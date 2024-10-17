@@ -25,8 +25,10 @@ fn build_sp1_guest() {
 
     let bitcoin_program_path = "provers/sp1/guest-bitcoin";
 
-    let mut build_args = sp1_helper::BuildArgs::default();
-    build_args.elf_name = "zkvm-elf".to_string();
+    let build_args = sp1_helper::BuildArgs {
+        elf_name: "zkvm-elf".to_string(),
+        ..Default::default()
+    };
 
     match std::env::var("BUILD_SP1_GUEST") {
         Ok(value) => match value.as_str() {
@@ -56,5 +58,5 @@ fn build_sp1_guest() {
         .join(build_args.output_directory)
         .join(build_args.elf_name);
     fs::create_dir_all(elf_path.parent().unwrap()).unwrap();
-    fs::write(elf_path, &[]).unwrap();
+    fs::write(elf_path, []).unwrap();
 }
