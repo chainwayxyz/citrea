@@ -5,6 +5,9 @@ mod trace;
 
 use std::sync::Arc;
 
+use alloy_primitives::{keccak256, Bytes, B256, U256};
+use alloy_rpc_types::{FeeHistory, Index};
+use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{Evm, Filter};
@@ -13,10 +16,8 @@ pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::{keccak256, BlockNumberOrTag, Bytes, B256, U256};
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use reth_rpc_eth_types::EthApiError;
-use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
-use reth_rpc_types::{FeeHistory, Index};
 use sequencer_client::SequencerClient;
 use serde_json::json;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
@@ -403,7 +404,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 match evm.get_block_number_by_block_hash(block_hash, &mut working_set) {
                     Some(block_number) => block_number,
                     None => {
-                        return Err(EthApiError::UnknownBlockNumber.into());
+                        return Err(EthApiError::HeaderNotFound(block_hash.into()).into());
                     }
                 };
 
@@ -526,7 +527,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             },
         )?;
 
-        rpc.register_async_method::<Result<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>, _, _>(
+        rpc.register_async_method::<Result<Option<alloy_rpc_types::Transaction>, ErrorObjectOwned>, _, _>(
             "eth_getTransactionByHash",
             |parameters, ethereum, _| async move {
                 let mut params = parameters.sequence();
@@ -556,7 +557,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                         let evm = Evm::<C>::default();
                         let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
                         match evm.get_transaction_by_hash(hash, &mut working_set) {
-                            Ok(Some(tx)) => Ok(Some(tx)),
+                            Ok(Some(tx)) => Ok(Some(tx.inner)),
                             Ok(None) => {
                                 // if not found in evm then ask to sequencer mempool
                                 match ethereum

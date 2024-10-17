@@ -890,6 +890,8 @@ dependencies = [
  "alloy-network",
  "alloy-primitives",
  "alloy-rpc-types",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
  "anyhow",
  "sov-rollup-interface",
 ]

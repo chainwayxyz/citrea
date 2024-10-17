@@ -5,6 +5,7 @@ use std::time::Duration;
 use std::vec;
 
 use alloy_primitives::{Address, TxHash};
+use alloy_rlp::Encodable;
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -23,10 +24,11 @@ use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
+use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
-    PoolTransaction, ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
+    ValidPoolTransaction,
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -290,13 +292,12 @@ where
                         let mut all_txs = vec![];
 
                         for evm_tx in transactions {
-                            let rlp_tx = RlpEvmTransaction {
-                                rlp: evm_tx
-                                    .to_recovered_transaction()
-                                    .into_signed()
-                                    .envelope_encoded()
-                                    .to_vec(),
-                            };
+                            let mut rlp = vec![];
+                            evm_tx
+                                .to_recovered_transaction()
+                                .into_signed()
+                                .encode(&mut rlp);
+                            let rlp_tx = RlpEvmTransaction { rlp: rlp.to_vec() };
 
                             let call_txs = CallMessage {
                                 txs: vec![rlp_tx.clone()],
@@ -1081,7 +1082,7 @@ where
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
         for (_, tx) in mempool_txs {
             let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.as_slice().to_vec()))?;
+                recover_raw_transaction(alloy_primitives::Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
             let _ = self.mempool.add_external_transaction(pooled_tx).await?;
@@ -1096,7 +1097,7 @@ where
             .expect("Unrecoverable: Head must exist");
 
         let addresses: HashSet<Address> = match head.transactions {
-            reth_rpc_types::BlockTransactions::Full(ref txs) => {
+            alloy_rpc_types::BlockTransactions::Full(ref txs) => {
                 txs.iter().map(|tx| tx.from).collect()
             }
             _ => panic!("Block should have full transactions"),

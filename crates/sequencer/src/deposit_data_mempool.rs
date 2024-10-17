@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
 
+use alloy_primitives::TxKind;
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_evm::system_contracts::BridgeWrapper;
 use citrea_evm::SYSTEM_SIGNER;
-use reth_primitives::TxKind;
-use reth_rpc_types::{TransactionInput, TransactionRequest};
 use tracing::instrument;
 
 #[derive(Clone, Debug)]

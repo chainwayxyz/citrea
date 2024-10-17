@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use alloy_primitives::{Bytes, B256};
+use alloy_rlp::Encodable;
+use alloy_rpc_types::Transaction;
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::core::RpcResult;
@@ -8,8 +10,10 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
 use parking_lot::Mutex;
+use reth_rpc::eth::helpers::types::EthTxBuilder;
 use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
+use reth_rpc_types_compat::TransactionCompat;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_api::WorkingSet;
@@ -39,7 +43,7 @@ pub trait SequencerRpc {
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<reth_rpc_types::Transaction>>;
+    ) -> RpcResult<Option<Transaction>>;
 
     #[method(name = "citrea_sendRawDepositTransaction")]
     #[blocking]
@@ -88,7 +92,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
             .transaction()
             .clone()
             .into_signed()
-            .encode_enveloped(&mut rlp_encoded_tx);
+            .encode(&mut rlp_encoded_tx);
 
         // Do not return error here just log
         if let Err(e) = self
@@ -106,7 +110,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
         &self,
         hash: B256,
         mempool_only: Option<bool>,
-    ) -> RpcResult<Option<reth_rpc_types::Transaction>> {
+    ) -> RpcResult<Option<Transaction>> {
         debug!(
             "Sequencer: eth_getTransactionByHash({}, {:?})",
             hash, mempool_only
@@ -115,17 +119,19 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
         match self.context.mempool.get(&hash) {
             Some(tx) => {
                 let tx_signed_ec_recovered = tx.to_recovered_transaction(); // tx signed ec recovered
-                let tx: reth_rpc_types::Transaction = from_recovered(tx_signed_ec_recovered);
-                Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(Some(tx))
+                let tx: Transaction = from_recovered::<EthTxBuilder>(tx_signed_ec_recovered).inner;
+                Ok::<Option<Transaction>, ErrorObjectOwned>(Some(tx))
             }
             None => match mempool_only {
-                Some(true) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
+                Some(true) => Ok::<Option<Transaction>, ErrorObjectOwned>(None),
                 _ => {
                     let evm = Evm::<C>::default();
                     let mut working_set = WorkingSet::<C>::new(self.context.storage.clone());
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
-                        Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
+                        Ok(tx) => Ok::<Option<Transaction>, ErrorObjectOwned>(
+                            tx.map(|transaction| transaction.inner),
+                        ),
                         Err(e) => Err(e),
                     }
                 }

@@ -1,17 +1,19 @@
 use std::sync::Arc;
 
+use alloy_genesis::Genesis;
+use alloy_primitives::TxHash;
 use anyhow::{anyhow, bail};
 use citrea_common::SequencerMempoolConfig;
 use citrea_evm::SYSTEM_SIGNER;
 use reth_chainspec::{Chain, ChainSpecBuilder};
-use reth_primitives::{Genesis, TxHash};
+use reth_execution_types::ChangedAccount;
 use reth_tasks::TokioTaskExecutor;
 use reth_transaction_pool::blobstore::NoopBlobStore;
 use reth_transaction_pool::error::PoolError;
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, ChangedAccount, CoinbaseTipOrdering,
-    EthPooledTransaction, EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit,
-    TransactionPool, TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, CoinbaseTipOrdering, EthPooledTransaction,
+    EthTransactionValidator, Pool, PoolConfig, PoolResult, SubPoolLimit, TransactionPool,
+    TransactionPoolExt, TransactionValidationTaskExecutor, ValidPoolTransaction,
 };
 
 pub use crate::db_provider::DbProvider;
@@ -55,7 +57,7 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
                     .with_difficulty(genesis_block.header.difficulty)
                     .with_mix_hash(genesis_mix_hash)
                     .with_coinbase(genesis_block.header.miner)
-                    .with_base_fee(genesis_block.header.base_fee_per_gas),
+                    .with_base_fee(genesis_block.header.base_fee_per_gas.map(|x| x as u128)),
             )
             .build();
 

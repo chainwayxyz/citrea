@@ -14,12 +14,15 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 alloy-eips = { workspace = true }
 alloy-consensus = { workspace = true }
 alloy-rpc-types = { workspace = true }
+alloy-rpc-types-eth = { workspace = true }
 alloy-network = { workspace = true }
 alloy-primitives = { workspace = true }
+alloy-serde = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+futures-utils-wasm = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Sov SDK deps

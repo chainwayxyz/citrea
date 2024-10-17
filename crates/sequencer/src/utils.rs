@@ -1,6 +1,7 @@
 //! Commonly used code snippets
 
 use alloy_primitives::Bytes;
+use alloy_rlp::Decodable;
 use reth_primitives::{PooledTransactionsElement, PooledTransactionsElementEcRecovered};
 use reth_rpc_eth_types::error::{EthApiError, EthResult};
 
@@ -14,7 +15,7 @@ pub(crate) fn recover_raw_transaction(
         return Err(EthApiError::EmptyRawTransactionData);
     }
 
-    let transaction = PooledTransactionsElement::decode_enveloped(&mut data.as_ref())
+    let transaction = PooledTransactionsElement::decode(&mut data.as_ref())
         .map_err(|_| EthApiError::FailedToDecodeSignedTransaction)?;
 
     transaction

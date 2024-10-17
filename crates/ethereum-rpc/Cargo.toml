@@ -33,7 +33,9 @@ alloy-primitives = { workspace = true }
 reth-primitives = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
 alloy-rpc-types = { workspace = true }
+alloy-rpc-types-trace = { workspace = true }
 reth-rpc-types-compat = { workspace = true }
+alloy-serde = { workspace = true }
 
 # Sovereign-SDK deps
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
