@@ -5,7 +5,8 @@ use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sp1_sdk::network_v2::proto::network::ProofMode;
 use sp1_sdk::provers::ProverType;
 use sp1_sdk::{
-    block_on, CpuProver, HashableKey, NetworkProverV2, Prover, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey
+    block_on, CpuProver, HashableKey, NetworkProverV2, Prover, ProverClient,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 use tracing::info;
 
