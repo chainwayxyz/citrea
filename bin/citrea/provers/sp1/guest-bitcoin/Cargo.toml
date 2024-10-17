@@ -17,6 +17,9 @@ sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-inte
 sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
 sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["lib"] }
 
+# Have to put this here to enable features for the patch crate even though we don't use this crate explicitly
+curve25519-dalek = { version = "4.1.3", default-features = true }
+
 [patch.crates-io]
 # sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.9.8" }
 # sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.6" }
@@ -26,8 +29,7 @@ sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", packa
 sha3-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", branch = "patch-sha3-v0.10.8" }
 crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", branch = "patch-v0.5.5" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
-# TODO: something is wrong with this patch, check it out or create an issue
-# curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
+curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
 # curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
 # ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
