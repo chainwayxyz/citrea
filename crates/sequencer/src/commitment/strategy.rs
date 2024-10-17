@@ -1,8 +1,8 @@
 use std::cmp;
 use std::sync::Arc;
 
-use citrea_common::compression::compress_blob;
 use citrea_common::utils::merge_state_diffs;
+use citrea_primitives::compression::compress_blob;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::BatchNumber;

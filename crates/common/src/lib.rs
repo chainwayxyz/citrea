@@ -2,7 +2,6 @@
 #![forbid(unsafe_code)]
 
 pub mod cache;
-pub mod compression;
 pub mod config;
 pub mod da;
 pub mod error;

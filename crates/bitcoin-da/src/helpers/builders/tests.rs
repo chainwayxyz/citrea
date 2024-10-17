@@ -6,7 +6,7 @@ use bitcoin::secp256k1::schnorr::Signature;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::taproot::ControlBlock;
 use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
-use citrea_common::compression::{compress_blob, decompress_blob};
+use citrea_primitives::compression::{compress_blob, decompress_blob};
 
 use super::light_client_proof_namespace::LightClientTxs;
 use crate::helpers::builders::sign_blob_with_private_key;

@@ -1749,7 +1749,6 @@ dependencies = [
  "anyhow",
  "backoff",
  "borsh",
- "brotli",
  "citrea-primitives",
  "citrea-pruning",
  "futures",
@@ -1888,6 +1887,7 @@ version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
+ "brotli",
  "reth-primitives",
  "serde",
  "sov-rollup-interface 0.5.0-rc.1",

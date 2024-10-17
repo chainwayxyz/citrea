@@ -15,7 +15,6 @@ resolver = "2"
 anyhow = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
-brotli = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
