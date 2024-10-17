@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::StreamExt;
+use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -37,7 +38,7 @@ where
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
     soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
-    commitment_controller: CommitmentController,
+    commitment_controller: Arc<RwLock<CommitmentController>>,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -52,13 +53,13 @@ where
         min_soft_confirmations: u64,
         soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
     ) -> Self {
-        let commitment_controller = CommitmentController::new(vec![
+        let commitment_controller = Arc::new(RwLock::new(CommitmentController::new(vec![
             Box::new(MinSoftConfirmations::new(
                 ledger_db.clone(),
                 min_soft_confirmations,
             )),
             Box::new(StateDiffThreshold::new(ledger_db.clone())),
-        ]);
+        ])));
         Self {
             ledger_db,
             da_service,
@@ -82,7 +83,20 @@ where
                         return;
                     };
 
-                    let commitment_info = match self.commitment_controller.should_commit(height, state_diff) {
+                    let commitment_controller = self.commitment_controller.clone();
+
+                    // Given that `should_commit` calls are blocking, as some strategies might
+                    // decide to write to rocksdb, others might try to execute CPU-bound operations,
+                    // we use `parking_lot::RwLock` here to lock the commitment controller inside
+                    // the blocking thread so that we can execute these strategies.
+                    let Ok(commitment_info) = tokio::task::spawn_blocking(move || {
+                        commitment_controller.write().should_commit(height, state_diff)
+                    }).await else {
+                        error!("Could not decide on commitment. Blocking thread panicked");
+                        continue;
+                    };
+
+                    let commitment_info = match commitment_info {
                         Ok(Some(commitment_info)) => {
                             commitment_info
                         },
