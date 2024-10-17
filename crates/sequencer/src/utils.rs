@@ -1,6 +1,7 @@
 //! Commonly used code snippets
 
-use reth_primitives::{Bytes, PooledTransactionsElement, PooledTransactionsElementEcRecovered};
+use alloy_primitives::Bytes;
+use reth_primitives::{PooledTransactionsElement, PooledTransactionsElementEcRecovered};
 use reth_rpc_eth_types::error::{EthApiError, EthResult};
 
 /// Recovers a [PooledTransactionsElementEcRecovered] from an enveloped encoded byte stream.

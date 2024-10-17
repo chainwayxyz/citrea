@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use alloy_primitives::{Bytes, B256};
 use citrea_evm::Evm;
 use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::core::RpcResult;
@@ -7,7 +8,6 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::{ErrorCode, ErrorObject, ErrorObjectOwned};
 use parking_lot::Mutex;
-use reth_primitives::{Bytes, IntoRecoveredTransaction, B256};
 use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};

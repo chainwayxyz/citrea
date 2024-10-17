@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 
+use alloy_primitives::{Address, TxHash};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -22,7 +23,6 @@ use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
-use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,

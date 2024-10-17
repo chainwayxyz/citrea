@@ -13,8 +13,12 @@ resolver = "2"
 
 [dependencies]
 # 3rd-party deps
+alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
+alloy-serde = { workspace = true }
 alloy-sol-types = { workspace = true }
+alloy-eips = { workspace = true }
+alloy-consensus = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }

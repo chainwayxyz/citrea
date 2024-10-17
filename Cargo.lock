@@ -2039,8 +2039,12 @@ dependencies = [
 name = "citrea-sequencer"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
  "alloy-rlp",
  "alloy-rpc-types",
+ "alloy-serde",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
