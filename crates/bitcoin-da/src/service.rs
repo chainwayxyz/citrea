@@ -20,6 +20,7 @@ use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::TestMempoolAcceptResult;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
+use citrea_primitives::compression::{compress_blob, decompress_blob};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
@@ -35,7 +36,6 @@ use crate::helpers::builders::light_client_proof_namespace::{
     create_zkproof_transactions, LightClientTxs,
 };
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
-use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
