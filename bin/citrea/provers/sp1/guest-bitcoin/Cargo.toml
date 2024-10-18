@@ -20,6 +20,8 @@ sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", de
 # Have to put this here to enable features for the patch crate even though we don't use this crate explicitly
 curve25519-dalek = { version = "4.1.3", default-features = true }
 
+# Not all patches are needed as those versions are not used in our repo,
+# but they are kept commented out to not deal with searching them if we ever need them
 [patch.crates-io]
 # sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.9.8" }
 # sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.6" }
