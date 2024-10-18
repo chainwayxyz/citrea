@@ -1,9 +1,6 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
-use alloy::primitives::Address as AlloyAddress;
-use alloy::signers::local::PrivateKeySigner;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
@@ -18,7 +15,7 @@ use citrea_risc0_boundless_adapter::host::Risc0BoundlessHost;
 use citrea_risc0_boundless_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use sov_db::ledger_db::{self, LedgerDB};
+use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -205,14 +202,14 @@ impl RollupBlueprint for BitcoinRollup {
             .expect("REQUESTOR_PRIVATE_KEY not set")
             .parse()
             .expect("Invalid REQUESTOR_PRIVATE_KEY");
-        let pk = PrivateKeySigner::from_str(&requestor_private_key).unwrap();
+
         let vm = Risc0BoundlessHost::new(
             citrea_risc0::BITCOIN_DA_ELF,
             ledger_db.clone(),
-            pk,
+            requestor_private_key,
             Url::parse("https://sepolia.drpc.org").unwrap(),
-            AlloyAddress::from_str("0xb3e579794B6ce24bC7233713289790d9bBEB656c").unwrap(),
-            AlloyAddress::from_str("0x6860e6cC6E4705309b3e946947706b4a346422DB").unwrap(),
+            "0xb3e579794B6ce24bC7233713289790d9bBEB656c".to_string(),
+            "0x6860e6cC6E4705309b3e946947706b4a346422DB".to_string(),
         )
         .await;
         let zk_stf = StfBlueprint::new();
@@ -233,9 +230,4 @@ impl RollupBlueprint for BitcoinRollup {
         )
         .expect("Should be able to instantiate prover service")
     }
-}
-
-#[test]
-fn test_a() {
-    Address::from_str("0xb3e579794B6ce24bC7233713289790d9bBEB656c").unwrap();
 }

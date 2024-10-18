@@ -1,29 +1,29 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 use core::panic;
+use std::str::FromStr;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 
-use alloy::primitives::aliases::U96;
-use alloy::primitives::utils::parse_ether;
-use alloy::primitives::{Address, Bytes, U256};
+use alloy::hex::FromHex;
 use alloy::signers::local::PrivateKeySigner;
+use alloy_primitives::aliases::U96;
+use alloy_primitives::utils::parse_ether;
+use alloy_primitives::{Address, Bytes, U256};
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
-use boundless_market::contracts::proof_market::MarketError;
 use boundless_market::contracts::{Input, Offer, Predicate, ProvingRequest, Requirements};
-use boundless_market::sdk::client::ClientError::{self, *};
+use boundless_market::sdk::client::ClientError::{self};
 use boundless_market::sdk::client::{self, Client};
-use boundless_market::storage::{BuiltinStorageProviderError, StorageProvider};
+use boundless_market::storage::BuiltinStorageProviderError;
 use risc0_zkvm::sha::{Digest, Digestible};
 use risc0_zkvm::{
     compute_image_id, default_executor, ExecutorEnv, ExecutorImpl, Groth16Receipt, InnerReceipt,
     Journal, MaybePruned, Receipt, ReceiptClaim,
 };
-use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
+use sov_db::ledger_db::LedgerDB;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
+use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
 
@@ -76,17 +76,17 @@ impl BoundlessClient {
                             // Match against the ClientError enum variants
                             ClientError::MarketError(e) => {
                                 error!(?e, "Boundless Market Error");
-                                std::thread::sleep(Duration::from_secs(5));
+                                sleep(Duration::from_secs(5)).await;
                                 continue $queue_loop
                             }
                             ClientError::StorageProviderError(s) => {
                                 warn!(%s, "Boundless Storage Provider Error");
-                                std::thread::sleep(Duration::from_secs(10));
+                                sleep(Duration::from_secs(10)).await;
                                 continue $queue_loop
                             }
                             ClientError::Error(e) => {
                                 error!(?e, "Boundless Error");
-                                std::thread::sleep(Duration::from_secs(5));
+                                sleep(Duration::from_secs(5)).await;
                                 continue $queue_loop
                             }
                             _ => {
@@ -177,7 +177,7 @@ impl BoundlessClient {
                                 .proof_market
                                 .slash(request_id)
                                 .await
-                                .map_err(|e| ClientError::MarketError(e));
+                                .map_err(ClientError::MarketError);
                             let _ = notify.send(res);
                         }
                     };
@@ -272,24 +272,23 @@ impl<'a> Risc0BoundlessHost<'a> {
     pub async fn new(
         elf: &'a [u8],
         ledger_db: LedgerDB,
-        requestor_private_key: PrivateKeySigner,
+        requestor_private_key: String,
         rpc_url: Url,
-        proof_market_address: Address,
-        set_verifier_address: Address,
+        proof_market_address: String,
+        set_verifier_address: String,
     ) -> Self {
-        /// Creates a storage provider based on the environment variables.
-        ///
-        /// If the environment variable `RISC0_DEV_MODE` is set, a temporary file storage provider is used.
-        /// Otherwise, the following environment variables are checked in order:
-        /// - `PINATA_JWT`, `PINATA_API_URL`, `IPFS_GATEWAY_URL`: Pinata storage provider;
-        /// - `S3_ACCESS`, `S3_SECRET`, `S3_BUCKET`, `S3_URL`, `AWS_REGION`: S3 storage provider.
-        let client = BoundlessClient::from_parts(
-            requestor_private_key,
-            rpc_url,
-            proof_market_address,
-            set_verifier_address,
-        )
-        .await;
+        // Creates a storage provider based on the environment variables.
+        //
+        // If the environment variable `RISC0_DEV_MODE` is set, a temporary file storage provider is used.
+        // Otherwise, the following environment variables are checked in order:
+        // - `PINATA_JWT`, `PINATA_API_URL`, `IPFS_GATEWAY_URL`: Pinata storage provider;
+        // - `S3_ACCESS`, `S3_SECRET`, `S3_BUCKET`, `S3_URL`, `AWS_REGION`: S3 storage provider.
+        let proof_market_address = Address::from_hex(proof_market_address).unwrap();
+        let set_verifier_address = Address::from_hex(set_verifier_address).unwrap();
+        let pk = PrivateKeySigner::from_str(&requestor_private_key).unwrap();
+        let client =
+            BoundlessClient::from_parts(pk, rpc_url, proof_market_address, set_verifier_address)
+                .await;
 
         let image_id = compute_image_id(elf).unwrap();
 
@@ -396,7 +395,7 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
             //   request is not fulfilled before the timeout, the prover can be slashed.
             let request = ProvingRequest::default()
                 .with_image_url(&self.image_url)
-                .with_input(Input::url(&input_url))
+                .with_input(Input::url(input_url))
                 .with_requirements(Requirements::new(
                     self.image_id,
                     Predicate::digest_match(journal.digest()),
@@ -524,9 +523,4 @@ impl<'host> Zkvm for Risc0BoundlessHost<'host> {
             &mut receipt.journal.bytes.as_slice(),
         )?)
     }
-}
-
-#[test]
-fn test_a() {
-    assert!(true)
 }

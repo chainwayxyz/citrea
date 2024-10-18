@@ -11,6 +11,7 @@ description = "An adapter allowing Citrea to connect with Risc0 Boundless Prover
 
 [dependencies]
 alloy = { version = "0.3" }
+alloy-primitives = { version = "0.8.7" }
 anyhow = { workspace = true }
 backoff = { workspace = true }
 bincode = { workspace = true }
