@@ -4,12 +4,12 @@ use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
 use sp1_zkvm::io;
 
 /// A guest for the SP1 VM. Implements the `ZkvmGuest` trait
-///  in terms of Risc0's env::read and env::commit functions.
+///  in terms of SP1's io::read and io::write functions.
 #[derive(Default)]
 pub struct SP1Guest {}
 
 impl SP1Guest {
-    /// Constructs a new Risc0 Guest
+    /// Constructs a new SP1Guest
     pub fn new() -> Self {
         Self::default()
     }
