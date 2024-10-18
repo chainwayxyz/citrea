@@ -5,55 +5,27 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use alloy::network::Ethereum;
-use alloy::primitives::aliases::{U192, U96};
+use alloy::primitives::aliases::U96;
 use alloy::primitives::utils::parse_ether;
 use alloy::primitives::{Address, Bytes, U256};
-use alloy::providers::fillers::{
-    BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller,
-};
-use alloy::providers::network::EthereumWallet;
-use alloy::providers::{Identity, Provider, ProviderBuilder, RootProvider};
-use alloy::signers::k256::ecdsa::SigningKey;
-use alloy::signers::local::{LocalSigner, PrivateKeySigner};
-use alloy::transports::http::Http;
-use alloy::transports::Transport;
+use alloy::signers::local::PrivateKeySigner;
 use anyhow::anyhow;
-use backoff::exponential::ExponentialBackoffBuilder;
-use backoff::{retry as retry_backoff, SystemClock};
 use borsh::{BorshDeserialize, BorshSerialize};
 use boundless_market::contracts::proof_market::MarketError;
 use boundless_market::contracts::{Input, Offer, Predicate, ProvingRequest, Requirements};
 use boundless_market::sdk::client::ClientError::{self, *};
 use boundless_market::sdk::client::{self, Client};
-use boundless_market::storage::{
-    storage_provider_from_env, BuiltinStorageProvider, BuiltinStorageProviderError,
-    StorageProvider, TempFileStorageProviderError,
-};
-use reqwest::Client as HttpClient;
+use boundless_market::storage::{BuiltinStorageProviderError, StorageProvider};
 use risc0_zkvm::sha::{Digest, Digestible};
 use risc0_zkvm::{
-    compute_image_id, default_executor, stark_to_snark, ExecutorEnv, ExecutorImpl, Groth16Receipt,
-    InnerReceipt, Journal, MaybePruned, Receipt, ReceiptClaim,
+    compute_image_id, default_executor, ExecutorEnv, ExecutorImpl, Groth16Receipt, InnerReceipt,
+    Journal, MaybePruned, Receipt, ReceiptClaim,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
-
-type ProviderWallet = FillProvider<
-    JoinFill<
-        JoinFill<
-            Identity,
-            JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-        >,
-        WalletFiller<EthereumWallet>,
-    >,
-    RootProvider<Http<HttpClient>>,
-    Http<HttpClient>,
-    Ethereum,
->;
 
 #[derive(Clone)]
 enum BoundlessRequest {
