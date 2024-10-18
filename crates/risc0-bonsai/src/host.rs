@@ -420,6 +420,11 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
+        if self.client.is_none() {
+            tracing::debug!("Skipping bonsai session recovery");
+            return Ok(vec![]);
+        }
+
         let sessions = self.ledger_db.get_pending_proving_sessions()?;
         tracing::info!("Recovering {} bonsai sessions", sessions.len());
         let mut proofs = Vec::new();
