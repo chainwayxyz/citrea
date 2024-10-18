@@ -54,7 +54,7 @@ impl Default for TestConfig {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_all_flow() {
-    // citrea::initialize_logging(tracing::Level::DEBUG);
+    citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -91,7 +91,7 @@ async fn test_all_flow() {
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             Some(ProverConfig {
-                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
+                proving_mode: sov_stf_runner::ProverGuestRunConfig::Prove,
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),

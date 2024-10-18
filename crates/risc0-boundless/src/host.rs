@@ -524,3 +524,12 @@ impl<'host> Zkvm for Risc0BoundlessHost<'host> {
         )?)
     }
 }
+
+#[test]
+fn test_priv_key() {
+    let str = "";
+
+    let pk = PrivateKeySigner::from_str(str).unwrap();
+
+    println!("{:?}", pk);
+}
