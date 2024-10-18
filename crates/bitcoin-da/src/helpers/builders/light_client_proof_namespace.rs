@@ -23,7 +23,7 @@ use super::{
     TxListWithReveal, TxWithId,
 };
 use crate::spec::utxo::UTXO;
-use crate::REVEAL_OUTPUT_AMOUNT;
+use crate::{REVEAL_OUTPUT_AMOUNT, REVEAL_OUTPUT_THRESHOLD};
 
 /// This is a list of light client tx we need to send to DA
 #[derive(Serialize)]
@@ -208,7 +208,7 @@ pub fn create_inscription_type_0(
             &control_block,
         ) as u64
             * reveal_fee_rate;
-        let reveal_input_value = fee + reveal_value + reveal_value / 2;
+        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
         // we don't need leftover_utxos because they will be requested from bitcoind next call
@@ -228,7 +228,7 @@ pub fn create_inscription_type_0(
             unsigned_commit_tx.compute_txid(),
             0,
             change_address,
-            reveal_value + reveal_value / 2,
+            reveal_value + REVEAL_OUTPUT_THRESHOLD,
             reveal_fee_rate,
             &reveal_script,
             &control_block,
@@ -499,7 +499,7 @@ pub fn create_inscription_type_1(
             &control_block,
         ) as u64
             * reveal_fee_rate;
-        let reveal_input_value = fee + reveal_value + reveal_value / 2;
+        let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
         // build commit tx
         let (mut unsigned_commit_tx, _leftover_utxos) = build_commit_transaction(
@@ -518,7 +518,7 @@ pub fn create_inscription_type_1(
             unsigned_commit_tx.compute_txid(),
             0,
             change_address,
-            reveal_value + reveal_value / 2,
+            reveal_value + REVEAL_OUTPUT_THRESHOLD,
             reveal_fee_rate,
             &reveal_script,
             &control_block,
