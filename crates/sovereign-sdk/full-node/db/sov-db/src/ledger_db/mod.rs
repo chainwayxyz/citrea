@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::de::DeserializeOwned;
@@ -12,8 +13,8 @@ use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{
-    BatchByNumber, CommitmentsByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2Witness,
-    LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
+    BatchByNumber, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height,
+    L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
     PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
     ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
     SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
@@ -23,6 +24,8 @@ use crate::schema::types::{
     StoredSoftConfirmation, StoredStateTransition, StoredVerifiedProof,
 };
 
+/// Implementation of database migrator
+pub mod migrations;
 mod rpc;
 mod traits;
 
@@ -158,6 +161,11 @@ impl LedgerDB {
 }
 
 impl SharedLedgerOps for LedgerDB {
+    /// Returns the path of the DB
+    fn path(&self) -> &Path {
+        self.db.path()
+    }
+
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_confirmation(
         &self,
@@ -466,6 +474,25 @@ impl SharedLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    /// Gets all executed migrations.
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_executed_migrations(&self) -> anyhow::Result<Vec<(String, u64)>> {
+        let mut iter = self.db.iter::<ExecutedMigrations>()?;
+        iter.seek_to_first();
+
+        let migrations = iter
+            .map(|item| item.map(|item| item.key))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(migrations)
+    }
+
+    /// Put a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()> {
+        self.db.put::<ExecutedMigrations>(&migration, &())
     }
 }
 
