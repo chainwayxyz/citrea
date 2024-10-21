@@ -9,8 +9,7 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Groth16Receipt, InnerReceipt, Journal,
-    LocalProver, Prover, Receipt,
+    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver, Prover, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -199,7 +198,6 @@ impl<'a> Risc0BonsaiHost<'a> {
         &self,
         snark_session: Option<&str>,
         stark_session: &str,
-        receipt_buf: Vec<u8>,
     ) -> Result<Proof, anyhow::Error> {
         // If snark session exists use it else create one from stark
         let snark_session = match snark_session {
@@ -227,7 +225,6 @@ impl<'a> Risc0BonsaiHost<'a> {
             .add_pending_proving_session(recovered_serialized_snark_session.clone())?;
 
         let client = self.client.as_ref().unwrap();
-        let receipt: Receipt = bincode::deserialize(&receipt_buf).unwrap();
         loop {
             let snark_session = snark_session.clone();
             let client_clone = client.clone();
@@ -244,7 +241,7 @@ impl<'a> Risc0BonsaiHost<'a> {
                     continue;
                 }
                 "SUCCEEDED" => {
-                    let snark_receipt = match res.output {
+                    let snark_receipt_url = match res.output {
                         Some(output) => output,
                         None => {
                             return Err(anyhow!(
@@ -252,24 +249,22 @@ impl<'a> Risc0BonsaiHost<'a> {
                             ))
                         }
                     };
+
+                    let client_clone = client.clone();
+                    let snark_receipt_buf = thread::spawn(move || {
+                        retry_backoff_bonsai!(client_clone.download(snark_receipt_url.as_str()))
+                    })
+                    .join()
+                    .unwrap()
+                    .expect("Failed to download receipt; qed");
+
+                    let snark_receipt: Receipt = bincode::deserialize(&snark_receipt_buf.clone())?;
+
                     tracing::info!("Snark proof!: {snark_receipt:?}");
 
                     // now we convert the snark_receipt to a full receipt
 
-                    use risc0_zkvm::sha::Digestible;
-                    let inner = InnerReceipt::Groth16(Groth16Receipt::new(
-                        snark_receipt.snark.to_vec(),
-                        receipt.claim().expect("stark_2_snark error, receipt claim"),
-                        risc0_zkvm::Groth16ReceiptVerifierParameters::default().digest(),
-                    ));
-
-                    let full_snark_receipt = Receipt::new(inner, snark_receipt.journal);
-
-                    tracing::info!("Full snark proof!: {full_snark_receipt:?}");
-
-                    let full_snark_receipt = bincode::serialize(&full_snark_receipt)?;
-
-                    return Ok(Proof::Full(full_snark_receipt));
+                    return Ok(Proof::Full(snark_receipt_buf));
                 }
                 _ => {
                     return Err(anyhow!(
@@ -369,7 +364,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
                 tracing::info!("Session created: {}", session.uuid);
 
-                let receipt = self.wait_for_receipt(&session.uuid)?;
+                let _receipt = self.wait_for_receipt(&session.uuid)?;
 
                 tracing::info!("Creating the SNARK");
 
@@ -389,11 +384,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 tracing::info!("SNARK session created: {}", snark_session.uuid);
 
                 // Snark session is saved in the function
-                self.wait_for_stark_to_snark_conversion(
-                    Some(&snark_session.uuid),
-                    &session.uuid,
-                    receipt,
-                )
+                self.wait_for_stark_to_snark_conversion(Some(&snark_session.uuid), &session.uuid)
             }
         }?;
 
@@ -435,18 +426,14 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             tracing::info!("Recovering bonsai session: {:?}", bonsai_session);
             match bonsai_session.session {
                 BonsaiSession::StarkSession(stark_session) => {
-                    let receipt = self.wait_for_receipt(&stark_session)?;
-                    let proof =
-                        self.wait_for_stark_to_snark_conversion(None, &stark_session, receipt)?;
+                    let _receipt = self.wait_for_receipt(&stark_session)?;
+                    let proof = self.wait_for_stark_to_snark_conversion(None, &stark_session)?;
                     proofs.push(proof);
                 }
                 BonsaiSession::SnarkSession(stark_session, snark_session) => {
-                    let receipt = self.wait_for_receipt(&stark_session)?;
-                    let proof = self.wait_for_stark_to_snark_conversion(
-                        Some(&snark_session),
-                        &stark_session,
-                        receipt,
-                    )?;
+                    let _receipt = self.wait_for_receipt(&stark_session)?;
+                    let proof = self
+                        .wait_for_stark_to_snark_conversion(Some(&snark_session), &stark_session)?;
                     proofs.push(proof)
                 }
             }

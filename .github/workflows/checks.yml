@@ -89,9 +89,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: cargo risczero install --version r0.1.79.0-2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
@@ -130,7 +130,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -169,7 +169,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -208,7 +208,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -376,7 +376,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
