@@ -34,7 +34,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:

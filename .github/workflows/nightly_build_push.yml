@@ -41,7 +41,7 @@ jobs:
 
       - name: Install cargo-risczero
         run: |
-          cargo binstall cargo-risczero@1.0.5 --no-confirm
+          cargo binstall cargo-risczero@1.1.2 --no-confirm
 
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
