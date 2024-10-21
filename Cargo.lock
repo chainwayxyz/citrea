@@ -684,6 +684,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
+name = "approx"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "aquamarine"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2394,6 +2403,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "cust"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d6cc71911e179f12483b9734120b45bd00bf64fab085cc4818428523eedd469"
+dependencies = [
+ "bitflags 1.3.2",
+ "bytemuck",
+ "cust_core",
+ "cust_derive",
+ "cust_raw",
+ "find_cuda_helper",
+]
+
+[[package]]
+name = "cust_core"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "039f79662cb8f890cbf335e818cd522d6e3a53fe63f61d1aaaf859cd3d975f06"
+dependencies = [
+ "cust_derive",
+ "glam",
+ "mint",
+ "vek",
+]
+
+[[package]]
+name = "cust_derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8a3bc95fe629aed92b2423de6ccff9e40174b21d19cb6ee6281a4d04ac72f66"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "cust_raw"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbf40d6ade12cb9828bbc844b9875c7b93d25e67a3c9bf61c7aa3ae09e402bf8"
+dependencies = [
+ "find_cuda_helper",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2917,6 +2972,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 
 [[package]]
+name = "find_cuda_helper"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9f9e65c593dd01ac77daad909ea4ad17f0d6d1776193fc8ea766356177abdad"
+dependencies = [
+ "glob",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3134,6 +3198,15 @@ checksum = "40ecd4077b5ae9fd2e9e169b102c6c330d0605168eb0e8bf79952b256dbefffd"
 dependencies = [
  "fallible-iterator",
  "stable_deref_trait",
+]
+
+[[package]]
+name = "glam"
+version = "0.20.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f43e957e744be03f5801a55472f593d43fabdebf25a4585db250f04d86b1675f"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -4518,6 +4591,12 @@ checksum = "87dfd01fe195c66b572b37921ad8803d010623c0aca821bea2302239d155cdae"
 dependencies = [
  "adler",
 ]
+
+[[package]]
+name = "mint"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "mio"
@@ -6499,7 +6578,7 @@ dependencies = [
  "rayon",
  "sha2",
  "tempfile",
- "which",
+ "which 6.0.1",
 ]
 
 [[package]]
@@ -6511,6 +6590,7 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "cfg-if",
+ "cust",
  "downloader",
  "hex",
  "lazy-regex",
@@ -6537,6 +6617,7 @@ dependencies = [
  "risc0-build-kernel",
  "risc0-core",
  "risc0-sys",
+ "sppark",
 ]
 
 [[package]]
@@ -6550,6 +6631,7 @@ dependencies = [
  "cfg-if",
  "crossbeam",
  "crypto-bigint",
+ "cust",
  "derive-debug",
  "lazy-regex",
  "metal",
@@ -6576,6 +6658,7 @@ dependencies = [
  "risc0-build-kernel",
  "risc0-core",
  "risc0-sys",
+ "sppark",
 ]
 
 [[package]]
@@ -6621,7 +6704,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a3afe2e8e95cec6317a75bb6eb13519f643e22c53c67a22a31c355117b7c447"
 dependencies = [
  "cc",
+ "cust",
  "risc0-build-kernel",
+ "sppark",
 ]
 
 [[package]]
@@ -6635,6 +6720,7 @@ dependencies = [
  "borsh",
  "bytemuck",
  "cfg-if",
+ "cust",
  "digest 0.10.7",
  "ff",
  "hex",
@@ -8104,6 +8190,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sppark"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c55f3833d30846a26110dccb1d5366314c2c52516a9173b74238c16b24b1a9f9"
+dependencies = [
+ "cc",
+ "which 4.4.2",
+]
+
+[[package]]
 name = "stability"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8944,6 +9040,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
+name = "vek"
+version = "0.15.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8085882662f9bc47fc8b0cdafa5e19df8f592f650c02b9083da8d45ac9eebd17"
+dependencies = [
+ "approx",
+ "num-integer",
+ "num-traits",
+ "rustc_version 0.4.0",
+]
+
+[[package]]
 name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9091,6 +9199,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c452ad30530b54a4d8e71952716a212b08efd0f3562baa66c29a618b07da7c3"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix",
 ]
 
 [[package]]

@@ -36,3 +36,4 @@ native = [
   "sov-rollup-interface/native",
 ]
 bench = ["native"]
+cuda = ["risc0-zkvm/cuda"]

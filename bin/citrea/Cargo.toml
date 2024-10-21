@@ -90,7 +90,7 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "fc12cb0
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
-
+cuda = ["citrea-risc0-bonsai-adapter/cuda"]
 bench = ["hex"] # "sov-risc0-adapter/bench", "risc0/bench"]
 
 [[bin]]

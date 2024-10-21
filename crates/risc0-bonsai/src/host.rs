@@ -9,7 +9,8 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver, Prover, Receipt,
+    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver, Prover, ProverOpts,
+    Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -322,7 +323,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                     .unwrap();
 
                 let prover = LocalProver::new("citrea");
-                let receipt = prover.prove(env, self.elf)?.receipt;
+                let receipt = prover
+                    .prove_with_opts(env, self.elf, &ProverOpts::groth16())?
+                    .receipt;
 
                 tracing::info!("Local proving completed");
 
