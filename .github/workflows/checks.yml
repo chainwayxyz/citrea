@@ -89,9 +89,9 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0
+        run: cargo risczero install --version r0.1.79.0-2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
@@ -130,7 +130,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -169,7 +169,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -208,7 +208,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -222,7 +222,7 @@ jobs:
         run: make coverage
         env:
           RUST_BACKTRACE: 1
-          USE_DOCKER: "true"
+          TEST_BITCOIN_DOCKER: 1
           SHORT_PREFIX: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
       - name: Upload coverage
@@ -253,7 +253,7 @@ jobs:
         run: npm install
       - name: Run uniswap tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           RUST_LOG=off ./target/release/citrea --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
@@ -294,7 +294,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run web3.py tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
@@ -322,7 +322,7 @@ jobs:
         run: npm install
       - name: Run ethers_js tests
         run: |
-          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
+          RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
           RUST_LOG=off ./target/release/citrea --da-layer mock --rollup-config-path resources/configs/mock/rollup_config.toml --genesis-paths resources/genesis/mock/ &
           sleep 2
@@ -376,7 +376,7 @@ jobs:
       - name: Install cargo-risczero
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-risczero@1.0.5
+          tool: cargo-risczero@1.1.2
       - name: Install risc0-zkvm toolchain
         run: cargo risczero install --version r0.1.79.0-2
         env:
@@ -394,7 +394,7 @@ jobs:
           RUST_BACKTRACE: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
-          USE_DOCKER: "true"
+          TEST_BITCOIN_DOCKER: 1
           SHORT_PREFIX: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
 

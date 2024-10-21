@@ -36,7 +36,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     type DaConfig: Send + Sync;
 
     /// Host of a zkVM program.
-    type Vm: ZkvmHost + Zkvm + Send + Sync;
+    type Vm: ZkvmHost + Zkvm + Send + Sync + 'static;
 
     /// Context for Zero Knowledge environment.
     type ZkContext: Context;

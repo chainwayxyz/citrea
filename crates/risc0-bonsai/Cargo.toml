@@ -13,36 +13,26 @@ description = "An adapter allowing Citrea to connect with Bonsai"
 
 [dependencies]
 anyhow = { workspace = true }
-backoff = { workspace = true }
+backoff = { workspace = true, optional = true }
 bincode = { workspace = true }
-bonsai-sdk = { workspace = true }
+bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
-bytemuck = "1.13.1"
 hex = { workspace = true }
-once_cell = { version = "1.19.0", optional = true }
-parking_lot = { version = "0.12.1", optional = true }
-risc0-circuit-rv32im = { workspace = true, optional = true }
-risc0-zkp = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
-risc0-zkvm-platform = { workspace = true }
 serde = { workspace = true }
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tracing = { workspace = true }
-
-# we are going to use its guest
-sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
 
 [features]
 default = []
 native = [
+  "dep:backoff",
+  "dep:bonsai-sdk",
+  "dep:sov-db",
   "risc0-zkvm/prove",
-  "dep:risc0-zkp",
-  "dep:risc0-circuit-rv32im",
   "sov-risc0-adapter/native",
+  "sov-rollup-interface/native",
 ]
-bench = ["once_cell", "parking_lot", "native"]
-
-[[test]]
-name = "native"
-required-features = ["native"]
+bench = ["native"]

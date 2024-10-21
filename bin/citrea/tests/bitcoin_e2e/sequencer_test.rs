@@ -7,6 +7,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 
+use super::get_citrea_path;
+
 struct BasicSequencerTest;
 
 #[async_trait]
@@ -47,7 +49,10 @@ impl TestCase for BasicSequencerTest {
 
 #[tokio::test]
 async fn basic_sequencer_test() -> Result<()> {
-    TestCaseRunner::new(BasicSequencerTest).run().await
+    TestCaseRunner::new(BasicSequencerTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
 
 /// This test checks the sequencer behavior when missed DA blocks are detected.
@@ -130,5 +135,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
 
 #[tokio::test]
 async fn test_sequencer_missed_da_blocks() -> Result<()> {
-    TestCaseRunner::new(SequencerMissedDaBlocksTest).run().await
+    TestCaseRunner::new(SequencerMissedDaBlocksTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
