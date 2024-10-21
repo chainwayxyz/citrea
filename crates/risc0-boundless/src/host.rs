@@ -1,6 +1,5 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 use core::panic;
-use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -14,7 +13,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use boundless_market::contracts::{Input, Offer, Predicate, ProvingRequest, Requirements};
 use boundless_market::sdk::client::ClientError::{self};
 use boundless_market::sdk::client::{self, Client};
-use boundless_market::storage::BuiltinStorageProviderError;
 use risc0_zkvm::sha::{Digest, Digestible};
 use risc0_zkvm::{
     compute_image_id, default_executor, ExecutorEnv, ExecutorImpl, Groth16Receipt, InnerReceipt,
@@ -23,7 +21,7 @@ use risc0_zkvm::{
 use sov_db::ledger_db::LedgerDB;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
-use tokio::sync::mpsc::{self, unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
@@ -103,75 +101,73 @@ impl BoundlessClient {
         let (queue, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let join_handle = tokio::spawn(async move {
             let mut last_request: Option<BoundlessRequest> = None;
-            'client: loop {
-                debug!("Boundless client loop");
-                let client = Client::from_parts(
-                    requestor_private_key.clone(),
-                    rpc_url.clone(),
-                    proof_market_address,
-                    set_verifier_address,
-                )
-                .await
-                .unwrap();
+            debug!("Boundless client loop");
+            let client = Client::from_parts(
+                requestor_private_key.clone(),
+                rpc_url.clone(),
+                proof_market_address,
+                set_verifier_address,
+            )
+            .await
+            .unwrap();
 
-                'queue: loop {
-                    let request = if let Some(last_request) = last_request.clone() {
-                        debug!("Retrying last request after reconnection");
-                        last_request
-                    } else {
-                        trace!("Waiting for a new request");
-                        let req: BoundlessRequest = rx.recv().await.unwrap();
-                        // Save request for retries
-                        last_request = Some(req.clone());
-                        req
-                    };
-                    match request {
-                        BoundlessRequest::UploadImg { elf, notify } => {
-                            let res = client.upload_image(&elf);
-                            let res = unwrap_boundless_response!(res, 'queue);
-                            let _ = notify.send(res);
-                        }
-                        BoundlessRequest::UploadInput { input, notify } => {
-                            debug!("Boundless: upload_input");
-                            let res = client.upload_input(&input);
-                            let res = unwrap_boundless_response!(res, 'queue);
-                            let _ = notify.send(res);
-                        }
-                        BoundlessRequest::SubmitReq {
-                            proving_request,
-                            notify,
-                        } => {
-                            debug!("Boundless: submit_req");
-                            let res = client.submit_request(&proving_request);
-                            let res = unwrap_boundless_response!(res, 'queue);
-                            let _ = notify.send(res);
-                        }
-                        BoundlessRequest::WaitForReqFulfillment {
-                            request_id,
-                            check_interval,
-                            timeout,
-                            notify,
-                        } => {
-                            debug!("Boundless: wait_for_req_fulfillment");
-                            let res = client
-                                .wait_for_request_fulfillment(request_id, check_interval, timeout)
-                                .await;
-                            // There is no need to retry this request as this already has a retry mechanism inside
-                            let _ = notify.send(res);
-                        }
-                        BoundlessRequest::Slash { request_id, notify } => {
-                            debug!("Boundless: slash");
-                            let res = client
-                                .proof_market
-                                .slash(request_id)
-                                .await
-                                .map_err(ClientError::MarketError);
-                            let _ = notify.send(res);
-                        }
-                    };
-                    // We arrive here only on a successful response
-                    last_request = None;
-                }
+            'queue: loop {
+                let request = if let Some(last_request) = last_request.clone() {
+                    debug!("Retrying last request after reconnection");
+                    last_request
+                } else {
+                    trace!("Waiting for a new request");
+                    let req: BoundlessRequest = rx.recv().await.unwrap();
+                    // Save request for retries
+                    last_request = Some(req.clone());
+                    req
+                };
+                match request {
+                    BoundlessRequest::UploadImg { elf, notify } => {
+                        let res = client.upload_image(&elf);
+                        let res = unwrap_boundless_response!(res, 'queue);
+                        let _ = notify.send(res);
+                    }
+                    BoundlessRequest::UploadInput { input, notify } => {
+                        debug!("Boundless: upload_input");
+                        let res = client.upload_input(&input);
+                        let res = unwrap_boundless_response!(res, 'queue);
+                        let _ = notify.send(res);
+                    }
+                    BoundlessRequest::SubmitReq {
+                        proving_request,
+                        notify,
+                    } => {
+                        debug!("Boundless: submit_req");
+                        let res = client.submit_request(&proving_request);
+                        let res = unwrap_boundless_response!(res, 'queue);
+                        let _ = notify.send(res);
+                    }
+                    BoundlessRequest::WaitForReqFulfillment {
+                        request_id,
+                        check_interval,
+                        timeout,
+                        notify,
+                    } => {
+                        debug!("Boundless: wait_for_req_fulfillment");
+                        let res = client
+                            .wait_for_request_fulfillment(request_id, check_interval, timeout)
+                            .await;
+                        // There is no need to retry this request as this already has a retry mechanism inside
+                        let _ = notify.send(res);
+                    }
+                    BoundlessRequest::Slash { request_id, notify } => {
+                        debug!("Boundless: slash");
+                        let res = client
+                            .proof_market
+                            .slash(request_id)
+                            .await
+                            .map_err(ClientError::MarketError);
+                        let _ = notify.send(res);
+                    }
+                };
+                // We arrive here only on a successful response
+                last_request = None;
             }
         });
         let _join_handle = Arc::new(join_handle);
@@ -249,9 +245,7 @@ pub struct Risc0BoundlessHost<'a> {
     image_url: String,
     client: BoundlessClient,
     last_input_url: Option<String>,
-    ledger_db: LedgerDB,
-    proof_market_address: Address,
-    set_verifier_address: Address,
+    _ledger_db: LedgerDB,
 }
 
 impl<'a> Risc0BoundlessHost<'a> {
@@ -291,9 +285,7 @@ impl<'a> Risc0BoundlessHost<'a> {
             image_url,
             client,
             last_input_url: None,
-            ledger_db,
-            proof_market_address,
-            set_verifier_address,
+            _ledger_db: ledger_db,
         }
     }
 
@@ -514,32 +506,29 @@ impl<'host> Zkvm for Risc0BoundlessHost<'host> {
 
 #[tokio::test]
 async fn test_cli_running() {
-    let proof_market_address_str = match env::var("PROOF_MARKET_ADDRESS") {
+    let proof_market_address_str = match std::env::var("PROOF_MARKET_ADDRESS") {
         Ok(val) => val,
         // If the environment variable is not set, the test will be skipped.
         Err(_) => return,
     };
 
-    let private_key_str = env::var("private_key").context("private_key not set")?;
-    let private_key =
-        PrivateKeySigner::from_str(&private_key_str).context("Invalid private_key")?;
-    let rpc_url_str = env::var("RPC_URL").context("RPC_URL not set")?;
-    let rpc_url = Url::parse(&rpc_url_str).context("Invalid RPC_URL")?;
-    let proof_market_address_str =
-        env::var("PROOF_MARKET_ADDRESS").context("PROOF_MARKET_ADDRESS not set")?;
+    let private_key_str = std::env::var("private_key").expect("private_key not set");
+    let private_key = PrivateKeySigner::from_str(&private_key_str).expect("Invalid private_key");
+    let rpc_url_str = std::env::var("RPC_URL").expect("RPC_URL not set");
+    let rpc_url = Url::parse(&rpc_url_str).expect("Invalid RPC_URL");
     let proof_market_address =
-        Address::from_str(&proof_market_address_str).context("Invalid PROOF_MARKET_ADDRESS")?;
+        Address::from_str(&proof_market_address_str).expect("Invalid PROOF_MARKET_ADDRESS");
     let set_verifier_address_str =
-        env::var("SET_VERIFIER_ADDRESS").context("SET_VERIFIER_ADDRESS not set")?;
+        std::env::var("SET_VERIFIER_ADDRESS").expect("SET_VERIFIER_ADDRESS not set");
     let set_verifier_address =
-        Address::from_str(&set_verifier_address_str).context("Invalid SET_VERIFIER_ADDRESS")?;
+        Address::from_str(&set_verifier_address_str).expect("Invalid SET_VERIFIER_ADDRESS");
 
     // ALSO SET THESE ENV VARIABLES
     // PINATA_JWT
     // PINATA_API_URL
     // IPFS_GATEWAY_URL
 
-    let client = Client::from_parts(
+    let _ = Client::from_parts(
         private_key,
         rpc_url,
         proof_market_address,

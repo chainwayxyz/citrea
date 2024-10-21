@@ -27,7 +27,6 @@ use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
-use url::Url;
 
 use crate::CitreaRollupBlueprint;
 
