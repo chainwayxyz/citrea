@@ -46,7 +46,12 @@ impl LedgerDBMigrator {
 
     /// Run migrations
     pub fn migrate(&self, max_open_files: Option<i32>) -> anyhow::Result<()> {
+        if self.migrations.is_empty() {
+            return Ok(());
+        }
+
         debug!("Starting LedgerDB migrations...");
+
         let original_path = &self.ledger_path;
 
         let ledger_db =
