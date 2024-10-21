@@ -323,17 +323,26 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                     .unwrap();
 
                 let prover = LocalProver::new("citrea");
-                let receipt = prover
-                    .prove_with_opts(env, self.elf, &ProverOpts::groth16())?
-                    .receipt;
+
+                let start = std::time::Instant::now();
+                let proving_session =
+                    prover.prove_with_opts(env, self.elf, &ProverOpts::groth16())?;
+                let end = std::time::Instant::now();
 
                 tracing::info!("Local proving completed");
 
-                receipt.verify(self.image_id)?;
+                proving_session.receipt.verify(self.image_id)?;
 
                 tracing::info!("Verified the receipt");
 
-                let serialized_receipt = bincode::serialize(&receipt)?;
+                tracing::error!(
+                    "Proving stats:\tuser cycles: {}\ttotal cycles: {}\ttotal time: {}",
+                    proving_session.stats.user_cycles,
+                    proving_session.stats.total_cycles,
+                    (end - start).as_secs_f64()
+                );
+
+                let serialized_receipt = bincode::serialize(&proving_session.receipt)?;
 
                 Ok(Proof::Full(serialized_receipt))
             }

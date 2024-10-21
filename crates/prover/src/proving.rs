@@ -267,6 +267,21 @@ where
     Ps: ProverService<Vm, DaService = Da, StateRoot = StateRoot, Witness = Witness>,
     Da: DaService,
 {
+    tracing::error!(
+        "Submitting for proving. L1 height: {}\tL2 blocks: #{}-#{}",
+        transition_data.da_block_header_of_commitments.height(),
+        transition_data.soft_confirmations[0][0].l2_height(),
+        transition_data
+            .soft_confirmations
+            .iter()
+            .last()
+            .unwrap()
+            .iter()
+            .last()
+            .unwrap()
+            .l2_height()
+    );
+
     prover_service.submit_witness(transition_data).await;
 
     prover_service.prove(hash.clone()).await?;
