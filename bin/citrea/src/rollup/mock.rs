@@ -103,6 +103,47 @@ impl RollupBlueprint for MockDemoRollup {
         )))
     }
 
+    // async fn create_prover_service(
+    //     &self,
+    //     prover_config: ProverConfig,
+    //     _rollup_config: &FullNodeConfig<Self::DaConfig>,
+    //     _da_service: &Arc<Self::DaService>,
+    //     ledger_db: LedgerDB,
+    // ) -> Self::ProverService {
+    //     let private_key_str = env::var("private_key").context("private_key not set")?;
+    //     let rpc_url_str = env::var("RPC_URL").context("RPC_URL not set")?;
+    //     let proof_market_address_str =
+    //         env::var("PROOF_MARKET_ADDRESS").context("PROOF_MARKET_ADDRESS not set")?;
+    //     let set_verifier_address_str =
+    //         env::var("SET_VERIFIER_ADDRESS").context("SET_VERIFIER_ADDRESS not set")?;
+    //     // ALSO SET THESE ENV VARIABLES
+    //     // PINATA_JWT
+    //     // PINATA_API_URL
+    //     // IPFS_GATEWAY_URL
+    //     let vm = Risc0BoundlessHost::new(
+    //         citrea_risc0::MOCK_DA_ELF,
+    //         ledger_db.clone(),
+    //         private_key_str,
+    //         Url::parse(rpc_url_str).unwrap(),
+    //         proof_market_address_str,
+    //         set_verifier_address_str,
+    //     )
+    //     .await;
+    //     let zk_stf = StfBlueprint::new();
+    //     let zk_storage = ZkStorage::new();
+
+    //     let da_verifier = Default::default();
+    //     ParallelProverService::new_with_default_workers(
+    //         vm,
+    //         zk_stf,
+    //         da_verifier,
+    //         prover_config,
+    //         zk_storage,
+    //         ledger_db,
+    //     )
+    //     .expect("Should be able to instantiate prover service")
+    // }
+
     async fn create_prover_service(
         &self,
         prover_config: ProverConfig,

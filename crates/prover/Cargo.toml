@@ -40,7 +40,7 @@ rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-tower = { workspace = true }
+tower = { version = "0.4.13", features = ["full"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
