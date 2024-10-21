@@ -64,7 +64,7 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx2.output[0].value, self.get_reveal_tx_input_value(&tx3));
+        assert_eq!(tx2.output[0].value, self.get_reveal_tx_input_value(tx3));
         assert_eq!(tx3.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // Do another round and make sure second batch is chained from first batch
@@ -100,7 +100,7 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx4.output[0].value, self.get_reveal_tx_input_value(&tx5));
+        assert_eq!(tx4.output[0].value, self.get_reveal_tx_input_value(tx5));
         assert_eq!(tx5.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         sequencer.restart(None).await?;
@@ -138,7 +138,7 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx6.output[0].value, self.get_reveal_tx_input_value(&tx7));
+        assert_eq!(tx6.output[0].value, self.get_reveal_tx_input_value(tx7));
         assert_eq!(tx7.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(())
