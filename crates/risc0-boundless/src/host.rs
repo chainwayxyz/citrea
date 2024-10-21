@@ -1,7 +1,7 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 use core::panic;
+use std::env;
 use std::str::FromStr;
-use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 
 use alloy::hex::FromHex;
@@ -23,39 +23,41 @@ use risc0_zkvm::{
 use sov_db::ledger_db::LedgerDB;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
+use tokio::sync::mpsc::{self, unbounded_channel, UnboundedSender};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
 
+// TODO: Remove blocking wrapper once the boundless client has blocking api
 #[derive(Clone)]
 enum BoundlessRequest {
     UploadImg {
         elf: Vec<u8>,
-        notify: Sender<String>,
+        notify: UnboundedSender<String>,
     },
     UploadInput {
         input: Vec<u8>,
-        notify: Sender<String>,
+        notify: UnboundedSender<String>,
     },
     SubmitReq {
         proving_request: ProvingRequest,
-        notify: Sender<U256>,
+        notify: UnboundedSender<U256>,
     },
     WaitForReqFulfillment {
         request_id: U256,
         check_interval: std::time::Duration,
         timeout: Option<std::time::Duration>,
-        notify: Sender<Result<(Bytes, Bytes), ClientError>>,
+        notify: UnboundedSender<Result<(Bytes, Bytes), ClientError>>,
     },
     Slash {
         request_id: U256,
-        notify: Sender<Result<U256, ClientError>>,
+        notify: UnboundedSender<Result<U256, ClientError>>,
     },
 }
 
 #[derive(Clone)]
 struct BoundlessClient {
-    queue: std::sync::mpsc::Sender<BoundlessRequest>,
+    queue: tokio::sync::mpsc::UnboundedSender<BoundlessRequest>,
     _join_handle: Arc<tokio::task::JoinHandle<()>>,
 }
 
@@ -98,41 +100,27 @@ impl BoundlessClient {
                 }
             );
         }
-        let (queue, rx) = std::sync::mpsc::channel();
+        let (queue, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let join_handle = tokio::spawn(async move {
             let mut last_request: Option<BoundlessRequest> = None;
             'client: loop {
                 debug!("Boundless client loop");
-                let client = match Client::from_parts(
+                let client = Client::from_parts(
                     requestor_private_key.clone(),
                     rpc_url.clone(),
                     proof_market_address,
                     set_verifier_address,
                 )
                 .await
-                {
-                    Ok(client) => client,
-                    Err(ClientError::StorageProviderError(BuiltinStorageProviderError::File(
-                        _,
-                    )))
-                    | Err(ClientError::StorageProviderError(
-                        BuiltinStorageProviderError::NoProvider,
-                    )) => {
-                        panic!("Failed to create boundless client: no storage provider or temp file storage provider error");
-                    }
-                    Err(e) => {
-                        error!(?e, "Failed to create boundless client");
-                        continue 'client;
-                    }
-                };
+                .unwrap();
+
                 'queue: loop {
                     let request = if let Some(last_request) = last_request.clone() {
                         debug!("Retrying last request after reconnection");
                         last_request
                     } else {
                         trace!("Waiting for a new request");
-                        let req: BoundlessRequest =
-                            rx.recv().expect("bonsai client sender is dead");
+                        let req: BoundlessRequest = rx.recv().await.unwrap();
                         // Save request for retries
                         last_request = Some(req.clone());
                         req
@@ -196,32 +184,32 @@ impl BoundlessClient {
 
     #[instrument(level = "trace", skip(self), ret)]
     fn upload_img(&self, elf: Vec<u8>) -> String {
-        let (notify, rx) = mpsc::channel();
+        let (notify, mut rx) = mpsc::unbounded_channel();
         self.queue
             .send(BoundlessRequest::UploadImg { elf, notify })
-            .expect("Bonsai processing queue is dead");
-        rx.recv().unwrap()
+            .unwrap();
+        tokio::task::block_in_place(|| rx.blocking_recv().unwrap())
     }
 
     #[instrument(level = "trace", skip_all, ret)]
     fn upload_input(&self, input: Vec<u8>) -> String {
-        let (notify, rx) = mpsc::channel();
+        let (notify, mut rx) = mpsc::unbounded_channel();
         self.queue
             .send(BoundlessRequest::UploadInput { input, notify })
             .expect("Bonsai processing queue is dead");
-        rx.recv().unwrap()
+        tokio::task::block_in_place(|| rx.blocking_recv().unwrap())
     }
 
     #[instrument(level = "trace", skip_all, ret)]
     fn submit_request(&self, proving_request: ProvingRequest) -> U256 {
-        let (notify, rx) = mpsc::channel();
+        let (notify, mut rx) = mpsc::unbounded_channel();
         self.queue
             .send(BoundlessRequest::SubmitReq {
                 proving_request,
                 notify,
             })
             .expect("Bonsai processing queue is dead");
-        rx.recv().unwrap()
+        tokio::task::block_in_place(|| rx.blocking_recv().unwrap())
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -231,7 +219,7 @@ impl BoundlessClient {
         check_interval: std::time::Duration,
         timeout: Option<std::time::Duration>,
     ) -> Result<(Bytes, Bytes), client::ClientError> {
-        let (notify, rx) = mpsc::channel();
+        let (notify, mut rx) = mpsc::unbounded_channel();
         self.queue
             .send(BoundlessRequest::WaitForReqFulfillment {
                 request_id,
@@ -240,16 +228,15 @@ impl BoundlessClient {
                 notify,
             })
             .expect("Bonsai processing queue is dead");
-        rx.recv().unwrap()
+        tokio::task::block_in_place(|| rx.blocking_recv().unwrap())
     }
-
     #[instrument(level = "trace", skip_all, ret)]
     fn slash(&self, request_id: U256) -> Result<U256, ClientError> {
-        let (notify, rx) = mpsc::channel();
+        let (notify, mut rx) = mpsc::unbounded_channel();
         self.queue
             .send(BoundlessRequest::Slash { request_id, notify })
             .expect("Bonsai processing queue is dead");
-        rx.recv().unwrap()
+        tokio::task::block_in_place(|| rx.blocking_recv().unwrap())
     }
 }
 
@@ -290,7 +277,7 @@ impl<'a> Risc0BoundlessHost<'a> {
             BoundlessClient::from_parts(pk, rpc_url, proof_market_address, set_verifier_address)
                 .await;
 
-        let image_id = compute_image_id(elf).unwrap();
+        let image_id = compute_image_id(elf).expect("Should have been able to compute image id");
 
         tracing::trace!("Calculated image id: {:?}", image_id.as_words());
 
@@ -525,11 +512,39 @@ impl<'host> Zkvm for Risc0BoundlessHost<'host> {
     }
 }
 
-#[test]
-fn test_priv_key() {
-    let str = "";
+#[tokio::test]
+async fn test_cli_running() {
+    let proof_market_address_str = match env::var("PROOF_MARKET_ADDRESS") {
+        Ok(val) => val,
+        // If the environment variable is not set, the test will be skipped.
+        Err(_) => return,
+    };
 
-    let pk = PrivateKeySigner::from_str(str).unwrap();
+    let private_key_str = env::var("private_key").context("private_key not set")?;
+    let private_key =
+        PrivateKeySigner::from_str(&private_key_str).context("Invalid private_key")?;
+    let rpc_url_str = env::var("RPC_URL").context("RPC_URL not set")?;
+    let rpc_url = Url::parse(&rpc_url_str).context("Invalid RPC_URL")?;
+    let proof_market_address_str =
+        env::var("PROOF_MARKET_ADDRESS").context("PROOF_MARKET_ADDRESS not set")?;
+    let proof_market_address =
+        Address::from_str(&proof_market_address_str).context("Invalid PROOF_MARKET_ADDRESS")?;
+    let set_verifier_address_str =
+        env::var("SET_VERIFIER_ADDRESS").context("SET_VERIFIER_ADDRESS not set")?;
+    let set_verifier_address =
+        Address::from_str(&set_verifier_address_str).context("Invalid SET_VERIFIER_ADDRESS")?;
 
-    println!("{:?}", pk);
+    // ALSO SET THESE ENV VARIABLES
+    // PINATA_JWT
+    // PINATA_API_URL
+    // IPFS_GATEWAY_URL
+
+    let client = Client::from_parts(
+        private_key,
+        rpc_url,
+        proof_market_address,
+        set_verifier_address,
+    )
+    .await
+    .unwrap();
 }

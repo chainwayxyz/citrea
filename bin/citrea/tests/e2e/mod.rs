@@ -91,7 +91,7 @@ async fn test_all_flow() {
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             Some(ProverConfig {
-                proving_mode: sov_stf_runner::ProverGuestRunConfig::Prove,
+                proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
