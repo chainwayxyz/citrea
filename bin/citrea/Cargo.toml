@@ -90,7 +90,7 @@ bitcoincore-rpc.workspace = true
 citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "fc12cb0" }
 
 [build-dependencies]
-sp1-helper = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false }
+sp1-helper = { version = "3.0.0", default-features = false }
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).

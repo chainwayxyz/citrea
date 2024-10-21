@@ -8098,8 +8098,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "3.0.0-rc3"
-source = "git+https://github.com/succinctlabs/sp1?tag=v3.0.0-rc3#59c4234ff4ed73622851e72a7ec29880e12e2792"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8929a4197b02537dbcd16a078e9424d40985438091df64a9373ebd10e5557083"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -8110,8 +8111,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "3.0.0-rc3"
-source = "git+https://github.com/succinctlabs/sp1?tag=v3.0.0-rc3#59c4234ff4ed73622851e72a7ec29880e12e2792"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae43cd2ae4ba94fc2ba7835fb0131375f52b93f385116a7a55e858a29044b592"
 dependencies = [
  "sp1-build",
 ]

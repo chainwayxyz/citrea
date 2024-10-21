@@ -15,7 +15,7 @@ sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/so
 sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
 sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
-sp1-zkvm = { git = "https://github.com/succinctlabs/sp1", tag = "v3.0.0-rc3", default-features = false, features = ["lib"] }
+sp1-zkvm = { version = "3.0.0", default-features = false, features = ["lib"] }
 
 # Have to put this here to enable features for the patch crate even though we don't use this crate explicitly
 curve25519-dalek = { version = "4.1.3", default-features = true }
