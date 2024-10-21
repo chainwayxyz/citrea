@@ -278,17 +278,17 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
-        let mut pending_utxos = self
+        let mut previous_utxos = self
             .client
-            .list_unspent(Some(0), Some(0), None, None, None)
+            .list_unspent(Some(0), None, None, Some(true), None)
             .await?;
 
-        pending_utxos.retain(|u| u.spendable && u.solvable);
+        previous_utxos.retain(|u| u.spendable && u.solvable);
 
         // Sorted by ancestor count, the tx with the most ancestors is the latest tx
-        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
+        previous_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
 
-        Ok(pending_utxos
+        Ok(previous_utxos
             .into_iter()
             .find(|u| u.amount >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT))
             .map(|u| u.into()))
