@@ -27,7 +27,6 @@ use reth_transaction_pool::{
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
-use sov_db::ledger_db::migrations::LedgerDBMigrator;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -577,13 +576,6 @@ where
 
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        let migrator = LedgerDBMigrator::new(
-            self.ledger_db.path().to_path_buf(),
-            crate::db_migrations::migrations(),
-        );
-
-        migrator.migrate(Some(100))?;
-
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)

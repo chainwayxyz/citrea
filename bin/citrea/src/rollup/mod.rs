@@ -7,6 +7,7 @@ use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::forks::FORKS;
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer};
+use sov_db::ledger_db::migrations::LedgerDBMigrator;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::BatchNumber;
@@ -98,6 +99,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 }
             }
         };
+
+        let migrator = LedgerDBMigrator::new(
+            ledger_db.path().to_path_buf(),
+            citrea_sequencer::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -199,6 +206,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 }
             }
         };
+
+        let migrator = LedgerDBMigrator::new(
+            ledger_db.path().to_path_buf(),
+            citrea_fullnode::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
@@ -312,6 +325,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 }
             }
         };
+
+        let migrator = LedgerDBMigrator::new(
+            ledger_db.path().to_path_buf(),
+            citrea_prover::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
