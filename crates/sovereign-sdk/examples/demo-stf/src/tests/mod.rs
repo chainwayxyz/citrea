@@ -6,7 +6,7 @@
 // use sov_modules_stf_blueprint::kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 // use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 // use sov_prover_storage_manager::ProverStorageManager;
-// use sov_state::DefaultStorageSpec;
+//use sov_state::{DefaultHasher, DefaultWitness};
 // use sov_stf_runner::read_json_file;
 
 // use crate::genesis_config::{get_genesis_config, GenesisPaths};
@@ -29,7 +29,7 @@
 
 // pub(crate) fn create_storage_manager_for_tests(
 //     path: impl AsRef<Path>,
-// ) -> ProverStorageManager<MockDaSpec, DefaultStorageSpec> {
+// ) -> ProverStorageManager<MockDaSpec, DefaultWitness, DefaultHasher> {
 //     let config = sov_state::config::Config {
 //         path: path.as_ref().to_path_buf(),
 //     };

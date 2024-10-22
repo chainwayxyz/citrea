@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::*;
 use sov_prover_storage_manager::new_orphan_storage;
-use sov_state::{ArrayWitness, DefaultStorageSpec, Prefix, Storage, ZkStorage};
+use sov_state::{ArrayWitness, DefaultHasher, DefaultWitness, Prefix, Storage, ZkStorage};
 
 enum Operation {
     Merge,
@@ -171,8 +171,8 @@ fn test_witness_round_trip() {
 
     // Native execution
     let witness: ArrayWitness = {
-        let storage = new_orphan_storage::<DefaultStorageSpec>(tempdir.path()).unwrap();
-        // let storage = ProverStorage::<DefaultStorageSpec>::with_path(path).unwrap();
+        let storage = new_orphan_storage::<DefaultWitness, DefaultHasher>(tempdir.path()).unwrap();
+        // let storage = ProverStorage::<DefaultWitness, DefaultHasher>::with_path(path).unwrap();
         let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
@@ -186,7 +186,7 @@ fn test_witness_round_trip() {
     };
 
     {
-        let storage = ZkStorage::<DefaultStorageSpec>::new();
+        let storage = ZkStorage::<DefaultWitness, DefaultHasher>::new();
         let mut working_set: WorkingSet<ZkDefaultContext> =
             WorkingSet::with_witness(storage.clone(), witness);
         state_value.set(&11, &mut working_set);

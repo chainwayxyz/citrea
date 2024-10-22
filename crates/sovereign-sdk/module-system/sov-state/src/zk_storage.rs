@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use jmt::KeyHash;
+use sha2::Digest;
 use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
@@ -9,18 +10,24 @@ use sov_rollup_interface::stf::StateDiff;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_zk_cycle_macros::cycle_tracker;
 
-use crate::MerkleProofSpec;
-
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 extern crate risc0_zkvm;
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default)]
-pub struct ZkStorage<S: MerkleProofSpec> {
-    _phantom_hasher: PhantomData<S::Hasher>,
+pub struct ZkStorage<W, H>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
+    _phantom_hasher: PhantomData<(W, H)>,
 }
 
-impl<S: MerkleProofSpec> Clone for ZkStorage<S> {
+impl<W, H> Clone for ZkStorage<W, H>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
     fn clone(&self) -> Self {
         Self {
             _phantom_hasher: Default::default(),
@@ -28,7 +35,11 @@ impl<S: MerkleProofSpec> Clone for ZkStorage<S> {
     }
 }
 
-impl<S: MerkleProofSpec> ZkStorage<S> {
+impl<W, H> ZkStorage<W, H>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
     /// Creates a new [`ZkStorage`] instance. Identical to [`Default::default`].
     pub fn new() -> Self {
         Self {
@@ -37,10 +48,14 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
     }
 }
 
-impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
-    type Witness = S::Witness;
+impl<W, H> Storage for ZkStorage<W, H>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
+    type Witness = W;
     type RuntimeConfig = ();
-    type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
+    type Proof = jmt::proof::SparseMerkleProof<H>;
     type Root = jmt::RootHash;
     type StateUpdate = ();
 
@@ -63,9 +78,9 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
         // For each value that's been read from the tree, verify the provided smt proof
         for (key, read_value) in state_accesses.ordered_reads {
-            let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+            let key_hash = KeyHash::with::<H>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
-            let proof: jmt::proof::SparseMerkleProof<S::Hasher> = witness.get_hint();
+            let proof: jmt::proof::SparseMerkleProof<H> = witness.get_hint();
             match read_value {
                 Some(val) => proof.verify_existence(
                     jmt::RootHash(prev_state_root),
@@ -83,7 +98,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
-                let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+                let key_hash = KeyHash::with::<H>(key.key.as_ref());
 
                 let key_bytes = Arc::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
                 let value_bytes =
@@ -95,7 +110,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
             })
             .collect::<Vec<_>>();
 
-        let update_proof: jmt::proof::UpdateMerkleProof<S::Hasher> = witness.get_hint();
+        let update_proof: jmt::proof::UpdateMerkleProof<H> = witness.get_hint();
         let new_root: [u8; 32] = witness.get_hint();
         update_proof
             .verify_update(
@@ -116,7 +131,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         state_proof: StorageProof<Self::Proof>,
     ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
         let StorageProof { key, value, proof } = state_proof;
-        let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
+        let key_hash = KeyHash::with::<H>(key.as_ref());
 
         proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
         Ok((key, value))

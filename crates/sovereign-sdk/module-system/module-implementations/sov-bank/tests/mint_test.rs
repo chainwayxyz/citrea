@@ -3,11 +3,11 @@ use sov_bank::{get_token_address, Bank, BankConfig, CallMessage, Coins};
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::{DefaultHasher, DefaultWitness, ProverStorage};
 
 mod helpers;
 
-pub type Storage = ProverStorage<DefaultStorageSpec, SnapshotManager>;
+pub type Storage = ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>;
 
 #[test]
 fn mint_token() {

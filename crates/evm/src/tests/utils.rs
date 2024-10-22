@@ -12,7 +12,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_state::{DefaultHasher, DefaultWitness, ProverStorage, Storage};
 use sov_stf_runner::read_json_file;
 
 use crate::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
@@ -35,7 +35,7 @@ pub(crate) fn get_evm_with_storage(
 ) -> (
     Evm<C>,
     WorkingSet<DefaultContext>,
-    ProverStorage<DefaultStorageSpec, SnapshotManager>,
+    ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
@@ -93,7 +93,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
 
 pub(crate) fn commit(
     working_set: WorkingSet<C>,
-    storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
+    storage: ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>,
 ) -> [u8; 32] {
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();

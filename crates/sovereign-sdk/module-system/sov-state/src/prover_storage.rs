@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use jmt::storage::{NodeBatch, TreeWriter};
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
+use sha2::Digest;
 use sov_db::native_db::NativeDB;
 use sov_db::schema::{QueryManager, ReadOnlyDbSnapshot};
 use sov_db::state_db::StateDB;
@@ -13,17 +14,23 @@ use sov_modules_core::{
 use sov_rollup_interface::stf::StateDiff;
 
 use crate::config::Config;
-use crate::MerkleProofSpec;
-
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
-pub struct ProverStorage<S: MerkleProofSpec, Q> {
+pub struct ProverStorage<W, H, Q>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
     db: StateDB<Q>,
     native_db: NativeDB<Q>,
-    _phantom_hasher: PhantomData<S::Hasher>,
+    _phantom_hasher: PhantomData<(W, H)>,
 }
 
-impl<S: MerkleProofSpec, Q> Clone for ProverStorage<S, Q> {
+impl<W, H, Q> Clone for ProverStorage<W, H, Q>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
@@ -33,7 +40,11 @@ impl<S: MerkleProofSpec, Q> Clone for ProverStorage<S, Q> {
     }
 }
 
-impl<S: MerkleProofSpec, Q> ProverStorage<S, Q> {
+impl<W, H, Q> ProverStorage<W, H, Q>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+{
     /// Creates a new [`ProverStorage`] instance from specified db handles
     pub fn with_db_handles(db: StateDB<Q>, native_db: NativeDB<Q>) -> Self {
         Self {
@@ -54,7 +65,12 @@ impl<S: MerkleProofSpec, Q> ProverStorage<S, Q> {
     }
 }
 
-impl<S: MerkleProofSpec, Q: QueryManager> ProverStorage<S, Q> {
+impl<W, H, Q> ProverStorage<W, H, Q>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+    Q: QueryManager,
+{
     fn read_value(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
         match self
@@ -73,10 +89,15 @@ pub struct ProverStateUpdate {
     pub key_preimages: Vec<(KeyHash, CacheKey)>,
 }
 
-impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
-    type Witness = S::Witness;
+impl<W, H, Q> Storage for ProverStorage<W, H, Q>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+    Q: QueryManager,
+{
+    type Witness = W;
     type RuntimeConfig = Config;
-    type Proof = jmt::proof::SparseMerkleProof<S::Hasher>;
+    type Proof = jmt::proof::SparseMerkleProof<H>;
     type Root = jmt::RootHash;
     type StateUpdate = ProverStateUpdate;
 
@@ -106,7 +127,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         witness: &mut Self::Witness,
     ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
-        let jmt = JellyfishMerkleTree::<_, S::Hasher>::new(&self.db);
+        let jmt = JellyfishMerkleTree::<_, H>::new(&self.db);
 
         // Handle empty jmt
         // TODO: Fix this before introducing snapshots!
@@ -128,7 +149,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
         for (key, read_value) in state_accesses.ordered_reads {
-            let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+            let key_hash = KeyHash::with::<H>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
             let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
             if result.as_ref() != read_value.as_ref().map(|f| f.value.as_ref()) {
@@ -146,7 +167,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
-                let key_hash = KeyHash::with::<S::Hasher>(key.key.as_ref());
+                let key_hash = KeyHash::with::<H>(key.key.as_ref());
 
                 let key_bytes =
                     Arc::try_unwrap(key.key.clone()).unwrap_or_else(|arc| (*arc).clone());
@@ -216,7 +237,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
         state_proof: StorageProof<Self::Proof>,
     ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
         let StorageProof { key, value, proof } = state_proof;
-        let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
+        let key_hash = KeyHash::with::<H>(key.as_ref());
 
         proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
         Ok((key, value))
@@ -228,12 +249,17 @@ impl<S: MerkleProofSpec, Q: QueryManager> Storage for ProverStorage<S, Q> {
     }
 }
 
-impl<S: MerkleProofSpec, Q: QueryManager> NativeStorage for ProverStorage<S, Q> {
+impl<W, H, Q> NativeStorage for ProverStorage<W, H, Q>
+where
+    W: Witness + Send + Sync,
+    H: Digest<OutputSize = sha2::digest::typenum::U32>,
+    Q: QueryManager,
+{
     fn get_with_proof(&self, key: StorageKey) -> StorageProof<Self::Proof> {
-        let merkle = JellyfishMerkleTree::<StateDB<Q>, S::Hasher>::new(&self.db);
+        let merkle = JellyfishMerkleTree::<StateDB<Q>, H>::new(&self.db);
         let (val_opt, proof) = merkle
             .get_with_proof(
-                KeyHash::with::<S::Hasher>(key.as_ref()),
+                KeyHash::with::<H>(key.as_ref()),
                 self.db.get_next_version() - 1,
             )
             .unwrap();
@@ -245,7 +271,7 @@ impl<S: MerkleProofSpec, Q: QueryManager> NativeStorage for ProverStorage<S, Q> 
     }
 
     fn get_root_hash(&self, version: Version) -> anyhow::Result<jmt::RootHash> {
-        let temp_merkle: JellyfishMerkleTree<'_, StateDB<Q>, S::Hasher> =
+        let temp_merkle: JellyfishMerkleTree<'_, StateDB<Q>, H> =
             JellyfishMerkleTree::new(&self.db);
         temp_merkle.get_root_hash(version)
     }

@@ -6,7 +6,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Address, Context, Module, SpecId, StateReaderAndWriter, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_state::storage::{StorageKey, StorageValue};
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_state::{DefaultHasher, DefaultWitness, ProverStorage, Storage};
 
 #[test]
 fn transfer_initial_token() {
@@ -272,7 +272,7 @@ fn transfer(
 
 fn commit(
     working_set: WorkingSet<DefaultContext>,
-    storage: ProverStorage<DefaultStorageSpec, SnapshotManager>,
+    storage: ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>,
 ) {
     // Save checkpoint
     let mut checkpoint = working_set.checkpoint();
