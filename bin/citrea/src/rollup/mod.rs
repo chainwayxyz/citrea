@@ -100,8 +100,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
+        // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
-            ledger_db.path().to_path_buf(),
+            ledger_db.path(),
             citrea_sequencer::db_migrations::migrations(),
         );
         migrator.migrate(rollup_config.storage.db_max_open_files)?;
@@ -155,6 +156,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator = LedgerDBMigrator::new(
+            ledger_db.path(),
+            citrea_fullnode::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
@@ -207,12 +215,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let migrator = LedgerDBMigrator::new(
-            ledger_db.path().to_path_buf(),
-            citrea_fullnode::db_migrations::migrations(),
-        );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
-
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
         let current_l2_height = ledger_db
@@ -259,6 +261,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let da_service = self.create_da_service(&rollup_config, true).await?;
+
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator =
+            LedgerDBMigrator::new(ledger_db.path(), citrea_prover::db_migrations::migrations());
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -325,12 +332,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 }
             }
         };
-
-        let migrator = LedgerDBMigrator::new(
-            ledger_db.path().to_path_buf(),
-            citrea_prover::db_migrations::migrations(),
-        );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let code_commitments_by_spec = self.get_code_commitments_by_spec();
 
