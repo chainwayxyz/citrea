@@ -29,3 +29,4 @@ native = [
   "dep:sp1-sdk",
   "sov-rollup-interface/native",
 ]
+cuda = ["sp1-sdk/cuda"]
