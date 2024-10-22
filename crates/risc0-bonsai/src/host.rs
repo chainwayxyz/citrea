@@ -1,4 +1,7 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
+use core::str;
+use std::path::PathBuf;
+use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
@@ -9,8 +12,7 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver, Prover, ProverOpts,
-    Receipt,
+    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, ExternalProver, Journal, Prover, ProverOpts, Receipt
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -322,7 +324,8 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                     .build()
                     .unwrap();
 
-                let prover = LocalProver::new("citrea");
+                // let prover = LocalProver::new("citrea");
+                let prover = ExternalProver::new("citrea", get_r0vm_path());
 
                 let start = std::time::Instant::now();
                 let proving_session =
@@ -484,4 +487,15 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
             &mut receipt.journal.bytes.as_slice(),
         )?)
     }
+}
+
+fn get_r0vm_path() -> PathBuf {
+    let output = Command::new("which")
+        .arg("r0vm")
+        .output()
+        .expect("Failed to execute `which r0vm` command");
+    assert!(output.status.success(), "r0vm binary must be available in PATH");
+
+    let path = str::from_utf8(&output.stdout).expect("Invalid UTF-8 output");
+    path.into()
 }
