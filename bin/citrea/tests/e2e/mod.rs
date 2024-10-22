@@ -7,7 +7,6 @@ mod syncing;
 mod system_transactions;
 mod tx_propagation;
 
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
