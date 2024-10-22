@@ -1084,7 +1084,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "spki",
 ]
 
@@ -2766,8 +2766,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.0.0-rc4"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#143378d90c69e0850b63a23ba56d0e2b9e56725a"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c372b16988e765af85ccf958b18b26d89c05886f2592d313a285415dcc769cb"
 dependencies = [
  "bincode",
  "serde",
@@ -2776,8 +2777,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c372b16988e765af85ccf958b18b26d89c05886f2592d313a285415dcc769cb"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#9121fe45c0673cfdcdc035116dc531cd88e06b45"
 dependencies = [
  "bincode",
  "serde",
@@ -2794,7 +2794,7 @@ dependencies = [
  "lazy_static",
  "rand",
  "sha2",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2853,7 +2853,7 @@ dependencies = [
  "lazy_static",
  "rand",
  "rustc-hex",
- "sp1-lib 3.0.0-rc4",
+ "sp1-lib 3.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=dev)",
 ]
 
 [[package]]
