@@ -649,6 +649,12 @@ where
 
         loop {
             tokio::select! {
+                biased;
+                _ = signal::ctrl_c() => {
+                    info!("Shutting down sequencer");
+                    self.task_manager.abort().await;
+                    return Ok(());
+                },
                 // Receive updates from DA layer worker.
                 l1_data = da_height_update_rx.recv() => {
                     // Stop receiving updates from DA layer until we have caught up.
@@ -721,11 +727,6 @@ where
                         }
                     };
                 },
-                _ = signal::ctrl_c() => {
-                    info!("Shutting down sequencer");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
             }
         }
     }
