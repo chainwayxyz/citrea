@@ -1,7 +1,8 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use tracing::{debug, error};
 
 use super::LedgerDB;
@@ -27,15 +28,15 @@ pub trait LedgerMigration {
 /// Meaning that, if any migration would fail, the whole process
 /// is rolled back to the previous version, rendering the changes
 /// made by any run migration useless.
-pub struct LedgerDBMigrator {
-    ledger_path: PathBuf,
+pub struct LedgerDBMigrator<'a> {
+    ledger_path: &'a Path,
     migrations: &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>,
 }
 
-impl LedgerDBMigrator {
+impl<'a> LedgerDBMigrator<'a> {
     /// Create new instance of migrator
     pub fn new(
-        ledger_path: PathBuf,
+        ledger_path: &'a Path,
         migrations: &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>,
     ) -> Self {
         Self {
@@ -56,12 +57,16 @@ impl LedgerDBMigrator {
 
         let ledger_db =
             LedgerDB::with_config(&RocksdbConfig::new(&self.ledger_path, max_open_files))?;
-
         let executed_migrations = ledger_db.get_executed_migrations()?;
+        // Drop the lock file
+        drop(ledger_db);
 
-        let temp_db_path = self.make_temp_db_copy(original_path)?;
+        // Copy files over, if temp_db_path falls out of scope, the directory is removed.
+        let temp_db_path = tempfile::tempdir()?;
+        copy_db_dir_recursive(&original_path, &temp_db_path.path())?;
+
         let new_ledger_db = Arc::new(LedgerDB::with_config(&RocksdbConfig::new(
-            &temp_db_path,
+            &temp_db_path.path(),
             max_open_files,
         ))?);
 
@@ -88,29 +93,37 @@ impl LedgerDBMigrator {
             }
         }
 
-        // Stop using the original ledger DB path, i.e drop locks
-        drop(new_ledger_db);
-        // Backup original DB
-        copy_db_dir_recursive(&original_path, &original_path.join("backup"))?;
-        // Copy new DB into original path
-        copy_db_dir_recursive(&temp_db_path, original_path)?;
-        let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(original_path, max_open_files))?;
-
+        // Mark migrations as executed separately from the previous loop,
+        // to make sure all migrations executed successfully.
         for migration in self.migrations.iter() {
-            ledger_db
+            new_ledger_db
                 .put_executed_migration(migration.identifier())
                 .expect(
                     "Should mark migrations as executed, otherwise, something is seriously wrong",
                 );
         }
+        // Stop using the original ledger DB path, i.e drop locks
+        drop(new_ledger_db);
+        // Construct a backup path adjacent to original path
+        let last_part = original_path
+            .components()
+            .last()
+            .ok_or(anyhow!("Original path contains invalid construction"))?
+            .as_os_str()
+            .to_str()
+            .ok_or(anyhow!("Could not extract path of ledger path"))?;
+        let backup_path = original_path
+            .parent()
+            .ok_or(anyhow!(
+                "Was not able to determine parent path of ledger DB"
+            ))?
+            .join(format!("{}-backup", last_part));
+        // Backup original DB
+        copy_db_dir_recursive(&original_path, &backup_path)?;
+        // Copy new DB into original path
+        copy_db_dir_recursive(&temp_db_path.path(), original_path)?;
 
         Ok(())
-    }
-
-    fn make_temp_db_copy(&self, src: &Path) -> anyhow::Result<PathBuf> {
-        let dst = tempfile::tempdir()?;
-        copy_db_dir_recursive(src, &dst.path())?;
-        Ok(dst.path().to_path_buf())
     }
 }
 
