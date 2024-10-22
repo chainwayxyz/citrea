@@ -239,3 +239,10 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     /// Fetch mempool transactions
     fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
 }
+
+/// Test ledger operations
+#[cfg(test)]
+pub trait TestLedgerOps {
+    fn get_values(&self) -> anyhow::Result<Vec<(u64, (u64, u64))>>;
+    fn put_value(&self, key: u64, value: (u64, u64)) -> anyhow::Result<()>;
+}

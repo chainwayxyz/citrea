@@ -71,6 +71,10 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
+    #[cfg(test)]
+    TestTableOld::table_name(),
+    #[cfg(test)]
+    TestTableNew::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store
@@ -331,6 +335,18 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Stores the last pruned L2 block number
     (LastPrunedBlock) () => u64
+);
+
+#[cfg(test)]
+define_table_with_seek_key_codec!(
+    /// Test table old
+    (TestTableOld) () => Vec<u64>
+);
+
+#[cfg(test)]
+define_table_with_seek_key_codec!(
+    /// Test table new
+    (TestTableNew) u64 => (u64, u64)
 );
 
 impl KeyEncoder<JmtNodes> for NodeKey {
