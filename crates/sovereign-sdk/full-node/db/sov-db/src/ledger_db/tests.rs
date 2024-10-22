@@ -48,7 +48,7 @@ impl LedgerMigration for FailedOldToNewMigration {
     }
 
     fn execute(&self, _ledger_db: sov_rollup_interface::RefCount<LedgerDB>) -> anyhow::Result<()> {
-        return Err(anyhow!("Could not fetch data"));
+        Err(anyhow!("Could not fetch data"))
     }
 }
 
@@ -68,7 +68,7 @@ fn test_successful_migrations() {
     drop(ledger_db);
 
     // Run migrations
-    let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), &successful_migrations());
+    let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), successful_migrations());
     assert!(matches!(ledger_db_migrator.migrate(None), Ok(())));
 
     // This instance is post-migrations DB.
@@ -112,7 +112,7 @@ fn test_failed_migrations() {
     drop(ledger_db);
 
     // Run migrations
-    let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), &failed_migrations());
+    let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), failed_migrations());
     assert!(matches!(ledger_db_migrator.migrate(None), Ok(())));
 
     let ledger_db =

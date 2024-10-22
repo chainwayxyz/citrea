@@ -56,17 +56,17 @@ impl<'a> LedgerDBMigrator<'a> {
         let original_path = &self.ledger_path;
 
         let ledger_db =
-            LedgerDB::with_config(&RocksdbConfig::new(&self.ledger_path, max_open_files))?;
+            LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files))?;
         let executed_migrations = ledger_db.get_executed_migrations()?;
         // Drop the lock file
         drop(ledger_db);
 
         // Copy files over, if temp_db_path falls out of scope, the directory is removed.
         let temp_db_path = tempfile::tempdir()?;
-        copy_db_dir_recursive(&original_path, &temp_db_path.path())?;
+        copy_db_dir_recursive(original_path, temp_db_path.path())?;
 
         let new_ledger_db = Arc::new(LedgerDB::with_config(&RocksdbConfig::new(
-            &temp_db_path.path(),
+            temp_db_path.path(),
             max_open_files,
         ))?);
 
@@ -119,9 +119,9 @@ impl<'a> LedgerDBMigrator<'a> {
             ))?
             .join(format!("{}-backup", last_part));
         // Backup original DB
-        copy_db_dir_recursive(&original_path, &backup_path)?;
+        copy_db_dir_recursive(original_path, &backup_path)?;
         // Copy new DB into original path
-        copy_db_dir_recursive(&temp_db_path.path(), original_path)?;
+        copy_db_dir_recursive(temp_db_path.path(), original_path)?;
 
         Ok(())
     }
