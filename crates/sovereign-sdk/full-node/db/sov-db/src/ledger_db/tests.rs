@@ -34,6 +34,9 @@ impl LedgerMigration for OldToNewMigration {
         for (index, value) in values.into_iter().enumerate() {
             ledger_db.put_value(index as u64, (index as u64, value))?;
         }
+
+        // Clear old table
+        ledger_db.db.delete::<TestTableOld>(&())?;
         Ok(())
     }
 }
@@ -87,6 +90,10 @@ fn test_successful_migrations() {
     // 2. DB has been recorded to be executed
     let executed_migrations = ledger_db.get_executed_migrations().unwrap();
     assert_eq!(executed_migrations.len(), 1);
+
+    // 3. Table has been cleared
+    let old_values = ledger_db.db.get::<TestTableOld>(&()).unwrap();
+    assert_eq!(old_values, None);
 }
 
 #[test]
