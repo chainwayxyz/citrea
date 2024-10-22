@@ -1,16 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
-use sha2::Digest;
 use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SnapshotId};
-use sov_state::{ProverStorage, Witness};
+use sov_state::ProverStorage;
 use tracing::{debug, trace};
 
 pub use crate::snapshot_manager::SnapshotManager;
@@ -18,11 +16,7 @@ mod snapshot_manager;
 
 /// Implementation of [`HierarchicalStorageManager`] that handles relation between snapshots
 /// And reorgs on Data Availability layer.
-pub struct ProverStorageManager<Da: DaSpec, W, H>
-where
-    W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
-{
+pub struct ProverStorageManager<Da: DaSpec> {
     // L1 forks representation
     // Chain: prev_block -> child_blocks
     chain_forks: HashMap<Da::SlotHash, Vec<Da::SlotHash>>,
@@ -44,15 +38,11 @@ where
 
     state_snapshot_manager: Arc<RwLock<SnapshotManager>>,
     accessory_snapshot_manager: Arc<RwLock<SnapshotManager>>,
-
-    phantom_mp_spec: PhantomData<(W, H)>,
 }
 
-impl<Da: DaSpec, W, H> ProverStorageManager<Da, W, H>
+impl<Da: DaSpec> ProverStorageManager<Da>
 where
     Da::SlotHash: Hash,
-    W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
 {
     fn with_db_handles(state_db: sov_schema_db::DB, native_db: sov_schema_db::DB) -> Self {
         let snapshot_id_to_parent = Arc::new(RwLock::new(HashMap::new()));
@@ -71,7 +61,6 @@ where
             snapshot_id_to_parent,
             state_snapshot_manager: Arc::new(RwLock::new(state_snapshot_manager)),
             accessory_snapshot_manager: Arc::new(RwLock::new(accessory_snapshot_manager)),
-            phantom_mp_spec: Default::default(),
         }
     }
 
@@ -96,7 +85,7 @@ where
     fn get_storage_with_snapshot_id(
         &self,
         snapshot_id: SnapshotId,
-    ) -> anyhow::Result<ProverStorage<W, H, SnapshotManager>> {
+    ) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         let state_db_snapshot = DbSnapshot::new(
             snapshot_id,
             ReadOnlyLock::new(self.state_snapshot_manager.clone()),
@@ -202,14 +191,12 @@ where
     }
 }
 
-impl<Da: DaSpec, W, H> HierarchicalStorageManager<Da> for ProverStorageManager<Da, W, H>
+impl<Da: DaSpec> HierarchicalStorageManager<Da> for ProverStorageManager<Da>
 where
     Da::SlotHash: Hash,
-    W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
 {
-    type NativeStorage = ProverStorage<W, H, SnapshotManager>;
-    type NativeChangeSet = ProverStorage<W, H, SnapshotManager>;
+    type NativeStorage = ProverStorage<SnapshotManager>;
+    type NativeChangeSet = ProverStorage<SnapshotManager>;
 
     fn create_storage_on_l2_height(
         &mut self,
@@ -432,13 +419,9 @@ where
 /// Creates orphan [`ProverStorage`] which just points directly to the underlying database for previous data
 /// Should be used only in tests
 #[cfg(feature = "test-utils")]
-pub fn new_orphan_storage<W, H>(
+pub fn new_orphan_storage(
     path: impl AsRef<std::path::Path>,
-) -> anyhow::Result<ProverStorage<W, H, SnapshotManager>>
-where
-    W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
-{
+) -> anyhow::Result<ProverStorage<SnapshotManager>> {
     let state_db_raw =
         StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None))?;
     let state_db_sm = Arc::new(RwLock::new(SnapshotManager::orphan(state_db_raw)));
@@ -457,15 +440,13 @@ mod tests {
     use sov_mock_da::{MockBlockHeader, MockHash};
     use sov_rollup_interface::da::Time;
     use sov_state::storage::{CacheKey, CacheValue};
-    use sov_state::{ArrayWitness, DefaultHasher, DefaultWitness, OrderedReadsAndWrites, Storage};
+    use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 
     use super::*;
 
     type Da = sov_mock_da::MockDaSpec;
-    type W = DefaultWitness;
-    type H = DefaultHasher;
 
-    fn validate_internal_consistency(storage_manager: &ProverStorageManager<Da, W, H>) {
+    fn validate_internal_consistency(storage_manager: &ProverStorageManager<Da>) {
         let snapshot_id_to_parent = storage_manager.snapshot_id_to_parent.read().unwrap();
         let state_snapshot_manager = storage_manager.state_snapshot_manager.read().unwrap();
         let native_snapshot_manager = storage_manager.state_snapshot_manager.read().unwrap();
@@ -537,8 +518,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
         validate_internal_consistency(&storage_manager);
     }
@@ -549,8 +529,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -589,8 +568,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -632,8 +610,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -657,8 +634,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         let block_a = MockBlockHeader {
@@ -693,8 +669,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         let block_header = MockBlockHeader {
@@ -734,13 +709,12 @@ mod tests {
         let snapshot_1 = {
             let (state_db, native_db) = build_dbs(tmpdir_1.path());
             let mut storage_manager_temp =
-                ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+                ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
             storage_manager_temp.create_storage_on(&block_a).unwrap()
         };
 
         let (state_db, native_db) = build_dbs(tmpdir_2.path());
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
 
         let result = storage_manager.save_change_set(&block_a, snapshot_1);
         assert!(result.is_err());
@@ -780,7 +754,7 @@ mod tests {
         let (snapshot_alien_1, snapshot_alien_2) = {
             let (state_db, native_db) = build_dbs(tmpdir_1.path());
             let mut storage_manager_temp =
-                ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+                ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
             // ID = 1
             let snapshot_a = storage_manager_temp.create_storage_on(&block_a).unwrap();
             // ID = 2
@@ -789,8 +763,7 @@ mod tests {
         };
 
         let (state_db, native_db) = build_dbs(tmpdir_2.path());
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
 
         let snapshot_own_a = storage_manager.create_storage_on(&block_a).unwrap();
         let _snapshot_own_b = storage_manager.create_storage_on(&block_b).unwrap();
@@ -836,8 +809,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         let block_from_i = |i: u8| MockBlockHeader {
@@ -868,8 +840,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         // 1    2    3
@@ -921,8 +892,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         // Blocks A -> B -> C
@@ -996,8 +966,7 @@ mod tests {
 
         let (state_db, native_db) = build_dbs(tmpdir.path());
 
-        let mut storage_manager =
-            ProverStorageManager::<Da, W, H>::with_db_handles(state_db, native_db);
+        let mut storage_manager = ProverStorageManager::<Da>::with_db_handles(state_db, native_db);
         assert!(storage_manager.is_empty());
 
         // Chains:

@@ -13,7 +13,7 @@ use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
-use sov_state::{DefaultHasher, DefaultWitness, ProverStorage};
+use sov_state::ProverStorage;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
@@ -27,7 +27,7 @@ use crate::tests::utils::{
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
-type Storage = ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>;
+type Storage = ProverStorage<SnapshotManager>;
 
 /// Creates evm instance with 4 blocks (including genesis)
 /// Block 1 has 3 transactions

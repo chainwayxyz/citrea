@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 // register ethereum methods.
 pub(crate) fn register_ethereum<Da: DaService>(
     da_service: Arc<Da>,
-    storage: ProverStorage<sov_state::DefaultWitness, sov_state::DefaultHasher, SnapshotManager>,
+    storage: ProverStorage<SnapshotManager>,
     ledger_db: LedgerDB,
     methods: &mut jsonrpsee::RpcModule<()>,
     sequencer_client_url: Option<String>,

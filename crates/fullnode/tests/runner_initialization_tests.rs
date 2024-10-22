@@ -10,7 +10,6 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::spec::SpecId;
-use sov_state::{DefaultHasher, DefaultWitness};
 use sov_stf_runner::InitVariant;
 mod hash_stf;
 
@@ -20,9 +19,7 @@ use tokio::sync::broadcast;
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
 
-type W = DefaultWitness;
-type H = DefaultHasher;
-type StorageManager = ProverStorageManager<MockDaSpec, W, H>;
+type StorageManager = ProverStorageManager<MockDaSpec>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {

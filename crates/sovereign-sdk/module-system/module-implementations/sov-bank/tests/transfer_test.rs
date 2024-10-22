@@ -7,9 +7,9 @@ use sov_bank::{
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_state::{DefaultHasher, DefaultWitness, ProverStorage};
+use sov_state::ProverStorage;
 
-pub type Storage = ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>;
+pub type Storage = ProverStorage<SnapshotManager>;
 
 #[test]
 fn transfer_initial_token() {

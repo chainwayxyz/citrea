@@ -15,7 +15,7 @@ use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, StateMapAccessor, StateValueAccessor, WorkingSet};
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
-use sov_state::{DefaultHasher, DefaultWitness, ProverStorage};
+use sov_state::ProverStorage;
 
 use crate::evm::DbAccount;
 use crate::primitive_types::Block;
@@ -58,13 +58,10 @@ impl BlockchainTestCase {
         evm: &mut Evm<DefaultContext>,
         txs: Vec<RlpEvmTransaction>,
         mut working_set: WorkingSet<DefaultContext>,
-        storage: ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>,
+        storage: ProverStorage<SnapshotManager>,
         root: &[u8; 32],
         l2_height: u64,
-    ) -> (
-        WorkingSet<DefaultContext>,
-        ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>,
-    ) {
+    ) -> (WorkingSet<DefaultContext>, ProverStorage<SnapshotManager>) {
         let l1_fee_rate = 0;
         // Call begin_soft_confirmation_hook
         let soft_confirmation_info = HookSoftConfirmationInfo {

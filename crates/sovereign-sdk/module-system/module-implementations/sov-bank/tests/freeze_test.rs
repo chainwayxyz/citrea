@@ -4,11 +4,11 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Error, Module, SpecId, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_state::{DefaultHasher, DefaultWitness, ProverStorage};
+use sov_state::ProverStorage;
 
 mod helpers;
 
-pub type Storage = ProverStorage<DefaultWitness, DefaultHasher, SnapshotManager>;
+pub type Storage = ProverStorage<SnapshotManager>;
 
 #[test]
 fn freeze_token() {

@@ -171,7 +171,7 @@ fn test_witness_round_trip() {
 
     // Native execution
     let witness: ArrayWitness = {
-        let storage = new_orphan_storage::<DefaultWitness, DefaultHasher>(tempdir.path()).unwrap();
+        let storage = new_orphan_storage(tempdir.path()).unwrap();
         // let storage = ProverStorage::<DefaultWitness, DefaultHasher>::with_path(path).unwrap();
         let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
         state_value.set(&11, &mut working_set);
