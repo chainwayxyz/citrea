@@ -301,7 +301,6 @@ fn compare_output() {
     assert_eq!(recorded_state_root, state_root);
 }
 
-#[allow(clippy::type_complexity)]
 // Returns final data hash and root hash
 pub fn get_result_from_blocks(
     genesis_params: &[u8],
