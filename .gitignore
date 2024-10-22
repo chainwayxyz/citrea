@@ -30,3 +30,4 @@ db
 *.txs
 
 elf/
+dbs
