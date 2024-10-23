@@ -161,6 +161,10 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         self.committed_data.push_back(data)
     }
 
+    fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
+        unimplemented!()
+    }
+
     fn simulate_with_hints(&mut self) -> Self::Guest {
         MockZkGuest {}
     }
