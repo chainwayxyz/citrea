@@ -83,7 +83,7 @@ impl<'a> LedgerDBMigrator<'a> {
                     // Error happend on the temporary DB, therefore,
                     // nothing needs to be done to keep operating on existing
                     // ledger instance.
-                    return Ok(());
+                    return Err(e);
                 }
             } else {
                 debug!(
