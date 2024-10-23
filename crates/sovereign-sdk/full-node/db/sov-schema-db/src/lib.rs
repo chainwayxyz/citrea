@@ -71,6 +71,11 @@ impl DB {
         Ok(db)
     }
 
+    /// Returns the path of the DB.
+    pub fn path(&self) -> &Path {
+        self.inner.path()
+    }
+
     /// Open RocksDB with the provided column family descriptors.
     /// This allows to configure options for each column family.
     pub fn open_with_cfds(

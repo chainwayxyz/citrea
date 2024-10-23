@@ -7,6 +7,7 @@ use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_primitives::forks::FORKS;
 use citrea_prover::{CitreaProver, Prover};
 use citrea_sequencer::{CitreaSequencer, Sequencer};
+use sov_db::ledger_db::migrations::LedgerDBMigrator;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::BatchNumber;
@@ -47,6 +48,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
+
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator = LedgerDBMigrator::new(
+            rollup_config.storage.path.as_path(),
+            citrea_sequencer::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -148,6 +156,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator = LedgerDBMigrator::new(
+            rollup_config.storage.path.as_path(),
+            citrea_fullnode::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
@@ -246,6 +261,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let da_service = self.create_da_service(&rollup_config, true).await?;
+
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator = LedgerDBMigrator::new(
+            rollup_config.storage.path.as_path(),
+            citrea_prover::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),

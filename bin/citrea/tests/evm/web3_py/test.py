@@ -14,7 +14,7 @@ class TestWeb3(unittest.TestCase):
             'gasPrice': self.web3.eth.gas_price,
         }
         signed_tx = self.web3.eth.account.sign_transaction(transaction, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-        self.first_tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        self.first_tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         self.web3.eth.wait_for_transaction_receipt(self.first_tx_hash)
 
     def test_connection(self):
@@ -147,7 +147,7 @@ class TestWeb3(unittest.TestCase):
             'chainId': 5655
         })
         signed_tx = self.web3.eth.account.sign_transaction(tx, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
         weth_address = receipt['contractAddress']
 
@@ -165,7 +165,7 @@ class TestWeb3(unittest.TestCase):
             'chainId': 5655
         })
         signed_tx = self.web3.eth.account.sign_transaction(tx, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
         # Check if 1 WETH is minted
@@ -191,7 +191,7 @@ class TestWeb3(unittest.TestCase):
             'chainId': 5655
         }
         signed_tx = self.web3.eth.account.sign_transaction(tx, "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
         self.assertEqual(receipt['status'], 0)
 
