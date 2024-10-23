@@ -113,7 +113,7 @@ fn test_failed_migrations() {
 
     // Run migrations
     let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), failed_migrations());
-    assert!(matches!(ledger_db_migrator.migrate(None), Err(_)));
+    assert!(ledger_db_migrator.migrate(None).is_err());
 
     let ledger_db =
         LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None)).unwrap();
