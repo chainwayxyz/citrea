@@ -18,7 +18,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::{DefaultStorageSpec, ZkStorage};
+use sov_state::ZkStorage;
 use tokio::sync::broadcast;
 
 use crate::CitreaRollupBlueprint;
@@ -38,7 +38,7 @@ impl RollupBlueprint for MockDemoRollup {
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
 
-    type StorageManager = ProverStorageManager<MockDaSpec, DefaultStorageSpec>;
+    type StorageManager = ProverStorageManager<MockDaSpec>;
 
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;

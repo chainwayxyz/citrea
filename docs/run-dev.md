@@ -21,7 +21,7 @@ Run on a local da layer, sharable between nodes that run on your computer.
 Run sequencer on Mock DA:
 
 ```sh
-./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer-config-path resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/
+./target/debug/citrea --da-layer mock --rollup-config-path resources/configs/mock/sequencer_rollup_config.toml --sequencer resources/configs/mock/sequencer_config.toml --genesis-paths resources/genesis/mock/
 ```
 
 Sequencer RPC is accessible at `127.0.0.1:12345`
@@ -84,7 +84,7 @@ node_password = ""
 Run sequencer:
 
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer-config-path resources/configs/bitcoin-regtest/sequencer_config.toml --genesis-paths resources/genesis/bitcoin-regtest/
+./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/sequencer_rollup_config.toml --sequencer resources/configs/bitcoin-regtest/sequencer_config.toml --genesis-paths resources/genesis/bitcoin-regtest/
 ```
 
 Sequencer RPC is accessible at `127.0.0.1:12345`
@@ -102,7 +102,7 @@ Full node RPC is accessible at `127.0.0.1:12346`
 _Optional_: Run batch prover:
 
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/batch_prover_rollup_config.toml --batch-prover-config-path resources/configs/bitcoin-regtest/batch_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
+./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/prover_rollup_config.toml --batch-prover resources/configs/bitcoin-regtest/prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
 If you want to test proofs, make sure to set `proof_sampling_number` in `resources/configs/bitcion-regtest/batch_prover_config.toml` to 0, and you can lower the `min_soft_confirmations_per_commitment` to a number between 5-50, as higher numbers than that takes too long even if you run the prover in execute mode.

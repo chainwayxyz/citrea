@@ -46,12 +46,6 @@ impl TestCase for LightClientProvingTest {
         }
     }
 
-    async fn setup(&self, f: &mut TestFramework) -> anyhow::Result<()> {
-        citrea::initialize_logging(tracing::Level::INFO);
-        f.show_log_paths();
-        Ok(())
-    }
-
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();

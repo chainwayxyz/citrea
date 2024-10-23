@@ -164,8 +164,8 @@ async fn test_sequencer_commitment_threshold() {
 
     seq_test_client.send_publish_batch_request().await;
 
-    for i in 1..17 {
-        for _ in 0..300 {
+    for i in 1..35 {
+        for _ in 0..600 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -178,14 +178,14 @@ async fn test_sequencer_commitment_threshold() {
         wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
-    wait_for_l2_block(&seq_test_client, 16, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 35, Some(Duration::from_secs(60))).await;
 
-    // After block 9/10, the state diff should be large enough to trigger a commitment.
+    // After block 35, the state diff should be large enough to trigger a commitment.
     let commitments = wait_for_commitment(&da_service, 2, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);
 
-    for i in 17..30 {
-        for _ in 0..300 {
+    for i in 35..70 {
+        for _ in 0..600 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -198,9 +198,9 @@ async fn test_sequencer_commitment_threshold() {
         wait_for_l2_block(&seq_test_client, i, None).await;
     }
 
-    wait_for_l2_block(&seq_test_client, 29, Some(Duration::from_secs(60))).await;
+    wait_for_l2_block(&seq_test_client, 70, Some(Duration::from_secs(60))).await;
 
-    // After block 17/18, the state diff should be large enough to trigger a commitment.
+    // After block 70, the state diff should be large enough to trigger a commitment.
     // But the remaining blocks state diff should NOT trigger a third.
     let commitments = wait_for_commitment(&da_service, 3, Some(Duration::from_secs(60))).await;
     assert_eq!(commitments.len(), 1);

@@ -538,7 +538,7 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "borsh",
- "brotli",
+ "citrea-primitives",
  "futures",
  "hex",
  "rand",
@@ -831,6 +831,7 @@ version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
+ "brotli",
  "reth-primitives",
  "sov-rollup-interface",
 ]

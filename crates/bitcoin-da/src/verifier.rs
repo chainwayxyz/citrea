@@ -2,13 +2,13 @@ use std::collections::BTreeSet;
 
 use bitcoin::hashes::Hash;
 use borsh::{BorshDeserialize, BorshSerialize};
+use citrea_primitives::compression::decompress_blob;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::zk::ValidityCondition;
 use thiserror::Error;
 
-use crate::helpers::compression::decompress_blob;
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
     ParsedLightClientTransaction, VerifyParsed,

@@ -6,10 +6,10 @@ use bitcoin::secp256k1::schnorr::Signature;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::taproot::ControlBlock;
 use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
+use citrea_primitives::compression::{compress_blob, decompress_blob};
 
 use super::light_client_proof_namespace::{LightClientTxs, RawLightClientData};
 use crate::helpers::builders::sign_blob_with_private_key;
-use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;

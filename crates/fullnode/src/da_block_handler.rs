@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::get_da_block_at_height;
+use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, get_da_block_at_height};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_range_exists;
 use rs_merkle::algorithms::Sha256;
@@ -17,8 +17,8 @@ use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{
     BatchNumber, SlotNumber, StoredSoftConfirmation, StoredStateTransition,
 };
-use sov_modules_api::{BlobReaderTrait, Context, Zkvm};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataBatchProof, SequencerCommitment};
+use sov_modules_api::{Context, Zkvm};
+use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -141,20 +141,26 @@ where
             .set_l1_height_of_l1_hash(l1_block.header().hash().into(), l1_height)
             .unwrap();
 
-        let (mut sequencer_commitments, zk_proofs) =
-            match self.extract_relevant_l1_data(l1_block.clone()).await {
-                Ok(r) => r,
-                Err(e) => {
-                    error!("Could not process L1 block: {}...skipping", e);
-                    return;
-                }
-            };
+        let sequencer_commitments = extract_sequencer_commitments(
+            self.da_service.clone(),
+            l1_block.clone(),
+            &self.sequencer_da_pub_key,
+        );
+        let zk_proofs = match extract_zk_proofs(
+            self.da_service.clone(),
+            l1_block.clone(),
+            &self.prover_da_pub_key,
+        )
+        .await
+        {
+            Ok(proofs) => proofs,
+            Err(e) => {
+                error!("Could not process L1 block: {}...skipping", e);
+                return;
+            }
+        };
 
         if !sequencer_commitments.is_empty() {
-            // Make sure all sequencer commitments are stored in ascending order.
-            // We sort before checking ranges to prevent substraction errors.
-            sequencer_commitments.sort();
-
             // If the L2 range does not exist, we break off the current process call
             // We retry the L1 block at a later tick.
             if !check_l2_range_exists(
@@ -211,47 +217,6 @@ where
             });
 
         self.pending_l1_blocks.pop_front();
-    }
-
-    async fn extract_relevant_l1_data(
-        &self,
-        l1_block: Da::FilteredBlock,
-    ) -> anyhow::Result<(Vec<SequencerCommitment>, Vec<Proof>)> {
-        let mut sequencer_commitments = Vec::<SequencerCommitment>::new();
-        let mut zk_proofs = Vec::<Proof>::new();
-
-        self.da_service
-            .extract_relevant_proofs(&l1_block, &self.prover_da_pub_key)
-            .await?
-            .into_iter()
-            .for_each(|proof| {
-                zk_proofs.push(proof);
-            });
-
-        self.da_service
-            .extract_relevant_blobs(&l1_block)
-            .into_iter()
-            .for_each(|mut tx| {
-                let data = DaDataBatchProof::try_from_slice(tx.full_data());
-                // Check for commitment
-                if tx.sender().as_ref() == self.sequencer_da_pub_key.as_slice() {
-                    if let Ok(data) = data {
-                        match data {
-                            // TODO: This is where force transactions will land
-                            DaDataBatchProof::SequencerCommitment(seq_com) => {
-                                sequencer_commitments.push(seq_com);
-                            }
-                        }
-                    } else {
-                        tracing::warn!(
-                            "Found broken DA data in block 0x{}: {:?}",
-                            hex::encode(l1_block.hash()),
-                            data
-                        );
-                    }
-                }
-            });
-        Ok((sequencer_commitments, zk_proofs))
     }
 
     async fn process_sequencer_commitment(

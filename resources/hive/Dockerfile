@@ -18,5 +18,5 @@ RUN SKIP_GUEST_BUILD=1 cargo build --release --bin citrea
 EXPOSE 8545
 
 
-ENTRYPOINT ["sh", "-c", "./target/release/citrea --genesis-paths ./resources/genesis/mock-dockerized --rollup-config-path ./resources/configs/mock-dockerized/sequencer_rollup_config.toml --sequencer-config-path ./resources/configs/mock-dockerized/sequencer_config.toml"]
+ENTRYPOINT ["sh", "-c", "./target/release/citrea --genesis-paths ./resources/genesis/mock-dockerized --rollup-config-path ./resources/configs/mock-dockerized/sequencer_rollup_config.toml --sequencer ./resources/configs/mock-dockerized/sequencer_config.toml"]
 

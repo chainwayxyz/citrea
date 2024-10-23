@@ -20,6 +20,7 @@ use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::TestMempoolAcceptResult;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
+use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
@@ -37,7 +38,6 @@ use crate::helpers::builders::light_client_proof_namespace::{
     create_zkproof_transactions, LightClientTxs, RawLightClientData,
 };
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
-use crate::helpers::compression::{compress_blob, decompress_blob};
 use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
@@ -78,7 +78,18 @@ pub struct BitcoinServiceConfig {
     // absolute path to the directory where the txs will be written to
     pub tx_backup_dir: String,
 }
-
+impl citrea_common::FromEnv for BitcoinServiceConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            node_url: std::env::var("NODE_URL")?,
+            node_username: std::env::var("NODE_USERNAME")?,
+            node_password: std::env::var("NODE_PASSWORD")?,
+            network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
+            da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
+            tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
+        })
+    }
+}
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
 pub struct BitcoinService {
@@ -261,17 +272,17 @@ impl BitcoinService {
 
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
-        let mut pending_utxos = self
+        let mut previous_utxos = self
             .client
-            .list_unspent(Some(0), Some(0), None, None, None)
+            .list_unspent(Some(0), None, None, Some(true), None)
             .await?;
 
-        pending_utxos.retain(|u| u.spendable && u.solvable);
+        previous_utxos.retain(|u| u.spendable && u.solvable);
 
         // Sorted by ancestor count, the tx with the most ancestors is the latest tx
-        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
+        previous_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
 
-        Ok(pending_utxos
+        Ok(previous_utxos
             .into_iter()
             .find(|u| u.amount >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT))
             .map(|u| u.into()))

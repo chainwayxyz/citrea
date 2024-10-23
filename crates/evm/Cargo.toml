@@ -41,7 +41,7 @@ reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-server-types = { workspace = true, optional = true }
 reth-rpc-types = { workspace = true, optional = true }
 reth-rpc-types-compat = { workspace = true, optional = true }
-revm = { workspace = true }
+revm = { workspace = true, features = ["secp256k1"] }
 revm-inspectors = { workspace = true, optional = true }
 secp256k1 = { workspace = true, optional = true }
 
@@ -55,7 +55,7 @@ rayon = { workspace = true }
 reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
 reth-errors = { workspace = true }
-revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee"] }
+revm = { workspace = true, features = ["optional_block_gas_limit", "optional_eip3607", "optional_no_base_fee", "secp256k1"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", features = ["macros"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }

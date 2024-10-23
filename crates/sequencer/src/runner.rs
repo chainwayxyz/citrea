@@ -7,14 +7,11 @@ use std::vec;
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use borsh::BorshDeserialize;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::utils::merge_state_diffs;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_primitives::MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
 use citrea_stf::runtime::Runtime;
 use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -35,27 +32,26 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    BlobReaderTrait, Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
     UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
-use sov_rollup_interface::da::{
-    BlockHeaderTrait, DaData, DaDataBatchProof, DaSpec, SequencerCommitment,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::InitVariant;
 use tokio::signal;
-use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::layer::SubscriberExt;
 
-use crate::commitment_controller;
+use crate::commitment::CommitmentService;
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
@@ -95,7 +91,6 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
-    last_state_diff: StateDiff,
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
@@ -166,9 +161,6 @@ where
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
-        // Initialize the sequencer with the last state diff from DB.
-        let last_state_diff = ledger_db.get_state_diff()?;
-
         let task_manager = TaskManager::default();
 
         Ok(Self {
@@ -189,7 +181,6 @@ where
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             rpc_config,
-            last_state_diff,
             fork_manager,
             soft_confirmation_tx,
             task_manager,
@@ -273,88 +264,95 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
-        match self.stf.begin_soft_confirmation(
-            pub_key,
-            prestate.clone(),
-            Default::default(),
-            &da_block_header,
-            &soft_confirmation_info,
-        ) {
-            (Ok(()), mut working_set_to_discard) => {
-                let block_gas_limit = self.db_provider.cfg().block_gas_limit;
+        let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
-                let evm = Evm::<C>::default();
+        tracing::subscriber::with_default(silent_subscriber, || {
+            match self.stf.begin_soft_confirmation(
+                pub_key,
+                prestate.clone(),
+                Default::default(),
+                &da_block_header,
+                &soft_confirmation_info,
+            ) {
+                (Ok(()), mut working_set_to_discard) => {
+                    let block_gas_limit = self.db_provider.cfg().block_gas_limit;
 
-                match l2_block_mode {
-                    L2BlockMode::NotEmpty => {
-                        let mut all_txs = vec![];
+                    let evm = Evm::<C>::default();
 
-                        for evm_tx in transactions {
-                            let rlp_tx = RlpEvmTransaction {
-                                rlp: evm_tx
-                                    .to_recovered_transaction()
-                                    .into_signed()
-                                    .envelope_encoded()
-                                    .to_vec(),
-                            };
+                    match l2_block_mode {
+                        L2BlockMode::NotEmpty => {
+                            let mut all_txs = vec![];
 
-                            let call_txs = CallMessage {
-                                txs: vec![rlp_tx.clone()],
-                            };
-                            let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
-                                citrea_evm::Evm<C>,
-                            >>::encode_call(call_txs);
-                            let signed_blob =
-                                self.make_blob(raw_message, &mut working_set_to_discard)?;
+                            for evm_tx in transactions {
+                                let rlp_tx = RlpEvmTransaction {
+                                    rlp: evm_tx
+                                        .to_recovered_transaction()
+                                        .into_signed()
+                                        .envelope_encoded()
+                                        .to_vec(),
+                                };
 
-                            let txs = vec![signed_blob.clone()];
+                                let call_txs = CallMessage {
+                                    txs: vec![rlp_tx.clone()],
+                                };
+                                let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
+                                    citrea_evm::Evm<C>,
+                                >>::encode_call(
+                                    call_txs
+                                );
+                                let signed_blob =
+                                    self.make_blob(raw_message, &mut working_set_to_discard)?;
 
-                            let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
-                                soft_confirmation_info.clone(),
-                                txs.clone(),
-                                working_set_to_discard,
-                            );
+                                let txs = vec![signed_blob.clone()];
 
-                            working_set_to_discard = sc_workspace;
+                                let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
+                                    soft_confirmation_info.clone(),
+                                    txs.clone(),
+                                    working_set_to_discard,
+                                );
 
-                            let last_tx =
-                                evm.get_last_pending_transaction(&mut working_set_to_discard);
+                                working_set_to_discard = sc_workspace;
 
-                            if let Some(last_tx) = last_tx {
-                                if last_tx.hash() == *evm_tx.hash() {
-                                    all_txs.push(rlp_tx);
-                                }
+                                let last_tx =
+                                    evm.get_last_pending_transaction(&mut working_set_to_discard);
 
-                                if last_tx.cumulative_gas_used()
-                                    >= block_gas_limit - MIN_TRANSACTION_GAS
-                                {
-                                    break;
+                                if let Some(last_tx) = last_tx {
+                                    if last_tx.hash() == *evm_tx.hash() {
+                                        all_txs.push(rlp_tx);
+                                    }
+
+                                    if last_tx.cumulative_gas_used()
+                                        >= block_gas_limit - MIN_TRANSACTION_GAS
+                                    {
+                                        break;
+                                    }
                                 }
                             }
+
+                            // before finalize we can get tx hashes that failed due to L1 fees.
+                            // nasty hack to access state
+                            let l1_fee_failed_txs = evm.get_l1_fee_failed_txs(
+                                &mut working_set_to_discard.accessory_state(),
+                            );
+
+                            Ok((all_txs, l1_fee_failed_txs))
                         }
-
-                        // before finalize we can get tx hashes that failed due to L1 fees.
-                        // nasty hack to access state
-                        let l1_fee_failed_txs = evm
-                            .get_l1_fee_failed_txs(&mut working_set_to_discard.accessory_state());
-
-                        Ok((all_txs, l1_fee_failed_txs))
+                        L2BlockMode::Empty => Ok((vec![], vec![])),
                     }
-                    L2BlockMode::Empty => Ok((vec![], vec![])),
                 }
-            }
-            (Err(err), batch_workspace) => {
-                warn!(
+                (Err(err), batch_workspace) => {
+                    warn!(
                     "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
                     err
                 );
-                batch_workspace.revert();
-                Err(anyhow!(
-                    "DryRun: Failed to apply begin soft confirmation hook: {:?}",
-                    err
-                ))
+                    batch_workspace.revert();
+                    Err(anyhow!(
+                        "DryRun: Failed to apply begin soft confirmation hook: {:?}",
+                        err
+                    ))
+                }
             }
-        }
+        })
     }
 
     async fn produce_l2_block(
@@ -362,7 +360,7 @@ where
         da_block: <Da as DaService>::FilteredBlock,
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
-    ) -> anyhow::Result<(u64, bool)> {
+    ) -> anyhow::Result<(u64, u64, StateDiff)> {
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -530,9 +528,6 @@ where
                 // the new fork on the next block
                 self.fork_manager.register_block(l2_height)?;
 
-                // Only errors when there are no receivers
-                let _ = self.soft_confirmation_tx.send(l2_height);
-
                 let l1_height = da_block.header().height();
                 info!(
                     "New block #{}, DA #{}, Tx count: #{}",
@@ -551,27 +546,6 @@ where
 
                 self.mempool.update_accounts(account_updates);
 
-                let merged_state_diff = merge_state_diffs(
-                    self.last_state_diff.clone(),
-                    soft_confirmation_result.state_diff.clone(),
-                );
-
-                // Serialize the state diff to check size later.
-                let serialized_state_diff = borsh::to_vec(&merged_state_diff)?;
-                let state_diff_threshold_reached =
-                    serialized_state_diff.len() as u64 > MAX_STATEDIFF_SIZE_COMMITMENT_THRESHOLD;
-                if state_diff_threshold_reached {
-                    self.last_state_diff
-                        .clone_from(&soft_confirmation_result.state_diff);
-                    self.ledger_db
-                        .set_state_diff(self.last_state_diff.clone())?;
-                } else {
-                    // Store state diff.
-                    self.last_state_diff = merged_state_diff;
-                    self.ledger_db
-                        .set_state_diff(self.last_state_diff.clone())?;
-                }
-
                 let txs = txs_to_remove
                     .iter()
                     .map(|tx_hash| tx_hash.to_vec())
@@ -580,7 +554,11 @@ where
                     warn!("Failed to remove txs from mempool: {:?}", e);
                 }
 
-                Ok((da_block.header().height(), state_diff_threshold_reached))
+                Ok((
+                    l2_height,
+                    da_block.header().height(),
+                    soft_confirmation_result.state_diff,
+                ))
             }
             (Err(err), batch_workspace) => {
                 warn!(
@@ -596,232 +574,8 @@ where
         }
     }
 
-    async fn try_submit_commitment(
-        &mut self,
-        state_diff_threshold_reached: bool,
-    ) -> anyhow::Result<()> {
-        debug!("Sequencer: Checking if commitment should be submitted");
-
-        let commitment_info = commitment_controller::get_commitment_info(
-            &self.ledger_db,
-            self.config.min_soft_confirmations_per_commitment,
-            state_diff_threshold_reached,
-        )?;
-        if let Some(commitment_info) = commitment_info {
-            self.submit_commitment(commitment_info, false).await?;
-        }
-        Ok(())
-    }
-
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn resubmit_pending_commitments(&mut self) -> anyhow::Result<()> {
-        info!("Resubmitting pending commitments");
-
-        let pending_db_commitments = self.ledger_db.get_pending_commitments_l2_range()?;
-        info!("Pending db commitments: {:?}", pending_db_commitments);
-
-        let pending_mempool_commitments = self.get_pending_mempool_commitments().await;
-        info!(
-            "Commitments that are already in DA mempool: {:?}",
-            pending_mempool_commitments
-        );
-
-        let last_commitment_l1_height = self
-            .ledger_db
-            .get_l1_height_of_last_commitment()?
-            .unwrap_or(SlotNumber(1));
-        let mined_commitments = self
-            .get_mined_commitments_from(last_commitment_l1_height)
-            .await?;
-        info!(
-            "Commitments that are already mined by DA: {:?}",
-            mined_commitments
-        );
-
-        let mut pending_commitments_to_remove = vec![];
-        pending_commitments_to_remove.extend(pending_mempool_commitments);
-        pending_commitments_to_remove.extend(mined_commitments);
-
-        for (l2_start, l2_end) in pending_db_commitments {
-            if pending_commitments_to_remove.iter().any(|commitment| {
-                commitment.l2_start_block_number == l2_start.0
-                    && commitment.l2_end_block_number == l2_end.0
-            }) {
-                // Update last sequencer commitment l2 height
-                match self.ledger_db.get_last_commitment_l2_height()? {
-                    Some(last_commitment_l2_height) if last_commitment_l2_height >= l2_end => {}
-                    _ => {
-                        self.ledger_db.set_last_commitment_l2_height(l2_end)?;
-                    }
-                };
-
-                // Delete from pending db if it is already in DA mempool or mined
-                self.ledger_db
-                    .delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
-            } else {
-                // Submit commitment
-                let commitment_info = commitment_controller::CommitmentInfo {
-                    l2_height_range: l2_start..=l2_end,
-                };
-                self.submit_commitment(commitment_info, true).await?;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn submit_commitment(
-        &mut self,
-        commitment_info: commitment_controller::CommitmentInfo,
-        wait_for_da_response: bool,
-    ) -> anyhow::Result<()> {
-        let l2_start = *commitment_info.l2_height_range.start();
-        let l2_end = *commitment_info.l2_height_range.end();
-
-        // Clear state diff early
-        self.ledger_db.set_state_diff(vec![])?;
-        self.last_state_diff = vec![];
-
-        let soft_confirmation_hashes = self
-            .ledger_db
-            .get_soft_confirmation_range(&(l2_start..=l2_end))?
-            .iter()
-            .map(|sb| sb.hash)
-            .collect::<Vec<[u8; 32]>>();
-
-        let commitment =
-            commitment_controller::get_commitment(commitment_info, soft_confirmation_hashes)?;
-
-        debug!("Sequencer: submitting commitment: {:?}", commitment);
-
-        let da_data = DaData::SequencerCommitment(commitment.clone());
-        let (notify, rx) = oneshot_channel();
-        let request = SenderWithNotifier { da_data, notify };
-        self.da_service
-            .get_send_transaction_queue()
-            .send(Some(request))
-            .map_err(|_| anyhow!("Bitcoin service already stopped!"))?;
-
-        info!(
-            "Sent commitment to DA queue. L2 range: #{}-{}",
-            l2_start.0, l2_end.0,
-        );
-
-        let ledger_db = self.ledger_db.clone();
-        let handle_da_response = async move {
-            let result: anyhow::Result<()> = async move {
-                let _tx_id = rx
-                    .await
-                    .map_err(|_| anyhow!("DA service is dead!"))?
-                    .map_err(|_| anyhow!("Send transaction cannot fail"))?;
-
-                ledger_db
-                    .set_last_commitment_l2_height(l2_end)
-                    .map_err(|_| {
-                        anyhow!("Sequencer: Failed to set last sequencer commitment L2 height")
-                    })?;
-
-                ledger_db.delete_pending_commitment_l2_range(&(l2_start, l2_end))?;
-
-                info!("New commitment. L2 range: #{}-{}", l2_start.0, l2_end.0);
-                Ok(())
-            }
-            .await;
-
-            if let Err(err) = result {
-                error!(
-                    "Error in spawned task for handling commitment result: {}",
-                    err
-                );
-            }
-        };
-
-        if wait_for_da_response {
-            // Handle DA response blocking
-            handle_da_response.await;
-        } else {
-            // Add commitment to pending commitments
-            self.ledger_db
-                .put_pending_commitment_l2_range(&(l2_start, l2_end))?;
-
-            // Handle DA response non-blocking
-            tokio::spawn(handle_da_response);
-        }
-        Ok(())
-    }
-
-    async fn get_pending_mempool_commitments(&self) -> Vec<SequencerCommitment> {
-        self.da_service
-            .get_relevant_blobs_of_pending_transactions()
-            .await
-            .into_iter()
-            .filter_map(
-                |mut blob| match DaDataBatchProof::try_from_slice(blob.full_data()) {
-                    Ok(da_data)
-                    // we check on da pending txs of our wallet however let's keep consistency
-                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
-                    {
-                        match da_data {
-                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
-                        }
-                    }
-                    Ok(_) => None,
-                    Err(err) => {
-                        warn!("Pending transaction blob failed to be parsed: {}", err);
-                        None
-                    }
-                },
-            )
-            .collect()
-    }
-
-    async fn get_mined_commitments_from(
-        &self,
-        da_height: SlotNumber,
-    ) -> anyhow::Result<Vec<SequencerCommitment>> {
-        let head_da_height = self
-            .da_service
-            .get_head_block_header()
-            .await
-            .map_err(|e| anyhow!(e))?
-            .height();
-        let mut mined_commitments = vec![];
-        for height in da_height.0..=head_da_height {
-            let block = self
-                .da_service
-                .get_block_at(height)
-                .await
-                .map_err(|e| anyhow!(e))?;
-            let blobs = self.da_service.extract_relevant_blobs(&block);
-            let iter = blobs.into_iter().filter_map(|mut blob| {
-                match DaDataBatchProof::try_from_slice(blob.full_data()) {
-                    Ok(da_data)
-                        if blob.sender().as_ref() == self.sequencer_da_pub_key.as_slice() =>
-                    {
-                        match da_data {
-                            DaDataBatchProof::SequencerCommitment(commitment) => Some(commitment),
-                        }
-                    }
-                    Ok(_) => None,
-                    Err(err) => {
-                        warn!("Pending transaction blob failed to be parsed: {}", err);
-                        None
-                    }
-                }
-            });
-            mined_commitments.extend(iter);
-        }
-
-        Ok(mined_commitments)
-    }
-
     #[instrument(level = "trace", skip(self), err, ret)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        if self.batch_hash != [0; 32] {
-            // Resubmit if there were pending commitments on restart, skip it on first init
-            self.resubmit_pending_commitments().await?;
-        }
-
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
@@ -857,7 +611,21 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, mut da_commitment_rx) = unbounded::<bool>();
+        let (da_commitment_tx, da_commitment_rx) = unbounded::<(u64, StateDiff)>();
+
+        let mut commitment_service = CommitmentService::new(
+            self.ledger_db.clone().into(),
+            self.da_service.clone(),
+            self.sequencer_da_pub_key.clone(),
+            self.config.min_soft_confirmations_per_commitment,
+            da_commitment_rx,
+        );
+        if self.batch_hash != [0; 32] {
+            // Resubmit if there were pending commitments on restart, skip it on first init
+            commitment_service.resubmit_pending_commitments().await?;
+        }
+        self.task_manager
+            .spawn(|cancellation_token| commitment_service.run(cancellation_token));
 
         self.task_manager.spawn(|cancellation_token| {
             da_block_monitor(
@@ -894,11 +662,6 @@ where
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_height, last_used_l1_height);
                     }
                 },
-                commitment_threshold_reached = da_commitment_rx.select_next_some() => {
-                    if let Err(e) = self.try_submit_commitment(commitment_threshold_reached).await {
-                        error!("Failed to submit commitment: {}", e);
-                    }
-                },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
@@ -913,12 +676,13 @@ where
                     }
 
                     match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
-                        Ok((l1_block_number, state_diff_threshold_reached)) => {
+                        Ok((l2_height, l1_block_number, state_diff)) => {
                             last_used_l1_height = l1_block_number;
 
-                            if da_commitment_tx.unbounded_send(state_diff_threshold_reached).is_err() {
-                                error!("Commitment thread is dead!");
-                            }
+                            // Only errors when there are no receivers
+                            let _ = self.soft_confirmation_tx.send(l2_height);
+
+                            let _ = da_commitment_tx.unbounded_send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -944,12 +708,13 @@ where
 
 
                     match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
-                        Ok((l1_block_number, state_diff_threshold_reached)) => {
+                        Ok((l2_height, l1_block_number, state_diff)) => {
                             last_used_l1_height = l1_block_number;
 
-                            if da_commitment_tx.unbounded_send(state_diff_threshold_reached).is_err() {
-                                error!("Commitment thread is dead!");
-                            }
+                            // Only errors when there are no receivers
+                            let _ = self.soft_confirmation_tx.send(l2_height);
+
+                            let _ = da_commitment_tx.unbounded_send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
