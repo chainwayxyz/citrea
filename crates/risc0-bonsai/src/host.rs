@@ -320,11 +320,15 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             }
             // Local proving
             (None, true) => {
-                let env =
-                    add_benchmarking_callbacks(ExecutorEnvBuilder::default().segment_limit_po2(21))
-                        .write_slice(&self.env)
+                let env = add_benchmarking_callbacks(
+                    ExecutorEnvBuilder::default()
+                        .segment_limit_po2(21)
                         .build()
-                        .unwrap();
+                        .unwrap(),
+                )
+                .write_slice(&self.env)
+                .build()
+                .unwrap();
 
                 // let prover = LocalProver::new("citrea");
                 let prover =
