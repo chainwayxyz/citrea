@@ -306,10 +306,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         let proof = match (self.client.as_ref(), with_proof) {
             // Local execution. If mode is Execute, we always do local execution.
             (_, false) => {
-                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
+                let mut env = ExecutorEnvBuilder::default();
+                add_benchmarking_callbacks(&mut env);
+                let env = env.write_slice(&self.env).build().unwrap();
                 let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
 
                 let session = executor.run()?;
@@ -320,15 +319,10 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             }
             // Local proving
             (None, true) => {
-                let env = add_benchmarking_callbacks(
-                    ExecutorEnvBuilder::default()
-                        .segment_limit_po2(21)
-                        .build()
-                        .unwrap(),
-                )
-                .write_slice(&self.env)
-                .build()
-                .unwrap();
+                let mut env = ExecutorEnvBuilder::default();
+                env.segment_limit_po2(21);
+                add_benchmarking_callbacks(&mut env);
+                let env = env.write_slice(&self.env).build().unwrap();
 
                 // let prover = LocalProver::new("citrea");
                 let prover =
