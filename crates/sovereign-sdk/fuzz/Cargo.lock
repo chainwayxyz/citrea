@@ -2206,6 +2206,7 @@ name = "sov-prover-storage-manager"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
+ "sha2",
  "sov-db",
  "sov-rollup-interface",
  "sov-schema-db",

@@ -16,7 +16,6 @@ use sov_state::storage::{CacheKey, CacheValue, StorageKey};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 
 type Da = sov_mock_da::MockDaSpec;
-type S = sov_state::DefaultStorageSpec;
 
 fn generate_random_bytes<R: Rng>(
     rng: &mut R,
@@ -38,7 +37,7 @@ fn generate_random_bytes<R: Rng>(
 struct TestData {
     random_key: Vec<u8>,
     non_existing_key: Vec<u8>,
-    storage_manager: ProverStorageManager<Da, S>,
+    storage_manager: ProverStorageManager<Da>,
 }
 
 //TODO: Extend with auxiliary data
@@ -54,7 +53,7 @@ fn setup_storage(
         db_max_open_files: None,
     };
 
-    let mut storage_manager = ProverStorageManager::<Da, S>::new(config).unwrap();
+    let mut storage_manager = ProverStorageManager::<Da>::new(config).unwrap();
 
     let mut old_writes: Vec<Vec<u8>> = Vec::with_capacity(rollup_height as usize * num_old_writes);
 

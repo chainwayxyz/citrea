@@ -15,11 +15,7 @@ use sov_rollup_interface::stf::{
 };
 use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
-use sov_state::{
-    ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, Storage,
-};
-
-pub type S = DefaultStorageSpec;
+use sov_state::{ArrayWitness, OrderedReadsAndWrites, Prefix, ProverStorage, Storage};
 pub type Q = SnapshotManager;
 
 #[derive(Default, Clone)]
@@ -41,9 +37,9 @@ impl<Cond> HashStf<Cond> {
 
     fn save_from_hasher(
         hasher: sha2::Sha256,
-        storage: ProverStorage<S, Q>,
+        storage: ProverStorage<Q>,
         witness: &mut ArrayWitness,
-    ) -> ([u8; 32], ProverStorage<S, Q>) {
+    ) -> ([u8; 32], ProverStorage<Q>) {
         let result = hasher.finalize();
 
         let hash_key = HashStf::<Cond>::hash_key();
@@ -142,8 +138,8 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
 {
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
-    type PreState = ProverStorage<S, Q>;
-    type ChangeSet = ProverStorage<S, Q>;
+    type PreState = ProverStorage<Q>;
+    type ChangeSet = ProverStorage<Q>;
     type TxReceiptContents = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
@@ -309,7 +305,7 @@ fn compare_output() {
 pub fn get_result_from_blocks(
     genesis_params: &[u8],
     blocks: &[MockBlock],
-) -> ([u8; 32], Option<<ProverStorage<S, Q> as Storage>::Root>) {
+) -> ([u8; 32], Option<<ProverStorage<Q> as Storage>::Root>) {
     let tmpdir = tempfile::tempdir().unwrap();
 
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
