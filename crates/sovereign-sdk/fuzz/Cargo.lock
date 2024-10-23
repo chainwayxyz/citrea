@@ -2133,6 +2133,7 @@ dependencies = [
  "serde",
  "sov-rollup-interface",
  "sov-schema-db",
+ "tempfile",
  "tokio",
  "tracing",
 ]

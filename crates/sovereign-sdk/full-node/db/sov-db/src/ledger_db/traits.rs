@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -14,6 +16,9 @@ use crate::schema::types::{
 
 /// Shared ledger operations
 pub trait SharedLedgerOps {
+    /// Return DB path
+    fn path(&self) -> &Path;
+
     /// Put soft confirmation to db
     fn put_soft_confirmation(
         &self,
@@ -125,6 +130,12 @@ pub trait SharedLedgerOps {
 
     /// Set the last pruned block number
     fn set_last_pruned_l2_height(&self, l2_height: u64) -> Result<()>;
+
+    /// Gets all executed migrations.
+    fn get_executed_migrations(&self) -> anyhow::Result<Vec<(String, u64)>>;
+
+    /// Put a pending commitment l2 range
+    fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()>;
 }
 
 /// Node ledger operations
@@ -230,4 +241,11 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
     /// Fetch mempool transactions
     fn get_mempool_txs(&self) -> anyhow::Result<Vec<(Vec<u8>, Vec<u8>)>>;
+}
+
+/// Test ledger operations
+#[cfg(test)]
+pub trait TestLedgerOps {
+    fn get_values(&self) -> anyhow::Result<Vec<(u64, (u64, u64))>>;
+    fn put_value(&self, key: u64, value: (u64, u64)) -> anyhow::Result<()>;
 }

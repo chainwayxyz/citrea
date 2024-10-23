@@ -7,11 +7,11 @@ use std::time::Duration;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
+use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::runtime::Runtime;
 use tokio::time::sleep;
 
-use crate::e2e::copy_dir_recursive;
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l1_block,
@@ -124,7 +124,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    let _ = copy_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("fullnode_copy"));
+    let _ = copy_db_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("fullnode_copy"));
 
     let fullnode_db_dir = storage_dir.path().join("fullnode_copy");
 
@@ -218,7 +218,7 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    let _ = copy_dir_recursive(
+    let _ = copy_db_dir_recursive(
         &sequencer_db_dir,
         &storage_dir.path().join("sequencer_copy"),
     );
@@ -379,7 +379,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     sleep(Duration::from_secs(1)).await;
 
-    let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy"));
+    let _ = copy_db_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy"));
     sleep(Duration::from_secs(1)).await;
 
     // Reopen prover with the new path
@@ -433,7 +433,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
     seq_test_client.send_publish_batch_request().await;
     seq_test_client.send_publish_batch_request().await;
     wait_for_l2_block(&seq_test_client, 8, None).await;
-    let _ = copy_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
+    let _ = copy_db_dir_recursive(&prover_db_dir, &storage_dir.path().join("prover_copy2"));
 
     sleep(Duration::from_secs(2)).await;
     // Reopen prover with the new path

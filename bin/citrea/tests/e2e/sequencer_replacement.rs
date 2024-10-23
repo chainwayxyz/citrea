@@ -9,12 +9,13 @@ use alloy_rlp::Decodable;
 use citrea_common::{SequencerConfig, SequencerMempoolConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag};
+use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
 
-use crate::e2e::{copy_dir_recursive, execute_blocks, TestConfig};
+use crate::e2e::{execute_blocks, TestConfig};
 use crate::evm::{init_test_rollup, make_test_client};
 use crate::test_helpers::{
     create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_commitment,
@@ -120,7 +121,7 @@ async fn test_sequencer_crash_and_replace_full_node() -> Result<(), anyhow::Erro
 
     // Copy the db to a new path with the same contents because
     // the lock is not released on the db directory even though the task is aborted
-    let _ = copy_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("full_node_copy"));
+    let _ = copy_db_dir_recursive(&fullnode_db_dir, &storage_dir.path().join("full_node_copy"));
     let sequencer_db_dir = storage_dir.path().join("full_node_copy");
 
     let config1 = sequencer_config.clone();
@@ -240,7 +241,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // Copy data into a separate directory since the original sequencer
     // directory is locked by a LOCK file.
     // This would enable us to access ledger DB directly.
-    let _ = copy_dir_recursive(
+    let _ = copy_db_dir_recursive(
         &sequencer_db_dir,
         &storage_dir.path().join("sequencer_unlocked"),
     );
@@ -260,7 +261,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // Remove lock
     drop(ledger_db);
 
-    let _ = copy_dir_recursive(
+    let _ = copy_db_dir_recursive(
         &sequencer_db_dir,
         &storage_dir.path().join("sequencer_copy"),
     );
@@ -326,7 +327,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     // Copy data into a separate directory since the original sequencer
     // directory is locked by a LOCK file.
     // This would enable us to access ledger DB directly.
-    let _ = copy_dir_recursive(
+    let _ = copy_db_dir_recursive(
         &sequencer_db_dir,
         &storage_dir.path().join("sequencer_unlocked"),
     );
