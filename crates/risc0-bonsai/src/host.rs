@@ -497,6 +497,5 @@ fn get_r0vm_path() -> PathBuf {
     assert!(output.status.success(), "r0vm binary must be available in PATH");
 
     let path = str::from_utf8(&output.stdout).expect("Invalid UTF-8 output");
-    let path = path.trim_matches('\n');
-    path.into()
+    path.trim().into()
 }
