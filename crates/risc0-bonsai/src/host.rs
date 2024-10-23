@@ -327,7 +327,8 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                         .unwrap();
 
                 // let prover = LocalProver::new("citrea");
-                let prover = ExternalProver::new("citrea", get_r0vm_path());
+                let prover =
+                    ExternalProver::new("citrea", "/home/ubuntu/risc0/target/release/r0vm");
 
                 let start = std::time::Instant::now();
                 let proving_session =
