@@ -12,7 +12,8 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, ExternalProver, Journal, Prover, ProverOpts, Receipt
+    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, ExternalProver, Journal, Prover,
+    ProverOpts, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -319,10 +320,11 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             }
             // Local proving
             (None, true) => {
-                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
+                let env =
+                    add_benchmarking_callbacks(ExecutorEnvBuilder::default().segment_limit_po2(21))
+                        .write_slice(&self.env)
+                        .build()
+                        .unwrap();
 
                 // let prover = LocalProver::new("citrea");
                 let prover = ExternalProver::new("citrea", get_r0vm_path());
@@ -494,7 +496,10 @@ fn get_r0vm_path() -> PathBuf {
         .arg("r0vm")
         .output()
         .expect("Failed to execute `which r0vm` command");
-    assert!(output.status.success(), "r0vm binary must be available in PATH");
+    assert!(
+        output.status.success(),
+        "r0vm binary must be available in PATH"
+    );
 
     let path = str::from_utf8(&output.stdout).expect("Invalid UTF-8 output");
     path.trim().into()
