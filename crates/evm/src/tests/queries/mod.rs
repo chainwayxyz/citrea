@@ -13,7 +13,7 @@ use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, WorkingSet};
 use sov_prover_storage_manager::SnapshotManager;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::ProverStorage;
 
 use crate::call::CallMessage;
 use crate::smart_contracts::{
@@ -27,18 +27,13 @@ use crate::tests::utils::{
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction};
 
 type C = DefaultContext;
+type Storage = ProverStorage<SnapshotManager>;
 
 /// Creates evm instance with 4 blocks (including genesis)
 /// Block 1 has 3 transactions
 /// Block 2 has 4 transactions
 /// Block 3 has 2 transactions
-fn init_evm() -> (
-    Evm<C>,
-    WorkingSet<C>,
-    ProverStorage<DefaultStorageSpec, SnapshotManager>,
-    TestSigner,
-    u64,
-) {
+fn init_evm() -> (Evm<C>, WorkingSet<C>, Storage, TestSigner, u64) {
     let dev_signer: TestSigner = TestSigner::new_random();
 
     let mut config = EvmConfig {
