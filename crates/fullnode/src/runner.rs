@@ -379,6 +379,12 @@ where
 
         loop {
             select! {
+                biased;
+                _ = signal::ctrl_c() => {
+                    info!("Shutting down");
+                    self.task_manager.abort().await;
+                    return Ok(());
+                },
                 _ = &mut l2_sync_worker => {},
                 Some(l2_blocks) = l2_rx.recv() => {
                     // While syncing, we'd like to process L2 blocks as they come without any delays.
@@ -415,11 +421,6 @@ where
                         }
                     }
                 },
-                _ = signal::ctrl_c() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
             }
         }
     }
