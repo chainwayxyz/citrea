@@ -8,6 +8,7 @@ use tokio::sync::oneshot;
 use tracing::instrument;
 
 mod da_block_handler;
+pub mod db_migrations;
 mod runner;
 
 /// Dependencies needed to run the rollup.

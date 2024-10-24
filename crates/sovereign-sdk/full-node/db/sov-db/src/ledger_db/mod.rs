@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::de::DeserializeOwned;
@@ -11,9 +12,11 @@ use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
+#[cfg(test)]
+use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
-    BatchByNumber, CommitmentsByNumber, L2GenesisStateRoot, L2RangeByL1Height, L2Witness,
-    LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
+    BatchByNumber, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height,
+    L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
     PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
     ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
     SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
@@ -23,7 +26,11 @@ use crate::schema::types::{
     StoredSoftConfirmation, StoredStateTransition, StoredVerifiedProof,
 };
 
+/// Implementation of database migrator
+pub mod migrations;
 mod rpc;
+#[cfg(test)]
+mod tests;
 mod traits;
 
 pub use traits::*;
@@ -37,7 +44,7 @@ const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
 pub struct LedgerDB {
     /// The database which stores the committed ledger. Uses an optimized layout which
     /// requires transactions to be executed before being committed.
-    db: Arc<DB>,
+    pub(crate) db: Arc<DB>,
     next_item_numbers: Arc<Mutex<ItemNumbers>>,
 }
 
@@ -158,6 +165,11 @@ impl LedgerDB {
 }
 
 impl SharedLedgerOps for LedgerDB {
+    /// Returns the path of the DB
+    fn path(&self) -> &Path {
+        self.db.path()
+    }
+
     #[instrument(level = "trace", skip(self, schema_batch), err, ret)]
     fn put_soft_confirmation(
         &self,
@@ -467,6 +479,25 @@ impl SharedLedgerOps for LedgerDB {
 
         Ok(())
     }
+
+    /// Gets all executed migrations.
+    #[instrument(level = "trace", skip(self), err)]
+    fn get_executed_migrations(&self) -> anyhow::Result<Vec<(String, u64)>> {
+        let mut iter = self.db.iter::<ExecutedMigrations>()?;
+        iter.seek_to_first();
+
+        let migrations = iter
+            .map(|item| item.map(|item| item.key))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(migrations)
+    }
+
+    /// Put a pending commitment l2 range
+    #[instrument(level = "trace", skip(self), err)]
+    fn put_executed_migration(&self, migration: (String, u64)) -> anyhow::Result<()> {
+        self.db.put::<ExecutedMigrations>(&migration, &())
+    }
 }
 
 impl ProverLedgerOps for LedgerDB {
@@ -773,6 +804,27 @@ impl NodeLedgerOps for LedgerDB {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitment>>> {
         self.db.get::<CommitmentsByNumber>(&SlotNumber(height))
+    }
+}
+
+#[cfg(test)]
+impl TestLedgerOps for LedgerDB {
+    fn get_values(&self) -> anyhow::Result<Vec<(u64, (u64, u64))>> {
+        let mut iter = self.db.iter::<TestTableNew>()?;
+        iter.seek_to_first();
+
+        let values = iter
+            .map(|item| item.map(|item| (item.key, item.value)))
+            .collect::<Result<Vec<(u64, (u64, u64))>, _>>()?;
+
+        Ok(values)
+    }
+
+    fn put_value(&self, key: u64, value: (u64, u64)) -> anyhow::Result<()> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<TestTableNew>(&key, &value)?;
+        self.db.write_schemas(schema_batch)?;
+        Ok(())
     }
 }
 

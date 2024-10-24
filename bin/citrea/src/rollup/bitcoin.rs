@@ -24,7 +24,7 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::{DefaultStorageSpec, Storage, ZkStorage};
+use sov_state::{Storage, ZkStorage};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
@@ -46,7 +46,7 @@ impl RollupBlueprint for BitcoinRollup {
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
 
-    type StorageManager = ProverStorageManager<BitcoinSpec, DefaultStorageSpec>;
+    type StorageManager = ProverStorageManager<BitcoinSpec>;
 
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
