@@ -36,13 +36,13 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "aggregation-set"
-version = "0.1.0"
-source = "git+ssh://git@github.com/boundless-xyz/boundless.git?tag=v0.1.0#58ec568535a91e91418fdf7eb8183fb7caa07a46"
+version = "0.2.0"
+source = "git+ssh://git@github.com/boundless-xyz/boundless.git?branch=main#14a3c1fcb6a62730ddfced57f0dc8d8edc18cda7"
 dependencies = [
  "alloy-primitives 0.8.9",
  "alloy-sol-types 0.8.9",
  "anyhow",
- "guest-aggregation-set",
+ "guest-set-builder",
  "hex",
  "risc0-binfmt",
  "risc0-zkvm",
@@ -2521,8 +2521,8 @@ dependencies = [
 
 [[package]]
 name = "boundless-market"
-version = "0.1.0"
-source = "git+ssh://git@github.com/boundless-xyz/boundless.git?tag=v0.1.0#58ec568535a91e91418fdf7eb8183fb7caa07a46"
+version = "0.2.0"
+source = "git+ssh://git@github.com/boundless-xyz/boundless.git?branch=main#14a3c1fcb6a62730ddfced57f0dc8d8edc18cda7"
 dependencies = [
  "aggregation-set",
  "alloy 0.3.6",
@@ -2540,9 +2540,8 @@ dependencies = [
  "guest-assessor",
  "guest-util",
  "hex",
- "rand 0.8.5",
  "reqwest 0.12.5",
- "risc0-ethereum-contracts",
+ "risc0-ethereum-contracts 1.1.4",
  "risc0-zkvm",
  "serde",
  "serde_json",
@@ -3072,8 +3071,10 @@ dependencies = [
 name = "citrea-risc0-boundless-adapter"
 version = "0.5.0-rc.1"
 dependencies = [
+ "aggregation-set",
  "alloy 0.3.6",
  "alloy-primitives 0.8.9",
+ "alloy-sol-types 0.8.9",
  "anyhow",
  "backoff",
  "bincode",
@@ -3085,6 +3086,7 @@ dependencies = [
  "parking_lot",
  "reqwest 0.12.5",
  "risc0-circuit-rv32im",
+ "risc0-ethereum-contracts 1.1.0",
  "risc0-zkp",
  "risc0-zkvm",
  "risc0-zkvm-platform",
@@ -4456,18 +4458,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "guest-aggregation-set"
-version = "0.1.0"
-source = "git+ssh://git@github.com/boundless-xyz/boundless.git?tag=v0.1.0#58ec568535a91e91418fdf7eb8183fb7caa07a46"
-dependencies = [
- "risc0-build",
- "risc0-build-ethereum",
-]
-
-[[package]]
 name = "guest-assessor"
-version = "0.1.0"
-source = "git+ssh://git@github.com/boundless-xyz/boundless.git?tag=v0.1.0#58ec568535a91e91418fdf7eb8183fb7caa07a46"
+version = "0.2.0"
+source = "git+ssh://git@github.com/boundless-xyz/boundless.git?branch=main#14a3c1fcb6a62730ddfced57f0dc8d8edc18cda7"
 dependencies = [
  "hex",
  "risc0-build",
@@ -4475,9 +4468,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "guest-set-builder"
+version = "0.2.0"
+source = "git+ssh://git@github.com/boundless-xyz/boundless.git?branch=main#14a3c1fcb6a62730ddfced57f0dc8d8edc18cda7"
+dependencies = [
+ "risc0-build",
+ "risc0-build-ethereum",
+]
+
+[[package]]
 name = "guest-util"
-version = "0.1.0"
-source = "git+ssh://git@github.com/boundless-xyz/boundless.git?tag=v0.1.0#58ec568535a91e91418fdf7eb8183fb7caa07a46"
+version = "0.2.0"
+source = "git+ssh://git@github.com/boundless-xyz/boundless.git?branch=main#14a3c1fcb6a62730ddfced57f0dc8d8edc18cda7"
 dependencies = [
  "hex",
  "risc0-build",
@@ -8051,6 +8053,16 @@ dependencies = [
  "nvtx",
  "puffin",
  "rand_core 0.6.4",
+]
+
+[[package]]
+name = "risc0-ethereum-contracts"
+version = "1.1.0"
+source = "git+https://github.com/risc0/risc0-ethereum/?tag=v1.1.0#8498f7a13a2ab6e02bfd3700cf1be5cd2926f4e4"
+dependencies = [
+ "alloy 0.3.6",
+ "anyhow",
+ "risc0-zkvm",
 ]
 
 [[package]]

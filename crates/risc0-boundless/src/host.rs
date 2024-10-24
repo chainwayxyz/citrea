@@ -1,18 +1,22 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 use core::panic;
+use std::future::Future;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy::hex::FromHex;
+use alloy::network::{Ethereum, EthereumWallet};
+use alloy::providers::{Provider, ProviderBuilder};
 use alloy::signers::local::PrivateKeySigner;
 use alloy_primitives::aliases::U96;
 use alloy_primitives::utils::parse_ether;
-use alloy_primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, Bytes, B256, U256};
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use boundless_market::contracts::{Input, Offer, Predicate, ProvingRequest, Requirements};
 use boundless_market::sdk::client::ClientError::{self};
 use boundless_market::sdk::client::{self, Client};
+use risc0_ethereum_contracts::IRiscZeroVerifier;
 use risc0_zkvm::sha::{Digest, Digestible};
 use risc0_zkvm::{
     compute_image_id, default_executor, ExecutorEnv, ExecutorImpl, Groth16Receipt, InnerReceipt,
@@ -22,6 +26,7 @@ use sov_db::ledger_db::LedgerDB;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::task::block_in_place;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument, trace, warn};
 use url::Url;
@@ -51,6 +56,18 @@ enum BoundlessRequest {
         request_id: U256,
         notify: UnboundedSender<Result<U256, ClientError>>,
     },
+}
+
+/// Sda
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    // Handle case if we're already in an tokio runtime.
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))
+    } else {
+        // Otherwise create a new runtime.
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
+        rt.block_on(fut)
+    }
 }
 
 #[derive(Clone)]
@@ -416,6 +433,8 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
             ) {
                 Ok((journal, seal)) => {
                     tracing::info!("Request {} fulfilled", request_id);
+                    println!("Journal: {:?}", journal);
+                    println!("Seal: {:?}", seal);
                     (journal, seal)
                 }
                 Err(e) => {
@@ -432,6 +451,9 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
                     return Err(anyhow!("Request {} failed: {:?}", request_id, e));
                 }
             };
+
+            // The exact result of the fulfillment is the ABI-encoded seal (i.e. proof) of the SetInclusionReceipt.
+            // The most straightforward way to verify it is to send it as the seal parameter to the IRiscZeroVerifier.verify function at the SetVerifier address.
 
             let claim = ReceiptClaim::ok(self.image_id, journal.clone().to_vec());
 
@@ -472,6 +494,13 @@ impl<'a> ZkvmHost for Risc0BoundlessHost<'a> {
     }
 }
 
+// sol!(
+//     #[allow(missing_docs)]
+//     #[sol(rpc)]
+//     IRisc0Verifier,
+//     "/Users/erce/Desktop/Chainway/boundless/contracts/out/IRiscZeroSetVerifier.sol/IRiscZeroSetVerifier.json"
+// );
+
 impl<'host> Zkvm for Risc0BoundlessHost<'host> {
     type CodeCommitment = Digest;
 
@@ -482,9 +511,36 @@ impl<'host> Zkvm for Risc0BoundlessHost<'host> {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        // let journal_digest = receipt.journal.digest();
+        let journal_digest =
+            <[u8; 32]>::from(Journal::new(receipt.journal.clone().bytes).digest()).into();
 
-        #[allow(clippy::clone_on_copy)]
-        receipt.verify(code_commitment.clone())?;
+        let seal = receipt.inner.groth16().unwrap().seal.clone();
+
+        let private_key_str = std::env::var("private_key").expect("private_key not set");
+        let private_key =
+            PrivateKeySigner::from_str(&private_key_str).expect("Invalid private_key");
+
+        let set_verifier_address_str =
+            std::env::var("SET_VERIFIER_ADDRESS").expect("SET_VERIFIER_ADDRESS not set");
+        let set_verifier_address =
+            Address::from_str(&set_verifier_address_str).expect("Invalid SET_VERIFIER_ADDRESS");
+
+        let wallet = EthereumWallet::from(private_key.clone());
+        let rpc_url_str = std::env::var("RPC_URL").expect("RPC_URL not set");
+        let rpc_url = Url::parse(&rpc_url_str).expect("Invalid RPC_URL");
+
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(rpc_url);
+
+        let r0_verifier = IRiscZeroVerifier::new(set_verifier_address, provider);
+        r0_verifier.verify(
+            seal.into(),
+            B256::from_slice(code_commitment.as_bytes()),
+            journal_digest,
+        );
 
         Ok(receipt.journal.bytes)
     }

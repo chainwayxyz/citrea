@@ -11,7 +11,8 @@ description = "An adapter allowing Citrea to connect with Risc0 Boundless Prover
 
 [dependencies]
 alloy = { version = "0.3" }
-alloy-primitives = { version = "0.8.7" }
+alloy-primitives = { version = "0.8" }
+alloy-sol-types = { version = "0.8", features = ["json"] }
 anyhow = { workspace = true }
 backoff = { workspace = true }
 bincode = { workspace = true }
@@ -35,10 +36,13 @@ tracing = { workspace = true }
 url = { workspace = true }
 
 # # boundless monorepo dependencies.
-# aggregation-set = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+aggregation-set = { git = "ssh://git@github.com/boundless-xyz/boundless.git", branch = "main"}
 # guest-assessor = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
-boundless-market = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+boundless-market = { git = "ssh://git@github.com/boundless-xyz/boundless.git", branch = "main" }
 # broker = { git = "ssh://git@github.com/boundless-xyz/boundless.git", tag = "v0.1.0" }
+
+# For IRisc0Verifier contract
+risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum/", tag = "v1.1.0" }
 
 [features]
 default = []
