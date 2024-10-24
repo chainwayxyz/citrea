@@ -107,10 +107,10 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_prover_service(
         &self,
-        prover_config: ProverConfig,
+        _prover_config: ProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
-        ledger_db: LedgerDB,
+        _ledger_db: LedgerDB,
     ) -> Self::ProverService {
         todo!()
         // let vm = Risc0BonsaiHost::new(

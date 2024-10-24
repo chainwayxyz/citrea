@@ -6,15 +6,15 @@ use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sp1_sdk::network_v2::proto::network::ProofMode;
 use sp1_sdk::provers::ProverType;
 use sp1_sdk::{
-    block_on, CpuProver, HashableKey, NetworkProverV2, Prover, ProverClient,
+    block_on, HashableKey, NetworkProverV2, ProverClient,
     SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 use tracing::info;
 
 use crate::guest::SP1Guest;
 
-pub static SP1_HOST: OnceCell<SP1Host> = OnceCell::new();
-
+// All 2 static variables are initialized with the call to `SP1Host::new`
+pub static VK: OnceCell<VerifyingKey> = OnceCell::new();
 static CLIENT: Lazy<ProverClient> = Lazy::new(|| {
     ProverClient::new()
 });
@@ -36,6 +36,7 @@ impl SP1Host {
     /// must also be set. Default is `local`
     pub fn new(elf: &'static [u8], ledger_db: LedgerDB) -> Self {
         let (proving_key, verifying_key) = CLIENT.setup(elf);
+        VK.set(VerifyingKey(verifying_key.clone())).unwrap();
 
         Self {
             elf,
@@ -207,7 +208,7 @@ impl Zkvm for SP1Host {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct VerifyingKey(pub SP1VerifyingKey);
+pub struct VerifyingKey(SP1VerifyingKey);
 
 impl std::fmt::Debug for VerifyingKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -215,10 +216,3 @@ impl std::fmt::Debug for VerifyingKey {
         write!(f, "VerifyingKey {{ SP1VerifyingKey {{ vk: {} }} }}", key)
     }
 }
-
-// impl VerifyingKey {
-//     pub fn from_elf(elf: &[u8]) -> Self {
-//         let (_, vk) = CLIENT.setup(elf);
-//         Self(vk)
-//     }
-// }
