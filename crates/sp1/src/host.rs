@@ -185,7 +185,7 @@ impl Zkvm for SP1Host {
     ) -> Result<Vec<u8>, Self::Error> {
         let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
 
-        ProverClient::new().verify(&proof, &code_commitment.0)?;
+        CLIENT.verify(&proof, &code_commitment.0)?;
 
         Ok(proof.public_values.to_vec())
     }
@@ -196,7 +196,7 @@ impl Zkvm for SP1Host {
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
         let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
 
-        ProverClient::new().verify(&proof, &code_commitment.0)?;
+        CLIENT.verify(&proof, &code_commitment.0)?;
 
         Ok(BorshDeserialize::try_from_slice(
             proof.public_values.as_slice(),
