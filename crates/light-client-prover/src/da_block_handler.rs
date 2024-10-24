@@ -231,18 +231,6 @@ where
 
         Ok(output)
     }
-
-    // async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<(), anyhow::Error> {
-    //     let prover_service = self.prover_service.as_ref();
-    //     let results = prover_service
-    //         .recover_proving_sessions_and_send_to_da(&self.da_service)
-    //         .await?;
-
-    //     for (tx_id, proof) in results {
-    //         self.extract_and_store_proof(tx_id, proof).await?;
-    //     }
-    //     Ok(())
-    // }
 }
 
 async fn sync_l1<Da>(
