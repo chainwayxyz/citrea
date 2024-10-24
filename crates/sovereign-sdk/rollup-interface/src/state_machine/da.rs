@@ -1,5 +1,6 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -47,7 +48,11 @@ pub enum DaData {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaDataLightClient {
     /// A zk proof and state diff
-    ZKProof(Proof),
+    Complete(Proof),
+    /// A list of tx ids
+    Aggregate(Vec<[u8; 32]>),
+    /// A chunk of an aggregate
+    Chunk(Vec<u8>),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
@@ -119,8 +124,17 @@ pub trait DaVerifier: Send + Sync {
     /// Create a new da verifier with the given chain parameters
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self;
 
-    /// Verify a claimed set of transactions against a block header.
+    /// Verify a claimed set of BatchProof transactions against a block header.
     fn verify_relevant_tx_list(
+        &self,
+        block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
+        inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
+        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
+
+    /// Verify a claimed set of LightClient transactions against a block header
+    fn verify_relevant_tx_list_light_client(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         txs: &[<Self::Spec as DaSpec>::BlobTransaction],

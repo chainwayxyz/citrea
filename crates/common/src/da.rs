@@ -6,8 +6,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use borsh::de::BorshDeserialize;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaDataLightClient, DaSpec,
-    SequencerCommitment,
+    BlobReaderTrait, BlockHeaderTrait, DaDataBatchProof, DaSpec, SequencerCommitment,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
@@ -82,11 +81,7 @@ pub async fn extract_zk_proofs<Da: DaService>(
         .extract_relevant_proofs(&l1_block, prover_da_pub_key)
         .await?
         .into_iter()
-        .for_each(|data| match data {
-            DaDataLightClient::ZKProof(proof) => {
-                zk_proofs.push(proof);
-            }
-        });
+        .for_each(|data| zk_proofs.push(data));
 
     Ok(zk_proofs)
 }

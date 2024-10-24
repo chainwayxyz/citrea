@@ -1,0 +1,41 @@
+[package]
+name = "light-client-prover-mock"
+version = "0.5.0-rc.1"
+edition = "2021"
+resolver = "2"
+
+[workspace]
+
+[dependencies]
+risc0-zkvm = { version = "1.1.2", default-features = false }
+risc0-zkvm-platform = { version = "1.1.2" }
+
+anyhow = "1.0.68"
+sov-mock-da = { path = "../../../../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
+
+citrea-light-client-prover = { path = "../../../../../crates/light-client-prover", default-features = false }
+citrea-primitives = { path = "../../../../../crates/primitives" }
+sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
+sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
+sov-risc0-adapter = { path = "../../../../../crates/sovereign-sdk/adapters/risc0" }
+sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
+sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
+
+[patch.crates-io]
+sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
+ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.2-risczero.0" }
+crypto-bigint = { git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.5-risczero.0" }
+k256 = { git = "https://github.com/risc0/RustCrypto-elliptic-curves", tag = "k256/v0.13.3-risczero.0" }
+
+[profile.release]
+debug = 0
+lto = true
+opt-level = 3
+codegen-units = 1
+
+[features]
+bench = [
+  "sov-modules-api/bench",
+  "sov-state/bench",
+  "sov-modules-stf-blueprint/bench",
+]

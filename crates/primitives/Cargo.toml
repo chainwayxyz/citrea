@@ -13,7 +13,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 # 3rd-party deps
 alloy-eips = { workspace = true }
 anyhow = { workspace = true }
-brotli = { workspace = true, optional = true }
+brotli = { workspace = true }
 reth-primitives = { workspace = true }
 serde = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
@@ -26,7 +26,6 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 [features]
 native = [
   "dep:serde",
-  "dep:brotli",
   "dep:tokio",
   "dep:tracing",
   "sov-rollup-interface/native",

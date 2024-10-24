@@ -9,7 +9,6 @@ pub mod parsers;
 #[cfg(test)]
 pub mod test_utils;
 
-#[cfg(feature = "native")]
 /// Type represents a typed enum for LightClient kind
 #[repr(u16)]
 enum TransactionKindLightClient {
@@ -22,8 +21,8 @@ enum TransactionKindLightClient {
     Unknown(NonZeroU16),
 }
 
-#[cfg(feature = "native")]
 impl TransactionKindLightClient {
+    #[cfg(feature = "native")]
     fn to_bytes(&self) -> Vec<u8> {
         match self {
             TransactionKindLightClient::Complete => 0u16.to_le_bytes().to_vec(),

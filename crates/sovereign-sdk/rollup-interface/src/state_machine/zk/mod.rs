@@ -37,6 +37,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// The associated guest type
     type Guest: ZkvmGuest;
     /// Give the guest a piece of advice non-deterministically
+    /// `item` is a borsh serialized input to the guest
     fn add_hint<T: BorshSerialize>(&mut self, item: T);
 
     /// Simulate running the guest using the provided hints.

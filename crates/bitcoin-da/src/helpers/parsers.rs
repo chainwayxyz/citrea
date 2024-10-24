@@ -5,14 +5,11 @@ use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
-#[cfg(feature = "native")]
-use bitcoin::Txid;
 use bitcoin::{secp256k1, Opcode, Script, Transaction};
 use thiserror::Error;
 
 use super::calculate_sha256;
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub enum ParsedLightClientTransaction {
     /// Kind 0
@@ -31,7 +28,6 @@ pub enum ParsedBatchProofTransaction {
     // ForcedTransaction(ForcedTransaction),
 }
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedComplete {
     pub body: Vec<u8>,
@@ -39,7 +35,6 @@ pub struct ParsedComplete {
     pub public_key: Vec<u8>,
 }
 
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedAggregate {
     pub body: Vec<u8>,
@@ -47,15 +42,6 @@ pub struct ParsedAggregate {
     pub public_key: Vec<u8>,
 }
 
-#[cfg(feature = "native")]
-impl ParsedAggregate {
-    pub fn txids(&self) -> Result<Vec<Txid>, bitcoin::hashes::FromSliceError> {
-        use bitcoin::hashes::Hash;
-        self.body.chunks_exact(32).map(Txid::from_slice).collect()
-    }
-}
-
-#[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ParsedChunk {
     pub body: Vec<u8>,
@@ -96,7 +82,6 @@ pub trait VerifyParsed {
     }
 }
 
-#[cfg(feature = "native")]
 impl VerifyParsed for ParsedComplete {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -109,7 +94,6 @@ impl VerifyParsed for ParsedComplete {
     }
 }
 
-#[cfg(feature = "native")]
 impl VerifyParsed for ParsedAggregate {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -156,7 +140,6 @@ impl From<ScriptError> for ParserError {
     }
 }
 
-#[cfg(feature = "native")]
 pub fn parse_light_client_transaction(
     tx: &Transaction,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
@@ -187,7 +170,6 @@ fn get_script(tx: &Transaction) -> Result<&Script, ParserError> {
         .ok_or(ParserError::NonTapscriptWitness)
 }
 
-#[cfg(feature = "native")]
 fn parse_relevant_lightclient(
     instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
 ) -> Result<ParsedLightClientTransaction, ParserError> {
@@ -274,7 +256,6 @@ fn read_opcode(
     Ok(op)
 }
 
-#[cfg(feature = "native")]
 mod light_client {
     use bitcoin::opcodes::all::{OP_ENDIF, OP_IF, OP_NIP};
     use bitcoin::script::Instruction;
@@ -366,12 +347,7 @@ mod light_client {
         loop {
             let instr = read_instr(instructions)?;
             match instr {
-                PushBytes(chunk) => {
-                    if chunk.len() != 32 {
-                        return Err(ParserError::UnexpectedOpcode);
-                    }
-                    chunks.push(chunk)
-                }
+                PushBytes(chunk) => chunks.push(chunk),
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
             }
@@ -387,7 +363,7 @@ mod light_client {
             return Err(ParserError::UnexpectedOpcode);
         }
 
-        let body_size: usize = 32 * chunks.len();
+        let body_size: usize = chunks.iter().map(|c| c.len()).sum();
         let mut body = Vec::with_capacity(body_size);
         for chunk in chunks {
             body.extend_from_slice(chunk.as_bytes());

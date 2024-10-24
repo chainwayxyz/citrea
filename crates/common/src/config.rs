@@ -222,7 +222,7 @@ impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
 }
 /// Prover configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct ProverConfig {
+pub struct BatchProverConfig {
     /// Prover run mode
     pub proving_mode: ProverGuestRunConfig,
     /// Average number of commitments to prove
@@ -231,7 +231,21 @@ pub struct ProverConfig {
     pub enable_recovery: bool,
 }
 
-impl Default for ProverConfig {
+/// Prover configuration
+///
+/// TODO: leaving as the same with batch prover config for now
+/// but it will most probably have different fields in the future
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct LightClientProverConfig {
+    /// Prover run mode
+    pub proving_mode: ProverGuestRunConfig,
+    /// Average number of commitments to prove
+    pub proof_sampling_number: usize,
+    /// If true prover will try to recover ongoing proving sessions
+    pub enable_recovery: bool,
+}
+
+impl Default for BatchProverConfig {
     fn default() -> Self {
         Self {
             proving_mode: ProverGuestRunConfig::Execute,
@@ -241,9 +255,29 @@ impl Default for ProverConfig {
     }
 }
 
-impl FromEnv for ProverConfig {
+impl Default for LightClientProverConfig {
+    fn default() -> Self {
+        Self {
+            proving_mode: ProverGuestRunConfig::Execute,
+            proof_sampling_number: 0,
+            enable_recovery: true,
+        }
+    }
+}
+
+impl FromEnv for BatchProverConfig {
     fn from_env() -> anyhow::Result<Self> {
-        Ok(ProverConfig {
+        Ok(BatchProverConfig {
+            proving_mode: serde_json::from_str(&format!("\"{}\"", std::env::var("PROVING_MODE")?))?,
+            proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
+            enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
+        })
+    }
+}
+
+impl FromEnv for LightClientProverConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(LightClientProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", std::env::var("PROVING_MODE")?))?,
             proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
@@ -453,8 +487,8 @@ mod tests {
 
         let config_file = create_config_from(config);
 
-        let config: ProverConfig = from_toml_path(config_file.path()).unwrap();
-        let expected = ProverConfig {
+        let config: BatchProverConfig = from_toml_path(config_file.path()).unwrap();
+        let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
@@ -511,9 +545,9 @@ mod tests {
         std::env::set_var("PROOF_SAMPLING_NUMBER", "500");
         std::env::set_var("ENABLE_RECOVERY", "true");
 
-        let prover_config = ProverConfig::from_env().unwrap();
+        let prover_config = BatchProverConfig::from_env().unwrap();
 
-        let expected = ProverConfig {
+        let expected = BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,

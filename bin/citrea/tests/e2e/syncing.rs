@@ -2,7 +2,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use citrea_common::{ProverConfig, SequencerConfig};
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::LayerStatus;
 use reth_primitives::{Address, BlockNumberOrTag};
@@ -45,6 +45,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -78,6 +79,7 @@ async fn test_delayed_sync_ten_blocks() -> Result<(), anyhow::Error> {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -274,6 +276,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -291,11 +294,12 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
+            None,
             rollup_config,
             None,
         )
@@ -373,7 +377,11 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     let data: DaDataLightClient = borsh::BorshDeserialize::try_from_slice(da_data).unwrap();
 
     // Test we got zkproof indeed
-    let DaDataLightClient::ZKProof(_proof) = data;
+    let DaDataLightClient::Complete(_proof) = data else {
+        return Err(anyhow::anyhow!(
+            "Expected completed zkproof, got chunks or aggregate"
+        ));
+    };
 
     // TODO: Also test with multiple commitments in single Mock DA Block
     seq_task.abort();
@@ -404,6 +412,7 @@ async fn test_full_node_sync_status() {
         start_rollup(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             Some(sequencer_config),
@@ -438,6 +447,7 @@ async fn test_full_node_sync_status() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -518,6 +528,7 @@ async fn test_healthcheck() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -539,6 +550,7 @@ async fn test_healthcheck() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,

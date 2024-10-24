@@ -282,8 +282,6 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     type Guest = Risc0Guest;
 
     fn add_hint<T: BorshSerialize>(&mut self, item: T) {
-        // For running in "execute" mode.
-
         let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
         info!("Added hint to guest with size {}", buf.len());
 

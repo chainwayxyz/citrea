@@ -12,7 +12,7 @@ repository = { workspace = true }
 
 [dependencies]
 citrea-common = { path = "../common", optional = true }
-citrea-primitives = { path = "../primitives", features = ["native"], optional = true }
+citrea-primitives = { path = "../primitives" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 tokio = { workspace = true, features = ["full"], optional = true }
@@ -45,7 +45,6 @@ native = [
   "dep:tracing",
   "sov-rollup-interface/native",
   "dep:citrea-common",
-  "dep:citrea-primitives",
   "dep:bitcoincore-rpc",
   "dep:reqwest",
 ]

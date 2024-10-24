@@ -15,8 +15,8 @@ use bitcoin::secp256k1::{self, Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::sighash::{Prevouts, SighashCache};
 use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder};
 use bitcoin::{Address, Network, Transaction};
-use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::Serialize;
+use sov_rollup_interface::da::DaDataLightClient;
 use tracing::{instrument, trace, warn};
 
 use super::{
@@ -24,6 +24,15 @@ use super::{
     sign_blob_with_private_key, TransactionKindLightClient, TxListWithReveal, TxWithId,
 };
 use crate::spec::utxo::UTXO;
+
+pub(crate) enum RawLightClientData {
+    /// compress(borsh(DaDataLightClient::Complete(Proof)))
+    Complete(Vec<u8>),
+    /// let compressed = compress(borsh(Proof))
+    /// let chunks = compressed.chunks(MAX_TXBODY_SIZE)
+    /// [borsh(DaDataLightClient::Chunk(chunk)) for chunk in chunks]
+    Chunks(Vec<Vec<u8>>),
+}
 
 /// This is a list of light client tx we need to send to DA
 #[derive(Serialize)]
@@ -86,7 +95,7 @@ impl TxListWithReveal for LightClientTxs {
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_zkproof_transactions(
-    body: Vec<u8>,
+    data: RawLightClientData,
     da_private_key: SecretKey,
     prev_utxo: Option<UTXO>,
     utxos: Vec<UTXO>,
@@ -97,8 +106,8 @@ pub fn create_zkproof_transactions(
     network: Network,
     reveal_tx_prefix: Vec<u8>,
 ) -> Result<LightClientTxs, anyhow::Error> {
-    if body.len() < MAX_TXBODY_SIZE {
-        create_inscription_type_0(
+    match data {
+        RawLightClientData::Complete(body) => create_inscription_type_0(
             body,
             &da_private_key,
             prev_utxo,
@@ -109,9 +118,8 @@ pub fn create_zkproof_transactions(
             reveal_fee_rate,
             network,
             &reveal_tx_prefix,
-        )
-    } else {
-        create_inscription_type_1(
+        ),
+        RawLightClientData::Chunks(body) => create_inscription_type_1(
             body,
             &da_private_key,
             prev_utxo,
@@ -122,7 +130,7 @@ pub fn create_zkproof_transactions(
             reveal_fee_rate,
             network,
             &reveal_tx_prefix,
-        )
+        ),
     }
 }
 
@@ -313,7 +321,7 @@ pub fn create_inscription_type_0(
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
 pub fn create_inscription_type_1(
-    body: Vec<u8>,
+    chunks: Vec<Vec<u8>>,
     da_private_key: &SecretKey,
     mut prev_utxo: Option<UTXO>,
     mut utxos: Vec<UTXO>,
@@ -332,7 +340,7 @@ pub fn create_inscription_type_1(
     let mut commit_chunks: Vec<Transaction> = vec![];
     let mut reveal_chunks: Vec<Transaction> = vec![];
 
-    for body in body.chunks(MAX_TXBODY_SIZE) {
+    for body in chunks {
         let kind = TransactionKindLightClient::ChunkedPart;
         let kind_bytes = kind.to_bytes();
 
@@ -485,8 +493,11 @@ pub fn create_inscription_type_1(
         .map(|tx| tx.compute_txid().to_byte_array())
         .collect();
 
+    let aggregate = DaDataLightClient::Aggregate(reveal_tx_ids);
+
     // To sign the list of tx ids we assume they form a contigious list of bytes
-    let reveal_body: Vec<u8> = reveal_tx_ids.iter().copied().flatten().collect();
+    let reveal_body: Vec<u8> =
+        borsh::to_vec(&aggregate).expect("Aggregate serialize must not fail");
     // sign the body for authentication of the sequencer
     let (signature, signer_public_key) = sign_blob_with_private_key(&reveal_body, da_private_key);
 
@@ -504,9 +515,10 @@ pub fn create_inscription_type_1(
         .push_slice(
             PushBytesBuf::try_from(signer_public_key).expect("Cannot push sequencer public key"),
         );
-    // push txids
-    for id in reveal_tx_ids {
-        reveal_script_builder = reveal_script_builder.push_slice(id);
+    // push body in chunks of 520 bytes
+    for chunk in reveal_body.chunks(520) {
+        reveal_script_builder = reveal_script_builder
+            .push_slice(PushBytesBuf::try_from(chunk.to_vec()).expect("Cannot push body chunk"));
     }
     // push end if
     reveal_script_builder = reveal_script_builder.push_opcode(OP_ENDIF);

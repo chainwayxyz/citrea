@@ -19,7 +19,8 @@ clean: ## Cleans compiled
 
 clean-node: ## Cleans local dbs needed for sequencer and nodes
 	rm -rf resources/dbs/sequencer-db
-	rm -rf resources/dbs/prover-db
+	rm -rf resources/dbs/batch-prover-db
+	rm -rf resources/dbs/light-client-prover-db
 	rm -rf resources/dbs/full-node-db
 
 clean-txs:

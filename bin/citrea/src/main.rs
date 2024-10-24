@@ -3,7 +3,10 @@ use core::fmt::Debug as DebugTrait;
 use anyhow::Context as _;
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup};
-use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, ProverConfig, SequencerConfig};
+use citrea_common::{
+    from_toml_path, BatchProverConfig, FromEnv, FullNodeConfig, LightClientProverConfig,
+    SequencerConfig,
+};
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use sov_mock_da::MockDaConfig;
@@ -34,12 +37,16 @@ struct Args {
     rollup_config_path: Option<String>,
 
     /// The option to run the node in sequencer mode, if a string is provided, it will be used as the path to the sequencer config, otherwise environment variables will be used.
-    #[arg(long, conflicts_with = "prover")]
+    #[arg(long, conflicts_with_all = ["batch_prover", "light_client_prover"])]
     sequencer: Option<Option<String>>,
 
-    /// The option to run the node in prover mode, if a string is provided, it will be used as the path to the prover config, otherwise the environment variables will be used.
-    #[arg(long, conflicts_with = "sequencer")]
-    prover: Option<Option<String>>,
+    /// The option to run the node in batch prover mode, if a string is provided, it will be used as the path to the batch prover config, otherwise the environment variables will be used.
+    #[arg(long, conflicts_with_all = ["sequencer", "light_client_prover"])]
+    batch_prover: Option<Option<String>>,
+
+    /// The option to run the node in light client prover mode, if a string is provided, it will be used as the path to the light client prover config, otherwise the environment variables will be used.
+    #[arg(long, conflicts_with_all = ["sequencer", "batch_prover"])]
+    light_client_prover: Option<Option<String>>,
 
     /// Logging verbosity
     #[arg(long, short = 'v', action = clap::ArgAction::Count, default_value = "2")]
@@ -83,21 +90,44 @@ async fn main() -> Result<(), anyhow::Error> {
         ),
         None => None,
     };
-    let prover_config = match args.prover {
+
+    let batch_prover_config = match args.batch_prover {
         Some(Some(path)) => Some(
             from_toml_path(path)
                 .context("Failed to read prover configuration from the config file")?,
         ),
         Some(None) => Some(
-            ProverConfig::from_env()
+            BatchProverConfig::from_env()
                 .context("Failed to read prover configuration from the environment")?,
         ),
         None => None,
     };
 
-    if prover_config.is_some() && sequencer_config.is_some() {
+    let light_client_prover_config = match args.light_client_prover {
+        Some(Some(path)) => Some(
+            from_toml_path(path)
+                .context("Failed to read prover configuration from the config file")?,
+        ),
+        Some(None) => Some(
+            LightClientProverConfig::from_env()
+                .context("Failed to read prover configuration from the environment")?,
+        ),
+        None => None,
+    };
+
+    if batch_prover_config.is_some() && sequencer_config.is_some() {
         return Err(anyhow::anyhow!(
-            "Cannot run in both prover and sequencer mode at the same time"
+            "Cannot run in both batch prover and sequencer mode at the same time"
+        ));
+    }
+    if batch_prover_config.is_some() && light_client_prover_config.is_some() {
+        return Err(anyhow::anyhow!(
+            "Cannot run in both batch prover and light client prover mode at the same time"
+        ));
+    }
+    if light_client_prover_config.is_some() && sequencer_config.is_some() {
+        return Err(anyhow::anyhow!(
+            "Cannot run in both light client prover and sequencer mode at the same time"
         ));
     }
 
@@ -106,7 +136,8 @@ async fn main() -> Result<(), anyhow::Error> {
             start_rollup::<MockDemoRollup, MockDaConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
-                prover_config,
+                batch_prover_config,
+                light_client_prover_config,
                 sequencer_config,
             )
             .await?;
@@ -115,7 +146,8 @@ async fn main() -> Result<(), anyhow::Error> {
             start_rollup::<BitcoinRollup, BitcoinServiceConfig>(
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
-                prover_config,
+                batch_prover_config,
+                light_client_prover_config,
                 sequencer_config,
             )
             .await?;
@@ -132,7 +164,8 @@ async fn start_rollup<S, DaC>(
         <S as RollupBlueprint>::DaSpec,
     >>::GenesisPaths,
     rollup_config_path: Option<String>,
-    prover_config: Option<ProverConfig>,
+    batch_prover_config: Option<BatchProverConfig>,
+    light_client_prover_config: Option<LightClientProverConfig>,
     sequencer_config: Option<SequencerConfig>,
 ) -> Result<(), anyhow::Error>
 where
@@ -156,15 +189,26 @@ where
         if let Err(e) = sequencer_rollup.run().await {
             error!("Error: {}", e);
         }
-    } else if let Some(prover_config) = prover_config {
-        let prover = CitreaRollupBlueprint::create_new_prover(
+    } else if let Some(batch_prover_config) = batch_prover_config {
+        let prover = CitreaRollupBlueprint::create_new_batch_prover(
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,
-            prover_config,
+            batch_prover_config,
         )
         .await
-        .expect("Coult not start prover");
+        .expect("Could not start batch prover");
+        if let Err(e) = prover.run().await {
+            error!("Error: {}", e);
+        }
+    } else if let Some(light_client_prover_config) = light_client_prover_config {
+        let prover = CitreaRollupBlueprint::create_new_light_client_prover(
+            &rollup_blueprint,
+            rollup_config,
+            light_client_prover_config,
+        )
+        .await
+        .expect("Could not start light client prover");
         if let Err(e) = prover.run().await {
             error!("Error: {}", e);
         }

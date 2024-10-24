@@ -14,15 +14,17 @@ resolver = "2"
 [dependencies]
 # Citrea deps
 bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
+citrea-batch-prover = { path = "../../crates/batch-prover" }
 citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
+citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-prover = { path = "../../crates/prover" }
 citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
 citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
+prover-services = { path = "../../crates/prover-services" }
 sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
@@ -86,7 +88,7 @@ rustc_version_runtime = { workspace = true }
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 bitcoincore-rpc.workspace = true
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "fc12cb0" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "0a6492ebbb7" }
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
