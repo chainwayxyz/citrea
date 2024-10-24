@@ -150,9 +150,10 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
 {
     type Guest = MockZkGuest;
 
-    fn add_hint(&mut self, item: Vec<u8>) {
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
+        let hint = borsh::to_vec(&item).unwrap();
         let proof_info = ProofInfo {
-            hint: item,
+            hint,
             validity_condition: self.validity_condition,
         };
 

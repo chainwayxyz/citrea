@@ -98,7 +98,10 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         let mut map = HashMap::new();
-        map.insert(SpecId::Genesis, Digest::new(citrea_risc0::BATCH_PROVER_BITCOIN_ID));
+        map.insert(
+            SpecId::Genesis,
+            Digest::new(citrea_risc0::BATCH_PROVER_BITCOIN_ID),
+        );
         map
     }
 

@@ -281,13 +281,12 @@ impl<'a> Risc0BonsaiHost<'a> {
 impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     type Guest = Risc0Guest;
 
-    fn add_hint(&mut self, item: Vec<u8>) {
-        // For running in "execute" mode.
-
-        info!("Added hint to guest with size {}", item.len());
+    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
+        let buf = borsh::to_vec(&item).expect("Risc0 hint serialization is infallible");
+        info!("Added hint to guest with size {}", buf.len());
 
         // write buf
-        self.env.extend_from_slice(&item);
+        self.env.extend_from_slice(&buf);
     }
 
     /// Guest simulation (execute mode) is run inside the Risc0 VM locally
