@@ -22,6 +22,8 @@ sp1-sdk = { version = "3.0.0", default-features = false, features = ["network-v2
 sp1-zkvm = { version = "3.0.0", default-features = false, features = ["lib"] }
 tracing = { workspace = true }
 
+once_cell = { workspace = true }
+
 [features]
 default = []
 native = [

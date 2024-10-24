@@ -798,6 +798,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
+ "once_cell",
  "serde",
  "sov-rollup-interface",
  "sp1-zkvm",

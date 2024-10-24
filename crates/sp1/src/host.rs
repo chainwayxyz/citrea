@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
@@ -12,26 +13,17 @@ use tracing::info;
 
 use crate::guest::SP1Guest;
 
+static CLIENT: Lazy<ProverClient> = Lazy::new(|| {
+    ProverClient::new()
+});
+
+#[derive(Clone)]
 pub struct SP1Host {
-    client: ProverClient,
     elf: &'static [u8],
     proving_key: SP1ProvingKey,
     verifying_key: SP1VerifyingKey,
     input_buf: Vec<u8>,
     ledger_db: LedgerDB,
-}
-
-impl Clone for SP1Host {
-    fn clone(&self) -> Self {
-        Self {
-            client: ProverClient::new(),
-            elf: self.elf,
-            proving_key: self.proving_key.clone(),
-            verifying_key: self.verifying_key.clone(),
-            input_buf: self.input_buf.clone(),
-            ledger_db: self.ledger_db.clone(),
-        }
-    }
 }
 
 impl SP1Host {
@@ -41,12 +33,9 @@ impl SP1Host {
     /// If set value is `network`, `SP1_PRIVATE_KEY` environment variable
     /// must also be set. Default is `local`
     pub fn new(elf: &'static [u8], ledger_db: LedgerDB) -> Self {
-        let client = ProverClient::new();
-
-        let (proving_key, verifying_key) = client.setup(elf);
+        let (proving_key, verifying_key) = CLIENT.setup(elf);
 
         Self {
-            client,
             elf,
             proving_key,
             verifying_key,
@@ -56,7 +45,7 @@ impl SP1Host {
     }
 
     fn is_succinct_prover(&self) -> bool {
-        self.client.prover.id() == ProverType::Network
+        CLIENT.prover.id() == ProverType::Network
     }
 
     fn collect_input_buf(&mut self) -> SP1Stdin {
@@ -81,7 +70,6 @@ impl SP1Host {
     }
 
     fn generate_proof(&self, stdin: SP1Stdin) -> anyhow::Result<SP1ProofWithPublicValues> {
-        let client = &self.client;
         // If prover is Succinct prover, we have to save the
         // sessions to ledger db
         if self.is_succinct_prover() {
@@ -98,7 +86,7 @@ impl SP1Host {
 
             self.wait_succinct_proof(&prover, request_id)
         } else {
-            client.prove(&self.proving_key, stdin).groth16().run()
+            CLIENT.prove(&self.proving_key, stdin).groth16().run()
         }
     }
 }
@@ -125,15 +113,14 @@ impl ZkvmHost for SP1Host {
             let proof_with_public_values = self.generate_proof(stdin)?;
             info!("Successfully generated proof");
 
-            self.client
-                .verify(&proof_with_public_values, &self.verifying_key)?;
+            CLIENT.verify(&proof_with_public_values, &self.verifying_key)?;
             info!("Successfully verified the proof");
 
             let data = bincode::serialize(&proof_with_public_values)
                 .expect("SP1 zk proof serialization must not fail");
             Ok(Proof::Full(data))
         } else {
-            let (public_values, report) = self.client.execute(self.elf, stdin).run()?;
+            let (public_values, report) = CLIENT.execute(self.elf, stdin).run()?;
             info!("Number of cycles: {}", report.total_instruction_count());
 
             let data = bincode::serialize(&public_values)
@@ -175,8 +162,7 @@ impl ZkvmHost for SP1Host {
 
             let proof_with_public_values = self.wait_succinct_proof(&prover, request_id)?;
 
-            self.client
-                .verify(&proof_with_public_values, &self.verifying_key)?;
+            CLIENT.verify(&proof_with_public_values, &self.verifying_key)?;
             info!("Successfully verified the proof");
 
             let data = bincode::serialize(&proof_with_public_values)
