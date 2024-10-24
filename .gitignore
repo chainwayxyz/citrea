@@ -27,3 +27,6 @@ adapters/solana/libyellowstone_grpc_geyser.dylib
 reveal_*.tx
 
 *.txs
+
+elf/
+dbs

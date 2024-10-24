@@ -9,8 +9,9 @@ use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{FullNodeConfig, ProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_prover::prover_service::ParallelProverService;
-use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
-use citrea_risc0_bonsai_adapter::Digest;
+// use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
+// use citrea_risc0_bonsai_adapter::Digest;
+use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use sov_db::ledger_db::LedgerDB;
@@ -40,7 +41,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaService = BitcoinService;
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
-    type Vm = Risc0BonsaiHost<'static>;
+    type Vm = SP1Host;
 
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -98,7 +99,11 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip(self), ret)]
     fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         let mut map = HashMap::new();
-        map.insert(SpecId::Genesis, Digest::new(citrea_risc0::BITCOIN_DA_ID));
+        // map.insert(SpecId::Genesis, Digest::new(citrea_risc0::BITCOIN_DA_ID));
+        map.insert(
+            SpecId::Genesis,
+            citrea_sp1::host::VK.get().expect("SP1 Verifiying Key global must already be set").clone(),
+        );
         map
     }
 
@@ -161,12 +166,17 @@ impl RollupBlueprint for BitcoinRollup {
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(
-            citrea_risc0::BITCOIN_DA_ELF,
-            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
-            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        // let vm = Risc0BonsaiHost::new(
+        //     citrea_risc0::BITCOIN_DA_ELF,
+        //     std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+        //     std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        //     ledger_db.clone(),
+        // );
+        let vm = SP1Host::new(
+            include_bytes!("../../provers/sp1/guest-bitcoin/elf/zkvm-elf"),
             ledger_db.clone(),
         );
+
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 

@@ -1,0 +1,34 @@
+[package]
+name = "citrea-sp1"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+publish = false
+readme = "README.md"
+resolver = "2"
+
+[dependencies]
+anyhow = { workspace = true }
+bincode = { workspace = true }
+borsh = { workspace = true }
+serde = { workspace = true }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
+sp1-sdk = { version = "3.0.0", default-features = false, features = ["network-v2"], optional = true }
+sp1-zkvm = { version = "3.0.0", default-features = false, features = ["lib"] }
+tracing = { workspace = true }
+
+once_cell = { workspace = true }
+
+[features]
+default = []
+native = [
+  "dep:sov-db",
+  "dep:sp1-sdk",
+  "sov-rollup-interface/native",
+]
+cuda = ["sp1-sdk/cuda"]
