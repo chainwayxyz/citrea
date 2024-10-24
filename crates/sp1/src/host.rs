@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
@@ -13,6 +13,8 @@ use tracing::info;
 
 use crate::guest::SP1Guest;
 
+pub static SP1_HOST: OnceCell<SP1Host> = OnceCell::new();
+
 static CLIENT: Lazy<ProverClient> = Lazy::new(|| {
     ProverClient::new()
 });
@@ -21,7 +23,7 @@ static CLIENT: Lazy<ProverClient> = Lazy::new(|| {
 pub struct SP1Host {
     elf: &'static [u8],
     proving_key: SP1ProvingKey,
-    verifying_key: SP1VerifyingKey,
+    pub verifying_key: SP1VerifyingKey,
     input_buf: Vec<u8>,
     ledger_db: LedgerDB,
 }
@@ -205,7 +207,7 @@ impl Zkvm for SP1Host {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct VerifyingKey(SP1VerifyingKey);
+pub struct VerifyingKey(pub SP1VerifyingKey);
 
 impl std::fmt::Debug for VerifyingKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -214,9 +216,9 @@ impl std::fmt::Debug for VerifyingKey {
     }
 }
 
-impl VerifyingKey {
-    pub fn from_elf(elf: &[u8]) -> Self {
-        let (_, vk) = CLIENT.setup(elf);
-        Self(vk)
-    }
-}
+// impl VerifyingKey {
+//     pub fn from_elf(elf: &[u8]) -> Self {
+//         let (_, vk) = CLIENT.setup(elf);
+//         Self(vk)
+//     }
+// }
