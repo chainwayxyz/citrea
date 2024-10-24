@@ -1,0 +1,3 @@
+# while the boundless repo is private, using the SSH URL and `net.git-fetch-with-cli = true` is required
+[net]
+git-fetch-with-cli = true
