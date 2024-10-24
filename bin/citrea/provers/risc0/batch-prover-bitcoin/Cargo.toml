@@ -1,5 +1,5 @@
 [package]
-name = "citrea-bitcoin-prover"
+name = "batch-prover-bitcoin"
 version = "0.5.0-rc.1"
 edition = "2021"
 resolver = "2"
