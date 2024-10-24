@@ -59,6 +59,10 @@ pub trait ZkvmHost: Zkvm + Clone {
 
     /// Host recovers pending proving sessions and returns proving results
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
+
+    /// Host adds an assumption to the proving session
+    /// Assumptions are used for recursive proving
+    fn add_assumption(&mut self, receipt_buf: Vec<u8>);
 }
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code

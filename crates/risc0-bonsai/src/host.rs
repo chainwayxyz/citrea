@@ -9,7 +9,8 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver, Prover, Receipt,
+    compute_image_id, AssumptionReceipt, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver,
+    Prover, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -85,6 +86,7 @@ macro_rules! retry_backoff_bonsai {
 pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
     env: Vec<u8>,
+    assumptions: Vec<AssumptionReceipt>,
     image_id: Digest,
     client: Option<Client>,
     ledger_db: LedgerDB,
@@ -124,6 +126,7 @@ impl<'a> Risc0BonsaiHost<'a> {
         Self {
             elf,
             env: Default::default(),
+            assumptions: vec![],
             image_id,
             client,
             ledger_db,
@@ -296,16 +299,23 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         Risc0Guest::with_hints(std::mem::take(&mut self.env))
     }
 
+    fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
+        let receipt: Receipt = bincode::deserialize(&receipt_buf).expect("Receipt should be valid");
+        self.assumptions.push(receipt.into());
+    }
+
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
         let proof = match (self.client.as_ref(), with_proof) {
             // Local execution. If mode is Execute, we always do local execution.
             (_, false) => {
-                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
+                let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+                for assumption in self.assumptions.iter() {
+                    env.add_assumption(assumption.clone()).build().unwrap();
+                }
+
+                let env = env.write_slice(&self.env).build().unwrap();
                 let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
 
                 let session = executor.run()?;
@@ -316,10 +326,11 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             }
             // Local proving
             (None, true) => {
-                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
+                let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+                for assumption in self.assumptions.iter() {
+                    env.add_assumption(assumption.clone()).build().unwrap();
+                }
+                let env = env.write_slice(&self.env).build().unwrap();
 
                 let prover = LocalProver::new("citrea");
                 let receipt = prover.prove(env, self.elf)?.receipt;
@@ -343,6 +354,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 let client_clone = client.clone();
                 // Start a Bonsai session
                 let session = thread::spawn(move || {
+                    // TODO: Get necessary assumptions by giving the receipt uuids
                     retry_backoff_bonsai!(client_clone.create_session(
                         image_id.clone(),
                         input_id.clone(),

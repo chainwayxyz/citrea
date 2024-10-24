@@ -4,6 +4,8 @@
 //! The host implementation is used for tests only and brings no real value.
 
 use borsh::BorshDeserialize;
+use risc0_zkvm::guest::env;
+use risc0_zkvm::Receipt;
 use sov_rollup_interface::zk::Zkvm;
 
 use crate::Risc0MethodId;
@@ -29,17 +31,25 @@ impl Zkvm for Risc0Guest {
     type Error = anyhow::Error;
 
     fn verify(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error> {
-        // Implement this method once risc0 supports recursion: issue #633
-        todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
+        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        env::verify(code_commitment.0, receipt.journal.bytes.as_slice())
+            .expect("Guest side verification error should be Infallible");
+        Ok(receipt.journal.bytes)
     }
 
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        todo!()
+        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        env::verify(code_commitment.0, receipt.journal.bytes.as_slice())
+            .expect("Guest side verification error should be Infallible");
+
+        Ok(BorshDeserialize::deserialize(
+            &mut receipt.journal.bytes.as_slice(),
+        )?)
     }
 }
