@@ -276,6 +276,11 @@ impl BitcoinService {
         });
     }
 
+    /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
+    /// `get_prev_utxo` is called on service startup in `spawn_da_queue`.
+    /// On very first startup, return any most recent UTXO.
+    /// Any subsequent startup would return latest reveal TX first output.
+    /// Sorts by (confirmations - ancestor_count), where lower values indicate more recent transactions.
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
         let mut previous_utxos = self
@@ -283,15 +288,19 @@ impl BitcoinService {
             .list_unspent(Some(0), None, None, Some(true), None)
             .await?;
 
-        previous_utxos.retain(|u| u.spendable && u.solvable);
+        // Make sure to retain only utxos from reveal TXs by matching on REVEAL_OUTPUT_AMOUNT
+        previous_utxos.retain(|u| {
+            u.spendable && u.solvable && u.amount == Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
+        });
 
-        // Sorted by ancestor count, the tx with the most ancestors is the latest tx
-        previous_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
+        // Sort by (confirmations - ancestor_count)
+        // If any tx in mempool, confirmation would be 0 and ancestor count Some(_), giving us a negative value and prioritising in-mempool TXs
+        // If no tx in mempool, confirmation would be >= 0 and ancestor count None
+        previous_utxos.sort_unstable_by_key(|utxo| {
+            utxo.confirmations - (utxo.ancestor_count.unwrap_or(0) as u32)
+        });
 
-        Ok(previous_utxos
-            .into_iter()
-            .find(|u| u.amount >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT))
-            .map(|u| u.into()))
+        Ok(previous_utxos.into_iter().next().map(|u| u.into()))
     }
 
     #[instrument(level = "trace", skip_all, ret)]
