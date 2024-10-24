@@ -216,7 +216,7 @@ impl std::fmt::Debug for VerifyingKey {
 
 impl VerifyingKey {
     pub fn from_elf(elf: &[u8]) -> Self {
-        let (_, vk) = CpuProver::new().setup(elf);
+        let (_, vk) = CLIENT.setup(elf);
         Self(vk)
     }
 }
