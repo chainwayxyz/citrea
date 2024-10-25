@@ -12,11 +12,11 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaSpec, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use sov_rollup_interface::zk::Proof;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
-use tokio::{select, time};
-use tokio_util::sync::CancellationToken;
+use tokio::time;
+use tracing::instrument::Instrument;
 
 use crate::db_connector::DbConnector;
 use crate::types::{MockAddress, MockBlob, MockBlock, MockDaVerifier};
@@ -63,38 +63,11 @@ impl PlannedFork {
     }
 }
 
-#[pin_project]
-/// Stream of finalized headers
-pub struct MockDaBlockHeaderStream {
-    #[pin]
-    inner: tokio_stream::wrappers::BroadcastStream<MockBlockHeader>,
-}
-
-impl MockDaBlockHeaderStream {
-    /// Create new stream of finalized headers
-    pub fn new(receiver: broadcast::Receiver<MockBlockHeader>) -> Self {
-        Self {
-            inner: tokio_stream::wrappers::BroadcastStream::new(receiver),
-        }
-    }
-}
-
-impl futures::Stream for MockDaBlockHeaderStream {
-    type Item = Result<MockBlockHeader, anyhow::Error>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project(); // Requires the pin-project crate or similar functionality
-        this.inner
-            .poll_next(cx)
-            .map(|opt| opt.map(|res| res.map_err(Into::into)))
-    }
-}
-
+#[derive(Clone)]
 /// DaService used in tests.
 /// Currently only supports single blob per block.
 /// Height of the first submitted block is 1.
 /// Submitted blocks are kept indefinitely in memory.
-#[derive(Clone)]
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
     // don't need a mutex, but DaService trait requires it by Sync trait
@@ -103,12 +76,8 @@ pub struct MockDaService {
     blocks_to_finality: u32,
     /// Used for calculating correct finality from state of `blocks`
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
-    /// Used for sending transactions
-    transaction_queue_sender:
-        UnboundedSender<Option<SenderWithNotifier<<Self as DaService>::TransactionId>>>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
-    worker_handle: CancellationToken,
 }
 
 impl MockDaService {
@@ -124,60 +93,21 @@ impl MockDaService {
         blocks_to_finality: u32,
         db_path: &Path,
     ) -> Self {
-        let (transaction_queue_sender, transaction_queue_receiver) =
-            unbounded_channel::<Option<SenderWithNotifier<<Self as DaService>::TransactionId>>>();
-        let (finalized_header_sender, finalized_header_receiver) = broadcast::channel(16);
-
-        let da_service = Self {
+        let (tx, rx1) = broadcast::channel(16);
+        // Spawn a task, so channel is never closed
+        tokio::spawn(async move {
+            let mut rx = rx1;
+            while let Ok(header) = rx.recv().instrument(tracing::Span::current()).await {
+                tracing::debug!("Finalized MockHeader: {}", header);
+            }
+        });
+        Self {
             sequencer_da_address,
             blocks: Arc::new(AsyncMutex::new(DbConnector::new(db_path))),
             blocks_to_finality,
-            finalized_header_sender,
-            transaction_queue_sender,
+            finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
-            worker_handle: CancellationToken::new(),
-        };
-
-        // Spawn the DA service worker task with a cancellation token
-        // so that when the DA service instance is dropped, the tasks are cancelled.
-        let cancellation_token = da_service.worker_handle.clone();
-        let this = da_service.clone();
-        tokio::spawn(this.da_service_worker(
-            transaction_queue_receiver,
-            finalized_header_receiver,
-            cancellation_token,
-        ));
-
-        da_service
-    }
-
-    async fn da_service_worker(
-        self,
-        mut transaction_queue_receiver: UnboundedReceiver<
-            Option<SenderWithNotifier<<Self as DaService>::TransactionId>>,
-        >,
-        mut finalized_header_receiver: Receiver<MockBlockHeader>,
-        cancellation_token: CancellationToken,
-    ) {
-        loop {
-            select! {
-                biased;
-                _ = cancellation_token.cancelled() => {
-                    return;
-                }
-                req = transaction_queue_receiver.recv() => {
-                    if let Some(Some(req)) = req {
-                        let res = self.send_transaction(req.da_data).await;
-                        let _ = req.notify.send(res);
-                    }
-                },
-                header = finalized_header_receiver.recv() => {
-                    if let Ok(header) = header {
-                        tracing::debug!("Finalized MockHeader: {}", header);
-                    }
-                },
-            }
         }
     }
 
@@ -345,6 +275,33 @@ impl MockDaService {
     }
 }
 
+#[pin_project]
+/// Stream of finalized headers
+pub struct MockDaBlockHeaderStream {
+    #[pin]
+    inner: tokio_stream::wrappers::BroadcastStream<MockBlockHeader>,
+}
+
+impl MockDaBlockHeaderStream {
+    /// Create new stream of finalized headers
+    pub fn new(receiver: broadcast::Receiver<MockBlockHeader>) -> Self {
+        Self {
+            inner: tokio_stream::wrappers::BroadcastStream::new(receiver),
+        }
+    }
+}
+
+impl futures::Stream for MockDaBlockHeaderStream {
+    type Item = Result<MockBlockHeader, anyhow::Error>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project(); // Requires the pin-project crate or similar functionality
+        this.inner
+            .poll_next(cx)
+            .map(|opt| opt.map(|res| res.map_err(Into::into)))
+    }
+}
+
 #[async_trait]
 impl DaService for MockDaService {
     type Spec = MockDaSpec;
@@ -444,14 +401,58 @@ impl DaService for MockDaService {
         &self,
         block: &Self::FilteredBlock,
         _prover_pk: &[u8],
-    ) -> anyhow::Result<Vec<DaDataLightClient>> {
+    ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
         for mut b in block.blobs.clone() {
             if let Ok(r) = DaDataLightClient::try_from_slice(b.full_data()) {
-                res.push(r)
+                if let DaDataLightClient::Complete(proof) = r {
+                    res.push(proof);
+                } else {
+                    panic!("Unexpected proof Aggregate/Chunk in MockDa");
+                }
             }
         }
         Ok(res)
+    }
+
+    fn extract_relevant_blobs_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        let mut res = vec![];
+        for b in block.blobs.clone() {
+            let mut clone_for_full_data = b.clone();
+            let full_data = clone_for_full_data.full_data();
+            if DaDataLightClient::try_from_slice(full_data).is_ok() {
+                res.push(b)
+            }
+        }
+        res
+    }
+
+    async fn get_extraction_proof_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> (
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    ) {
+        ([0u8; 32], ())
+    }
+
+    async fn extract_relevant_blobs_with_proof_light_client(
+        &self,
+        block: &Self::FilteredBlock,
+    ) -> (
+        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    ) {
+        let relevant_txs = self.extract_relevant_blobs_light_client(block);
+
+        let (etx_proofs, rollup_row_proofs) = self.get_extraction_proof_light_client(block).await;
+
+        (relevant_txs, etx_proofs, rollup_row_proofs)
     }
 
     async fn get_extraction_proof(
@@ -470,7 +471,7 @@ impl DaService for MockDaService {
         let blob = match da_data {
             DaData::ZKProof(proof) => {
                 tracing::debug!("Adding a zkproof");
-                let data = DaDataLightClient::ZKProof(proof);
+                let data = DaDataLightClient::Complete(proof);
                 borsh::to_vec(&data).unwrap()
             }
             DaData::SequencerCommitment(seq_comm) => {
@@ -487,7 +488,15 @@ impl DaService for MockDaService {
     fn get_send_transaction_queue(
         &self,
     ) -> UnboundedSender<Option<SenderWithNotifier<Self::TransactionId>>> {
-        self.transaction_queue_sender.clone()
+        let (tx, mut rx) = unbounded_channel::<Option<SenderWithNotifier<Self::TransactionId>>>();
+        let this = self.clone();
+        tokio::spawn(async move {
+            while let Some(Some(req)) = rx.recv().await {
+                let res = this.send_transaction(req.da_data).await;
+                let _ = req.notify.send(res);
+            }
+        });
+        tx
     }
 
     async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
@@ -502,8 +511,8 @@ impl DaService for MockDaService {
     }
 
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
-        // Mock constant, use min possible in bitcoin
-        Ok(2500000000_u128)
+        // Mock constant
+        Ok(10_u128)
     }
 
     async fn get_block_by_hash(
@@ -521,12 +530,6 @@ impl DaService for MockDaService {
         &self,
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
         vec![]
-    }
-}
-
-impl Drop for MockDaService {
-    fn drop(&mut self) {
-        self.worker_handle.cancel();
     }
 }
 
@@ -597,9 +600,6 @@ mod tests {
         // This prevents test for freezing in case of a bug
         // But we need to wait longer, as `MockDa
         let timeout_duration = Duration::from_millis(1000);
-
-        // This task runs for as long as we are still expecting blocks and will stop eventually.
-        // Therefore, this is not considered to be an escaping task.
         tokio::spawn(async move {
             let mut received = Vec::with_capacity(expected_num_headers);
             for _ in 0..expected_num_headers {
@@ -653,7 +653,9 @@ mod tests {
             let blob = &mut block.blobs[0];
             let retrieved_data = blob.full_data().to_vec();
             let retrieved_data = DaDataLightClient::try_from_slice(&retrieved_data).unwrap();
-            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+                panic!("unexpected type");
+            };
             assert_eq!(proof, retrieved_proof);
 
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
@@ -721,7 +723,9 @@ mod tests {
             let proof = Proof::Full(blob);
             let retrieved_data = fetched_block.blobs[0].full_data();
             let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
-            let DaDataLightClient::ZKProof(retrieved_proof) = retrieved_data;
+            let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
+                panic!("unexpected type");
+            };
             assert_eq!(proof, retrieved_proof);
 
             let head_block_header = da.get_head_block_header().await.unwrap();

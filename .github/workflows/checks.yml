@@ -541,18 +541,18 @@ jobs:
           name: citrea-build
           path: target/release
 
-      - name: Check BITCOIN_DA_ID
+      - name: Check BATCH_PROVER_BITCOIN_ID
         id: check-id
         run: |
-          RESULT=$(grep -R "BITCOIN_DA_ID" target/ || echo "Grep failed")
+          RESULT=$(grep -R "BATCH_PROVER_BITCOIN_ID" target/ || echo "Grep failed")
           EXPECTED_BITCOIN_DA_ID=$(echo "${{ env.EXPECTED_BITCOIN_DA_ID }}" | tr -d '\n\r')
           if echo "$RESULT" | grep -q "$EXPECTED_BITCOIN_DA_ID"; then
             echo "Check passed successfully."
-            echo "Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Expected: BATCH_PROVER_BITCOIN_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
 
           else
-            echo "Check failed. Expected: BITCOIN_DA_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Check failed. Expected: BATCH_PROVER_BITCOIN_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
             exit 1
           fi

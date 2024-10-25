@@ -500,7 +500,7 @@ impl SharedLedgerOps for LedgerDB {
     }
 }
 
-impl ProverLedgerOps for LedgerDB {
+impl BatchProverLedgerOps for LedgerDB {
     /// Get the witness by L2 height
     #[instrument(level = "trace", skip_all, err)]
     fn get_l2_witness<Witness: DeserializeOwned>(
@@ -597,6 +597,8 @@ impl ProverLedgerOps for LedgerDB {
         Ok(())
     }
 }
+
+impl LightClientProverLedgerOps for LedgerDB {}
 
 impl ProvingServiceLedgerOps for LedgerDB {
     /// Gets all pending sessions and step numbers
