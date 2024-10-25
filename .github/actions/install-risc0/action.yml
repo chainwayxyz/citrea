@@ -1,6 +1,11 @@
 name: 'Install risc0'
 description: 'Installs risc0 toolchain'
 
+inputs:
+  github_token:
+    description: 'GitHub token for authentication'
+    required: true
+
 runs:
   using: "composite"
   steps:
@@ -12,5 +17,5 @@ runs:
     - name: Install risc0-zkvm toolchain
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       run: cargo risczero install --version r0.1.79.0-2

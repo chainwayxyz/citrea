@@ -37,6 +37,8 @@ jobs:
 
       - name: Install risc0
         uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
         env:

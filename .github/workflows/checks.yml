@@ -88,6 +88,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
         run: make build-release
         env:
@@ -123,6 +125,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
       - name: Run lint
@@ -156,6 +160,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings
@@ -189,6 +195,8 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install risc0
         uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
         uses: actions/cache@v3
         with:
@@ -351,6 +359,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
       - name: Cache ethereum-tests
