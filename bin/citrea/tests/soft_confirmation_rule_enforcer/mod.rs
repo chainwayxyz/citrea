@@ -44,6 +44,7 @@ async fn too_many_l2_block_per_l1_block() {
                 "../../resources/test-data/integration-tests-low-max-l2-blocks-per-l1",
             ),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )

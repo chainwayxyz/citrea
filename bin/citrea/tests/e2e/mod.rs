@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
-use citrea_common::{ProverConfig, SequencerConfig};
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
@@ -71,6 +71,7 @@ async fn test_all_flow() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -89,11 +90,12 @@ async fn test_all_flow() {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
+            None,
             rollup_config,
             None,
         )
@@ -116,6 +118,7 @@ async fn test_all_flow() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -381,6 +384,7 @@ async fn test_ledger_get_head_soft_confirmation() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -449,6 +453,7 @@ async fn initialize_test(
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -470,6 +475,7 @@ async fn initialize_test(
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,

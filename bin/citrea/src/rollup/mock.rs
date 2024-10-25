@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
-use citrea_common::{FullNodeConfig, ProverConfig};
-use citrea_prover::prover_service::ParallelProverService;
+use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
+use prover_services::ParallelProverService;
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
@@ -18,7 +18,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_state::{Storage, ZkStorage};
+use sov_state::ZkStorage;
 use tokio::sync::broadcast;
 
 use crate::CitreaRollupBlueprint;
@@ -44,8 +44,6 @@ impl RollupBlueprint for MockDemoRollup {
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
 
     type ProverService = ParallelProverService<
-        <<Self::NativeContext as Spec>::Storage as Storage>::Root,
-        <<Self::NativeContext as Spec>::Storage as Storage>::Witness,
         Self::DaService,
         Self::Vm,
         StfBlueprint<Self::ZkContext, Self::DaSpec, <Self::Vm as ZkvmHost>::Guest, Self::ZkRuntime>,
@@ -86,10 +84,19 @@ impl RollupBlueprint for MockDemoRollup {
         Ok(rpc_methods)
     }
 
-    fn get_code_commitments_by_spec(&self) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
+    fn get_batch_prover_code_commitments_by_spec(
+        &self,
+    ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         let mut map = HashMap::new();
-        map.insert(SpecId::Genesis, Digest::new(citrea_risc0::MOCK_DA_ID));
+        map.insert(
+            SpecId::Genesis,
+            Digest::new(citrea_risc0::BATCH_PROVER_MOCK_ID),
+        );
         map
+    }
+
+    fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
+        Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ID)
     }
 
     async fn create_da_service(
@@ -103,15 +110,15 @@ impl RollupBlueprint for MockDemoRollup {
         )))
     }
 
-    async fn create_prover_service(
+    async fn create_batch_prover_service(
         &self,
-        prover_config: ProverConfig,
+        prover_config: BatchProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
-            citrea_risc0::MOCK_DA_ELF,
+            citrea_risc0::BATCH_PROVER_MOCK_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
             ledger_db.clone(),
@@ -124,7 +131,35 @@ impl RollupBlueprint for MockDemoRollup {
             vm,
             zk_stf,
             da_verifier,
-            prover_config,
+            prover_config.proving_mode,
+            zk_storage,
+            ledger_db,
+        )
+        .expect("Should be able to instantiate prover service")
+    }
+
+    async fn create_light_client_prover_service(
+        &self,
+        prover_config: LightClientProverConfig,
+        _rollup_config: &FullNodeConfig<Self::DaConfig>,
+        _da_service: &Arc<Self::DaService>,
+        ledger_db: LedgerDB,
+    ) -> Self::ProverService {
+        let vm = Risc0BonsaiHost::new(
+            citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db.clone(),
+        );
+        let zk_stf = StfBlueprint::new();
+        let zk_storage = ZkStorage::new();
+        let da_verifier = Default::default();
+
+        ParallelProverService::new_with_default_workers(
+            vm,
+            zk_stf,
+            da_verifier,
+            prover_config.proving_mode,
             zk_storage,
             ledger_db,
         )

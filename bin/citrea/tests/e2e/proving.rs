@@ -1,7 +1,7 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
-use citrea_common::{ProverConfig, SequencerConfig};
+use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -38,6 +38,7 @@ async fn full_node_verify_proof_and_store() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -58,11 +59,12 @@ async fn full_node_verify_proof_and_store() {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
             }),
+            None,
             rollup_config,
             None,
         )
@@ -85,6 +87,7 @@ async fn full_node_verify_proof_and_store() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,
@@ -209,6 +212,7 @@ async fn test_prover_prove_rpc() {
             seq_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
             None,
+            None,
             rollup_config,
             Some(sequencer_config),
         )
@@ -229,12 +233,13 @@ async fn test_prover_prove_rpc() {
         start_rollup(
             prover_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            Some(ProverConfig {
+            Some(BatchProverConfig {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 // Make it impossible for proving to happen
                 proof_sampling_number: 1_000_000,
                 enable_recovery: true,
             }),
+            None,
             rollup_config,
             None,
         )
@@ -257,6 +262,7 @@ async fn test_prover_prove_rpc() {
         start_rollup(
             full_node_port_tx,
             GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
             None,
             rollup_config,
             None,

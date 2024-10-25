@@ -63,4 +63,14 @@ impl DaVerifier for MockDaVerifier {
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(Default::default())
     }
+
+    fn verify_relevant_tx_list_light_client(
+        &self,
+        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
+        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
+        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
+        Ok(Default::default())
+    }
 }
