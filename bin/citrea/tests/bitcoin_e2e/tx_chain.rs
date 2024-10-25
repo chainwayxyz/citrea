@@ -2,9 +2,10 @@ use async_trait::async_trait;
 use bitcoin::{Amount, Transaction};
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
-use citrea_e2e::bitcoin::FINALITY_DEPTH;
+use citrea_e2e::bitcoin::{BitcoinNode, FINALITY_DEPTH};
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
@@ -56,8 +57,38 @@ impl TestCase for TestSequencerTransactionChaining {
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];
-        let tx2 = &txs[1];
-        let tx3 = &txs[2];
+        let tx1 = &txs[1];
+        let tx2 = &txs[2];
+
+        assert_eq!(
+            tx2.input[0].previous_output.txid,
+            tx1.compute_txid(),
+            "TX2 should reference TX1's output"
+        );
+
+        // Verify output values
+        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
+        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+
+        // Generate seqcommitment txs and make sure second batch is chained from first batch
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob tx to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(1, None).await?;
+
+        // Get latest block
+        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let txs = &block.txdata;
+
+        assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
+
+        let _coinbase = &txs[0];
+        let tx3 = &txs[1];
+        let tx4 = &txs[2];
 
         assert_eq!(
             tx3.input[0].previous_output.txid,
@@ -65,49 +96,44 @@ impl TestCase for TestSequencerTransactionChaining {
             "TX3 should reference TX2's output"
         );
 
-        // Verify output values
-        assert_eq!(tx2.output[0].value, self.get_reveal_tx_input_value(tx3));
-        assert_eq!(tx3.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
-
-        // Do another round and make sure second batch is chained from first batch
-        for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
-
-        // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
-
-        da.generate(1, None).await?;
-
-        // Get latest block
-        let block = da.get_block(&da.get_best_block_hash().await?).await?;
-        let txs = &block.txdata;
-
-        assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
-
-        let _coinbase = &txs[0];
-        let tx4 = &txs[1];
-        let tx5 = &txs[2];
-
         assert_eq!(
             tx4.input[0].previous_output.txid,
             tx3.compute_txid(),
             "TX4 should reference TX3's output"
         );
 
-        assert_eq!(
-            tx5.input[0].previous_output.txid,
-            tx4.compute_txid(),
-            "TX5 should reference TX4's output"
-        );
-
         // Verify output values
-        assert_eq!(tx4.output[0].value, self.get_reveal_tx_input_value(tx5));
-        assert_eq!(tx5.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert_eq!(tx3.output[0].value, self.get_reveal_tx_input_value(tx4));
+        assert_eq!(tx4.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+
+        let last_tx = self
+            .test_restart_with_empty_mempool(sequencer, da, tx4)
+            .await?;
+
+        self.test_restart_with_tx_in_mempool(sequencer, da, &last_tx)
+            .await?;
+
+        Ok(())
+    }
+}
+
+impl TestSequencerTransactionChaining {
+    async fn test_restart_with_empty_mempool(
+        &self,
+        sequencer: &mut Sequencer,
+        da: &BitcoinNode,
+        prev_tx: &Transaction,
+    ) -> Result<Transaction> {
+        // Start with empty mempool
+        let mempool = da.get_raw_mempool().await?;
+        assert_eq!(mempool.len(), 0);
 
         sequencer.restart(None).await?;
 
-        // Do another round post restart and make sure third batch is chained from second batch
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
@@ -124,24 +150,101 @@ impl TestCase for TestSequencerTransactionChaining {
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];
-        let tx6 = &txs[1];
-        let tx7 = &txs[2];
+        let tx1 = &txs[1];
+        let tx2 = &txs[2];
 
         assert_eq!(
-            tx6.input[0].previous_output.txid,
-            tx5.compute_txid(),
-            "TX6 should reference TX5's output"
+            tx1.input[0].previous_output.txid,
+            prev_tx.compute_txid(),
+            "TX1 should reference prev_tx output"
         );
 
         assert_eq!(
-            tx7.input[0].previous_output.txid,
-            tx6.compute_txid(),
-            "TX7 should reference TX6's output"
+            tx2.input[0].previous_output.txid,
+            tx1.compute_txid(),
+            "TX2 should reference TX1's output"
         );
 
         // Verify output values
-        assert_eq!(tx6.output[0].value, self.get_reveal_tx_input_value(tx7));
-        assert_eq!(tx7.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
+        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+
+        Ok(tx2.clone())
+    }
+
+    async fn test_restart_with_tx_in_mempool(
+        &self,
+        sequencer: &mut Sequencer,
+        da: &BitcoinNode,
+        prev_tx: &Transaction,
+    ) -> Result<()> {
+        // Start with empty mempool
+        let mempool = da.get_raw_mempool().await?;
+        assert_eq!(mempool.len(), 0);
+
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        // Generate seqcommitment txs and check that they are chained from prev_tx
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob tx to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        // Restart before generating a block to check `get_prev_utxo` prioritisting UTXO from mempool
+        sequencer.restart(None).await?;
+
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        da.wait_mempool_len(4, None).await?;
+
+        // Generate two round of commit/reveal tx pair
+        da.generate(1, None).await?;
+
+        // Get latest block
+        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let txs = &block.txdata;
+
+        assert_eq!(txs.len(), 5, "Block should contain exactly 5 transactions");
+
+        let _coinbase = &txs[0];
+        let tx1 = &txs[1];
+        let tx2 = &txs[2];
+        let tx3 = &txs[3];
+        let tx4 = &txs[4];
+
+        assert_eq!(
+            tx1.input[0].previous_output.txid,
+            prev_tx.compute_txid(),
+            "TX5 should reference prev_tx output"
+        );
+
+        assert_eq!(
+            tx2.input[0].previous_output.txid,
+            tx1.compute_txid(),
+            "TX2 should reference TX1's output"
+        );
+
+        assert_eq!(
+            tx3.input[0].previous_output.txid,
+            tx2.compute_txid(),
+            "TX3 should reference TX2's output"
+        );
+        assert_eq!(
+            tx4.input[0].previous_output.txid,
+            tx3.compute_txid(),
+            "TX4 should reference TX3's output"
+        );
+
+        // Verify output values
+        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
+        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert_eq!(tx3.output[0].value, self.get_reveal_tx_input_value(tx4));
+        assert_eq!(tx4.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(())
     }
@@ -206,18 +309,18 @@ impl TestCase for TestProverTransactionChaining {
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];
-        let tx2 = &txs[1];
-        let tx3 = &txs[2];
+        let tx1 = &txs[1];
+        let tx2 = &txs[2];
 
         assert_eq!(
-            tx3.input[0].previous_output.txid,
-            tx2.compute_txid(),
-            "TX3 should reference TX2's output"
+            tx2.input[0].previous_output.txid,
+            tx1.compute_txid(),
+            "TX2 should reference TX1's output"
         );
 
         // Verify output values
-        assert_eq!(tx2.output[0].value, self.get_reveal_tx_input_value(tx3));
-        assert_eq!(tx3.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
+        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // // Do another round and make sure second batch is chained from first batch
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -246,18 +349,18 @@ impl TestCase for TestProverTransactionChaining {
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];
-        let tx4 = &txs[1];
-        let tx5 = &txs[2];
+        let tx3 = &txs[1];
+        let tx4 = &txs[2];
 
         assert_eq!(
-            tx5.input[0].previous_output.txid,
-            tx4.compute_txid(),
-            "TX3 should reference TX2's output"
+            tx4.input[0].previous_output.txid,
+            tx3.compute_txid(),
+            "TX4 should reference TX3's output"
         );
 
         // Verify output values
-        assert_eq!(tx4.output[0].value, self.get_reveal_tx_input_value(tx5));
-        assert_eq!(tx5.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert_eq!(tx3.output[0].value, self.get_reveal_tx_input_value(tx4));
+        assert_eq!(tx4.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         batch_prover.restart(None).await?;
 
@@ -288,18 +391,18 @@ impl TestCase for TestProverTransactionChaining {
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
 
         let _coinbase = &txs[0];
-        let tx6 = &txs[1];
-        let tx7 = &txs[2];
+        let tx5 = &txs[1];
+        let tx6 = &txs[2];
 
         assert_eq!(
-            tx7.input[0].previous_output.txid,
-            tx6.compute_txid(),
-            "TX3 should reference TX2's output"
+            tx6.input[0].previous_output.txid,
+            tx5.compute_txid(),
+            "TX6 should reference TX5's output"
         );
 
         // Verify output values
-        assert_eq!(tx6.output[0].value, self.get_reveal_tx_input_value(tx7));
-        assert_eq!(tx7.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert_eq!(tx5.output[0].value, self.get_reveal_tx_input_value(tx6));
+        assert_eq!(tx6.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(())
     }
