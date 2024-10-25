@@ -112,7 +112,8 @@ impl RollupBlueprint for BitcoinRollup {
 
     #[instrument(level = "trace", skip(self), ret)]
     fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_BITCOIN_ID)
+        todo!()
+        // Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_BITCOIN_ID)
     }
 
     #[instrument(level = "trace", skip_all, err)]
@@ -212,28 +213,29 @@ impl RollupBlueprint for BitcoinRollup {
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(
-            citrea_risc0::LIGHT_CLIENT_PROVER_BITCOIN_ELF,
-            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
-            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
-            ledger_db.clone(),
-        );
-        let zk_stf = StfBlueprint::new();
-        let zk_storage = ZkStorage::new();
+        todo!()
+        // let vm = Risc0BonsaiHost::new(
+        //     citrea_risc0::LIGHT_CLIENT_PROVER_BITCOIN_ELF,
+        //     std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+        //     std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        //     ledger_db.clone(),
+        // );
+        // let zk_stf = StfBlueprint::new();
+        // let zk_storage = ZkStorage::new();
 
-        let da_verifier = BitcoinVerifier::new(RollupParams {
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
-        });
+        // let da_verifier = BitcoinVerifier::new(RollupParams {
+        //     reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
+        //     reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+        // });
 
-        ParallelProverService::new_with_default_workers(
-            vm,
-            zk_stf,
-            da_verifier,
-            prover_config.proving_mode,
-            zk_storage,
-            ledger_db,
-        )
-        .expect("Should be able to instantiate prover service")
+        // ParallelProverService::new_with_default_workers(
+        //     vm,
+        //     zk_stf,
+        //     da_verifier,
+        //     prover_config.proving_mode,
+        //     zk_storage,
+        //     ledger_db,
+        // )
+        // .expect("Should be able to instantiate prover service")
     }
 }

@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
@@ -97,12 +97,11 @@ impl SP1Host {
 impl ZkvmHost for SP1Host {
     type Guest = SP1Guest;
 
-    fn add_hint<T: BorshSerialize>(&mut self, item: T) {
-        let buf = borsh::to_vec(&item).expect("Borsh hint serialization cannot fail");
-        info!("Added hint to guest with size {}", buf.len());
-
+    fn add_hint(&mut self, buf: Vec<u8>) {
         // write buf
         self.input_buf.extend_from_slice(&buf);
+
+        info!("Added hint to guest with size {}", buf.len());
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {

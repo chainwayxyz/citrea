@@ -98,7 +98,8 @@ impl RollupBlueprint for MockDemoRollup {
     }
 
     fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ID)
+        todo!()
+        // Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ID)
     }
 
     async fn create_da_service(
@@ -148,26 +149,26 @@ impl RollupBlueprint for MockDemoRollup {
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(
-            citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ELF,
-            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
-            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
-            ledger_db.clone(),
-        );
-        let zk_stf = StfBlueprint::new();
-        let zk_storage = ZkStorage::new();
-        let da_verifier = Default::default();
+        todo!()
+        // let vm = Risc0BonsaiHost::new(
+        //     citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ELF,
+        //     std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+        //     std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+        //     ledger_db.clone(),
+        // );
+        // let zk_stf = StfBlueprint::new();
+        // let zk_storage = ZkStorage::new();
+        // let da_verifier = Default::default();
 
-        ParallelProverService::new_with_default_workers(
-            vm,
-            zk_stf,
-            da_verifier,
-            prover_config.proving_mode,
-            zk_storage,
-            ledger_db,
-        )
-        .expect("Should be able to instantiate prover service")
->>>>>>> nightly
+        // ParallelProverService::new_with_default_workers(
+        //     vm,
+        //     zk_stf,
+        //     da_verifier,
+        //     prover_config.proving_mode,
+        //     zk_storage,
+        //     ledger_db,
+        // )
+        // .expect("Should be able to instantiate prover service")
     }
 
     fn create_storage_manager(
