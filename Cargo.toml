@@ -32,7 +32,6 @@ members = [
   "crates/sovereign-sdk/utils/zk-cycle-macros",
   "crates/sovereign-sdk/utils/zk-cycle-utils",
   "crates/sovereign-sdk/utils/bashtestmd",
-  "crates/sovereign-sdk/utils/rng-da-service",
   # Module System
   "crates/sovereign-sdk/module-system/sov-cli",
   "crates/sovereign-sdk/module-system/sov-modules-stf-blueprint",

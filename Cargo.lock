@@ -7873,24 +7873,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-rng-da-service"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "demo-stf",
- "futures",
- "hex",
- "serde",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-rollup-interface 0.5.0-rc.1",
- "tokio",
-]
-
-[[package]]
 name = "sov-rollup-interface"
 version = "0.5.0-rc.1"
 dependencies = [
