@@ -8,7 +8,7 @@ use bitcoin::taproot::ControlBlock;
 use bitcoin::{Address, Amount, ScriptBuf, TxOut, Txid};
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 
-use super::light_client_proof_namespace::LightClientTxs;
+use super::light_client_proof_namespace::{LightClientTxs, RawLightClientData};
 use crate::helpers::builders::sign_blob_with_private_key;
 use crate::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
 use crate::spec::utxo::UTXO;
@@ -465,7 +465,7 @@ fn create_inscription_transactions() {
     let tx_prefix = &[0u8];
     let LightClientTxs::Complete { commit, reveal } =
         super::light_client_proof_namespace::create_zkproof_transactions(
-            body.clone(),
+            RawLightClientData::Complete(body.clone()),
             da_private_key,
             None,
             utxos.clone(),

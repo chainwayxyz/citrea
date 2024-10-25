@@ -1700,12 +1700,13 @@ dependencies = [
  "bitcoin-da",
  "bitcoincore-rpc",
  "borsh",
+ "citrea-batch-prover",
  "citrea-common",
  "citrea-e2e",
  "citrea-evm",
  "citrea-fullnode",
+ "citrea-light-client-prover",
  "citrea-primitives",
- "citrea-prover",
  "citrea-risc0-bonsai-adapter",
  "citrea-sequencer",
  "citrea-stf",
@@ -1716,6 +1717,7 @@ dependencies = [
  "log",
  "log-panics",
  "proptest",
+ "prover-services",
  "regex",
  "reqwest 0.12.5",
  "reth-primitives",
@@ -1745,6 +1747,45 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "citrea-batch-prover"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backoff",
+ "borsh",
+ "citrea-common",
+ "citrea-primitives",
+ "citrea-stf",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "num_cpus",
+ "parking_lot",
+ "prover-services",
+ "rand 0.8.5",
+ "rayon",
+ "rs_merkle",
+ "sequencer-client",
+ "serde",
+ "sha2",
+ "sov-db",
+ "sov-mock-da",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-modules-core",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-stf-runner",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tracing",
 ]
 
 [[package]]
@@ -1778,7 +1819,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=fc12cb0#fc12cb0bbf14cd55a0279014dc67db478c2ec39b"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=0a6492ebbb7#0a6492ebbb7861a263d274bf11efa5556547247e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1887,6 +1928,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-light-client-prover"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "citrea-common",
+ "hex",
+ "jsonrpsee",
+ "sequencer-client",
+ "sov-db",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-stf-runner",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tracing",
+]
+
+[[package]]
 name = "citrea-primitives"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -1897,44 +1959,6 @@ dependencies = [
  "serde",
  "sov-rollup-interface 0.5.0-rc.1",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "citrea-prover"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "backoff",
- "borsh",
- "citrea-common",
- "citrea-primitives",
- "citrea-stf",
- "futures",
- "hex",
- "jsonrpsee",
- "num_cpus",
- "parking_lot",
- "rand 0.8.5",
- "rayon",
- "rs_merkle",
- "sequencer-client",
- "serde",
- "sha2",
- "sov-db",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-core",
- "sov-modules-rollup-blueprint",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
- "sov-stf-runner",
- "tempfile",
- "tokio",
- "tokio-util",
- "tower",
  "tracing",
 ]
 
@@ -4274,7 +4298,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -4306,7 +4330,6 @@ dependencies = [
  "libc",
  "libz-sys",
  "lz4-sys",
- "zstd-sys",
 ]
 
 [[package]]
@@ -5199,10 +5222,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.72",
+]
+
+[[package]]
+name = "prover-services"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "borsh",
+ "citrea-primitives",
+ "citrea-stf",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "num_cpus",
+ "parking_lot",
+ "rand 0.8.5",
+ "rayon",
+ "risc0-zkvm",
+ "rs_merkle",
+ "serde",
+ "sha2",
+ "sov-db",
+ "sov-modules-api",
+ "sov-rollup-interface 0.5.0-rc.1",
+ "sov-stf-runner",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tracing",
 ]
 
 [[package]]

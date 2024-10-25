@@ -13,10 +13,9 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Address, AddressBech32, EncodeCall, PrivateKey, PublicKey, Spec};
-use sov_rollup_interface::da::{
-    BlockHeaderTrait, DaData, DaDataLightClient, DaSpec, DaVerifier, Time,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaData, DaSpec, DaVerifier, Time};
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::zk::Proof;
 
 const DEFAULT_CHAIN_ID: u64 = 0;
 
@@ -174,7 +173,7 @@ impl DaService for RngDaService {
         &self,
         _block: &Self::FilteredBlock,
         _prover_pk: &[u8],
-    ) -> anyhow::Result<Vec<DaDataLightClient>> {
+    ) -> anyhow::Result<Vec<Proof>> {
         unimplemented!()
     }
 
@@ -210,6 +209,34 @@ impl DaService for RngDaService {
     ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
         vec![]
     }
+
+    fn extract_relevant_blobs_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        unimplemented!()
+    }
+
+    async fn get_extraction_proof_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> (
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    ) {
+        unimplemented!()
+    }
+
+    async fn extract_relevant_blobs_with_proof_light_client(
+        &self,
+        _block: &Self::FilteredBlock,
+    ) -> (
+        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
+    ) {
+        todo!()
+    }
 }
 
 pub struct RngDaVerifier;
@@ -230,6 +257,16 @@ impl DaVerifier for RngDaVerifier {
         _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(MockValidityCond { is_valid: true })
+    }
+
+    fn verify_relevant_tx_list_light_client(
+        &self,
+        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
+        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
+        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
+        todo!()
     }
 }
 
