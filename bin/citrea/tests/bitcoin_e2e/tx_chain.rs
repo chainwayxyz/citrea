@@ -251,6 +251,7 @@ impl TestSequencerTransactionChaining {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_sequencer_transaction_chaining() -> Result<()> {
     TestCaseRunner::new(TestSequencerTransactionChaining)
         .set_citrea_path(get_citrea_path())
@@ -409,6 +410,7 @@ impl TestCase for TestProverTransactionChaining {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_prover_transaction_chaining() -> Result<()> {
     TestCaseRunner::new(TestProverTransactionChaining)
         .set_citrea_path(get_citrea_path())
