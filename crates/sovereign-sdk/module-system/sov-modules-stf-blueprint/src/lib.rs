@@ -27,13 +27,9 @@ use sov_rollup_interface::stf::{
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
 
-mod batch;
 mod stf_blueprint;
-mod tx_verifier;
 
-pub use batch::Batch;
 pub use stf_blueprint::StfBlueprint;
-pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
