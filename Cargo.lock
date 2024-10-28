@@ -2466,37 +2466,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-stf"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "citrea-evm",
- "clap",
- "hex",
- "jsonrpsee",
- "rand 0.8.5",
- "reth-primitives",
- "secp256k1",
- "serde",
- "serde_json",
- "soft-confirmation-rule-enforcer",
- "sov-accounts",
- "sov-bank",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
- "sov-sequencer-registry",
- "sov-state",
- "sov-stf-runner",
- "sov-value-setter",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7562,25 +7531,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-cli"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "demo-stf",
- "directories",
- "hex",
- "jsonrpsee",
- "serde",
- "serde_json",
- "sov-accounts",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "tempfile",
-]
-
-[[package]]
 name = "sov-data-generators"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -7789,7 +7739,6 @@ dependencies = [
  "jsonrpsee",
  "serde",
  "serde_json",
- "sov-cli",
  "sov-db",
  "sov-ledger-rpc 0.5.0-rc.1",
  "sov-modules-api",

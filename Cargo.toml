@@ -23,8 +23,6 @@ members = [
   "crates/sovereign-sdk/adapters/risc0",
   "crates/sovereign-sdk/adapters/mock-da",
   "crates/sovereign-sdk/adapters/mock-zkvm",
-  # Examples
-  "crates/sovereign-sdk/examples/demo-stf",
   # Full Node
   "crates/sovereign-sdk/full-node/db/sov-db",
   "crates/sovereign-sdk/full-node/sov-ledger-rpc",
@@ -34,7 +32,6 @@ members = [
   "crates/sovereign-sdk/utils/zk-cycle-macros",
   "crates/sovereign-sdk/utils/zk-cycle-utils",
   # Module System
-  "crates/sovereign-sdk/module-system/sov-cli",
   "crates/sovereign-sdk/module-system/sov-modules-stf-blueprint",
   "crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint",
   "crates/sovereign-sdk/module-system/sov-modules-macros",
