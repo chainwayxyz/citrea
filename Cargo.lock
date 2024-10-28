@@ -2466,19 +2466,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-simple-stf"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "hex",
- "serde",
- "sha2",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-rollup-interface 0.5.0-rc.1",
-]
-
-[[package]]
 name = "demo-stf"
 version = "0.5.0-rc.1"
 dependencies = [

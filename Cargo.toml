@@ -24,7 +24,6 @@ members = [
   "crates/sovereign-sdk/adapters/mock-da",
   "crates/sovereign-sdk/adapters/mock-zkvm",
   # Examples
-  "crates/sovereign-sdk/examples/demo-simple-stf",
   "crates/sovereign-sdk/examples/demo-stf",
   # Full Node
   "crates/sovereign-sdk/full-node/db/sov-db",
