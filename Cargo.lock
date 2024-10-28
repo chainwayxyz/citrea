@@ -7478,19 +7478,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-accessory-state"
-version = "0.5.0-rc.1"
-dependencies = [
- "borsh",
- "jsonrpsee",
- "serde",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
-]
-
-[[package]]
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -7528,20 +7515,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "sov-data-generators"
-version = "0.5.0-rc.1"
-dependencies = [
- "borsh",
- "proptest",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-state",
- "sov-value-setter",
 ]
 
 [[package]]
@@ -7629,20 +7602,6 @@ dependencies = [
  "borsh",
  "serde",
  "sov-rollup-interface 0.5.0-rc.1",
-]
-
-[[package]]
-name = "sov-module-schemas"
-version = "0.5.0-rc.1"
-dependencies = [
- "sov-accounts",
- "sov-bank",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-prover-incentives",
- "sov-sequencer-registry",
- "sov-value-setter",
 ]
 
 [[package]]
@@ -7965,42 +7924,6 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
-]
-
-[[package]]
-name = "sov-value-setter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "clap",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "sov-vec-setter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "clap",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
 ]
 
 [[package]]
