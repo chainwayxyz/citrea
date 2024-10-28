@@ -33,19 +33,10 @@ jobs:
           rustup install 1.79.0
           rustup default 1.79.0
 
-      - name: Install Cargo Binstall
-        run: |
-          source $HOME/.cargo/env
-          cargo install --version 1.7.0 cargo-binstall
-
-      - name: Install cargo-risczero
-        run: |
-          cargo binstall cargo-risczero@1.1.2 --no-confirm
-
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install risc0
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
         env:
@@ -79,17 +70,10 @@ jobs:
           rustup install 1.79.0
           rustup default 1.79.0
 
-      - name: Install Cargo Binstall
-        run: |
-          source $HOME/.cargo/env
-          cargo install --version 1.7.0 cargo-binstall
-      - name: Install cargo-risczero
-        run: |
-          cargo binstall cargo-risczero@1.1.2 --no-confirm
-      - name: Install risc0-zkvm toolchain
-        run: cargo risczero install --version r0.1.79.0-2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install risc0
+        uses: ./.github/actions/install-risc0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
           REPR_GUEST_BUILD: 1
