@@ -40,9 +40,6 @@ members = [
   "crates/sovereign-sdk/module-system/sov-modules-api",
   "crates/sovereign-sdk/module-system/module-implementations/sov-accounts",
   "crates/sovereign-sdk/module-system/module-implementations/sov-bank",
-  "crates/sovereign-sdk/module-system/module-implementations/sov-prover-incentives",
-  "crates/sovereign-sdk/module-system/module-implementations/sov-sequencer-registry",
-  "crates/sovereign-sdk/module-system/module-implementations/module-template",
   "crates/sovereign-sdk/module-system/module-implementations/integration-tests",
 ]
 

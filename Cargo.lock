@@ -4509,27 +4509,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "module-template"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "arbitrary",
- "borsh",
- "module-template",
- "proptest",
- "proptest-derive",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
 name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7733,25 +7712,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-prover-incentives"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
-]
-
-[[package]]
 name = "sov-prover-storage-manager"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -7845,33 +7805,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "sov-sequencer-registry"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "arbitrary",
- "borsh",
- "clap",
- "jsonrpsee",
- "proptest",
- "proptest-derive",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-sequencer-registry",
- "sov-state",
- "sov-zk-cycle-macros",
- "sov-zk-cycle-utils",
- "tempfile",
 ]
 
 [[package]]
