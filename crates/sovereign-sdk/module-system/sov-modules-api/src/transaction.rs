@@ -1,6 +1,3 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
 use sov_modules_core::{Context, Signature};
@@ -19,19 +16,6 @@ pub struct Transaction<C: Context> {
     runtime_msg: Vec<u8>,
     chain_id: u64,
     nonce: u64,
-}
-
-/// An unsent transaction with the required data to be submitted to the DA layer
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct UnsignedTransaction<Tx>
-where
-    Tx: BorshSerialize + BorshDeserialize,
-{
-    /// The underlying transaction
-    pub tx: Tx,
-    /// The ID of the target chain
-    pub chain_id: u64,
 }
 
 impl<C: Context> Transaction<C> {
@@ -119,14 +103,5 @@ impl<C: Context> Transaction<C> {
             chain_id,
             nonce,
         }
-    }
-}
-
-impl<Tx> UnsignedTransaction<Tx>
-where
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
-{
-    pub const fn new(tx: Tx, chain_id: u64) -> Self {
-        Self { tx, chain_id }
     }
 }
