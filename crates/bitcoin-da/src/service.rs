@@ -282,16 +282,14 @@ impl BitcoinService {
             .list_unspent(Some(0), None, None, Some(true), None)
             .await?;
 
-        // Make sure to retain only utxos from reveal TXs by matching on REVEAL_OUTPUT_AMOUNT
-        previous_utxos.retain(|u| {
-            u.spendable && u.solvable && u.amount == Amount::from_sat(REVEAL_OUTPUT_AMOUNT)
-        });
+        // Make sure to retain only first utxo to keep utxo chaining logic in line with `spawn_da_queue` inner loop
+        previous_utxos.retain(|u| u.spendable && u.solvable && u.vout == 0);
 
         // Sort by (confirmations - ancestor_count)
         // If any tx in mempool, confirmation would be 0 and ancestor count Some(_), giving us a negative value and prioritising in-mempool TXs
         // If no tx in mempool, confirmation would be >= 0 and ancestor count None
         previous_utxos.sort_unstable_by_key(|utxo| {
-            utxo.confirmations - (utxo.ancestor_count.unwrap_or(0) as u32)
+            utxo.confirmations as i64 - (utxo.ancestor_count.unwrap_or(0) as i64)
         });
 
         Ok(previous_utxos.into_iter().next().map(|u| u.into()))
