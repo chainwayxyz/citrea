@@ -11,26 +11,6 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
 /// Creates a new [`jsonrpsee::RpcModule`] that exposes all JSON-RPC methods
 /// necessary to interface with the [`LedgerRpcProvider`].
-///
-/// # Example
-/// ```
-/// use sov_ledger_rpc::server::rpc_module;
-/// use tempfile::tempdir;
-/// use sov_db::ledger_db::LedgerDB;
-///
-/// /// Creates a new [`LedgerDB`] and starts serving JSON-RPC requests.
-/// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
-///     let dir = tempdir().unwrap();
-///     let db = LedgerDB::with_path(dir).unwrap();
-///     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
-///
-///     let server = jsonrpsee::server::ServerBuilder::default()
-///         .build("127.0.0.1:0")
-///         .await
-///         .unwrap();
-///     server.start(rpc_module)
-/// }
-/// ```
 pub fn rpc_module<T, B, Tx>(ledger: T) -> anyhow::Result<RpcModule<T>>
 where
     T: LedgerRpcProvider + Send + Sync + 'static,
