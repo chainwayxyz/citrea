@@ -1707,11 +1707,17 @@ mod tests {
         let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Testnet)
             .await
             .unwrap();
-        assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Regtest)
-            .await
-            .is_err());
-        assert!(get_fee_rate_from_mempool_space(bitcoin::Network::Signet)
-            .await
-            .is_err());
+        assert_eq!(
+            None,
+            get_fee_rate_from_mempool_space(bitcoin::Network::Regtest)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            None,
+            get_fee_rate_from_mempool_space(bitcoin::Network::Signet)
+                .await
+                .unwrap()
+        );
     }
 }
