@@ -571,7 +571,7 @@ impl BitcoinService {
         let smart_fee = match get_fee_rate_from_mempool_space(self.network).await {
             Ok(fee_rate) => fee_rate,
             Err(e) => {
-                tracing::warn!(?e, "Failed to get fee rate from mempool.space");
+                tracing::error!(?e, "Failed to get fee rate from mempool.space");
                 self.client.estimate_smart_fee(1, None).await?.fee_rate
             }
         };
