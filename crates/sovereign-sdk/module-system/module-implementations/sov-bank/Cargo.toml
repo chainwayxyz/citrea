@@ -50,3 +50,6 @@ native = [
 cli = ["native"]
 serde = []
 test-utils = []
+
+[package.metadata.cargo-udeps.ignore]
+development = ["sov-bank"]
