@@ -2,9 +2,6 @@
 /// type.
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::DispatchCall;
-/// Derives the <runtime_name>Event enum for a given runtime.
-#[cfg(feature = "macros")]
-pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
 #[cfg(feature = "macros")]
