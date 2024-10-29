@@ -7852,7 +7852,7 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-zk-cycle-macros",
- "syn 1.0.109",
+ "syn 2.0.72",
  "trybuild",
 ]
 
@@ -7860,7 +7860,6 @@ dependencies = [
 name = "sov-zk-cycle-utils"
 version = "0.5.0-rc.1"
 dependencies = [
- "bytes",
  "risc0-zkvm",
  "risc0-zkvm-platform",
 ]
