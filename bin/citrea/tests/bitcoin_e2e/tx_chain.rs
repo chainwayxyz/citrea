@@ -42,16 +42,19 @@ impl TestCase for TestSequencerTransactionChaining {
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
-        da.generate(1, None).await?;
+        da.generate(1, None).await.unwrap();
 
         // Get latest block
-        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let block = da
+            .get_block(&da.get_best_block_hash().await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
@@ -72,16 +75,19 @@ impl TestCase for TestSequencerTransactionChaining {
 
         // Generate seqcommitment txs and make sure second batch is chained from first batch
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
-        da.generate(1, None).await?;
+        da.generate(1, None).await.unwrap();
 
         // Get latest block
-        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let block = da
+            .get_block(&da.get_best_block_hash().await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
@@ -108,10 +114,12 @@ impl TestCase for TestSequencerTransactionChaining {
 
         let last_tx = self
             .test_restart_with_empty_mempool(sequencer, da, tx4)
-            .await?;
+            .await
+            .unwrap();
 
         self.test_restart_with_tx_in_mempool(sequencer, da, &last_tx)
-            .await?;
+            .await
+            .unwrap();
 
         Ok(())
     }
@@ -125,26 +133,29 @@ impl TestSequencerTransactionChaining {
         prev_tx: &Transaction,
     ) -> Result<Transaction> {
         // Start with empty mempool
-        let mempool = da.get_raw_mempool().await?;
+        let mempool = da.get_raw_mempool().await.unwrap();
         assert_eq!(mempool.len(), 0);
 
-        sequencer.restart(None).await?;
+        sequencer.restart(None).await.unwrap();
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
-        da.generate(1, None).await?;
+        da.generate(1, None).await.unwrap();
 
         // Get latest block
-        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let block = da
+            .get_block(&da.get_best_block_hash().await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
@@ -179,7 +190,7 @@ impl TestSequencerTransactionChaining {
         prev_tx: &Transaction,
     ) -> Result<()> {
         // Start with empty mempool
-        let mempool = da.get_raw_mempool().await?;
+        let mempool = da.get_raw_mempool().await.unwrap();
         assert_eq!(mempool.len(), 0);
 
         let min_soft_confirmations_per_commitment =
@@ -187,26 +198,29 @@ impl TestSequencerTransactionChaining {
 
         // Generate seqcommitment txs and check that they are chained from prev_tx
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
         // Restart before generating a block to check `get_prev_utxo` prioritisting UTXO from mempool
-        sequencer.restart(None).await?;
+        sequencer.restart(None).await.unwrap();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(4, None).await.unwrap();
 
         // Generate two round of commit/reveal tx pair
-        da.generate(1, None).await?;
+        da.generate(1, None).await.unwrap();
 
         // Get latest block
-        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let block = da
+            .get_block(&da.get_best_block_hash().await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 5, "Block should contain exactly 5 transactions");
@@ -284,26 +298,28 @@ impl TestCase for TestProverTransactionChaining {
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        let finalized_height = da.get_finalized_height().await.unwrap();
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
-            .await?;
+            .await
+            .unwrap();
 
-        da.generate(1, None).await?;
-        let block_height = da.get_block_count().await?;
+        da.generate(1, None).await.unwrap();
+        let block_height = da.get_block_count().await.unwrap();
 
         // Get block holding prover txs
         let block = da
-            .get_block(&da.get_block_hash(block_height).await?)
-            .await?;
+            .get_block(&da.get_block_hash(block_height).await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
@@ -324,26 +340,28 @@ impl TestCase for TestProverTransactionChaining {
 
         // // Do another round and make sure second batch is chained from first batch
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        let finalized_height = da.get_finalized_height().await.unwrap();
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
-            .await?;
+            .await
+            .unwrap();
 
-        da.generate(1, None).await?;
-        let block_height = da.get_block_count().await?;
+        da.generate(1, None).await.unwrap();
+        let block_height = da.get_block_count().await.unwrap();
 
         // Get block holding prover txs
         let block = da
-            .get_block(&da.get_block_hash(block_height).await?)
-            .await?;
+            .get_block(&da.get_block_hash(block_height).await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
@@ -362,30 +380,32 @@ impl TestCase for TestProverTransactionChaining {
         assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
         assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
-        batch_prover.restart(None).await?;
+        batch_prover.restart(None).await.unwrap();
 
         // // Do another round post restart and make sure third batch is chained from second batch
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        let finalized_height = da.get_finalized_height().await.unwrap();
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
-            .await?;
+            .await
+            .unwrap();
 
-        da.generate(1, None).await?;
-        let block_height = da.get_block_count().await?;
+        da.generate(1, None).await.unwrap();
+        let block_height = da.get_block_count().await.unwrap();
 
         // Get block holding prover txs
         let block = da
-            .get_block(&da.get_block_hash(block_height).await?)
-            .await?;
+            .get_block(&da.get_block_hash(block_height).await.unwrap())
+            .await
+            .unwrap();
         let txs = &block.txdata;
 
         assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");

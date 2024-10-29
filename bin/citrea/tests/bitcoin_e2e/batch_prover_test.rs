@@ -61,28 +61,29 @@ impl TestCase for BasicProverTest {
         };
 
         // Generate confirmed UTXOs
-        da.generate(120, None).await?;
+        da.generate(120, None).await.unwrap();
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(1, None).await.unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
-        let finalized_height = da.get_finalized_height().await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        let finalized_height = da.get_finalized_height().await.unwrap();
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
-            .await?;
+            .await
+            .unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
         let proofs = full_node
             .wait_for_zkproofs(
                 finalized_height + FINALITY_DEPTH,
@@ -198,28 +199,29 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         bitcoin_da_service.clone().spawn_da_queue(rx);
 
         // Generate 1 FINALIZED DA block.
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(1 + FINALITY_DEPTH, None).await.unwrap();
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(1, None).await.unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height().await.unwrap();
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await?;
+            .await
+            .unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
         let proofs = full_node
             .wait_for_zkproofs(
                 finalized_height + FINALITY_DEPTH,
@@ -236,7 +238,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .is_empty());
 
         // Make sure the mempool is mined.
-        da.wait_mempool_len(0, None).await?;
+        da.wait_mempool_len(0, None).await.unwrap();
 
         // Fetch the commitment created from the previous L1 range
         let commitments: Vec<SequencerCommitment> = full_node
@@ -270,25 +272,26 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .unwrap();
 
         // Wait for the duplicate commitment transaction to be accepted.
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
         // Trigger a new commitment.
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for the sequencer commitment to be submitted & accepted.
-        da.wait_mempool_len(4, None).await?;
+        da.wait_mempool_len(4, None).await.unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height().await.unwrap();
 
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
-            .await?;
+            .await
+            .unwrap();
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
         let proofs = full_node
             .wait_for_zkproofs(
@@ -379,28 +382,29 @@ impl TestCase for LocalProvingTest {
             sequencer.min_soft_confirmations_per_commitment();
         // Generate soft confirmations to invoke commitment creation
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         // Wait for commitment tx to hit mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(1, None).await.unwrap();
 
         // Make commitment tx into a finalized block
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height().await.unwrap();
         // Wait for batch prover to process the proof
         batch_prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(7200)))
-            .await?;
+            .await
+            .unwrap();
 
         // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(1, None).await.unwrap();
 
         // Make batch proof tx into a finalized block
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height().await.unwrap();
         // Wait for full node to see zkproofs
         let proofs = full_node
             .wait_for_zkproofs(finalized_height, Some(Duration::from_secs(7200)))

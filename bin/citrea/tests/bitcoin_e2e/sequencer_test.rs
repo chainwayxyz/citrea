@@ -22,24 +22,26 @@ impl TestCase for BasicSequencerTest {
             bail!("bitcoind not running. Test cannot run with bitcoind runnign as DA")
         };
 
-        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.send_publish_batch_request().await.unwrap();
 
         let head_batch0 = sequencer
             .client
             .ledger_get_head_soft_confirmation()
-            .await?
+            .await
+            .unwrap()
             .unwrap();
         assert_eq!(head_batch0.l2_height, 1);
 
-        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.send_publish_batch_request().await.unwrap();
 
-        da.generate(1, None).await?;
+        da.generate(1, None).await.unwrap();
 
-        sequencer.client.wait_for_l2_block(1, None).await?;
+        sequencer.client.wait_for_l2_block(1, None).await.unwrap();
         let head_batch1 = sequencer
             .client
             .ledger_get_head_soft_confirmation()
-            .await?
+            .await
+            .unwrap()
             .unwrap();
         assert_eq!(head_batch1.l2_height, 2);
 
@@ -77,29 +79,30 @@ impl TestCase for SequencerMissedDaBlocksTest {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).unwrap();
 
-        let initial_l1_height = da.get_finalized_height().await?;
+        let initial_l1_height = da.get_finalized_height().await.unwrap();
 
         // Create initial DA blocks
-        da.generate(3, None).await?;
+        da.generate(3, None).await.unwrap();
 
-        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.send_publish_batch_request().await.unwrap();
 
-        sequencer.wait_until_stopped().await?;
+        sequencer.wait_until_stopped().await.unwrap();
 
         // Create 10 more DA blocks while the sequencer is down
-        da.generate(10, None).await?;
+        da.generate(10, None).await.unwrap();
 
         // Restart the sequencer
-        sequencer.start(None).await?;
+        sequencer.start(None).await.unwrap();
 
         for _ in 0..10 {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
 
         let head_soft_confirmation_height = sequencer
             .client
             .ledger_get_head_soft_confirmation_height()
-            .await?;
+            .await
+            .unwrap();
 
         let mut last_used_l1_height = initial_l1_height;
 
@@ -111,7 +114,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
             let soft_confirmation = sequencer
                 .client
                 .ledger_get_soft_confirmation_by_number(i)
-                .await?
+                .await
+                .unwrap()
                 .unwrap();
 
             if i == 1 {
@@ -126,7 +130,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
             last_used_l1_height = soft_confirmation.da_slot_height;
         }
 
-        let finalized_height = da.get_finalized_height().await?;
+        let finalized_height = da.get_finalized_height().await.unwrap();
         assert_eq!(last_used_l1_height, finalized_height);
 
         Ok(())

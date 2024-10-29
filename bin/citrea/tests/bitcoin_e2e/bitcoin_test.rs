@@ -32,10 +32,10 @@ impl TestCase for BasicSyncTest {
         let initial_height = f.initial_da_height;
 
         // Generate some blocks on node0
-        da0.generate(5, None).await?;
+        da0.generate(5, None).await.unwrap();
 
-        let height0 = da0.get_block_count().await?;
-        let height1 = da1.get_block_count().await?;
+        let height0 = da0.get_block_count().await.unwrap();
+        let height1 = da1.get_block_count().await.unwrap();
 
         // Nodes are now out of sync
         assert_eq!(height0, initial_height + 5);
@@ -44,10 +44,11 @@ impl TestCase for BasicSyncTest {
         // Sync both nodes
         f.bitcoin_nodes
             .wait_for_sync(Duration::from_secs(30))
-            .await?;
+            .await
+            .unwrap();
 
-        let height0 = da0.get_block_count().await?;
-        let height1 = da1.get_block_count().await?;
+        let height0 = da0.get_block_count().await.unwrap();
+        let height1 = da1.get_block_count().await.unwrap();
 
         // Assert that nodes are in sync
         assert_eq!(height0, height1, "Block heights don't match");
@@ -82,16 +83,16 @@ impl TestCase for RestartBitcoinTest {
             ..da.config.clone()
         };
 
-        let block_before = da.get_block_count().await?;
-        let info = da.get_index_info().await?;
+        let block_before = da.get_block_count().await.unwrap();
+        let info = da.get_index_info().await.unwrap();
 
         assert_eq!(info.txindex, None);
 
         // Restart node with txindex
-        da.restart(Some(new_conf)).await?;
+        da.restart(Some(new_conf)).await.unwrap();
 
-        let block_after = da.get_block_count().await?;
-        let info = da.get_index_info().await?;
+        let block_after = da.get_block_count().await.unwrap();
+        let info = da.get_index_info().await.unwrap();
 
         assert!(matches!(
             info.txindex,

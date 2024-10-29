@@ -57,11 +57,12 @@ impl TestCase for LightClientProvingTest {
 
         // publish min_soft_confirmations_per_commitment confirmations
         for _ in 0..min_soft_confirmations_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
         sequencer
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
-            .await?;
+            .await
+            .unwrap();
 
         // Wait for commitment tx to be submitted to DA
         da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();

@@ -31,20 +31,20 @@ impl TestCase for MempoolAcceptTest {
 
         // publish min_soft_conf_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_soft_conf_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
+            sequencer.client.send_publish_batch_request().await.unwrap();
         }
         sequencer
             .wait_for_l2_height(min_soft_conf_per_commitment, None)
             .await;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH, None).await.unwrap();
 
         // TODO find the right assertions here
         // Should be either 2 or 0
         // Before this PR and the addition of testmempoolaccept, first tx would go in and second would be rejected due to mempool policy set above
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(2, None).await.unwrap();
 
         Ok(())
     }
