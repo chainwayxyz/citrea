@@ -7698,16 +7698,11 @@ dependencies = [
  "itertools 0.13.0",
  "jmt",
  "jsonrpsee",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
  "sov-modules-api",
  "sov-rollup-interface 0.5.0-rc.1",
  "sov-state",
- "sov-zk-cycle-macros",
- "sov-zk-cycle-utils",
- "thiserror",
  "tracing",
 ]
 

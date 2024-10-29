@@ -2543,7 +2543,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
- "thiserror",
 ]
 
 [[package]]
