@@ -28,7 +28,8 @@ fn open_db(dir: impl AsRef<Path>) -> DB {
     let mut db_opts = rocksdb::Options::default();
     db_opts.create_if_missing(true);
     db_opts.create_missing_column_families(true);
-    DB::open(dir, "test", get_column_families(), &db_opts).expect("Failed to open DB.")
+    let block_opts = rocksdb::BlockBasedOptions::default();
+    DB::open(dir, "test", get_column_families(), &db_opts, &block_opts).expect("Failed to open DB.")
 }
 
 fn open_db_read_only(dir: &TempDir) -> DB {

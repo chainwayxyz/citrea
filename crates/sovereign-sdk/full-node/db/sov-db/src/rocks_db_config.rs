@@ -42,7 +42,7 @@ impl<'a> RocksdbConfig<'a> {
     }
 
     /// Build [`rocksdb::Options`] from [`RocksdbConfig`]
-    pub fn as_rocksdb_options(&self, readonly: bool) -> Options {
+    pub fn as_rocksdb_options(&self, readonly: bool) -> (Options, BlockBasedOptions) {
         let mut db_opts = Options::default();
 
         let mut block_based_options = BlockBasedOptions::default();
@@ -67,22 +67,19 @@ impl<'a> RocksdbConfig<'a> {
         // Default is Snappy but Lz4 is recommend
         // https://github.com/facebook/rocksdb/wiki/Compression
         db_opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-        db_opts.set_compression_options_parallel_threads(4);
+        db_opts.set_compression_options_parallel_threads(2);
+
+        db_opts.increase_parallelism(2);
 
         db_opts.set_max_open_files(self.max_open_files);
         db_opts.set_max_total_wal_size(self.max_total_wal_size);
         db_opts.set_max_background_jobs(self.max_background_jobs);
         if !readonly {
-            // Increase write buffer size to reduce allocations.
-            db_opts.set_write_buffer_size(30 * 1024 * 1024); // 30 MB
-            db_opts.set_block_based_table_factory(&block_based_options);
-
             db_opts.create_if_missing(true);
             db_opts.create_missing_column_families(true);
-            db_opts.set_atomic_flush(true);
         }
 
-        db_opts
+        (db_opts, block_based_options)
     }
 }
 

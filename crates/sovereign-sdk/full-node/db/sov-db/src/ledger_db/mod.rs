@@ -105,11 +105,13 @@ impl LedgerDB {
     #[instrument(level = "trace", skip_all, err)]
     pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
+        let (db_opts, block_opts) = cfg.as_rocksdb_options(false);
         let inner = DB::open(
             path,
             "ledger-db",
             LEDGER_TABLES.iter().copied(),
-            &cfg.as_rocksdb_options(false),
+            &db_opts,
+            &block_opts,
         )?;
 
         let next_item_numbers = ItemNumbers {

@@ -44,7 +44,15 @@ impl TestDB {
         let mut db_opts = rocksdb::Options::default();
         db_opts.create_if_missing(true);
         db_opts.create_missing_column_families(true);
-        let db = DB::open(tmpdir.path(), "test", column_families, &db_opts).unwrap();
+        let block_opts = rocksdb::BlockBasedOptions::default();
+        let db = DB::open(
+            tmpdir.path(),
+            "test",
+            column_families,
+            &db_opts,
+            &block_opts,
+        )
+        .unwrap();
 
         db.put::<S>(&TestCompositeField(1, 0, 0), &TestField(100))
             .unwrap();
