@@ -7810,21 +7810,15 @@ dependencies = [
  "arbitrary",
  "bcs",
  "borsh",
- "hex",
  "jmt",
  "proptest",
  "proptest-derive",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "serde",
- "serde_json",
  "sha2",
  "sov-db",
  "sov-modules-core",
  "sov-rollup-interface 0.5.0-rc.1",
- "sov-zk-cycle-macros",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]

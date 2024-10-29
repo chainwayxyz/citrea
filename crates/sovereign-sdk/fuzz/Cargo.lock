@@ -2255,17 +2255,14 @@ dependencies = [
  "arbitrary",
  "bcs",
  "borsh",
- "hex",
  "jmt",
  "proptest",
  "proptest-derive",
  "serde",
- "serde_json",
  "sha2",
  "sov-db",
  "sov-modules-core",
  "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]

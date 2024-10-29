@@ -3030,14 +3030,11 @@ dependencies = [
  "anyhow",
  "bcs",
  "borsh",
- "hex",
  "jmt",
  "serde",
- "serde_json",
  "sha2",
  "sov-modules-core",
  "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]
