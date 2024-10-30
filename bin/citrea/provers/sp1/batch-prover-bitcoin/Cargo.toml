@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "citrea-sp1-guest-bitcoin"
+name = "sp1-batch-prover-bitcoin"
 version = "0.5.0-rc.1"
 edition = "2021"
 resolver = "2"
