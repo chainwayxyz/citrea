@@ -31,4 +31,7 @@ pub const TEST_PRIVATE_KEY: &str =
 pub const MIN_BASE_FEE_PER_GAS: u128 = 10_000_000; // 0.01 gwei
 
 /// Maximum size of a bitcoin transaction body in bytes
+#[cfg(not(feature = "test-utils"))]
 pub const MAX_TXBODY_SIZE: usize = 397000;
+#[cfg(feature = "test-utils")]
+pub const MAX_TXBODY_SIZE: usize = 39700;
