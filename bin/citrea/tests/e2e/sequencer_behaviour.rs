@@ -176,7 +176,6 @@ async fn test_sequencer_commitment_threshold() {
         tokio::time::sleep(Duration::from_millis(500)).await;
         seq_test_client.send_publish_batch_request().await;
         wait_for_l2_block(&seq_test_client, i, None).await;
-        println!("block {i}");
     }
 
     wait_for_l2_block(&seq_test_client, 35, Some(Duration::from_secs(60))).await;
@@ -197,7 +196,6 @@ async fn test_sequencer_commitment_threshold() {
         tokio::time::sleep(Duration::from_millis(500)).await;
         seq_test_client.send_publish_batch_request().await;
         wait_for_l2_block(&seq_test_client, i, None).await;
-        println!("block {i}");
     }
 
     wait_for_l2_block(&seq_test_client, 70, Some(Duration::from_secs(60))).await;
