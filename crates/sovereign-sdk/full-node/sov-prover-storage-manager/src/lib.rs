@@ -237,7 +237,7 @@ where
         let snapshot_id = state_snapshot.get_id();
         if snapshot_id != native_snapshot.get_id() {
             anyhow::bail!(
-                "State id={} and Native id={} snapshots have different are not matching",
+                "State id={} and Native id={} snapshots are not matching",
                 snapshot_id,
                 native_snapshot.get_id()
             );
