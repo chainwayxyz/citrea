@@ -68,9 +68,9 @@ impl<'a> RocksdbConfig<'a> {
         // Default is Snappy but Lz4 is recommend
         // https://github.com/facebook/rocksdb/wiki/Compression
         db_options.set_compression_type(rocksdb::DBCompressionType::Lz4);
-        db_options.set_compression_options_parallel_threads(2);
 
         let allowed_cores = std::cmp::max(1, num_cpus::get() / 2) as i32;
+        db_options.set_compression_options_parallel_threads(allowed_cores);
         db_options.increase_parallelism(allowed_cores);
 
         db_options.set_max_open_files(self.max_open_files);
