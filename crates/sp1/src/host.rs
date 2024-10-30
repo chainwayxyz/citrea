@@ -16,7 +16,7 @@ use crate::guest::SP1Guest;
 // It is safer to define ProverClient once globally, because all the SP1 api is
 // built around the client, and creating multiple ProverClient in the lifespan
 // of the program causes problems especially when ran with cuda feature enabled.
-pub static CLIENT: Lazy<ProverClient> = Lazy::new(|| ProverClient::new());
+pub static CLIENT: Lazy<ProverClient> = Lazy::new(ProverClient::new);
 
 #[derive(Clone)]
 pub struct SP1Host {
@@ -62,7 +62,7 @@ impl SP1Host {
         prover: &NetworkProverV2,
         request_id: &[u8],
     ) -> anyhow::Result<SP1ProofWithPublicValues> {
-        let proof = block_on(prover.wait_proof(&request_id, None))?;
+        let proof = block_on(prover.wait_proof(request_id, None))?;
         Ok(proof)
     }
 
