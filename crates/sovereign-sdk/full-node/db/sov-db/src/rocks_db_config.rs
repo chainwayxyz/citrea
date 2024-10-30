@@ -63,7 +63,7 @@ impl<'a> RocksdbConfig<'a> {
         block_options.set_optimize_filters_for_memory(true);
         // By default our block size is 4KB, we set this to 32KB.
         // Increasing the size of the block decreases the number of blocks,
-        // therefore, less memory consumption for indicies.
+        // therefore, less memory consumption for indices.
         block_options.set_block_size(32 * 1024);
         // Default is Snappy but Lz4 is recommend
         // https://github.com/facebook/rocksdb/wiki/Compression
