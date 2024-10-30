@@ -19,10 +19,10 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-# citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
-# citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
+citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
+citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
-citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
+# citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
@@ -98,9 +98,6 @@ sp1-helper = { version = "3.0.0", default-features = false }
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
 
 bench = ["hex"] # "sov-risc0-adapter/bench", "risc0/bench"]
-cuda = [
-  "citrea-sp1/cuda",
-]
 
 [[bin]]
 name = "citrea"

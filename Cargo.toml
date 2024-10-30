@@ -18,7 +18,7 @@ members = [
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
-  # "crates/sp1", # This is disabled so it doesn't build until we actually use it
+  "crates/sp1",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/risc0",

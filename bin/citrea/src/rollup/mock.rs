@@ -4,9 +4,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
-use citrea_sp1::host::SP1Host;
-// use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
-// use citrea_risc0_bonsai_adapter::Digest;
+// use citrea_sp1::host::SP1Host;
+use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
+use citrea_risc0_bonsai_adapter::Digest;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use prover_services::ParallelProverService;
@@ -34,7 +34,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaService = MockDaService;
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
-    type Vm = SP1Host;
+    type Vm = Risc0BonsaiHost<'static>;
 
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -88,13 +88,12 @@ impl RollupBlueprint for MockDemoRollup {
     fn get_batch_prover_code_commitments_by_spec(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
-        todo!()
-        // let mut map = HashMap::new();
-        // map.insert(
-        //     SpecId::Genesis,
-        //     Digest::new(citrea_risc0::BATCH_PROVER_MOCK_ID),
-        // );
-        // map
+        let mut map = HashMap::new();
+        map.insert(
+            SpecId::Genesis,
+            Digest::new(citrea_risc0::BATCH_PROVER_MOCK_ID),
+        );
+        map
     }
 
     fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
@@ -115,31 +114,30 @@ impl RollupBlueprint for MockDemoRollup {
 
     async fn create_batch_prover_service(
         &self,
-        _prover_config: BatchProverConfig,
+        prover_config: BatchProverConfig,
         _rollup_config: &FullNodeConfig<Self::DaConfig>,
         _da_service: &Arc<Self::DaService>,
-        _ledger_db: LedgerDB,
+        ledger_db: LedgerDB,
     ) -> Self::ProverService {
-        todo!()
-        // let vm = Risc0BonsaiHost::new(
-        //     citrea_risc0::BATCH_PROVER_MOCK_ELF,
-        //     std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
-        //     std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
-        //     ledger_db.clone(),
-        // );
-        // let zk_stf = StfBlueprint::new();
-        // let zk_storage = ZkStorage::new();
-        // let da_verifier = Default::default();
+        let vm = Risc0BonsaiHost::new(
+            citrea_risc0::BATCH_PROVER_MOCK_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db.clone(),
+        );
+        let zk_stf = StfBlueprint::new();
+        let zk_storage = ZkStorage::new();
+        let da_verifier = Default::default();
 
-        // ParallelProverService::new_with_default_workers(
-        //     vm,
-        //     zk_stf,
-        //     da_verifier,
-        //     prover_config,
-        //     zk_storage,
-        //     ledger_db,
-        // )
-        // .expect("Should be able to instantiate prover service")
+        ParallelProverService::new_with_default_workers(
+            vm,
+            zk_stf,
+            da_verifier,
+            prover_config.proving_mode,
+            zk_storage,
+            ledger_db,
+        )
+        .expect("Should be able to instantiate prover service")
     }
 
     async fn create_light_client_prover_service(
@@ -149,26 +147,25 @@ impl RollupBlueprint for MockDemoRollup {
         _da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
-        todo!()
-        // let vm = Risc0BonsaiHost::new(
-        //     citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ELF,
-        //     std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
-        //     std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
-        //     ledger_db.clone(),
-        // );
-        // let zk_stf = StfBlueprint::new();
-        // let zk_storage = ZkStorage::new();
-        // let da_verifier = Default::default();
+        let vm = Risc0BonsaiHost::new(
+            citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ELF,
+            std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
+            std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
+            ledger_db.clone(),
+        );
+        let zk_stf = StfBlueprint::new();
+        let zk_storage = ZkStorage::new();
+        let da_verifier = Default::default();
 
-        // ParallelProverService::new_with_default_workers(
-        //     vm,
-        //     zk_stf,
-        //     da_verifier,
-        //     prover_config.proving_mode,
-        //     zk_storage,
-        //     ledger_db,
-        // )
-        // .expect("Should be able to instantiate prover service")
+        ParallelProverService::new_with_default_workers(
+            vm,
+            zk_stf,
+            da_verifier,
+            prover_config.proving_mode,
+            zk_storage,
+            ledger_db,
+        )
+        .expect("Should be able to instantiate prover service")
     }
 
     fn create_storage_manager(

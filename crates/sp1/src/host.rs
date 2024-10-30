@@ -1,29 +1,28 @@
 use borsh::BorshDeserialize;
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use sp1_sdk::network_v2::proto::network::ProofMode;
 use sp1_sdk::provers::ProverType;
 use sp1_sdk::{
-    block_on, HashableKey, NetworkProverV2, ProverClient,
-    SP1ProofWithPublicValues, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+    block_on, HashableKey, NetworkProverV2, ProverClient, SP1ProofWithPublicValues, SP1ProvingKey,
+    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 use tracing::info;
 
 use crate::guest::SP1Guest;
 
-// All 2 static variables are initialized with the call to `SP1Host::new`
-pub static VK: OnceCell<VerifyingKey> = OnceCell::new();
-static CLIENT: Lazy<ProverClient> = Lazy::new(|| {
-    ProverClient::new()
-});
+// It is safer to define ProverClient once globally, because all the SP1 api is
+// built around the client, and creating multiple ProverClient in the lifespan
+// of the program causes problems especially when ran with cuda feature enabled.
+pub static CLIENT: Lazy<ProverClient> = Lazy::new(|| ProverClient::new());
 
 #[derive(Clone)]
 pub struct SP1Host {
     elf: &'static [u8],
     proving_key: SP1ProvingKey,
-    pub verifying_key: SP1VerifyingKey,
+    verifying_key: SP1VerifyingKey,
     input_buf: Vec<u8>,
     ledger_db: LedgerDB,
 }
@@ -36,7 +35,6 @@ impl SP1Host {
     /// must also be set. Default is `local`
     pub fn new(elf: &'static [u8], ledger_db: LedgerDB) -> Self {
         let (proving_key, verifying_key) = CLIENT.setup(elf);
-        VK.set(VerifyingKey(verifying_key.clone())).unwrap();
 
         Self {
             elf,
@@ -62,13 +60,9 @@ impl SP1Host {
     fn wait_succinct_proof(
         &self,
         prover: &NetworkProverV2,
-        request_id: Vec<u8>,
+        request_id: &[u8],
     ) -> anyhow::Result<SP1ProofWithPublicValues> {
-        // Wait for proof
         let proof = block_on(prover.wait_proof(&request_id, None))?;
-        // Remove pending request id from db
-        self.ledger_db.remove_pending_proving_session(request_id)?;
-
         Ok(proof)
     }
 
@@ -87,7 +81,15 @@ impl SP1Host {
             self.ledger_db
                 .add_pending_proving_session(request_id.clone())?;
 
-            self.wait_succinct_proof(&prover, request_id)
+            let proof = self.wait_succinct_proof(&prover, &request_id)?;
+
+            // Remove pending request id from db, but do not abort if failed. We optimistically hope
+            // that on the next restart we will see that it is finished and remove.
+            if let Err(err) = self.ledger_db.remove_pending_proving_session(request_id) {
+                tracing::error!("Failed to remove pending proving session: {}", err);
+            }
+
+            Ok(proof)
         } else {
             CLIENT.prove(&self.proving_key, stdin).groth16().run()
         }
@@ -162,7 +164,7 @@ impl ZkvmHost for SP1Host {
         for request_id in request_ids {
             tracing::info!("Recovering Succinct session: {:?}", request_id);
 
-            let proof_with_public_values = self.wait_succinct_proof(&prover, request_id)?;
+            let proof_with_public_values = self.wait_succinct_proof(&prover, &request_id)?;
 
             CLIENT.verify(&proof_with_public_values, &self.verifying_key)?;
             info!("Successfully verified the proof");
