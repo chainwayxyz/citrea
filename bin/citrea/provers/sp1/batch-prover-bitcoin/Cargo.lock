@@ -15,6 +15,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-no-stdlib"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94fb8275041c72129eb51b7d0322c29b8387a0386127718b096429201a5d6ece"
+dependencies = [
+ "alloc-no-stdlib",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -534,6 +549,7 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "borsh",
+ "citrea-primitives",
  "futures",
  "hex",
  "rand",
@@ -685,6 +701,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "brotli"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74f7971dbd9326d58187408ab83117d8ac1bb9c17b085fdacd1cf2f598719b6b"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+ "brotli-decompressor",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a45bd2e4095a8b518033b128020dd4a55aab1c0a381ba4404a472630f4bc362"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
+]
+
+[[package]]
 name = "byte-slice-cast"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -787,6 +824,7 @@ version = "0.5.0-rc.1"
 dependencies = [
  "alloy-eips",
  "anyhow",
+ "brotli",
  "reth-primitives",
  "sov-rollup-interface",
 ]
@@ -803,22 +841,6 @@ dependencies = [
  "sov-rollup-interface",
  "sp1-zkvm",
  "tracing",
-]
-
-[[package]]
-name = "citrea-sp1-guest-bitcoin"
-version = "0.5.0-rc.1"
-dependencies = [
- "bitcoin-da",
- "citrea-primitives",
- "citrea-sp1",
- "citrea-stf",
- "curve25519-dalek",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-rollup-interface",
- "sov-state",
- "sp1-zkvm",
 ]
 
 [[package]]
@@ -2702,7 +2724,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
- "thiserror",
 ]
 
 [[package]]
@@ -2728,14 +2749,11 @@ dependencies = [
  "anyhow",
  "bcs",
  "borsh",
- "hex",
  "jmt",
  "serde",
- "serde_json",
  "sha2",
  "sov-modules-core",
  "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]
@@ -2749,6 +2767,22 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-rollup-interface",
+]
+
+[[package]]
+name = "sp1-batch-prover-bitcoin"
+version = "0.5.0-rc.1"
+dependencies = [
+ "bitcoin-da",
+ "citrea-primitives",
+ "citrea-sp1",
+ "citrea-stf",
+ "curve25519-dalek",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-state",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -2778,7 +2812,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#9121fe45c0673cfdcdc035116dc531cd88e06b45"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#d13675665bff079b6da4f115cb322eadca6bb50e"
 dependencies = [
  "bincode",
  "serde",
