@@ -97,8 +97,7 @@ impl RollupBlueprint for MockDemoRollup {
     }
 
     fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        todo!()
-        // Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ID)
+        Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_MOCK_ID)
     }
 
     async fn create_da_service(

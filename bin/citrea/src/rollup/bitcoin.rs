@@ -103,7 +103,7 @@ impl RollupBlueprint for BitcoinRollup {
             SpecId::Genesis,
             Digest::new(citrea_risc0::BATCH_PROVER_BITCOIN_ID),
         );
-        // let (_, vk) = citrea_sp1::host::CLIENT.setup();
+        // let (_, vk) = citrea_sp1::host::CLIENT.setup(include_bytes!("../../provers/sp1/batch-prover-bitcoin/elf/zkvm-elf"));
         // map.insert(SpecId::Genesis, vk);
         map
     }
@@ -179,7 +179,7 @@ impl RollupBlueprint for BitcoinRollup {
             ledger_db.clone(),
         );
         // let vm = SP1Host::new(
-        //     include_bytes!("../../provers/sp1/guest-bitcoin/elf/zkvm-elf"),
+        //     include_bytes!("../../provers/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),
         // );
 
