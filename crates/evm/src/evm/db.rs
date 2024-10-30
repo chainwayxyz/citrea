@@ -28,7 +28,7 @@ impl std::error::Error for DBError {
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
-    pub(crate) code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
+    pub(crate) code: sov_modules_api::OffchainStateMap<B256, Bytecode, BcsCodec>,
     pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
     pub(crate) working_set: &'a mut WorkingSet<C>,
 }
@@ -36,7 +36,7 @@ pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn new(
         accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
-        code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
+        code: sov_modules_api::OffchainStateMap<B256, Bytecode, BcsCodec>,
         last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
         working_set: &'a mut WorkingSet<C>,
     ) -> Self {
@@ -88,7 +88,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         // TODO move to new_raw_with_hash for better performance
         Ok(self
             .code
-            .get(&code_hash, self.working_set)
+            .get(&code_hash, &mut self.working_set.offchain_state())
             .unwrap_or_default())
     }
 
