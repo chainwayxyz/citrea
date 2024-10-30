@@ -43,7 +43,7 @@ Run on local Bitcoin network.
 Run Bitcoin Regtest:
 
 ```sh
-bitcoind -regtest -txindex=1
+bitcoind -regtest -txindex=1 -addresstype=bech32m
 ```
 
 Or using docker:

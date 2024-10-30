@@ -9,7 +9,7 @@ use sov_modules_core::Witness;
 /// ```
 /// use sov_state::{ArrayWitness, Witness};
 ///
-/// let witness = ArrayWitness::default();
+/// let mut witness = ArrayWitness::default();
 ///
 /// witness.add_hint(1u64);
 /// witness.add_hint(2u64);
