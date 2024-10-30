@@ -40,14 +40,13 @@ impl<Q> StateDB<Q> {
 
     /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
-        let (db_opts, block_opts) = cfg.as_rocksdb_options(false);
+        let raw_options = cfg.as_raw_options(false);
         let state_db_path = cfg.path.join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
             state_db_path,
             Self::DB_NAME,
             STATE_TABLES.iter().copied(),
-            &db_opts,
-            &block_opts,
+            &raw_options,
         )
     }
 

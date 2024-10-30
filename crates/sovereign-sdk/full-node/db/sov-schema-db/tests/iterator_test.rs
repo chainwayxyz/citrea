@@ -8,7 +8,8 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SingleSnapshotQueryManager};
 use sov_schema_db::test::{KeyPrefix1, KeyPrefix2, TestCompositeField, TestField};
 use sov_schema_db::{
-    define_schema, Operation, Schema, SchemaBatch, SchemaIterator, SeekKeyEncoder, DB,
+    define_schema, Operation, RawRocksdbOptions, Schema, SchemaBatch, SchemaIterator,
+    SeekKeyEncoder, DB,
 };
 use tempfile::TempDir;
 
@@ -49,8 +50,10 @@ impl TestDB {
             tmpdir.path(),
             "test",
             column_families,
-            &db_opts,
-            &block_opts,
+            &RawRocksdbOptions {
+                db_options: db_opts,
+                block_options: block_opts,
+            },
         )
         .unwrap();
 

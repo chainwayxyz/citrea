@@ -6,7 +6,7 @@ use std::path::Path;
 use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use sov_schema_db::schema::{ColumnFamilyName, Result};
 use sov_schema_db::test::TestField;
-use sov_schema_db::{define_schema, Schema, SchemaBatch, DB};
+use sov_schema_db::{define_schema, RawRocksdbOptions, Schema, SchemaBatch, DB};
 use tempfile::TempDir;
 
 // Creating two schemas that share exactly the same structure but are stored in different column
@@ -29,7 +29,16 @@ fn open_db(dir: impl AsRef<Path>) -> DB {
     db_opts.create_if_missing(true);
     db_opts.create_missing_column_families(true);
     let block_opts = rocksdb::BlockBasedOptions::default();
-    DB::open(dir, "test", get_column_families(), &db_opts, &block_opts).expect("Failed to open DB.")
+    DB::open(
+        dir,
+        "test",
+        get_column_families(),
+        &RawRocksdbOptions {
+            db_options: db_opts,
+            block_options: block_opts,
+        },
+    )
+    .expect("Failed to open DB.")
 }
 
 fn open_db_read_only(dir: &TempDir) -> DB {

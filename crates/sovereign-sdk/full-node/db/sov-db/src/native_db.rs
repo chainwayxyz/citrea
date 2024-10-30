@@ -32,14 +32,13 @@ impl<Q> NativeDB<Q> {
 
     /// Initialize [`sov_schema_db::DB`] that matches tables and columns for NativeDB
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
-        let (db_opts, block_opts) = cfg.as_rocksdb_options(false);
+        let raw_options = cfg.as_raw_options(false);
         let path = cfg.path.join(Self::DB_PATH_SUFFIX);
         sov_schema_db::DB::open(
             path,
             Self::DB_NAME,
             NATIVE_TABLES.iter().copied(),
-            &db_opts,
-            &block_opts,
+            &raw_options,
         )
     }
     /// Convert it to [`ReadOnlyDbSnapshot`] which cannot be edited anymore
