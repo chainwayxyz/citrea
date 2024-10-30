@@ -70,7 +70,8 @@ impl<'a> RocksdbConfig<'a> {
         db_options.set_compression_type(rocksdb::DBCompressionType::Lz4);
         db_options.set_compression_options_parallel_threads(2);
 
-        db_options.increase_parallelism(2);
+        let allowed_cores = std::cmp::max(1, num_cpus::get() / 2) as i32;
+        db_options.increase_parallelism(allowed_cores);
 
         db_options.set_max_open_files(self.max_open_files);
         db_options.set_max_total_wal_size(self.max_total_wal_size);
