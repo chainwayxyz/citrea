@@ -10,6 +10,8 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 
+use super::get_citrea_path;
+
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
 struct LightClientProvingTest;
@@ -106,5 +108,8 @@ impl TestCase for LightClientProvingTest {
 
 #[tokio::test]
 async fn test_light_client_proving() -> Result<()> {
-    TestCaseRunner::new(LightClientProvingTest).run().await
+    TestCaseRunner::new(LightClientProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
 }
