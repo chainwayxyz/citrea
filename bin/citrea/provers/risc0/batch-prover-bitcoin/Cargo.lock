@@ -2986,15 +2986,11 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "jmt",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
- "sov-zk-cycle-macros",
- "thiserror",
 ]
 
 [[package]]
@@ -3034,17 +3030,11 @@ dependencies = [
  "anyhow",
  "bcs",
  "borsh",
- "hex",
  "jmt",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "serde",
- "serde_json",
  "sha2",
  "sov-modules-core",
  "sov-rollup-interface",
- "sov-zk-cycle-macros",
- "thiserror",
 ]
 
 [[package]]
@@ -3058,15 +3048,6 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-rollup-interface",
-]
-
-[[package]]
-name = "sov-zk-cycle-macros"
-version = "0.5.0-rc.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

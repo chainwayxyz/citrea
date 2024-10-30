@@ -169,7 +169,7 @@ fn build_commit_transaction() {
     // 154 vB * 8 sat/vB = 1232 sats
     // 5_000 + 1232 = 6232
     // input: 10000
-    // outputs: 5_000 + 3.768
+    // outputs: 5_000 + 3_768
     assert_eq!(tx.vsize(), 154);
     assert_eq!(tx.input.len(), 1);
     assert_eq!(tx.output.len(), 2);
@@ -195,15 +195,17 @@ fn build_commit_transaction() {
             .as_ref(),
     );
 
-    // 111 vB * 45 sat/vB = 4.995 sats
-    // 5_000 + 4928 = 9995
-    // input: 10000
-    // outputs: 5_000
-    assert_eq!(tx.vsize(), 111);
+    // 154 vB * 45 sat/vB = 6930 sats
+    // 5_000 + 6930 = 11930
+    // input: 100000
+    // outputs: 5_000 + 88_070
+    assert_eq!(tx.vsize(), 154);
     assert_eq!(tx.input.len(), 1);
-    assert_eq!(tx.output.len(), 1);
+    assert_eq!(tx.output.len(), 2);
     assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
     assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
+    assert_eq!(tx.output[1].value, Amount::from_sat(88_070));
+    assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
     let (mut tx, leftover_utxos) = super::build_commit_transaction(
         None,
@@ -223,19 +225,21 @@ fn build_commit_transaction() {
     );
 
     // you expect
-    // 154 vB * 32 sat/vB = 4.928 sats
+    // 154 vB * 32 sat/vB = 4928 sats
     // 5_000 + 4928 = 9928
     // input: 10000
-    // outputs: 5_000 72
+    // outputs: 5_000 + 72
     // instead do
-    // input: 10000
-    // outputs: 5_000
-    // so size is actually 111
-    assert_eq!(tx.vsize(), 111);
+    // input: 100000
+    // outputs: 5_000 + 90_072
+    // so size is actually 154
+    assert_eq!(tx.vsize(), 154);
     assert_eq!(tx.input.len(), 1);
-    assert_eq!(tx.output.len(), 1);
+    assert_eq!(tx.output.len(), 2);
     assert_eq!(tx.output[0].value, Amount::from_sat(5_000));
     assert_eq!(tx.output[0].script_pubkey, recipient.script_pubkey());
+    assert_eq!(tx.output[1].value, Amount::from_sat(90_072));
+    assert_eq!(tx.output[1].script_pubkey, address.script_pubkey());
 
     let (mut tx, leftover_utxos) = super::build_commit_transaction(
         None,
@@ -470,7 +474,6 @@ fn create_inscription_transactions() {
             None,
             utxos.clone(),
             address.clone(),
-            546,
             12,
             10,
             bitcoin::Network::Bitcoin,

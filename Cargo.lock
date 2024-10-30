@@ -1849,16 +1849,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
-name = "bashtestmd"
-version = "0.5.0-rc.1"
-dependencies = [
- "clap",
- "indoc",
- "markdown",
- "shell-escape",
-]
-
-[[package]]
 name = "bcs"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3060,10 +3050,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
-name = "const-rollup-config"
-version = "0.5.0-rc.1"
-
-[[package]]
 name = "constant_time_eq"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3492,50 +3478,6 @@ dependencies = [
  "num-modular",
  "num-order",
  "rustversion",
-]
-
-[[package]]
-name = "demo-simple-stf"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "hex",
- "serde",
- "sha2",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-rollup-interface 0.5.0-rc.1",
-]
-
-[[package]]
-name = "demo-stf"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "citrea-evm",
- "clap",
- "hex",
- "jsonrpsee",
- "rand 0.8.5",
- "reth-primitives",
- "secp256k1",
- "serde",
- "serde_json",
- "soft-confirmation-rule-enforcer",
- "sov-accounts",
- "sov-bank",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
- "sov-sequencer-registry",
- "sov-state",
- "sov-stf-runner",
- "sov-value-setter",
- "tempfile",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -5429,12 +5371,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "indoc"
-version = "2.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
-
-[[package]]
 name = "informalsystems-pbjson"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6084,15 +6020,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "markdown"
-version = "1.0.0-alpha.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21e27d6220ce21f80ce5c4201f23a37c6f1ad037c72c9d1ff215c2919605a5d6"
-dependencies = [
- "unicode-id",
-]
-
-[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6252,27 +6179,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "module-template"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "arbitrary",
- "borsh",
- "module-template",
- "proptest",
- "proptest-derive",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
 ]
 
 [[package]]
@@ -9888,12 +9794,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shell-escape"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45bb67a18fa91266cc7807181f62f9178a6873bfad7dc788c42e6430db40184f"
-
-[[package]]
 name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10026,19 +9926,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-accessory-state"
-version = "0.5.0-rc.1"
-dependencies = [
- "borsh",
- "jsonrpsee",
- "serde",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
-]
-
-[[package]]
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -10076,39 +9963,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "sov-cli"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "demo-stf",
- "directories",
- "hex",
- "jsonrpsee",
- "serde",
- "serde_json",
- "sov-accounts",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "tempfile",
-]
-
-[[package]]
-name = "sov-data-generators"
-version = "0.5.0-rc.1"
-dependencies = [
- "borsh",
- "proptest",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-state",
- "sov-value-setter",
 ]
 
 [[package]]
@@ -10199,20 +10053,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-module-schemas"
-version = "0.5.0-rc.1"
-dependencies = [
- "sov-accounts",
- "sov-bank",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-prover-incentives",
- "sov-sequencer-registry",
- "sov-value-setter",
-]
-
-[[package]]
 name = "sov-modules-api"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -10300,19 +10140,13 @@ version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "borsh",
  "citrea-common",
- "hex",
  "jsonrpsee",
- "serde",
- "serde_json",
- "sov-cli",
  "sov-db",
  "sov-ledger-rpc 0.5.0-rc.1",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-rollup-interface 0.5.0-rc.1",
- "sov-state",
  "sov-stf-runner",
  "tokio",
  "tracing",
@@ -10328,36 +10162,12 @@ dependencies = [
  "itertools 0.13.0",
  "jmt",
  "jsonrpsee",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "rs_merkle",
  "serde",
  "sov-modules-api",
  "sov-rollup-interface 0.5.0-rc.1",
  "sov-state",
- "sov-zk-cycle-macros",
- "sov-zk-cycle-utils",
- "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "sov-prover-incentives"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-mock-da",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
 ]
 
 [[package]]
@@ -10457,33 +10267,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-sequencer-registry"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "arbitrary",
- "borsh",
- "clap",
- "jsonrpsee",
- "proptest",
- "proptest-derive",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-sequencer-registry",
- "sov-state",
- "sov-zk-cycle-macros",
- "sov-zk-cycle-utils",
- "tempfile",
-]
-
-[[package]]
 name = "sov-state"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -10491,21 +10274,15 @@ dependencies = [
  "arbitrary",
  "bcs",
  "borsh",
- "hex",
  "jmt",
  "proptest",
  "proptest-derive",
- "risc0-zkvm",
- "risc0-zkvm-platform",
  "serde",
- "serde_json",
  "sha2",
  "sov-db",
  "sov-modules-core",
  "sov-rollup-interface 0.5.0-rc.1",
- "sov-zk-cycle-macros",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]
@@ -10536,42 +10313,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-value-setter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "clap",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "sov-vec-setter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "clap",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
 name = "sov-zk-cycle-macros"
 version = "0.5.0-rc.1"
 dependencies = [
@@ -10580,7 +10321,7 @@ dependencies = [
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-zk-cycle-macros",
- "syn 1.0.109",
+ "syn 2.0.82",
  "trybuild",
 ]
 
@@ -10588,7 +10329,6 @@ dependencies = [
 name = "sov-zk-cycle-utils"
 version = "0.5.0-rc.1"
 dependencies = [
- "bytes",
  "risc0-zkvm",
  "risc0-zkvm-platform",
 ]
@@ -11962,12 +11702,6 @@ checksum = "f7d2d4dafb69621809a81864c9c1b864479e1235c0dd4e199924b9742439ed89"
 dependencies = [
  "version_check",
 ]
-
-[[package]]
-name = "unicode-id"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1b6def86329695390197b82c1e244a54a131ceb66c996f2088a3876e2ae083f"
 
 [[package]]
 name = "unicode-ident"

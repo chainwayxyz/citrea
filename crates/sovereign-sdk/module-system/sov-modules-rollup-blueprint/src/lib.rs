@@ -2,7 +2,6 @@
 #![doc = include_str!("../README.md")]
 
 mod runtime_rpc;
-mod wallet;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,7 +19,6 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::broadcast;
-pub use wallet::*;
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
 #[async_trait]

@@ -32,10 +32,3 @@ debug = 0
 lto = true
 opt-level = 3
 codegen-units = 1
-
-[features]
-bench = [
-  "sov-modules-api/bench",
-  "sov-state/bench",
-  "sov-modules-stf-blueprint/bench",
-]
