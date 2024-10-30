@@ -353,6 +353,7 @@ impl<C: Context> StateCheckpoint<C> {
             events: Default::default(),
             archival_working_set: None,
             archival_accessory_working_set: None,
+            archival_offchain_working_set: None,
         }
     }
 
@@ -391,6 +392,7 @@ pub struct WorkingSet<C: Context> {
     offchain_delta: RevertableWriter<OffchainDelta<C::Storage>>,
     events: Vec<Event>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
+    archival_offchain_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
 }
 
@@ -589,23 +591,23 @@ impl<'a, C: Context> StateReaderAndWriter for OffchainWorkingSet<'a, C> {
         if !cfg!(feature = "native") {
             None
         } else {
-            match &mut self.ws.archival_accessory_working_set {
-                None => self.ws.accessory_delta.get(key),
+            match &mut self.ws.archival_offchain_working_set {
+                None => self.ws.offchain_delta.get(key),
                 Some(ref mut archival_working_set) => archival_working_set.get(key),
             }
         }
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        match &mut self.ws.archival_accessory_working_set {
-            None => self.ws.accessory_delta.set(key, value),
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.set(key, value),
             Some(ref mut archival_working_set) => archival_working_set.set(key, value),
         }
     }
 
     fn delete(&mut self, key: &StorageKey) {
-        match &mut self.ws.archival_accessory_working_set {
-            None => self.ws.accessory_delta.delete(key),
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.delete(key),
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
     }
@@ -664,6 +666,41 @@ pub mod archival_state {
     }
 
     impl<C: Context> StateReaderAndWriter for ArchivalAccessoryWorkingSet<C> {
+        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+            if !cfg!(feature = "native") {
+                None
+            } else {
+                self.delta.get(key)
+            }
+        }
+
+        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+            self.delta.set(key, value)
+        }
+
+        fn delete(&mut self, key: &StorageKey) {
+            self.delta.delete(key)
+        }
+    }
+
+    /// Archival Offchain
+    pub struct ArchivalOffchainWorkingSet<C: Context> {
+        delta: RevertableWriter<OffchainDelta<C::Storage>>,
+    }
+
+    impl<C: Context> ArchivalOffchainWorkingSet<C> {
+        /// create a new instance of ArchivalOffchainWorkingSet
+        pub fn new(inner: &<C as Spec>::Storage, version: Version) -> Self {
+            Self {
+                delta: RevertableWriter::new(
+                    OffchainDelta::new(inner.clone(), Some(version)),
+                    Some(version),
+                ),
+            }
+        }
+    }
+
+    impl<C: Context> StateReaderAndWriter for ArchivalOffchainWorkingSet<C> {
         fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
             if !cfg!(feature = "native") {
                 None
