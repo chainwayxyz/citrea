@@ -265,6 +265,50 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
     }
 }
 
+struct OffchainDelta<S: Storage> {
+    // This inner storage is never accessed inside the zkVM because reads are
+    // not allowed, so it can result as dead code.
+    storage: S,
+    writes: RevertableWrites,
+}
+
+impl<S: Storage> OffchainDelta<S> {
+    fn new(storage: S, version: Option<u64>) -> Self {
+        let writes = match version {
+            None => Default::default(),
+            Some(v) => RevertableWrites {
+                cache: Default::default(),
+                version: Some(v),
+            },
+        };
+        Self { storage, writes }
+    }
+}
+
+impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        let cache_key = key.to_cache_key_version(self.writes.version);
+        if let Some(value) = self.writes.cache.get(&cache_key) {
+            return value.clone().map(Into::into);
+        }
+        self.storage
+            .get(key, self.writes.version, &mut Default::default())
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.writes.cache.insert(
+            key.to_cache_key_version(self.writes.version),
+            Some(value.into_cache_value()),
+        );
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.writes
+            .cache
+            .insert(key.to_cache_key_version(self.writes.version), None);
+    }
+}
+
 /// This structure is responsible for storing the `read-write` set.
 ///
 /// A [`StateCheckpoint`] can be obtained from a [`WorkingSet`] in two ways:
@@ -273,6 +317,7 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
 pub struct StateCheckpoint<C: Context> {
     delta: Delta<C::Storage>,
     accessory_delta: AccessoryDelta<C::Storage>,
+    offchain_delta: OffchainDelta<C::Storage>,
 }
 
 impl<C: Context> StateCheckpoint<C> {
@@ -281,7 +326,8 @@ impl<C: Context> StateCheckpoint<C> {
     pub fn new(inner: <C as Spec>::Storage) -> Self {
         Self {
             delta: Delta::new(inner.clone(), None),
-            accessory_delta: AccessoryDelta::new(inner, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::new(inner, None),
         }
     }
 
@@ -293,7 +339,8 @@ impl<C: Context> StateCheckpoint<C> {
     ) -> Self {
         Self {
             delta: Delta::with_witness(inner.clone(), witness, None),
-            accessory_delta: AccessoryDelta::new(inner, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::new(inner, None),
         }
     }
 
@@ -301,6 +348,7 @@ impl<C: Context> StateCheckpoint<C> {
     pub fn to_revertable(self) -> WorkingSet<C> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta, None),
+            offchain_delta: RevertableWriter::new(self.offchain_delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
             events: Default::default(),
             archival_working_set: None,
@@ -340,6 +388,7 @@ impl<C: Context> StateCheckpoint<C> {
 pub struct WorkingSet<C: Context> {
     delta: RevertableWriter<Delta<C::Storage>>,
     accessory_delta: RevertableWriter<AccessoryDelta<C::Storage>>,
+    offchain_delta: RevertableWriter<OffchainDelta<C::Storage>>,
     events: Vec<Event>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
@@ -360,6 +409,14 @@ impl<C: Context> WorkingSet<C> {
     /// state containers, like AccessoryStateMap.
     pub fn accessory_state(&mut self) -> AccessoryWorkingSet<C> {
         AccessoryWorkingSet { ws: self }
+    }
+
+    /// Returns a handler for the offchain state (non-JMT state).
+    ///
+    /// You can use this method when calling getters and setters on offchain
+    /// state containers, like OffchainStateMap.
+    pub fn offchain_state(&mut self) -> OffchainWorkingSet<C> {
+        OffchainWorkingSet { ws: self }
     }
 
     /// Returns a handler for the archival state (JMT state).
@@ -422,6 +479,7 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.commit(),
             accessory_delta: self.accessory_delta.commit(),
+            offchain_delta: self.offchain_delta.commit(),
         }
     }
 
@@ -431,6 +489,7 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.revert(),
             accessory_delta: self.accessory_delta.revert(),
+            offchain_delta: self.offchain_delta.revert(),
         }
     }
 
@@ -493,6 +552,39 @@ pub struct AccessoryWorkingSet<'a, C: Context> {
 }
 
 impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        if !cfg!(feature = "native") {
+            None
+        } else {
+            match &mut self.ws.archival_accessory_working_set {
+                None => self.ws.accessory_delta.get(key),
+                Some(ref mut archival_working_set) => archival_working_set.get(key),
+            }
+        }
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        match &mut self.ws.archival_accessory_working_set {
+            None => self.ws.accessory_delta.set(key, value),
+            Some(ref mut archival_working_set) => archival_working_set.set(key, value),
+        }
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        match &mut self.ws.archival_accessory_working_set {
+            None => self.ws.accessory_delta.delete(key),
+            Some(ref mut archival_working_set) => archival_working_set.delete(key),
+        }
+    }
+}
+
+/// A wrapper over [`WorkingSet`] that only allows access to the accessory
+/// state (non-JMT state).
+pub struct OffchainWorkingSet<'a, C: Context> {
+    ws: &'a mut WorkingSet<C>,
+}
+
+impl<'a, C: Context> StateReaderAndWriter for OffchainWorkingSet<'a, C> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
         if !cfg!(feature = "native") {
             None
