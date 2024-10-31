@@ -15,6 +15,7 @@ services:
       -printtoconsole
       -regtest=1
       -rest
+      -addresstype=bech32m
       -rpcbind=0.0.0.0
       -rpcallowip=0.0.0.0/0
       -rpcport=18443
