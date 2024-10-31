@@ -863,7 +863,7 @@ impl DaService for BitcoinService {
         wtxids.push([0u8; 32]);
 
         // coinbase starts with 0, so we skip it unless the prefix is all 0's
-        if self.reveal_batch_prover_prefix.iter().all(|&x| x == 0) {
+        if prefix.iter().all(|&x| x == 0) {
             completeness_proof.push(block.txdata[0].clone());
         }
 
