@@ -413,6 +413,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         // Cleanup env
         self.env.clear();
 
+        // Cleanup assumptions
+        self.assumptions.clear();
+
         Ok(proof)
     }
 
