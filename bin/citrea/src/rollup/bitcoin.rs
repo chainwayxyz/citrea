@@ -10,6 +10,7 @@ use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
+// use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
 use prover_services::ParallelProverService;
@@ -102,6 +103,8 @@ impl RollupBlueprint for BitcoinRollup {
             SpecId::Genesis,
             Digest::new(citrea_risc0::BATCH_PROOF_BITCOIN_ID),
         );
+        // let (_, vk) = citrea_sp1::host::CLIENT.setup(include_bytes!("../../provers/sp1/batch-prover-bitcoin/elf/zkvm-elf"));
+        // map.insert(SpecId::Genesis, vk);
         map
     }
 
@@ -175,6 +178,11 @@ impl RollupBlueprint for BitcoinRollup {
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
             ledger_db.clone(),
         );
+        // let vm = SP1Host::new(
+        //     include_bytes!("../../provers/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
+        //     ledger_db.clone(),
+        // );
+
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 

@@ -4,6 +4,7 @@ use std::path::Path;
 
 use rlimit::{getrlimit, Resource};
 use rocksdb::{BlockBasedOptions, Cache, Options};
+use sov_schema_db::RawRocksdbOptions;
 use tracing::warn;
 
 /// Port selected RocksDB options for tuning underlying rocksdb instance of our state db.
@@ -41,11 +42,11 @@ impl<'a> RocksdbConfig<'a> {
         }
     }
 
-    /// Build [`rocksdb::Options`] from [`RocksdbConfig`]
-    pub fn as_rocksdb_options(&self, readonly: bool) -> Options {
-        let mut db_opts = Options::default();
+    /// Build [`RawRocksdbOptions`] from [`RocksdbConfig`]
+    pub fn as_raw_options(&self, readonly: bool) -> RawRocksdbOptions {
+        let mut db_options = Options::default();
 
-        let mut block_based_options = BlockBasedOptions::default();
+        let mut block_options = BlockBasedOptions::default();
         /*
          * The following settings are recommended in:
          * https://github.com/facebook/rocksdb/wiki/memory-usage-in-rocksdb
@@ -57,32 +58,33 @@ impl<'a> RocksdbConfig<'a> {
         // could still have OOM errors when trying to allocate more for the cache even if the capacity
         // is reached.
         let cache = Cache::new_lru_cache(100 * 1024 * 1024); // 100 MB
-        block_based_options.set_block_cache(&cache);
+        block_options.set_block_cache(&cache);
         // jemalloc friendly bloom filter sizing
-        block_based_options.set_optimize_filters_for_memory(true);
+        block_options.set_optimize_filters_for_memory(true);
         // By default our block size is 4KB, we set this to 32KB.
         // Increasing the size of the block decreases the number of blocks,
-        // therefore, less memory consumption for indicies.
-        block_based_options.set_block_size(32 * 1024);
+        // therefore, less memory consumption for indices.
+        block_options.set_block_size(32 * 1024);
         // Default is Snappy but Lz4 is recommend
         // https://github.com/facebook/rocksdb/wiki/Compression
-        db_opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-        db_opts.set_compression_options_parallel_threads(4);
+        db_options.set_compression_type(rocksdb::DBCompressionType::Lz4);
 
-        db_opts.set_max_open_files(self.max_open_files);
-        db_opts.set_max_total_wal_size(self.max_total_wal_size);
-        db_opts.set_max_background_jobs(self.max_background_jobs);
+        let allowed_cores = std::cmp::max(1, num_cpus::get() / 2) as i32;
+        db_options.set_compression_options_parallel_threads(allowed_cores);
+        db_options.increase_parallelism(allowed_cores);
+
+        db_options.set_max_open_files(self.max_open_files);
+        db_options.set_max_total_wal_size(self.max_total_wal_size);
+        db_options.set_max_background_jobs(self.max_background_jobs);
         if !readonly {
-            // Increase write buffer size to reduce allocations.
-            db_opts.set_write_buffer_size(30 * 1024 * 1024); // 30 MB
-            db_opts.set_block_based_table_factory(&block_based_options);
-
-            db_opts.create_if_missing(true);
-            db_opts.create_missing_column_families(true);
-            db_opts.set_atomic_flush(true);
+            db_options.create_if_missing(true);
+            db_options.create_missing_column_families(true);
         }
 
-        db_opts
+        RawRocksdbOptions {
+            db_options,
+            block_options,
+        }
     }
 }
 

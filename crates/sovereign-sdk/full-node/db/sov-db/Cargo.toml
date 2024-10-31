@@ -26,6 +26,7 @@ bincode = { workspace = true }
 borsh = { workspace = true, default-features = true, features = ["bytes", "rc"] }
 byteorder = { workspace = true, default-features = true }
 hex = { workspace = true }
+num_cpus = { workspace = true }
 proptest = { workspace = true, optional = true, default-features = true }
 proptest-derive = { workspace = true, optional = true }
 rlimit = { workspace = true }
