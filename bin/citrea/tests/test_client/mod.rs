@@ -24,6 +24,7 @@ use sov_rollup_interface::rpc::{
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
 };
 
+pub const SEND_ETH_GAS: u128 = 21001;
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
 
 pub struct TestClient {
@@ -253,12 +254,8 @@ impl TestClient {
         let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(to_addr)
-            .value(U256::from(value));
-
-        let gas = self.client.estimate_gas(&req).await.unwrap();
-
-        let req = req
-            .gas_limit(gas)
+            .value(U256::from(value))
+            .gas_limit(SEND_ETH_GAS)
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
