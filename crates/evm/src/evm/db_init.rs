@@ -32,7 +32,7 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
         let db_account = DbAccount::new(address);
         db_account
             .storage
-            .set(&index, &value, &mut self.working_set.offchain_state());
+            .set(&index, &value, &mut self.working_set);
     }
 }
 

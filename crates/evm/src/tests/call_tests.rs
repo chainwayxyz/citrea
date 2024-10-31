@@ -125,7 +125,7 @@ fn call_multiple_test() {
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
-        .get(&U256::ZERO, &mut working_set.offchain_state())
+        .get(&U256::ZERO, &mut working_set)
         .unwrap();
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
@@ -277,7 +277,7 @@ fn call_test() {
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
-        .get(&U256::ZERO, &mut working_set.offchain_state())
+        .get(&U256::ZERO, &mut working_set)
         .unwrap();
 
     assert_eq!(U256::from(set_arg), storage_value);
@@ -603,13 +603,13 @@ fn self_destruct_test() {
     assert_eq!(
         db_contract
             .storage
-            .get(&U256::from(0), &mut working_set.offchain_state())
+            .get(&U256::from(0), &mut working_set)
             .unwrap(),
         U256::from(123)
     );
 
     // Test if the key is set in the keys statevec
-    assert_eq!(db_contract.keys.len(&mut working_set.offchain_state()), 1);
+    assert_eq!(db_contract.keys.len(&mut working_set), 1);
     let l1_fee_rate = 0;
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -676,14 +676,12 @@ fn self_destruct_test() {
 
     // the storage should be empty
     assert_eq!(
-        db_account
-            .storage
-            .get(&U256::from(0), &mut working_set.offchain_state()),
+        db_account.storage.get(&U256::from(0), &mut working_set),
         None
     );
 
     // the keys should be empty
-    assert_eq!(db_account.keys.len(&mut working_set.offchain_state()), 0);
+    assert_eq!(db_account.keys.len(&mut working_set), 0);
 }
 
 #[test]

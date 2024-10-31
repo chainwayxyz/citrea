@@ -249,9 +249,7 @@ impl Case for BlockchainTestCase {
                                 let db_account = DbAccount::new(address);
                                 for (key, value) in account.storage.iter() {
                                     assert_eq!(
-                                        db_account
-                                            .storage
-                                            .get(key, &mut working_set.offchain_state()),
+                                        db_account.storage.get(key, &mut working_set),
                                         Some(value).copied()
                                     );
                                 }

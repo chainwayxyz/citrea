@@ -70,7 +70,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             db_account.storage.set(
                 &U256::from_be_bytes(slot.0),
                 &U256::from_be_bytes(value.0),
-                &mut self.working_set.offchain_state(),
+                &mut self.working_set,
             );
         }
     }
@@ -97,7 +97,7 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
             let db_account = DbAccount::new(address);
             db_account
                 .storage
-                .get(&index, &mut self.working_set.offchain_state())
+                .get(&index, &mut self.working_set)
                 .unwrap_or_default()
         } else {
             U256::default()

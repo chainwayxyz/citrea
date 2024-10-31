@@ -311,7 +311,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let db_account = DbAccount::new(address);
             db_account
                 .storage
-                .get(&index, &mut working_set.offchain_state())
+                .get(&index, working_set)
                 .unwrap_or_default()
         } else {
             Default::default()
