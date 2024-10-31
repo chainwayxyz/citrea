@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaVerifier};
-use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
+use sov_rollup_interface::zk::ZkvmGuest;
 
 use crate::input::LightClientCircuitInput;
 use crate::output::LightClientCircuitOutput;
@@ -12,11 +12,12 @@ pub enum LightClientVerificationError {
 }
 
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
-    input: LightClientCircuitInput<DaV::Spec>,
     da_verifier: DaV,
     guest: &G,
 ) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
-    // Veriy data from da
+    let input: LightClientCircuitInput<DaV::Spec> = guest.read_from_host();
+
+    // Verify data from da
     let _validity_condition = da_verifier
         .verify_relevant_tx_list_light_client(
             &input.da_block_header,
