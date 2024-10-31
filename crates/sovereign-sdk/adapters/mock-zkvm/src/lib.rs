@@ -22,10 +22,10 @@ impl Matches<MockCodeCommitment> for MockCodeCommitment {
     }
 }
 
-impl Into<[u32; 8]> for MockCodeCommitment {
-    fn into(self) -> [u32; 8] {
+impl From<MockCodeCommitment> for [u32; 8] {
+    fn from(val: MockCodeCommitment) -> Self {
         let mut output = [0u32; 8];
-        for (i, chunk) in self.0.chunks(4).enumerate() {
+        for (i, chunk) in val.0.chunks(4).enumerate() {
             output[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         }
         output

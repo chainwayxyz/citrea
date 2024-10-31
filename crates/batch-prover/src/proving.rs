@@ -18,7 +18,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::da_block_handler::{
     break_sequencer_commitments_into_groups, get_state_transition_data_from_commitments,

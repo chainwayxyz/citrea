@@ -5,8 +5,6 @@
 
 use borsh::BorshDeserialize;
 use risc0_zkvm::guest::env;
-use risc0_zkvm::sha::Digest;
-use risc0_zkvm::Receipt;
 use sov_rollup_interface::zk::Zkvm;
 
 use crate::Risc0MethodId;

@@ -159,7 +159,7 @@ where
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 // Handle err
-                let output = Vm::verify(proof.as_slice(), &batch_proof_method_id).unwrap();
+                let output = Vm::verify(proof.as_slice(), batch_proof_method_id).unwrap();
                 assumptions.push(proof);
                 journals.push(output);
             }

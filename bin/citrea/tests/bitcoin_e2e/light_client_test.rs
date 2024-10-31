@@ -9,7 +9,6 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use tokio::time::sleep;
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 

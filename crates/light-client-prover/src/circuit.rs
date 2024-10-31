@@ -45,7 +45,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     let batch_proof_journals = input.batch_proof_journals.clone();
-    let batch_proof_method_id = input.batch_proof_method_id.clone();
+    let batch_proof_method_id = input.batch_proof_method_id;
     // TODO: Handle ordering
     for journal in batch_proof_journals {
         G::verify(&journal, &batch_proof_method_id.into()).unwrap();

@@ -9,8 +9,8 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::{Digest, Digestible};
 use risc0_zkvm::{
-    compute_image_id, AssumptionReceipt, ExecutorEnvBuilder, InnerReceipt, Journal, LocalProver,
-    ProveInfo, Prover, Receipt,
+    compute_image_id, AssumptionReceipt, ExecutorEnvBuilder, InnerReceipt, LocalProver, ProveInfo,
+    Prover, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;

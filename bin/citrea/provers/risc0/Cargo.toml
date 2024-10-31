@@ -11,10 +11,10 @@ risc0-build = { workspace = true }
 
 [package.metadata.risc0]
 methods = [
-    "batch-proof-bitcoin",
-    "batch-proof-mock",
-    "light-client-proof-bitcoin",
-    "light-client-proof-mock",
+  "batch-proof-bitcoin",
+  "batch-proof-mock",
+  "light-client-proof-bitcoin",
+  "light-client-proof-mock",
 ]
 
 [features]

@@ -5,8 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    HexTx, ProofResponse, ProofRpcResponse, SoftConfirmationResponse, StateTransitionRpcResponse,
-    TxIdentifier, TxResponse, VerifiedProofResponse,
+    HexTx, ProofResponse, SoftConfirmationResponse, StateTransitionRpcResponse, TxIdentifier,
+    TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};

@@ -153,7 +153,6 @@ impl MockDaService {
         blocks.prune_above(height);
 
         for blob in blobs {
-            use sov_rollup_interface::zk::Proof;
             let da_data = DaData::ZKProof(blob);
             let blob = borsh::to_vec(&da_data).unwrap();
             self.add_blob(&blocks, blob, Default::default()).unwrap();
@@ -560,7 +559,6 @@ fn block_hash(
 #[cfg(test)]
 mod tests {
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
-    use sov_rollup_interface::zk::Proof;
     use tokio::task::JoinHandle;
     use tokio_stream::StreamExt;
 

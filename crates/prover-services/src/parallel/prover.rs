@@ -103,7 +103,7 @@ where
     ) {
         let header_hash = da_slot_hash;
         let mut prover_state = self.prover_state.lock();
-        let mut prover_status = prover_state.prover_status.get_mut(&header_hash);
+        let prover_status = prover_state.prover_status.get_mut(&header_hash);
         if let Some(ProverStatus::WitnessSubmitted(data)) = prover_status {
             data.1 = assumptions
         }
