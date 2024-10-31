@@ -82,11 +82,6 @@ pub trait DaService: Send + Sync + 'static {
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>;
 
-    // ==================================================================================================
-
-    /// Extract the relevant transactions from a block. For example, this method might return
-    /// all of the blob transactions in rollup's namespace on Celestia.
-
     /// Extract the relevant proofs from a block.
     async fn extract_relevant_zk_proofs(
         &self,
@@ -116,8 +111,6 @@ pub trait DaService: Send + Sync + 'static {
         <Self::Spec as DaSpec>::CompletenessProof,
     );
 
-    // ==================================================================================================
-
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
@@ -133,7 +126,7 @@ pub trait DaService: Send + Sync + 'static {
     /// Returns fee rate per byte on DA layer.
     async fn get_fee_rate(&self) -> Result<u128, Self::Error>;
 
-    /// Returns the relevant blobs of pending transactions (transactions that are not yet included in a block).
+    /// Returns the list of SequencerCommitment's (that are not yet included in a block).
     async fn get_pending_sequencer_commitments(
         &self,
         sequencer_da_pub_key: &[u8],

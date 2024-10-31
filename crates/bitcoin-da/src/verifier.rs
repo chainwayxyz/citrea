@@ -117,6 +117,8 @@ impl DaVerifier for BitcoinVerifier {
             reveal_light_client_prefix: params.reveal_light_client_prefix,
         }
     }
+
+    // Verify that the given list of blob transactions is complete and correct.
     fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
