@@ -7,9 +7,9 @@ use tokio::sync::mpsc::UnboundedSender;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot::Sender as OneshotSender;
 
-use crate::da::{BlockHeaderTrait, DaNamespace, SequencerCommitment};
+use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
-use crate::da::{DaData, DaSpec, DaVerifier};
+use crate::da::{DaData, DaNamespace, DaSpec, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
 use crate::zk::ValidityCondition;
