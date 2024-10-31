@@ -310,8 +310,9 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
                 for assumption in self.assumptions.iter() {
                     env.add_assumption(assumption.clone());
-                    tracing::info!("added assumption to the env");
                 }
+
+                tracing::debug!("{:?} assumptions added to the env", self.assumptions.len());
 
                 let env = env.write_slice(&self.env).build().unwrap();
 
