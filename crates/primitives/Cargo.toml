@@ -30,4 +30,3 @@ native = [
   "dep:tracing",
   "sov-rollup-interface/native",
 ]
-test-utils = []
