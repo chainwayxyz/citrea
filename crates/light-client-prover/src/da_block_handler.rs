@@ -158,10 +158,16 @@ where
         let mut journals = vec![];
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
-                // Handle err
-                let output = Vm::verify(proof.as_slice(), batch_proof_method_id).unwrap();
-                assumptions.push(proof);
-                journals.push(output);
+                match Vm::verify(proof.as_slice(), batch_proof_method_id) {
+                    Ok(output) => {
+                        assumptions.push(proof);
+                        journals.push(output);
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to verify batch proof: {:?}", e);
+                        continue;
+                    }
+                }
             }
         }
 
