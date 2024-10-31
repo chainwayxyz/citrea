@@ -7,7 +7,7 @@ use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::{retry as retry_backoff, SystemClock};
 use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
-use risc0_zkvm::sha::{Digest, Digestible};
+use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, AssumptionReceipt, ExecutorEnvBuilder, InnerReceipt, LocalProver, ProveInfo,
     Prover, Receipt,
