@@ -29,7 +29,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(
+        .submit_input(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             header_hash,
         )
@@ -70,7 +70,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     // Saturate the prover.
     for header_hash in header_hashes.clone() {
         prover_service
-            .submit_witness(
+            .submit_input(
                 borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
                 header_hash,
             )
@@ -87,7 +87,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     {
         let header_hash = MockHash::from([0; 32]);
         prover_service
-            .submit_witness(
+            .submit_input(
                 borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
                 header_hash,
             )
@@ -119,7 +119,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
     {
         let header_hash = MockHash::from([(num_worker_threads + 1) as u8; 32]);
         prover_service
-            .submit_witness(
+            .submit_input(
                 borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
                 header_hash,
             )
@@ -151,7 +151,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
 
     let header_hash = MockHash::from([0; 32]);
     let submission_status = prover_service
-        .submit_witness(
+        .submit_input(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             header_hash,
         )
@@ -163,7 +163,7 @@ async fn test_multiple_witness_submissions() -> Result<(), anyhow::Error> {
     );
 
     let submission_status = prover_service
-        .submit_witness(
+        .submit_input(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             header_hash,
         )
@@ -180,7 +180,7 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyh
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .submit_witness(
+        .submit_input(
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             header_hash,
         )

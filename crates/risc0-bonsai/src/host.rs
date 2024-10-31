@@ -9,7 +9,8 @@ use bonsai_sdk::blocking::Client;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
-    compute_image_id, ExecutorEnvBuilder, ExecutorImpl, Journal, LocalProver, Prover, Receipt,
+    compute_image_id, AssumptionReceipt, ExecutorEnvBuilder, InnerReceipt, LocalProver, ProveInfo,
+    Prover, Receipt,
 };
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -85,6 +86,7 @@ macro_rules! retry_backoff_bonsai {
 pub struct Risc0BonsaiHost<'a> {
     elf: &'a [u8],
     env: Vec<u8>,
+    assumptions: Vec<AssumptionReceipt>,
     image_id: Digest,
     client: Option<Client>,
     ledger_db: LedgerDB,
@@ -124,6 +126,7 @@ impl<'a> Risc0BonsaiHost<'a> {
         Self {
             elf,
             env: Default::default(),
+            assumptions: vec![],
             image_id,
             client,
             ledger_db,
@@ -262,9 +265,7 @@ impl<'a> Risc0BonsaiHost<'a> {
 
                     tracing::info!("Snark proof!: {snark_receipt:?}");
 
-                    // now we convert the snark_receipt to a full receipt
-
-                    return Ok(Proof::Full(snark_receipt_buf));
+                    return Ok(snark_receipt_buf);
                 }
                 _ => {
                     return Err(anyhow!(
@@ -293,30 +294,54 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         Risc0Guest::with_hints(std::mem::take(&mut self.env))
     }
 
+    fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
+        let receipt: Receipt = bincode::deserialize(&receipt_buf).expect("Receipt should be valid");
+        self.assumptions.push(receipt.into());
+    }
+
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error> {
         let proof = match (self.client.as_ref(), with_proof) {
             // Local execution. If mode is Execute, we always do local execution.
             (_, false) => {
-                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
-                let mut executor = ExecutorImpl::from_elf(env, self.elf)?;
+                // Set dev mode to true as this is used for tests
+                std::env::set_var("RISC0_DEV_MODE", "1");
+                let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+                for assumption in self.assumptions.iter() {
+                    env.add_assumption(assumption.clone());
+                }
 
-                let session = executor.run()?;
-                let data =
-                    bincode::serialize(&session.journal.expect("Journal shouldn't be empty"))?;
+                tracing::debug!("{:?} assumptions added to the env", self.assumptions.len());
 
-                Ok(Proof::PublicInput(data))
+                let env = env.write_slice(&self.env).build().unwrap();
+
+                let prover = LocalProver::new("citrea-test-prover");
+
+                tracing::info!("Starting risc0 proving");
+                let ProveInfo { receipt, stats } = prover.prove(env, self.elf)?;
+
+                // Because the dev mode is set, the proof will generate a fake receipt which does not include the proof
+                // It only includes the journal
+                assert!(matches!(receipt.inner, InnerReceipt::Fake(_)));
+
+                tracing::info!("Execution Stats: {:?}", stats);
+
+                receipt.verify(self.image_id)?;
+
+                tracing::info!("Verified the fake receipt");
+
+                let serialized_receipt = bincode::serialize(&receipt)?;
+
+                Ok(serialized_receipt)
             }
             // Local proving
             (None, true) => {
-                let env = add_benchmarking_callbacks(ExecutorEnvBuilder::default())
-                    .write_slice(&self.env)
-                    .build()
-                    .unwrap();
+                let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+                for assumption in self.assumptions.iter() {
+                    env.add_assumption(assumption.clone());
+                }
+                let env = env.write_slice(&self.env).build().unwrap();
 
                 let prover = LocalProver::new("citrea");
                 let receipt = prover.prove(env, self.elf)?.receipt;
@@ -329,7 +354,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
                 let serialized_receipt = bincode::serialize(&receipt)?;
 
-                Ok(Proof::Full(serialized_receipt))
+                Ok(serialized_receipt)
             }
             // Bonsai proving
             (Some(client), true) => {
@@ -340,6 +365,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 let client_clone = client.clone();
                 // Start a Bonsai session
                 let session = thread::spawn(move || {
+                    // TODO: Get necessary assumptions by giving the receipt uuids
                     retry_backoff_bonsai!(client_clone.create_session(
                         image_id.clone(),
                         input_id.clone(),
@@ -388,22 +414,18 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         // Cleanup env
         self.env.clear();
 
+        // Cleanup assumptions
+        self.assumptions.clear();
+
         Ok(proof)
     }
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        let journal = match proof {
-            Proof::PublicInput(journal) => {
-                let journal: Journal = bincode::deserialize(journal)?;
-                journal
-            }
-            Proof::Full(data) => {
-                let receipt: Receipt = bincode::deserialize(data)?;
-                receipt.journal
-            }
-        };
+        let receipt: Receipt = bincode::deserialize(proof)?;
+        let journal = receipt.journal;
+
         Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
     }
 

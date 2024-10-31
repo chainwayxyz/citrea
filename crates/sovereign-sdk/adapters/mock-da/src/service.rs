@@ -153,8 +153,7 @@ impl MockDaService {
         blocks.prune_above(height);
 
         for blob in blobs {
-            use sov_rollup_interface::zk::Proof;
-            let da_data = DaData::ZKProof(Proof::Full(blob));
+            let da_data = DaData::ZKProof(blob);
             let blob = borsh::to_vec(&da_data).unwrap();
             self.add_blob(&blocks, blob, Default::default()).unwrap();
         }
@@ -560,7 +559,6 @@ fn block_hash(
 #[cfg(test)]
 mod tests {
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
-    use sov_rollup_interface::zk::Proof;
     use tokio::task::JoinHandle;
     use tokio_stream::StreamExt;
 
@@ -640,7 +638,7 @@ mod tests {
             get_finalized_headers_collector(&mut da, number_of_finalized_blocks).await;
 
         for i in 0..num_blocks {
-            let proof = Proof::Full(vec![i as u8; i + 1]);
+            let proof = vec![i as u8; i + 1];
             let published_blob = DaData::ZKProof(proof.clone());
             let height = (i + 1) as u64;
 
@@ -692,7 +690,7 @@ mod tests {
         for (i, blob) in blobs.iter().enumerate() {
             let height = (i + 1) as u64;
             // Send transaction should pass
-            da.send_transaction(DaData::ZKProof(Proof::Full(blob.to_owned())))
+            da.send_transaction(DaData::ZKProof(blob.to_owned()))
                 .await
                 .unwrap();
             let last_finalized_block_response = da.get_last_finalized_block_header().await;
@@ -720,7 +718,7 @@ mod tests {
             let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
             assert_eq!(expected_finalized_height, last_finalized_header.height());
 
-            let proof = Proof::Full(blob);
+            let proof = blob;
             let retrieved_data = fetched_block.blobs[0].full_data();
             let retrieved_data = DaDataLightClient::try_from_slice(retrieved_data).unwrap();
             let DaDataLightClient::Complete(retrieved_proof) = retrieved_data else {
@@ -778,13 +776,13 @@ mod tests {
 
             // 1 -> 2 -> 3
 
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+            da.send_transaction(DaData::ZKProof(vec![1, 2, 3, 4]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+            da.send_transaction(DaData::ZKProof(vec![4, 5, 6, 7]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+            da.send_transaction(DaData::ZKProof(vec![8, 9, 0, 1]))
                 .await
                 .unwrap();
 
@@ -835,19 +833,19 @@ mod tests {
             //      \ -> 3.2 -> 4.2
 
             // 1
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+            da.send_transaction(DaData::ZKProof(vec![1, 2, 3, 4]))
                 .await
                 .unwrap();
             // 2
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+            da.send_transaction(DaData::ZKProof(vec![4, 5, 6, 7]))
                 .await
                 .unwrap();
             // 3.1
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+            da.send_transaction(DaData::ZKProof(vec![8, 9, 0, 1]))
                 .await
                 .unwrap();
             // 4.1
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![2, 3, 4, 5])))
+            da.send_transaction(DaData::ZKProof(vec![2, 3, 4, 5]))
                 .await
                 .unwrap();
 
@@ -877,16 +875,16 @@ mod tests {
 
             // 1 -> 2 -> 3 -> 4
 
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+            da.send_transaction(DaData::ZKProof(vec![1, 2, 3, 4]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+            da.send_transaction(DaData::ZKProof(vec![4, 5, 6, 7]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+            da.send_transaction(DaData::ZKProof(vec![8, 9, 0, 1]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![2, 3, 4, 5])))
+            da.send_transaction(DaData::ZKProof(vec![2, 3, 4, 5]))
                 .await
                 .unwrap();
 
@@ -946,13 +944,13 @@ mod tests {
                 assert!(has_planned_fork.is_some());
             }
 
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 2, 3, 4])))
+            da.send_transaction(DaData::ZKProof(vec![1, 2, 3, 4]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 5, 6, 7])))
+            da.send_transaction(DaData::ZKProof(vec![4, 5, 6, 7]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![8, 9, 0, 1])))
+            da.send_transaction(DaData::ZKProof(vec![8, 9, 0, 1]))
                 .await
                 .unwrap();
 
@@ -984,19 +982,19 @@ mod tests {
                 PlannedFork::new(4, 2, vec![vec![13, 13, 13, 13], vec![14, 14, 14, 14]]);
             da.set_planned_fork(planned_fork).await.unwrap();
 
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![1, 1, 1, 1])))
+            da.send_transaction(DaData::ZKProof(vec![1, 1, 1, 1]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![2, 2, 2, 2])))
+            da.send_transaction(DaData::ZKProof(vec![2, 2, 2, 2]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![3, 3, 3, 3])))
+            da.send_transaction(DaData::ZKProof(vec![3, 3, 3, 3]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![4, 4, 4, 4])))
+            da.send_transaction(DaData::ZKProof(vec![4, 4, 4, 4]))
                 .await
                 .unwrap();
-            da.send_transaction(DaData::ZKProof(Proof::Full(vec![5, 5, 5, 5])))
+            da.send_transaction(DaData::ZKProof(vec![5, 5, 5, 5]))
                 .await
                 .unwrap();
 

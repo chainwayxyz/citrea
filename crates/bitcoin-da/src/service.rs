@@ -1365,7 +1365,7 @@ mod tests {
     /// A test we use to generate some data for the other tests
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
-        use sov_rollup_interface::zk::Proof;
+
         let da_service = get_service().await;
 
         da_service
@@ -1394,7 +1394,7 @@ mod tests {
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
         da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .send_transaction(DaData::ZKProof(blob))
             .await
             .expect("Failed to send transaction");
 
@@ -1406,7 +1406,7 @@ mod tests {
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
         da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .send_transaction(DaData::ZKProof(blob))
             .await
             .expect("Failed to send transaction");
 
@@ -1425,7 +1425,7 @@ mod tests {
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
         da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .send_transaction(DaData::ZKProof(blob))
             .await
             .expect("Failed to send transaction");
 
@@ -1453,7 +1453,7 @@ mod tests {
         let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
         da_service
-            .send_transaction(DaData::ZKProof(Proof::Full(blob)))
+            .send_transaction(DaData::ZKProof(blob))
             .await
             .expect("Failed to send transaction");
 

@@ -18,7 +18,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::da_block_handler::{
     break_sequencer_commitments_into_groups, get_state_transition_data_from_commitments,
@@ -270,7 +270,7 @@ where
     Witness: BorshSerialize,
 {
     prover_service
-        .submit_witness(borsh::to_vec(&transition_data)?, hash.clone())
+        .submit_input(borsh::to_vec(&transition_data)?, hash.clone())
         .await;
 
     prover_service.prove(hash.clone()).await?;
@@ -333,19 +333,13 @@ where
     let transition_data = Vm::extract_output::<<Da as DaService>::Spec, StateRoot>(&proof)
         .expect("Proof should be deserializable");
 
-    match &proof {
-        Proof::PublicInput(_) => {
-            warn!("Proof is public input, skipping");
-        }
-        Proof::Full(data) => {
-            info!("Verifying proof!");
-            let code_commitment = code_commitments_by_spec
-                .get(&transition_data.last_active_spec_id)
-                .expect("Proof public input must contain valid spec id");
-            Vm::verify(data, code_commitment)
-                .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
-        }
-    }
+    info!("Verifying proof!");
+
+    let code_commitment = code_commitments_by_spec
+        .get(&transition_data.last_active_spec_id)
+        .expect("Proof public input must contain valid spec id");
+    Vm::verify(proof.as_slice(), code_commitment)
+        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
     info!("transition data: {:?}", transition_data);
 

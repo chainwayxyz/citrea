@@ -1,5 +1,5 @@
 [package]
-name = "light-client-prover-mock"
+name = "light-client-proof-mock"
 version = "0.5.0-rc.1"
 edition = "2021"
 resolver = "2"

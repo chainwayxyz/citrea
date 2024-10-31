@@ -79,18 +79,25 @@ pub enum ProverServiceError {
 
 /// This service is responsible for ZK proof generation.
 /// The proof generation process involves the following stages:
-///     1. Submitting a witness using the `submit_witness` method to a prover service.
+///     1. Submitting an input witness using the `submit_input` method to a prover service.
 ///     2. Initiating proof generation with the `prove` method.
 /// Once the proof is ready, it can be sent to the DA with `send_proof_to_da` method.
-/// Currently, the cancellation of proving jobs for submitted witnesses is not supported,
+/// Currently, the cancellation of proving jobs for submitted inputs is not supported,
 /// but this functionality will be added in the future (#1185).
 #[async_trait]
 pub trait ProverService<Vm: Zkvm> {
     /// Data Availability service.
     type DaService: DaService;
 
-    /// Submit a witness for proving.
-    async fn submit_witness(
+    /// Submits assumptions for guest side verification
+    async fn submit_assumptions(
+        &self,
+        assumptions: Vec<Vec<u8>>,
+        da_slot_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
+    );
+
+    /// Submit an input witness for proving.
+    async fn submit_input(
         &self,
         input: Vec<u8>,
         da_slot_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,

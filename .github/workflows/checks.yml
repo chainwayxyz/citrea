@@ -208,6 +208,7 @@ jobs:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
           CI_TEST_MODE: 1
+          RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -374,6 +375,7 @@ jobs:
           RUST_BACKTRACE: 1
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+          RISC0_DEV_MODE: 1                             # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
           CI_TEST_MODE: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
@@ -453,7 +455,7 @@ jobs:
           name: citrea-build
           path: target/release
 
-      - name: Check BATCH_PROVER_BITCOIN_ID
+      - name: Check BATCH_PROOF_BITCOIN_ID
         id: check-id
         uses: ./.github/actions/validate-bitcoin-da
         with:

@@ -10,7 +10,12 @@ resolver = "2"
 risc0-build = { workspace = true }
 
 [package.metadata.risc0]
-methods = ["batch-prover-bitcoin", "batch-prover-mock", "light-client-prover-bitcoin", "light-client-prover-mock"]
+methods = [
+  "batch-proof-bitcoin",
+  "batch-proof-mock",
+  "light-client-proof-bitcoin",
+  "light-client-proof-mock",
+]
 
 [features]
 bench = []

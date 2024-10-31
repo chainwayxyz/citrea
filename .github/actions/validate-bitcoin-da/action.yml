@@ -91,15 +91,15 @@ runs:
       if: inputs.action == 'check_binary'
       shell: bash
       run: |
-          RESULT=$(grep -R "BATCH_PROVER_BITCOIN_ID" target/ || echo "Grep failed")
+          RESULT=$(grep -R "BATCH_PROOF_BITCOIN_ID" target/ || echo "Grep failed")
           EXPECTED_BITCOIN_DA_ID=$(echo "${{ env.EXPECTED_BITCOIN_DA_ID }}" | tr -d '\n\r')
           if echo "$RESULT" | grep -q "$EXPECTED_BITCOIN_DA_ID"; then
             echo "Check passed successfully."
-            echo "Expected: BATCH_PROVER_BITCOIN_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Expected: BATCH_PROOF_BITCOIN_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
 
           else
-            echo "Check failed. Expected: BATCH_PROVER_BITCOIN_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
+            echo "Check failed. Expected: BATCH_PROOF_BITCOIN_ID ${{ env.EXPECTED_BITCOIN_DA_ID }} "
             echo "Actual: $RESULT"
             exit 1
           fi

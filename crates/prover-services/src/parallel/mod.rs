@@ -6,7 +6,7 @@ use borsh::BorshDeserialize;
 use citrea_stf::verifier::StateTransitionVerifier;
 use parking_lot::Mutex;
 use prover::Prover;
-use risc0_zkvm::{Journal, Receipt};
+use risc0_zkvm::Receipt;
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
@@ -27,7 +27,7 @@ where
     Vm: ZkvmHost,
     V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
 {
-    vm: Vm,
+    pub vm: Vm,
     prover_config: Arc<Mutex<ProofGenConfig<V, Da, Vm>>>,
 
     zk_storage: V::PreState,
@@ -123,12 +123,21 @@ where
 {
     type DaService = Da;
 
-    async fn submit_witness(
+    async fn submit_assumptions(
+        &self,
+        assumptions: Vec<Vec<u8>>,
+        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
+    ) {
+        self.prover_state
+            .submit_assumptions(assumptions, da_slot_hash);
+    }
+
+    async fn submit_input(
         &self,
         input: Vec<u8>,
         da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> WitnessSubmissionStatus {
-        self.prover_state.submit_witness(input, da_slot_hash)
+        self.prover_state.submit_input(input, da_slot_hash)
     }
 
     async fn prove(
@@ -155,16 +164,9 @@ where
 
         // TODO: maybe extract this to Vm?
         // Extract journal
-        let journal = match proof {
-            Proof::PublicInput(journal) => {
-                let journal: Journal = bincode::deserialize(&journal)?;
-                journal
-            }
-            Proof::Full(data) => {
-                let receipt: Receipt = bincode::deserialize(&data)?;
-                receipt.journal
-            }
-        };
+
+        let receipt: Receipt = bincode::deserialize(&proof)?;
+        let journal = receipt.journal;
 
         self.ledger_db.clear_pending_proving_sessions()?;
 

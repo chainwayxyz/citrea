@@ -49,7 +49,6 @@ where
     sequencer_da_pub_key: Vec<u8>,
     prover_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     _context: PhantomData<C>,
@@ -78,7 +77,6 @@ where
         sequencer_da_pub_key: Vec<u8>,
         prover_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        accept_public_input_as_proven: bool,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     ) -> Self {
         Self {
@@ -88,7 +86,6 @@ where
             sequencer_da_pub_key,
             prover_da_pub_key,
             code_commitments_by_spec,
-            accept_public_input_as_proven,
             l1_block_cache,
             pending_l1_blocks: VecDeque::new(),
             _context: PhantomData,
@@ -309,25 +306,12 @@ where
             ).into());
         }
 
-        match &proof {
-            Proof::Full(data) => {
-                let code_commitment = self
-                    .code_commitments_by_spec
-                    .get(&state_transition.last_active_spec_id)
-                    .expect("Proof public input must contain valid spec id");
-                Vm::verify(data, code_commitment)
-                    .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
-            }
-            Proof::PublicInput(_) => {
-                if !self.accept_public_input_as_proven {
-                    return Err(anyhow!(
-                        "Found public input in da block number: {}, Skipping to next proof..",
-                        l1_block.header().height(),
-                    )
-                    .into());
-                }
-            }
-        }
+        let code_commitment = self
+            .code_commitments_by_spec
+            .get(&state_transition.last_active_spec_id)
+            .expect("Proof public input must contain valid spec id");
+        Vm::verify(proof.as_slice(), code_commitment)
+            .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
         let stored_state_transition = StoredStateTransition {
             initial_state_root: state_transition.initial_state_root.as_ref().to_vec(),

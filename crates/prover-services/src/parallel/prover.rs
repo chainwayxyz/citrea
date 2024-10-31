@@ -13,8 +13,11 @@ use sov_stf_runner::{ProofProcessingStatus, ProverServiceError, WitnessSubmissio
 
 use crate::ProofGenConfig;
 
+pub(crate) type Assumption = Vec<u8>;
+pub(crate) type Input = Vec<u8>;
+
 pub(crate) enum ProverStatus {
-    WitnessSubmitted(Vec<u8>),
+    WitnessSubmitted((Input, Vec<Assumption>)),
     ProvingInProgress,
     #[allow(dead_code)]
     Proved(Proof),
@@ -93,21 +96,61 @@ where
         })
     }
 
-    pub(crate) fn submit_witness(
+    pub(crate) fn submit_assumptions(
+        &self,
+        assumptions: Vec<Vec<u8>>,
+        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
+    ) {
+        let header_hash = da_slot_hash;
+        let mut prover_state = self.prover_state.lock();
+
+        // If entry doesn't exist, create a default empty entry
+        let entry = prover_state.prover_status.entry(header_hash);
+
+        match entry {
+            Entry::Occupied(mut occupied) => {
+                // Only update if it's a WitnessSubmitted variant
+                if let ProverStatus::WitnessSubmitted((_, existing_assumptions)) =
+                    occupied.get_mut()
+                {
+                    *existing_assumptions = assumptions;
+                }
+            }
+            Entry::Vacant(vacant) => {
+                // Create a new entry with empty input and the given assumptions
+                vacant.insert(ProverStatus::WitnessSubmitted((Vec::new(), assumptions)));
+            }
+        }
+    }
+
+    pub(crate) fn submit_input(
         &self,
         input: Vec<u8>,
         da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> WitnessSubmissionStatus {
         let header_hash = da_slot_hash;
-        let data = ProverStatus::WitnessSubmitted(input);
-
         let mut prover_state = self.prover_state.lock();
+
+        // If entry doesn't exist, create a default empty entry
         let entry = prover_state.prover_status.entry(header_hash);
 
         match entry {
-            Entry::Occupied(_) => WitnessSubmissionStatus::WitnessExist,
+            Entry::Occupied(mut occupied) => {
+                // Check if the entry is a WitnessSubmitted variant with an empty input
+                if let ProverStatus::WitnessSubmitted((existing_input, _)) = occupied.get_mut() {
+                    if existing_input.is_empty() {
+                        *existing_input = input;
+                        WitnessSubmissionStatus::SubmittedForProving
+                    } else {
+                        WitnessSubmissionStatus::WitnessExist
+                    }
+                } else {
+                    WitnessSubmissionStatus::WitnessExist
+                }
+            }
             Entry::Vacant(v) => {
-                v.insert(data);
+                // Create a new entry with the given input and empty assumptions
+                v.insert(ProverStatus::WitnessSubmitted((input, vec![])));
                 WitnessSubmissionStatus::SubmittedForProving
             }
         }
@@ -133,12 +176,16 @@ where
             .ok_or_else(|| anyhow::anyhow!("Missing witness for block: {:?}", block_header_hash))?;
 
         match prover_status {
-            ProverStatus::WitnessSubmitted(state_transition_data) => {
+            ProverStatus::WitnessSubmitted((state_transition_data, assumptions)) => {
                 let start_prover = prover_state.inc_task_count_if_not_busy(self.num_threads);
                 // Initiate a new proving job only if the prover is not busy.
                 if start_prover {
                     prover_state.set_to_proving(block_header_hash.clone());
                     vm.add_hint(state_transition_data);
+                    for assumption in assumptions {
+                        vm.add_assumption(assumption.clone());
+                        tracing::warn!("added assumption: {:?}", assumption);
+                    }
 
                     self.pool.spawn(move || {
                         tracing::debug_span!("guest_execution").in_scope(|| {
@@ -212,10 +259,10 @@ where
 {
     let mut config = config.lock();
     match config.deref_mut() {
-        ProofGenConfig::Skip => Ok(Proof::PublicInput(Vec::default())),
+        ProofGenConfig::Skip => Ok(Vec::default()),
         ProofGenConfig::Simulate(ref mut verifier) => verifier
             .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
-            .map(|_| Proof::PublicInput(Vec::default()))
+            .map(|_| Vec::default())
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         ProofGenConfig::Execute => vm.run(false),
         ProofGenConfig::Prover => vm.run(true),

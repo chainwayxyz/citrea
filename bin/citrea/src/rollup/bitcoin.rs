@@ -101,7 +101,7 @@ impl RollupBlueprint for BitcoinRollup {
         let mut map = HashMap::new();
         map.insert(
             SpecId::Genesis,
-            Digest::new(citrea_risc0::BATCH_PROVER_BITCOIN_ID),
+            Digest::new(citrea_risc0::BATCH_PROOF_BITCOIN_ID),
         );
         // let (_, vk) = citrea_sp1::host::CLIENT.setup(include_bytes!("../../provers/sp1/batch-prover-bitcoin/elf/zkvm-elf"));
         // map.insert(SpecId::Genesis, vk);
@@ -110,7 +110,7 @@ impl RollupBlueprint for BitcoinRollup {
 
     #[instrument(level = "trace", skip(self), ret)]
     fn get_light_client_prover_code_commitment(&self) -> <Self::Vm as Zkvm>::CodeCommitment {
-        Digest::new(citrea_risc0::LIGHT_CLIENT_PROVER_BITCOIN_ID)
+        Digest::new(citrea_risc0::LIGHT_CLIENT_PROOF_BITCOIN_ID)
     }
 
     #[instrument(level = "trace", skip_all, err)]
@@ -173,7 +173,7 @@ impl RollupBlueprint for BitcoinRollup {
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
-            citrea_risc0::BATCH_PROVER_BITCOIN_ELF,
+            citrea_risc0::BATCH_PROOF_BITCOIN_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
             ledger_db.clone(),
@@ -211,7 +211,7 @@ impl RollupBlueprint for BitcoinRollup {
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(
-            citrea_risc0::LIGHT_CLIENT_PROVER_BITCOIN_ELF,
+            citrea_risc0::LIGHT_CLIENT_PROOF_BITCOIN_ELF,
             std::env::var("BONSAI_API_URL").unwrap_or("".to_string()),
             std::env::var("BONSAI_API_KEY").unwrap_or("".to_string()),
             ledger_db.clone(),

@@ -63,7 +63,6 @@ where
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    accept_public_input_as_proven: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager,
@@ -147,9 +146,6 @@ where
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
             code_commitments_by_spec,
-            accept_public_input_as_proven: runner_config
-                .accept_public_input_as_proven
-                .unwrap_or(false),
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
@@ -342,7 +338,6 @@ where
         let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
         let prover_da_pub_key = self.prover_da_pub_key.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
-        let accept_public_input_as_proven = self.accept_public_input_as_proven;
         let l1_block_cache = self.l1_block_cache.clone();
 
         self.task_manager
@@ -354,7 +349,6 @@ where
                     sequencer_da_pub_key,
                     prover_da_pub_key,
                     code_commitments_by_spec,
-                    accept_public_input_as_proven,
                     l1_block_cache.clone(),
                 );
                 l1_block_handler

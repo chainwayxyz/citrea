@@ -4,6 +4,7 @@
 //! The host implementation is used for tests only and brings no real value.
 
 use borsh::BorshDeserialize;
+use risc0_zkvm::guest::env;
 use sov_rollup_interface::zk::Zkvm;
 
 use crate::Risc0MethodId;
@@ -20,26 +21,28 @@ pub use native::Risc0Guest;
 #[cfg(target_os = "zkvm")]
 pub use zkvm::Risc0Guest;
 
-// Here goes the common implementation:
-
-// This is a dummy impl because T: ZkvmGuest where T: Zkvm.
 impl Zkvm for Risc0Guest {
     type CodeCommitment = Risc0MethodId;
 
     type Error = anyhow::Error;
 
     fn verify(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        journal: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error> {
-        // Implement this method once risc0 supports recursion: issue #633
-        todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
+        env::verify(code_commitment.0, journal)
+            .expect("Guest side verification error should be Infallible");
+        Ok(journal.to_vec())
     }
 
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        journal: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        todo!()
+        env::verify(code_commitment.0, journal)
+            .expect("Guest side verification error should be Infallible");
+        Ok(BorshDeserialize::deserialize(
+            &mut journal.to_vec().as_slice(),
+        )?)
     }
 }

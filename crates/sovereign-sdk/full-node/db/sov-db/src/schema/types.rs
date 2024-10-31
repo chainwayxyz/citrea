@@ -5,8 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    HexTx, ProofResponse, ProofRpcResponse, SoftConfirmationResponse, StateTransitionRpcResponse,
-    TxIdentifier, TxResponse, VerifiedProofResponse,
+    HexTx, ProofResponse, SoftConfirmationResponse, StateTransitionRpcResponse, TxIdentifier,
+    TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
@@ -88,7 +88,7 @@ impl From<StoredProof> for ProofResponse {
     fn from(value: StoredProof) -> Self {
         Self {
             l1_tx_id: value.l1_tx_id,
-            proof: convert_to_rpc_proof(value.proof),
+            proof: value.proof,
             state_transition: StateTransitionRpcResponse::from(value.state_transition),
         }
     }
@@ -106,7 +106,7 @@ pub struct StoredVerifiedProof {
 impl From<StoredVerifiedProof> for VerifiedProofResponse {
     fn from(value: StoredVerifiedProof) -> Self {
         Self {
-            proof: convert_to_rpc_proof(value.proof),
+            proof: value.proof,
             state_transition: StateTransitionRpcResponse::from(value.state_transition),
         }
     }
@@ -151,14 +151,6 @@ impl From<StoredStateTransition> for StateTransitionRpcResponse {
             sequencer_commitments_range: value.sequencer_commitments_range,
             preproven_commitments: value.preproven_commitments,
         }
-    }
-}
-
-/// Converts proof data to hex encoded rpc response
-pub fn convert_to_rpc_proof(stored_proof: Proof) -> ProofRpcResponse {
-    match stored_proof {
-        Proof::Full(data) => ProofRpcResponse::Full(data),
-        Proof::PublicInput(data) => ProofRpcResponse::PublicInput(data),
     }
 }
 

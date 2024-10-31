@@ -44,6 +44,10 @@ pub async fn start_rollup(
 ) {
     // create rollup config default creator function and use them here for the configs
 
+    // We enable risc0 dev mode in tests because the provers in dev mode generate fake receipts that can be verified if the verifier is also in dev mode
+    // Fake receipts are receipts without the proof, they only include the journal, which makes them suitable for testing and development
+    std::env::set_var("RISC0_DEV_MODE", "1");
+
     let mock_demo_rollup = MockDemoRollup {};
 
     if sequencer_config.is_some() && rollup_prover_config.is_some() {
@@ -162,7 +166,6 @@ pub fn create_default_rollup_config(
             | NodeMode::LightClientProver(socket_addr) => Some(RunnerConfig {
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
-                accept_public_input_as_proven: Some(true),
                 sync_blocks_count: 10,
                 pruning_config: None,
             }),
