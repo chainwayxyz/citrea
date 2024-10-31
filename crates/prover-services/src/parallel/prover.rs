@@ -103,9 +103,23 @@ where
     ) {
         let header_hash = da_slot_hash;
         let mut prover_state = self.prover_state.lock();
-        let prover_status = prover_state.prover_status.get_mut(&header_hash);
-        if let Some(ProverStatus::WitnessSubmitted(data)) = prover_status {
-            data.1 = assumptions
+
+        // If entry doesn't exist, create a default empty entry
+        let entry = prover_state.prover_status.entry(header_hash);
+
+        match entry {
+            Entry::Occupied(mut occupied) => {
+                // Only update if it's a WitnessSubmitted variant
+                if let ProverStatus::WitnessSubmitted((_, existing_assumptions)) =
+                    occupied.get_mut()
+                {
+                    *existing_assumptions = assumptions;
+                }
+            }
+            Entry::Vacant(vacant) => {
+                // Create a new entry with empty input and the given assumptions
+                vacant.insert(ProverStatus::WitnessSubmitted((Vec::new(), assumptions)));
+            }
         }
     }
 
@@ -115,15 +129,28 @@ where
         da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
     ) -> WitnessSubmissionStatus {
         let header_hash = da_slot_hash;
-        let data = ProverStatus::WitnessSubmitted((input, vec![]));
-
         let mut prover_state = self.prover_state.lock();
+
+        // If entry doesn't exist, create a default empty entry
         let entry = prover_state.prover_status.entry(header_hash);
 
         match entry {
-            Entry::Occupied(_) => WitnessSubmissionStatus::WitnessExist,
+            Entry::Occupied(mut occupied) => {
+                // Check if the entry is a WitnessSubmitted variant with an empty input
+                if let ProverStatus::WitnessSubmitted((existing_input, _)) = occupied.get_mut() {
+                    if existing_input.is_empty() {
+                        *existing_input = input;
+                        WitnessSubmissionStatus::SubmittedForProving
+                    } else {
+                        WitnessSubmissionStatus::WitnessExist
+                    }
+                } else {
+                    WitnessSubmissionStatus::WitnessExist
+                }
+            }
             Entry::Vacant(v) => {
-                v.insert(data);
+                // Create a new entry with the given input and empty assumptions
+                v.insert(ProverStatus::WitnessSubmitted((input, vec![])));
                 WitnessSubmissionStatus::SubmittedForProving
             }
         }
