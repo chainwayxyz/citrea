@@ -207,7 +207,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
-          SHORT_PREFIX: 1
+          CI_TEST_MODE: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -375,7 +375,7 @@ jobs:
           BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
           BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
           TEST_BITCOIN_DOCKER: 1
-          SHORT_PREFIX: 1
+          CI_TEST_MODE: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
 
   system-contracts:
