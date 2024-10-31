@@ -112,7 +112,7 @@ To publish blocks on Bitcoin Regtest, run the sequencer with `test_mode` in sequ
 _Optional_: Run light client prover:
 
 ```sh
-./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/light_client_prover_rollup_config.toml --light-client-prover-config-path resources/configs/bitcoin-regtest/light_client_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
+./target/debug/citrea --da-layer bitcoin --rollup-config-path resources/configs/bitcoin-regtest/light_client_prover_rollup_config.toml --light-client-prover resources/configs/bitcoin-regtest/light_client_prover_config.toml --genesis-paths resources/genesis/bitcoin-regtest
 ```
 
 To delete sequencer or full nodes databases run:
