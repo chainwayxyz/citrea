@@ -3,7 +3,7 @@ use reth_primitives::{address, Address, B256, U256};
 use revm::primitives::bitvec::view::BitViewSized;
 use revm::primitives::specification::SpecId;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{StateMap, StateVec};
+use sov_modules_api::{OffchainStateMap, OffchainStateVec};
 use sov_state::Prefix;
 
 pub(crate) mod conversions;
@@ -59,15 +59,18 @@ pub(crate) struct AccountInfo {
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub(crate) struct DbAccount {
-    pub(crate) storage: StateMap<U256, U256, BcsCodec>,
-    pub(crate) keys: StateVec<U256, BcsCodec>,
+    pub(crate) storage: OffchainStateMap<U256, U256, BcsCodec>,
+    pub(crate) keys: OffchainStateVec<U256, BcsCodec>,
 }
 
 impl DbAccount {
     pub fn new(address: Address) -> Self {
         Self {
-            storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),
-            keys: StateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
+            storage: OffchainStateMap::with_codec(
+                Self::create_storage_prefix(address),
+                BcsCodec {},
+            ),
+            keys: OffchainStateVec::with_codec(Self::create_keys_prefix(address), BcsCodec {}),
         }
     }
 

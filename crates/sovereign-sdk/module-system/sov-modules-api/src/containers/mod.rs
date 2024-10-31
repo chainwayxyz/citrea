@@ -3,6 +3,8 @@ mod accessory_value;
 mod accessory_vec;
 
 mod offchain_map;
+mod offchain_value;
+mod offchain_vec;
 
 mod kernel_value;
 mod versioned_value;
@@ -18,6 +20,8 @@ pub use accessory_vec::AccessoryStateVec;
 pub use kernel_value::KernelStateValue;
 pub use map::StateMap;
 pub use offchain_map::OffchainStateMap;
+pub use offchain_value::OffchainStateValue;
+pub use offchain_vec::OffchainStateVec;
 pub use traits::{
     StateMapAccessor, StateMapError, StateValueAccessor, StateValueError, StateVecAccessor,
     StateVecError,
