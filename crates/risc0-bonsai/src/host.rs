@@ -98,7 +98,6 @@ impl<'a> Risc0BonsaiHost<'a> {
         // Compute the image_id, then upload the ELF with the image_id as its key.
         // handle error
         let image_id = compute_image_id(elf).unwrap();
-        println!("computed image id: {:?}", image_id);
 
         tracing::trace!("Calculated image id: {:?}", image_id.as_words());
 
