@@ -7,6 +7,7 @@ use core::{fmt, mem};
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
 use sov_rollup_interface::stf::Event;
 
+use self::archival_state::ArchivalOffchainWorkingSet;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
 use crate::module::{Context, Spec};
@@ -283,6 +284,20 @@ impl<S: Storage> OffchainDelta<S> {
         };
         Self { storage, writes }
     }
+
+    fn freeze(&mut self) -> OrderedReadsAndWrites {
+        let writes = mem::take(&mut self.writes);
+        let ordered_writes = writes
+            .cache
+            .into_iter()
+            .map(|write| (write.0, write.1))
+            .collect();
+
+        OrderedReadsAndWrites {
+            ordered_writes,
+            ..Default::default()
+        }
+    }
 }
 
 impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
@@ -380,6 +395,16 @@ impl<C: Context> StateCheckpoint<C> {
     pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
         self.accessory_delta.freeze()
     }
+
+    /// Extracts ordered reads and writes of offchain state from this
+    /// [`StateCheckpoint`].
+    ///
+    /// You can then use these to call
+    /// [`Storage::validate_and_commit_with_accessory_update`], together with
+    /// the data extracted with [`StateCheckpoint::freeze`].
+    pub fn freeze_offchain(&mut self) -> OrderedReadsAndWrites {
+        self.offchain_delta.freeze()
+    }
 }
 
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
@@ -392,7 +417,7 @@ pub struct WorkingSet<C: Context> {
     offchain_delta: RevertableWriter<OffchainDelta<C::Storage>>,
     events: Vec<Event>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
-    archival_offchain_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
+    archival_offchain_working_set: Option<ArchivalOffchainWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
 }
 

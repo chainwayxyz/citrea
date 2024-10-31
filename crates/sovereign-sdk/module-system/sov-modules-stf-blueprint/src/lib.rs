@@ -346,8 +346,9 @@ where
 
             let mut checkpoint = working_set.checkpoint();
             let accessory_log = checkpoint.freeze_non_provable();
+            let offchain_log = checkpoint.freeze_offchain();
 
-            pre_state.commit(&state_update, &accessory_log);
+            pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
             (root_hash, witness, pre_state, state_diff)
         };

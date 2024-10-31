@@ -178,7 +178,12 @@ where
         Ok((new_root, state_update, diff))
     }
 
-    fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {
+    fn commit(
+        &self,
+        state_update: &Self::StateUpdate,
+        accessory_writes: &OrderedReadsAndWrites,
+        offchain_writes: &OrderedReadsAndWrites,
+    ) {
         let latest_version = self.db.get_next_version() - 1;
         self.db
             .put_preimages(
@@ -192,6 +197,16 @@ where
         self.native_db
             .set_values(
                 accessory_writes
+                    .ordered_writes
+                    .iter()
+                    .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
+                latest_version,
+            )
+            .expect("native db write must succeed");
+
+        self.native_db
+            .set_values(
+                offchain_writes
                     .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
