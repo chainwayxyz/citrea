@@ -324,7 +324,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
                 // It only includes the journal
                 assert!(matches!(receipt.inner, InnerReceipt::Fake(_)));
 
-                tracing::warn!("Execution Stats: {:?}", stats);
+                tracing::info!("Execution Stats: {:?}", stats);
 
                 receipt.verify(self.image_id)?;
 
