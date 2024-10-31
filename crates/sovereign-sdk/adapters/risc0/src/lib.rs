@@ -49,14 +49,14 @@ impl Matches<[u32; 8]> for Risc0MethodId {
     }
 }
 
-impl Into<[u32; 8]> for Risc0MethodId {
-    fn into(self) -> [u32; 8] {
-        self.0.into()
+impl From<Risc0MethodId> for [u32; 8] {
+    fn from(val: Risc0MethodId) -> Self {
+        val.0
     }
 }
 
 impl From<[u32; 8]> for Risc0MethodId {
     fn from(value: [u32; 8]) -> Self {
-        Self(value.into())
+        Risc0MethodId(value)
     }
 }
