@@ -221,10 +221,6 @@ where
             .da_service
             .get_extraction_proof_light_client(l1_block)
             .await;
-        println!(
-            "Non converted commitment!!: {:?}",
-            batch_prover_code_commitment
-        );
 
         LightClientCircuitInput {
             da_data,

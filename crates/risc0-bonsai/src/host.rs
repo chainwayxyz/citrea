@@ -297,11 +297,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
         let receipt: Receipt = bincode::deserialize(&receipt_buf).expect("Receipt should be valid");
-        let ass: AssumptionReceipt = receipt.into();
-        let a = ass.clone().claim_digest().unwrap();
-        println!("Digest of assumption: {:?}", a);
-
-        self.assumptions.push(ass);
+        self.assumptions.push(receipt.into());
     }
 
     /// Only with_proof = true is supported.
@@ -324,11 +320,6 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
                 tracing::info!("Starting risc0 proving");
                 let ProveInfo { receipt, stats } = prover.prove(env, self.elf)?;
-
-                println!(
-                    "\n\n\nreceipt journal after proving: {:?} \n\n\n",
-                    receipt.journal
-                );
 
                 // Because the dev mode is set, the proof will generate a fake receipt which does not include the proof
                 // It only includes the journal
@@ -477,19 +468,9 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
-        let cl = receipt.claim().unwrap();
-        let dg = cl.digest();
-        tracing::error!("receipt digest: {:?}", dg);
-        tracing::error!("receipt digest bytes: {:?}", dg.as_bytes());
-        tracing::error!("receipt digest words: {:?}", dg.as_words());
 
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
-
-        println!(
-            "\n\n\nreceipt journal after verifying (in the assumption): {:?} \n\n\n",
-            receipt.journal
-        );
 
         Ok(receipt.journal.bytes)
     }
