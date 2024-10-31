@@ -47,7 +47,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     let batch_proof_journals = input.batch_proof_journals.clone();
     let batch_proof_method_id = input.batch_proof_method_id;
-    // TODO: Handle ordering
+    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
+    // https://github.com/chainwayxyz/citrea/issues/1401
     for journal in batch_proof_journals {
         G::verify(&journal, &batch_proof_method_id.into()).unwrap();
     }
