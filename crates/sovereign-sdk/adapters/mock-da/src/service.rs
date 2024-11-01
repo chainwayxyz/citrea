@@ -459,12 +459,12 @@ impl DaService for MockDaService {
             let mut clone_for_full_data = b.clone();
             let full_data = clone_for_full_data.full_data();
             match namespace {
-                DaNamespace::BatchProof => {
+                DaNamespace::ToBatchProver => {
                     if DaDataBatchProof::try_from_slice(full_data).is_ok() {
                         txs.push(b)
                     }
                 }
-                DaNamespace::LightClient => {
+                DaNamespace::ToLightClientProver => {
                     if DaDataLightClient::try_from_slice(full_data).is_ok() {
                         txs.push(b)
                     }

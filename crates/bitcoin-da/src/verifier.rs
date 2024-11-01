@@ -22,8 +22,8 @@ use crate::spec::BitcoinSpec;
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 pub struct BitcoinVerifier {
-    reveal_batch_prover_prefix: Vec<u8>,
-    reveal_light_client_prefix: Vec<u8>,
+    to_batch_prover_prefix: Vec<u8>,
+    to_light_client_prefix: Vec<u8>,
 }
 
 // TODO: custom errors based on our implementation
@@ -113,8 +113,8 @@ impl DaVerifier for BitcoinVerifier {
 
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
-            reveal_batch_prover_prefix: params.reveal_batch_prover_prefix,
-            reveal_light_client_prefix: params.reveal_light_client_prefix,
+            to_batch_prover_prefix: params.to_batch_prover_prefix,
+            to_light_client_prefix: params.to_light_client_prefix,
         }
     }
 
@@ -133,8 +133,8 @@ impl DaVerifier for BitcoinVerifier {
         let mut inclusion_iter = inclusion_proof.wtxids.iter();
 
         let prefix = match namespace {
-            DaNamespace::BatchProof => self.reveal_batch_prover_prefix.as_slice(),
-            DaNamespace::LightClient => self.reveal_light_client_prefix.as_slice(),
+            DaNamespace::ToBatchProver => self.to_batch_prover_prefix.as_slice(),
+            DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
         };
         // Check starting bytes tx that parsed correctly is in blobs
         let mut completeness_tx_hashes = BTreeSet::new();
@@ -157,7 +157,7 @@ impl DaVerifier for BitcoinVerifier {
 
             // it must be parsed correctly
             match namespace {
-                DaNamespace::BatchProof => {
+                DaNamespace::ToBatchProver => {
                     if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
                         match parsed_tx {
                             ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
@@ -175,7 +175,7 @@ impl DaVerifier for BitcoinVerifier {
                         }
                     }
                 }
-                DaNamespace::LightClient => {
+                DaNamespace::ToLightClientProver => {
                     if let Ok(parsed_tx) = parse_light_client_transaction(tx) {
                         match parsed_tx {
                             ParsedLightClientTransaction::Complete(complete) => {
@@ -331,8 +331,8 @@ mod tests {
     #[test]
     fn correct() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -343,15 +343,15 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             )
             .is_ok());
     }
     #[test]
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
         let header = HeaderWrapper::new(
             Header {
@@ -420,7 +420,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Ok(ChainValidityCondition {
                 prev_hash: _,
@@ -432,8 +432,8 @@ mod tests {
     #[test]
     fn false_coinbase_input_witness_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let header = HeaderWrapper::new(
@@ -505,7 +505,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -514,8 +514,8 @@ mod tests {
     #[test]
     fn false_coinbase_script_pubkey_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let header = HeaderWrapper::new(
@@ -603,7 +603,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -612,8 +612,8 @@ mod tests {
     #[test]
     fn false_witness_script_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let header = HeaderWrapper::new(
@@ -693,7 +693,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::NonRelevantTxInProof)
         );
@@ -703,8 +703,8 @@ mod tests {
     #[test]
     fn different_wtxid_fails_verification() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -715,7 +715,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof.clone(),
                 completeness_proof.clone(),
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             )
             .is_ok());
 
@@ -728,7 +728,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof.clone(),
                 completeness_proof.clone(),
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             )
             .is_err());
 
@@ -742,7 +742,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             )
             .is_err());
     }
@@ -750,8 +750,8 @@ mod tests {
     #[test]
     fn extra_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -764,7 +764,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -773,8 +773,8 @@ mod tests {
     #[test]
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -787,7 +787,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -796,8 +796,8 @@ mod tests {
     #[test]
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -810,7 +810,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -819,8 +819,8 @@ mod tests {
     #[test]
     fn break_order_of_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
@@ -833,7 +833,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectInclusionProof)
         );
@@ -842,8 +842,8 @@ mod tests {
     #[test]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -856,7 +856,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectCompletenessProof)
         );
@@ -865,8 +865,8 @@ mod tests {
     #[test]
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -879,7 +879,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectCompletenessProof)
         );
@@ -888,8 +888,8 @@ mod tests {
     #[test]
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
@@ -902,7 +902,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::NonRelevantTxInProof)
         );
@@ -911,8 +911,8 @@ mod tests {
     #[test]
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -926,7 +926,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -935,8 +935,8 @@ mod tests {
     #[test]
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -949,7 +949,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::BlobWasTamperedWith)
         );
@@ -958,8 +958,8 @@ mod tests {
     #[test]
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
@@ -973,7 +973,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::RelevantTxNotFoundInBlock)
         );
@@ -982,8 +982,8 @@ mod tests {
     #[test]
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -997,7 +997,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::BlobContentWasModified)
         );
@@ -1006,8 +1006,8 @@ mod tests {
     #[test]
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -1025,7 +1025,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectSenderInBlob)
         );
@@ -1034,8 +1034,8 @@ mod tests {
     #[test]
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
@@ -1048,7 +1048,7 @@ mod tests {
                 txs.as_slice(),
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof,
+                DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::ValidBlobNotFoundInBlobs)
         );

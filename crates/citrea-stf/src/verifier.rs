@@ -45,7 +45,7 @@ where
             &data.da_data,
             data.inclusion_proof,
             data.completeness_proof,
-            DaNamespace::BatchProof,
+            DaNamespace::ToBatchProver,
         )?;
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");

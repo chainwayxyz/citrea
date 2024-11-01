@@ -57,7 +57,7 @@ where
     let l1_height = l1_block.header().height();
 
     let (mut da_data, inclusion_proof, completeness_proof) =
-        da_service.extract_relevant_blobs_with_proof(&l1_block, DaNamespace::BatchProof);
+        da_service.extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToBatchProver);
 
     // if we don't do this, the zk circuit can't read the sequencer commitments
     da_data.iter_mut().for_each(|blob| {

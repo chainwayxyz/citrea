@@ -138,7 +138,7 @@ where
 
         let (mut da_data, inclusion_proof, completeness_proof) = self
             .da_service
-            .extract_relevant_blobs_with_proof(l1_block, DaNamespace::LightClient);
+            .extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToLightClientProver);
 
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
         tracing::info!(

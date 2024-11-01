@@ -24,7 +24,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             input.da_data.as_slice(),
             input.inclusion_proof,
             input.completeness_proof,
-            DaNamespace::LightClient,
+            DaNamespace::ToLightClientProver,
         )
         .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
 

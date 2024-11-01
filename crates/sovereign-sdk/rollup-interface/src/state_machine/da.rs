@@ -46,9 +46,6 @@ pub enum DaData {
     ZKProof(Proof),
 }
 
-// TODO: create DaDataIncoming
-// consists of
-
 /// Data written to DA and read from DA must be the borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaDataLightClient {
@@ -71,10 +68,10 @@ pub enum DaDataBatchProof {
 
 /// Which type of tx we operate on in DaVerifier
 pub enum DaNamespace {
-    /// BatchProof
-    BatchProof,
-    /// LightClient
-    LightClient,
+    /// Txs going to batch-prover
+    ToBatchProver,
+    /// Txs going to light-client-prover
+    ToLightClientProver,
 }
 
 /// A specification for the types used by a DA layer.

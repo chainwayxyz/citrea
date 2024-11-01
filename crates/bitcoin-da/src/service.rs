@@ -98,8 +98,8 @@ pub struct BitcoinService {
     client: Client,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    reveal_light_client_prefix: Vec<u8>,
-    reveal_batch_prover_prefix: Vec<u8>,
+    to_light_client_prefix: Vec<u8>,
+    to_batch_prover_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     tx_backup_dir: PathBuf,
 }
@@ -144,8 +144,8 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key: private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            to_light_client_prefix: chain_params.to_light_client_prefix,
+            to_batch_prover_prefix: chain_params.to_batch_prover_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
@@ -179,8 +179,8 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            to_light_client_prefix: chain_params.to_light_client_prefix,
+            to_batch_prover_prefix: chain_params.to_batch_prover_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
@@ -380,7 +380,7 @@ impl BitcoinService {
             DaData::ZKProof(zkproof) => {
                 let data = split_proof(zkproof);
 
-                let reveal_light_client_prefix = self.reveal_light_client_prefix.clone();
+                let reveal_light_client_prefix = self.to_light_client_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -421,7 +421,7 @@ impl BitcoinService {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
 
-                let reveal_batch_prover_prefix = self.reveal_batch_prover_prefix.clone();
+                let prefix = self.to_batch_prover_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -435,7 +435,7 @@ impl BitcoinService {
                         fee_sat_per_vbyte,
                         fee_sat_per_vbyte,
                         network,
-                        reveal_batch_prover_prefix,
+                        prefix,
                     )
                 })
                 .await??;
@@ -677,7 +677,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.reveal_light_client_prefix)
+                .starts_with(&self.to_light_client_prefix)
             {
                 continue;
             }
@@ -810,7 +810,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.reveal_batch_prover_prefix)
+                .starts_with(&self.to_batch_prover_prefix)
             {
                 continue;
             }
@@ -853,8 +853,8 @@ impl DaService for BitcoinService {
         );
 
         let prefix = match namespace {
-            DaNamespace::BatchProof => self.reveal_batch_prover_prefix.as_slice(),
-            DaNamespace::LightClient => self.reveal_light_client_prefix.as_slice(),
+            DaNamespace::ToBatchProver => self.to_batch_prover_prefix.as_slice(),
+            DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
         };
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
@@ -899,7 +899,7 @@ impl DaService for BitcoinService {
         let mut relevant_txs = vec![];
         for tx in &completeness_proof {
             match namespace {
-                DaNamespace::BatchProof => {
+                DaNamespace::ToBatchProver => {
                     if let Ok(tx) = parse_batch_proof_transaction(tx) {
                         match tx {
                             ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
@@ -916,7 +916,7 @@ impl DaService for BitcoinService {
                         }
                     }
                 }
-                DaNamespace::LightClient => {
+                DaNamespace::ToLightClientProver => {
                     if let Ok(tx) = parse_light_client_transaction(tx) {
                         match tx {
                             ParsedLightClientTransaction::Complete(complete) => {
@@ -1028,7 +1028,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.reveal_batch_prover_prefix)
+                .starts_with(&self.to_batch_prover_prefix)
             {
                 continue;
             }
@@ -1228,8 +1228,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                to_batch_prover_prefix: vec![1, 1],
+                to_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1259,8 +1259,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![5, 6],
-                reveal_light_client_prefix: vec![5, 5],
+                to_batch_prover_prefix: vec![5, 6],
+                to_light_client_prefix: vec![5, 5],
             },
             tx,
         )
@@ -1291,8 +1291,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                to_batch_prover_prefix: vec![1, 1],
+                to_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1427,7 +1427,7 @@ mod tests {
         };
 
         let (txs, _, _) =
-            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::BatchProof);
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert_eq!(txs, relevant_txs);
     }
@@ -1435,8 +1435,8 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_prover_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let da_service = get_service().await;
@@ -1450,7 +1450,7 @@ mod tests {
         };
 
         let (txs, inclusion_proof, completeness_proof) =
-            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::BatchProof);
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert!(verifier
             .verify_transactions(
@@ -1458,7 +1458,7 @@ mod tests {
                 &txs,
                 inclusion_proof,
                 completeness_proof,
-                DaNamespace::BatchProof
+                DaNamespace::ToBatchProver
             )
             .is_ok());
     }
@@ -1489,8 +1489,8 @@ mod tests {
         let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                to_batch_prover_prefix: vec![1, 1],
+                to_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1539,7 +1539,7 @@ mod tests {
         let block = BitcoinBlock { header, txdata };
 
         let (txs, _, _) =
-            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::BatchProof);
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert_ne!(
             txs.first().unwrap().sender.0,
