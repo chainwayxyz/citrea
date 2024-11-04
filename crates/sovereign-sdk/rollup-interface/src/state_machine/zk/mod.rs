@@ -212,7 +212,7 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
 }
 
 /// The output of light client proof
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct LightClientCircuitOutput {
     /// State root of the node after the light client proof
     pub state_root: [u8; 32],

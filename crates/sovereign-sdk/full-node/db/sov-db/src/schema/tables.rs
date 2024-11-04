@@ -36,7 +36,8 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, JmtValue, L2HeightRange, SlotNumber,
-    StateKey, StoredBatch, StoredBatchProof, StoredSlot, StoredSoftConfirmation, StoredVerifiedProof,
+    StateKey, StoredBatch, StoredBatchProof, StoredLightClientProof, StoredSlot,
+    StoredSoftConfirmation, StoredVerifiedProof,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -59,6 +60,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     L2Witness::table_name(),
     L2GenesisStateRoot::table_name(),
     LastStateDiff::table_name(),
+    LightClientProofBySlotNumber::table_name(),
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
@@ -304,6 +306,11 @@ define_table_with_default_codec!(
 define_table_without_codec!(
     /// The source of truth for JMT nodes
     (JmtNodes) NodeKey => Node
+);
+
+define_table_with_default_codec!(
+    /// Light client proof data by l1 height
+    (LightClientProofBySlotNumber) SlotNumber => StoredLightClientProof
 );
 
 define_table_with_default_codec!(

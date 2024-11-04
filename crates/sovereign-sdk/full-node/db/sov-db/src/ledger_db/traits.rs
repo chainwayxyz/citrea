@@ -5,13 +5,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{LightClientCircuitOutput, Proof};
 use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredSlot, StoredSoftConfirmation,
-    StoredStateTransition,
+    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredLightClientProof, StoredSlot,
+    StoredSoftConfirmation, StoredStateTransition,
 };
 
 /// Shared ledger operations
@@ -187,7 +187,21 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 }
 
 /// Light client prover ledger operations
-pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {}
+pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
+    /// Inserts light client proof data by L1 height
+    fn insert_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+        proof: Proof,
+        light_client_proof_output: LightClientCircuitOutput,
+    ) -> Result<()>;
+
+    /// Gets light client proof data by L1 height
+    fn get_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> Result<Option<StoredLightClientProof>>;
+}
 
 /// Ledger operations for the prover service
 pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {

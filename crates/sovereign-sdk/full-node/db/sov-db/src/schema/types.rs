@@ -10,7 +10,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
-use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
+use sov_rollup_interface::zk::{CumulativeStateDiff, LightClientCircuitOutput, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -71,6 +71,14 @@ pub struct StoredSlot {
     pub extra_data: DbBytes,
     /// The range of batches which occurred in this slot.
     pub batches: std::ops::Range<BatchNumber>,
+}
+/// The on-disk format for a light client proof
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredLightClientProof {
+    /// The proof
+    pub proof: Proof,
+    /// The light client circuit output
+    pub light_client_circuit_output: LightClientCircuitOutput,
 }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition

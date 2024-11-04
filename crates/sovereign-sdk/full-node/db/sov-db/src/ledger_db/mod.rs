@@ -16,14 +16,16 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height,
-    L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
-    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
+    PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
+    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredSlot,
-    StoredSoftConfirmation, StoredStateTransition, StoredVerifiedProof,
+    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
+    StoredLightClientProof, StoredSlot, StoredSoftConfirmation, StoredStateTransition,
+    StoredVerifiedProof,
 };
 
 /// Implementation of database migrator
@@ -501,6 +503,31 @@ impl SharedLedgerOps for LedgerDB {
     }
 }
 
+impl LightClientProverLedgerOps for LedgerDB {
+    fn insert_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+        proof: Proof,
+        light_client_circuit_output: sov_rollup_interface::zk::LightClientCircuitOutput,
+    ) -> anyhow::Result<()> {
+        let data_to_store = StoredLightClientProof {
+            proof,
+            light_client_circuit_output,
+        };
+
+        self.db
+            .put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+    }
+
+    fn get_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<StoredLightClientProof>> {
+        self.db
+            .get::<LightClientProofBySlotNumber>(&SlotNumber(l1_height))
+    }
+}
+
 impl BatchProverLedgerOps for LedgerDB {
     /// Get the witness by L2 height
     #[instrument(level = "trace", skip_all, err)]
@@ -601,8 +628,6 @@ impl BatchProverLedgerOps for LedgerDB {
         Ok(())
     }
 }
-
-impl LightClientProverLedgerOps for LedgerDB {}
 
 impl ProvingServiceLedgerOps for LedgerDB {
     /// Gets all pending sessions and step numbers
