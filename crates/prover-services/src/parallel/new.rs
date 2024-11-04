@@ -38,7 +38,6 @@ where
     zk_storage: Stf::PreState,
     ledger_db: LedgerDB,
 
-    current_da_hash: Option<<Da::Spec as DaSpec>::SlotHash>,
     proof_queue: Vec<ProofData>,
 }
 
@@ -58,6 +57,8 @@ where
         thread_pool_size: usize,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
+        assert!(thread_pool_size > 0, "Prover thread pool size must be greater than 1");
+        
         match proof_mode {
             ProofGenMode::Skip => {
                 tracing::info!("Prover is configured to skip proving");
@@ -85,49 +86,32 @@ where
             vm,
             zk_storage,
             ledger_db,
-            current_da_hash: None,
             proof_queue: vec![],
         })
     }
 
-    /// Creates a new `ParallelProverService` with the default number of thread pool size.
-    /// Default thread pool size is num_cpus - 1.
-    pub fn new_with_default_workers(
+    /// Creates a new `ParallelProverService` with thread_pool_size retrieved from 
+    /// environment variable `PARALLEL_PROOF_LIMIT`. If non-existent, will panic.
+    pub fn new_from_env(
         da_service: Da,
         vm: Vm,
         proof_mode: ProofGenMode<Da, Vm, Stf>,
         zk_storage: Stf::PreState,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
-        let num_cpus = num_cpus::get();
-        assert!(
-            num_cpus > 1,
-            "Parallel prover service requires at least 2 available cores to run smoothly"
-        );
+        let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT").expect("PARALLEL_PROOF_LIMIT must be set").parse::<usize>().expect("PARALLEL_PROOF_LIMIT must be valid unsigned number");
 
         Self::new(
             da_service,
             vm,
             proof_mode,
             zk_storage,
-            num_cpus - 1,
+            thread_pool_size,
             ledger_db,
         )
     }
 
-    pub fn set_current_da_hash(&mut self, da_hash: <Da::Spec as DaSpec>::SlotHash) {
-        assert!(
-            self.current_da_hash.is_none(),
-            "Da hash to prove should never be set twice"
-        );
-        self.current_da_hash = Some(da_hash);
-    }
-
     pub fn add_proof_data(&mut self, proof_data: ProofData) {
-        assert!(
-            self.current_da_hash.is_some(),
-            "Add proof data should never be called before setting da hash"
-        );
         self.proof_queue.push(proof_data);
     }
 
@@ -136,12 +120,10 @@ where
     ) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
         if let ProofGenMode::Skip = *self.proof_mode.lock() {
             tracing::debug!(
-                "Skipped proving {} proofs in block {:?}",
+                "Skipped proving {} proofs",
                 self.proof_queue.len(),
-                self.current_da_hash
             );
 
-            self.current_da_hash = None;
             self.proof_queue.clear();
 
             return Ok(vec![]);
@@ -153,7 +135,6 @@ where
         );
 
         // Clear current proof data
-        self.current_da_hash = None;
         let proof_queue = std::mem::take(&mut self.proof_queue);
 
         // Prove all
