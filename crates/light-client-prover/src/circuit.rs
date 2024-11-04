@@ -21,7 +21,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             &light_client_proof_journal,
             &input.light_client_proof_method_id.into(),
         )
-        .unwrap();
+        .expect("Should have verified the light client proof");
     }
 
     // Verify data from da
