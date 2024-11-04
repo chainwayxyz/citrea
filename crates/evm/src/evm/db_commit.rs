@@ -60,7 +60,6 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                         )
                         .is_some();
                     if !exists_in_db {
-                        println!("Setting code");
                         self.code.set(
                             &account_info.code_hash,
                             code,

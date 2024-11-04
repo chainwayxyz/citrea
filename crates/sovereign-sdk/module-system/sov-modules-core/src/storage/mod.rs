@@ -228,6 +228,16 @@ pub trait Storage: Clone {
         None
     }
 
+    /// Returns the value corresponding to the key or None if key is absent.
+    fn get_offchain(
+        &self,
+        _key: &StorageKey,
+        _version: Option<Version>,
+        _witness: &mut Self::Witness,
+    ) -> Option<StorageValue> {
+        None
+    }
+
     /// Calculates new state root but does not commit any changes to the database.
     fn compute_state_update(
         &self,

@@ -270,6 +270,7 @@ struct OffchainDelta<S: Storage> {
     // This inner storage is never accessed inside the zkVM because reads are
     // not allowed, so it can result as dead code.
     storage: S,
+    witness: S::Witness,
     writes: RevertableWrites,
 }
 
@@ -282,7 +283,11 @@ impl<S: Storage> OffchainDelta<S> {
                 version: Some(v),
             },
         };
-        Self { storage, writes }
+        Self {
+            storage,
+            writes,
+            witness: Default::default(),
+        }
     }
 
     fn freeze(&mut self) -> OrderedReadsAndWrites {
@@ -307,7 +312,7 @@ impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
             return value.clone().map(Into::into);
         }
         self.storage
-            .get(key, self.writes.version, &mut Default::default())
+            .get_offchain(key, self.writes.version, &mut self.witness)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {

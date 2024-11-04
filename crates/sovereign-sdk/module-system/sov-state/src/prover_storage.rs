@@ -90,6 +90,22 @@ where
         val
     }
 
+    fn get_offchain(
+        &self,
+        key: &StorageKey,
+        version: Option<Version>,
+        witness: &mut Self::Witness,
+    ) -> Option<StorageValue> {
+        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
+        let val = self
+            .native_db
+            .get_value_option(key.as_ref(), version_to_use)
+            .unwrap()
+            .map(Into::into);
+        witness.add_hint(val.clone());
+        val
+    }
+
     #[cfg(feature = "native")]
     fn get_accessory(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);

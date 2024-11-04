@@ -54,7 +54,11 @@ impl<Cond> HashStf<Cond> {
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
-        storage.commit(&state_update, &OrderedReadsAndWrites::default());
+        storage.commit(
+            &state_update,
+            &OrderedReadsAndWrites::default(),
+            &OrderedReadsAndWrites::default(),
+        );
 
         let mut root_hash = [0u8; 32];
 
