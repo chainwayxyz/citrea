@@ -1,6 +1,6 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
-    sequencer_commitment_to_response, LastVerifiedProofResponse, LedgerRpcProvider, ProofResponse,
+    sequencer_commitment_to_response, LastVerifiedProofResponse, LedgerRpcProvider, BatchProofResponse,
     SequencerCommitmentResponse, SoftConfirmationIdentifier, SoftConfirmationResponse,
     VerifiedProofResponse,
 };
@@ -144,10 +144,10 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<ProofResponse>>, anyhow::Error> {
+    ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error> {
         match self.db.get::<ProofsBySlotNumber>(&SlotNumber(height))? {
             Some(stored_proofs) => Ok(Some(
-                stored_proofs.into_iter().map(ProofResponse::from).collect(),
+                stored_proofs.into_iter().map(BatchProofResponse::from).collect(),
             )),
             None => Ok(None),
         }

@@ -20,7 +20,7 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse,
+    LastVerifiedProofResponse, BatchProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
 };
 
@@ -533,7 +533,7 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_proofs_by_slot_height(&self, height: u64) -> Vec<ProofResponse> {
+    pub(crate) async fn ledger_get_proofs_by_slot_height(&self, height: u64) -> Vec<BatchProofResponse> {
         self.http_client
             .request("ledger_getProofsBySlotHeight", rpc_params![height])
             .await

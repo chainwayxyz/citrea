@@ -209,7 +209,7 @@ pub struct SequencerCommitmentResponse {
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProofResponse {
+pub struct BatchProofResponse {
     /// l1 tx id of
     #[serde(with = "hex::serde")]
     pub l1_tx_id: [u8; 32],
@@ -446,7 +446,7 @@ pub trait LedgerRpcProvider {
     fn get_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<ProofResponse>>, anyhow::Error>;
+    ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error>;
 
     /// Get verified proof by l1 height
     fn get_verified_proof_data_by_l1_height(

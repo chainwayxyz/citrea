@@ -5,7 +5,7 @@
 
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
-    ProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse, SoftConfirmationStatus,
+    BatchProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse, SoftConfirmationStatus,
     VerifiedProofResponse,
 };
 
@@ -64,11 +64,11 @@ pub trait Rpc {
 
     /// Gets proof by slot height.
     #[method(name = "getProofsBySlotHeight")]
-    async fn get_proofs_by_slot_height(&self, height: u64) -> RpcResult<Option<ProofResponse>>;
+    async fn get_proofs_by_slot_height(&self, height: u64) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets proof by slot hash.
     #[method(name = "getProofsBySlotHash")]
-    async fn get_proofs_by_slot_hash(&self, hash: [u8; 32]) -> RpcResult<Option<ProofResponse>>;
+    async fn get_proofs_by_slot_hash(&self, hash: [u8; 32]) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets the height pf most recent committed soft confirmation.
     #[method(name = "getHeadSoftConfirmation")]

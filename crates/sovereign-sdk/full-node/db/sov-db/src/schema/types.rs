@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    HexTx, ProofResponse, SoftConfirmationResponse, StateTransitionRpcResponse, TxIdentifier,
+    BatchProofResponse, HexTx, SoftConfirmationResponse, StateTransitionRpcResponse, TxIdentifier,
     TxResponse, VerifiedProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
@@ -84,7 +84,7 @@ pub struct StoredBatchProof {
     pub state_transition: StoredStateTransition,
 }
 
-impl From<StoredBatchProof> for ProofResponse {
+impl From<StoredBatchProof> for BatchProofResponse {
     fn from(value: StoredBatchProof) -> Self {
         Self {
             l1_tx_id: value.l1_tx_id,
