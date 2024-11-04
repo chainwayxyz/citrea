@@ -205,7 +205,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -227,14 +227,10 @@ where
             &state_transition_data,
             &submitted_proofs,
         ) {
-            let (tx_id, proof) = generate_and_submit_proof(
-                prover_service.clone(),
-                da_service.clone(),
-                state_transition_data,
-                da_block_hash.clone(),
-            )
-            .await
-            .map_err(|e| anyhow!("{e}"))?;
+            let (tx_id, proof) =
+                generate_and_submit_proof(prover_service.clone(), state_transition_data)
+                    .await
+                    .map_err(|e| anyhow!("{e}"))?;
 
             extract_and_store_proof::<DB, Da, Vm, StateRoot>(
                 ledger.clone(),
@@ -256,29 +252,22 @@ where
     Ok(())
 }
 
-pub(crate) async fn generate_and_submit_proof<Ps, Vm, Da, StateRoot, Witness>(
+pub(crate) async fn generate_and_submit_proof<Ps, Da, StateRoot, Witness>(
     prover_service: Arc<Ps>,
-    da_service: Arc<Da>,
     transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
-    hash: <<Da as DaService>::Spec as DaSpec>::SlotHash,
 ) -> Result<(TxId<Da>, Proof), anyhow::Error>
 where
-    Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     Da: DaService,
     StateRoot: BorshSerialize,
     Witness: BorshSerialize,
 {
-    prover_service
-        .submit_input(borsh::to_vec(&transition_data)?, hash.clone())
-        .await;
+    prover_service.add_proof_data((borsh::to_vec(&transition_data)?, vec![]));
 
-    prover_service.prove(hash.clone()).await?;
+    prover_service.prove_and_submit().await?;
 
-    prover_service
-        .wait_for_proving_and_send_to_da(hash.clone(), &da_service)
-        .await
-        .map_err(|e| anyhow!("Failed to prove and send to DA: {}", e))
+    // TODO: dont forget!!
+    todo!()
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(

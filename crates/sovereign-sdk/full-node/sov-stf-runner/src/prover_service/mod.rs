@@ -86,17 +86,22 @@ pub(crate) type ProofData = (Input, Assumptions);
 ///     1. Submitting an input and assumptions using `add_proof_data` method.
 ///     2. Generate proof and submit it to DA Service with the `prove_and_submit` method.
 #[async_trait]
-pub trait ProverService2 {
+pub trait ProverService {
     /// Data Availability service.
     type DaService: DaService;
 
     /// Add proof data, namely input and assumptions to ProverService.
-    fn add_proof_data(&mut self, proof_data: ProofData);
+    async fn add_proof_data(&self, proof_data: ProofData);
 
     /// Prove added input and assumptions and submit the proof to DA.
     async fn prove_and_submit(
-        &mut self,
-    ) -> anyhow::Result<Vec<<Self::DaService as DaService>::TransactionId>>;
+        &self,
+    ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
+
+    /// Recover the ongoing sessions and submit them to DA.
+    async fn recover_and_submit_proving_sessions(
+        &self,
+    ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
 }
 
 /// This service is responsible for ZK proof generation.
@@ -107,7 +112,7 @@ pub trait ProverService2 {
 /// Currently, the cancellation of proving jobs for submitted inputs is not supported,
 /// but this functionality will be added in the future (#1185).
 #[async_trait]
-pub trait ProverService<Vm: Zkvm> {
+pub trait ProverServiceOld<Vm: Zkvm> {
     /// Data Availability service.
     type DaService: DaService;
 
