@@ -408,11 +408,13 @@ where
         self.runtime
             .finalize_hook(&genesis_hash, &mut working_set.accessory_state());
 
-        let accessory_log = working_set.checkpoint().freeze_non_provable();
+        let mut checkpoint = working_set.checkpoint();
+        let accessory_log = checkpoint.freeze_non_provable();
+        let offchain_log = checkpoint.freeze_offchain();
 
         // TODO: Commit here for now, but probably this can be done outside of STF
         // TODO: Commit is fine
-        pre_state.commit(&state_update, &accessory_log);
+        pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
         (genesis_hash, pre_state)
     }
