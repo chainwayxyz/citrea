@@ -1829,7 +1829,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=bd8ece7#bd8ece76b5e57bef6efa55fcdd758c0f59e05833"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=07914ec#07914ecfc5ce4ae0006faa4b359e086523e2513e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1842,8 +1842,8 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "sov-ledger-rpc 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=ab6b5dd)",
- "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=ab6b5dd)",
+ "sov-ledger-rpc 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=a043984)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=a043984)",
  "tempfile",
  "tokio",
  "toml",
@@ -7324,11 +7324,11 @@ dependencies = [
 [[package]]
 name = "sov-ledger-rpc"
 version = "0.5.0-rc.1"
-source = "git+https://github.com/chainwayxyz/citrea?rev=ab6b5dd#ab6b5ddf0645f5b61486259845f1bdf62a22ded3"
+source = "git+https://github.com/chainwayxyz/citrea?rev=a043984#a0439843a37801331279869a2eb57d985e2d296f"
 dependencies = [
  "jsonrpsee",
  "serde",
- "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=ab6b5dd)",
+ "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=a043984)",
 ]
 
 [[package]]
@@ -7545,7 +7545,7 @@ dependencies = [
 [[package]]
 name = "sov-rollup-interface"
 version = "0.5.0-rc.1"
-source = "git+https://github.com/chainwayxyz/citrea?rev=ab6b5dd#ab6b5ddf0645f5b61486259845f1bdf62a22ded3"
+source = "git+https://github.com/chainwayxyz/citrea?rev=a043984#a0439843a37801331279869a2eb57d985e2d296f"
 dependencies = [
  "anyhow",
  "async-trait",
