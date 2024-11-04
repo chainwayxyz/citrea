@@ -16,7 +16,7 @@ use sov_stf_runner::{
     ProofProcessingStatus, ProverGuestRunConfig, ProverService, ProverServiceError,
     WitnessSubmissionStatus,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Semaphore};
 
 use crate::{ProofGenConfig, ProofGenMode};
 
@@ -153,37 +153,29 @@ where
             "Prove should never be called before setting some proofs"
         );
 
+        // Clear current proof data
+        self.current_da_hash = None;
         let proof_queue = std::mem::take(&mut self.proof_queue);
+
         // Prove all
         let proofs = self.prove(proof_queue).await;
-
         // Submit proofs to DA
-        let mut tx_ids = vec![];
-        for proof in proofs {
-            let tx_id = self.submit_proof(proof).await?;
-            tx_ids.push(tx_id);
-        }
-
-        self.current_da_hash = None;
-
-        Ok(tx_ids)
+        self.submit_proofs(proofs).await
     }
 
-    async fn prove(&mut self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
-        let mut rxs = Vec::with_capacity(proof_queue.len());
+    async fn prove(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
+        let mut proofs = Vec::with_capacity(proof_queue.len());
         // Initialize proof workers
         for proof_data in proof_queue {
-            let rx = self.prove_with(proof_data);
-            rxs.push(rx);
+            let proof = self.prove_with_data(proof_data);
+            proofs.push(proof);
         }
 
         // Wait for all proofs to be completed
-        future::try_join_all(rxs)
-            .await
-            .expect("Should not have channel errors")
+        future::join_all(proofs).await
     }
 
-    fn prove_with(&self, (input, assumptions): ProofData) -> oneshot::Receiver<Vec<u8>> {
+    async fn prove_with_data(&self, (input, assumptions): ProofData) -> Proof {
         let mut vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
         let proof_mode = self.proof_mode.clone();
@@ -200,7 +192,19 @@ where
             let _ = tx.send(proof);
         });
 
-        rx
+        rx.await.expect("Should not have channel errors")
+    }
+
+    async fn submit_proofs(
+        &self,
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
+        let mut tx_ids = Vec::with_capacity(proofs.len());
+        for proof in proofs {
+            let tx_id = self.submit_proof(proof).await?;
+            tx_ids.push(tx_id);
+        }
+        Ok(tx_ids)
     }
 
     async fn submit_proof(
