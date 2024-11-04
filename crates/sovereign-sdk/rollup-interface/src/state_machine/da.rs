@@ -34,6 +34,8 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
+// TODO: rename to da service request smth smth
+// DaDataOutgoing
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
@@ -64,6 +66,14 @@ pub enum DaDataBatchProof {
     // ForcedTransaction(ForcedTransaction),
 }
 
+/// Which type of tx we operate on in DaVerifier
+pub enum DaNamespace {
+    /// Txs going to batch-prover
+    ToBatchProver,
+    /// Txs going to light-client-prover
+    ToLightClientProver,
+}
+
 /// A specification for the types used by a DA layer.
 pub trait DaSpec:
     'static + BorshDeserialize + BorshSerialize + Debug + PartialEq + Eq + Clone
@@ -88,6 +98,7 @@ pub trait DaSpec:
         + BorshSerialize
         + Serialize
         + DeserializeOwned
+        + Clone
         + Send
         + Sync;
 
@@ -99,6 +110,7 @@ pub trait DaSpec:
         + BorshSerialize
         + Serialize
         + DeserializeOwned
+        + Clone
         + Send
         + Sync;
 
@@ -124,22 +136,14 @@ pub trait DaVerifier: Send + Sync {
     /// Create a new da verifier with the given chain parameters
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self;
 
-    /// Verify a claimed set of BatchProof transactions against a block header.
-    fn verify_relevant_tx_list(
+    /// Verify a claimed set of transactions of the given namespace against a block header.
+    fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
-
-    /// Verify a claimed set of LightClient transactions against a block header
-    fn verify_relevant_tx_list_light_client(
-        &self,
-        block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        namespace: DaNamespace,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
 }
 

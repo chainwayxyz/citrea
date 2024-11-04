@@ -12,7 +12,7 @@ use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, StoredProof, StoredStateTransition};
 use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, SequencerCommitment};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
@@ -56,8 +56,8 @@ where
 {
     let l1_height = l1_block.header().height();
 
-    let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> =
-        da_service.extract_relevant_blobs(&l1_block);
+    let (mut da_data, inclusion_proof, completeness_proof) =
+        da_service.extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToBatchProver);
 
     // if we don't do this, the zk circuit can't read the sequencer commitments
     da_data.iter_mut().for_each(|blob| {
@@ -162,9 +162,6 @@ where
             })?
             .expect("There should be a state root");
 
-        let (inclusion_proof, completeness_proof) =
-            da_service.get_extraction_proof(&l1_block, &da_data).await;
-
         let state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec> =
             StateTransitionData {
                 initial_state_root,
@@ -172,8 +169,8 @@ where
                 initial_batch_hash,
                 da_data: da_data.clone(),
                 da_block_header_of_commitments: da_block_header_of_commitments.clone(),
-                inclusion_proof,
-                completeness_proof,
+                inclusion_proof: inclusion_proof.clone(),
+                completeness_proof: completeness_proof.clone(),
                 soft_confirmations,
                 state_transition_witnesses,
                 da_block_headers_of_soft_confirmations,

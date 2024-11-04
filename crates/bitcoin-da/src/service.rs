@@ -23,13 +23,15 @@ use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaData, DaDataBatchProof, DaDataLightClient, DaSpec};
+use sov_rollup_interface::da::{
+    DaData, DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, SequencerCommitment,
+};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use sov_rollup_interface::zk::Proof;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio::{select, signal};
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::helpers::builders::batch_proof_namespace::{
     create_seqcommitment_transactions, BatchProvingTxs,
@@ -96,8 +98,8 @@ pub struct BitcoinService {
     client: Client,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
-    reveal_light_client_prefix: Vec<u8>,
-    reveal_batch_prover_prefix: Vec<u8>,
+    to_light_client_prefix: Vec<u8>,
+    to_batch_proof_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     tx_backup_dir: PathBuf,
 }
@@ -142,8 +144,8 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key: private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            to_light_client_prefix: chain_params.to_light_client_prefix,
+            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
@@ -177,8 +179,8 @@ impl BitcoinService {
             client,
             network: config.network,
             da_private_key,
-            reveal_light_client_prefix: chain_params.reveal_light_client_prefix,
-            reveal_batch_prover_prefix: chain_params.reveal_batch_prover_prefix,
+            to_light_client_prefix: chain_params.to_light_client_prefix,
+            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
@@ -378,7 +380,7 @@ impl BitcoinService {
             DaData::ZKProof(zkproof) => {
                 let data = split_proof(zkproof);
 
-                let reveal_light_client_prefix = self.reveal_light_client_prefix.clone();
+                let reveal_light_client_prefix = self.to_light_client_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -419,7 +421,7 @@ impl BitcoinService {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
 
-                let reveal_batch_prover_prefix = self.reveal_batch_prover_prefix.clone();
+                let prefix = self.to_batch_proof_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -433,7 +435,7 @@ impl BitcoinService {
                         fee_sat_per_vbyte,
                         fee_sat_per_vbyte,
                         network,
-                        reveal_batch_prover_prefix,
+                        prefix,
                     )
                 })
                 .await??;
@@ -650,10 +652,6 @@ impl DaService for BitcoinService {
         Ok(finalized_block_header.header)
     }
 
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        unimplemented!()
-    }
-
     // Fetch the head block of DA.
     #[instrument(level = "trace", skip(self), err)]
     async fn get_head_block_header(
@@ -666,42 +664,10 @@ impl DaService for BitcoinService {
         Ok(head_block_header.header)
     }
 
-    // Extract the blob transactions relevant to a particular rollup from a block.
-    #[instrument(level = "trace", skip_all)]
-    fn extract_relevant_blobs(
+    async fn extract_relevant_zk_proofs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
-        debug!(
-            "Extracting relevant txs from block {:?}",
-            block.header.block_hash()
-        );
-
-        let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs(txs, &self.reveal_batch_prover_prefix)
-    }
-
-    // Extract the blob transactions relevant to a particular rollup from a block.
-    #[instrument(level = "trace", skip_all)]
-    fn extract_relevant_blobs_light_client(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
-        debug!(
-            "Extracting relevant light_client txs from block {:?}",
-            block.header.block_hash()
-        );
-
-        let txs = block.txdata.iter().map(|tx| tx.inner().clone()).collect();
-        get_relevant_blobs_from_txs_light_client(txs, &self.reveal_light_client_prefix)
-    }
-
-    /// Return a list of LightClient transactions
-    #[instrument(level = "trace", skip_all)]
-    async fn extract_relevant_proofs(
-        &self,
-        block: &Self::FilteredBlock,
-        prover_pk: &[u8],
+        prover_da_pub_key: &[u8],
     ) -> anyhow::Result<Vec<Proof>> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
@@ -711,7 +677,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.reveal_light_client_prefix)
+                .starts_with(&self.to_light_client_prefix)
             {
                 continue;
             }
@@ -720,7 +686,7 @@ impl DaService for BitcoinService {
                 let tx_id = tx.compute_txid();
                 match parsed {
                     ParsedLightClientTransaction::Complete(complete) => {
-                        if complete.public_key() == prover_pk
+                        if complete.public_key() == prover_da_pub_key
                             && complete.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
@@ -735,7 +701,7 @@ impl DaService for BitcoinService {
                         }
                     }
                     ParsedLightClientTransaction::Aggregate(aggregate) => {
-                        if aggregate.public_key() == prover_pk
+                        if aggregate.public_key() == prover_da_pub_key
                             && aggregate.get_sig_verified_hash().is_some()
                         {
                             // push only when signature is correct
@@ -831,19 +797,65 @@ impl DaService for BitcoinService {
         Ok(result)
     }
 
-    #[instrument(level = "trace", skip_all)]
-    async fn get_extraction_proof(
+    /// Extract SequencerCommitment's from the block
+    fn extract_relevant_sequencer_commitments(
         &self,
         block: &Self::FilteredBlock,
-        _blobs: &[<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction],
+        sequencer_da_pub_key: &[u8],
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+        let mut sequencer_commitments = Vec::new();
+
+        for tx in &block.txdata {
+            if !tx
+                .compute_wtxid()
+                .to_byte_array()
+                .as_slice()
+                .starts_with(&self.to_batch_proof_prefix)
+            {
+                continue;
+            }
+
+            if let Ok(tx) = parse_batch_proof_transaction(tx) {
+                match tx {
+                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                        if seq_comm.get_sig_verified_hash().is_some()
+                            && seq_comm.public_key() == sequencer_da_pub_key
+                        {
+                            let data = DaDataBatchProof::try_from_slice(&seq_comm.body);
+                            if let Ok(DaDataBatchProof::SequencerCommitment(seq_com)) = data {
+                                sequencer_commitments.push(seq_com);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(sequencer_commitments)
+    }
+
+    /// Extract the relevant transactions from a block, along with a proof that the extraction has been done correctly.
+    /// For example, this method might return all of the blob transactions in rollup's namespace for BatchProofs/LightClient,
+    /// together with a range proof against the root of the namespaced-merkle-tree, demonstrating that the entire
+    /// rollup namespace has been covered.
+    #[allow(clippy::type_complexity)]
+    fn extract_relevant_blobs_with_proof(
+        &self,
+        block: &Self::FilteredBlock,
+        namespace: DaNamespace,
     ) -> (
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
+        Vec<<Self::Spec as DaSpec>::BlobTransaction>,
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
     ) {
         info!(
             "Getting extraction proof for block {:?}",
             block.header.block_hash()
         );
+
+        let prefix = match namespace {
+            DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
+            DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
+        };
 
         let mut completeness_proof = Vec::with_capacity(block.txdata.len());
 
@@ -851,7 +863,7 @@ impl DaService for BitcoinService {
         wtxids.push([0u8; 32]);
 
         // coinbase starts with 0, so we skip it unless the prefix is all 0's
-        if self.reveal_batch_prover_prefix.iter().all(|&x| x == 0) {
+        if prefix.iter().all(|&x| x == 0) {
             completeness_proof.push(block.txdata[0].clone());
         }
 
@@ -859,7 +871,7 @@ impl DaService for BitcoinService {
             let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
 
             // if tx_hash starts with the given prefix, it is in the completeness proof
-            if wtxid.starts_with(&self.reveal_batch_prover_prefix) {
+            if wtxid.starts_with(prefix) {
                 completeness_proof.push(tx.clone());
             }
 
@@ -881,110 +893,62 @@ impl DaService for BitcoinService {
         );
 
         let coinbase_proof = txid_merkle_tree.get_idx_path(0);
+        let inclusion_proof =
+            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof);
 
-        (
-            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
-            completeness_proof,
-        )
-    }
+        let mut relevant_txs = vec![];
+        for tx in &completeness_proof {
+            match namespace {
+                DaNamespace::ToBatchProver => {
+                    if let Ok(tx) = parse_batch_proof_transaction(tx) {
+                        match tx {
+                            ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                                if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                                    let relevant_tx = BlobWithSender::new(
+                                        seq_comm.body,
+                                        seq_comm.public_key,
+                                        hash,
+                                    );
 
-    // Extract the list blob transactions relevant to a particular rollup from a block, along with inclusion and
-    // completeness proofs for that set of transactions. The output of this method will be passed to the verifier.
-    async fn extract_relevant_blobs_with_proof(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> (
-        Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction>,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
-    ) {
-        info!(
-            "Extracting relevant txs with proof from block {:?}",
-            block.header.block_hash()
-        );
+                                    relevant_txs.push(relevant_tx);
+                                }
+                            }
+                        }
+                    }
+                }
+                DaNamespace::ToLightClientProver => {
+                    if let Ok(tx) = parse_light_client_transaction(tx) {
+                        match tx {
+                            ParsedLightClientTransaction::Complete(complete) => {
+                                if let Some(hash) = complete.get_sig_verified_hash() {
+                                    let blob = decompress_blob(&complete.body);
+                                    let relevant_tx =
+                                        BlobWithSender::new(blob, complete.public_key, hash);
 
-        let txs = self.extract_relevant_blobs(block);
-        let (inclusion_proof, completeness_proof) = self.get_extraction_proof(block, &txs).await;
+                                    relevant_txs.push(relevant_tx);
+                                }
+                            }
+                            ParsedLightClientTransaction::Aggregate(aggregate) => {
+                                if let Some(hash) = aggregate.get_sig_verified_hash() {
+                                    let relevant_tx = BlobWithSender::new(
+                                        aggregate.body,
+                                        aggregate.public_key,
+                                        hash,
+                                    );
 
-        (txs, inclusion_proof, completeness_proof)
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    async fn get_extraction_proof_light_client(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> (
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
-    ) {
-        info!(
-            "Getting extraction proof for block {:?}",
-            block.header.block_hash()
-        );
-
-        let mut completeness_proof = Vec::with_capacity(block.txdata.len());
-
-        let mut wtxids = Vec::with_capacity(block.txdata.len());
-        wtxids.push([0u8; 32]);
-
-        // coinbase starts with 0, so we skip it unless the prefix is all 0's
-        if self.reveal_light_client_prefix.iter().all(|&x| x == 0) {
-            completeness_proof.push(block.txdata[0].clone());
+                                    relevant_txs.push(relevant_tx);
+                                }
+                            }
+                            ParsedLightClientTransaction::Chunk(_) => {
+                                // ignore
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        block.txdata[1..].iter().for_each(|tx| {
-            let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
-
-            // if tx_hash starts with the given prefix, it is in the completeness proof
-            if wtxid.starts_with(&self.reveal_light_client_prefix) {
-                completeness_proof.push(tx.clone());
-            }
-
-            wtxids.push(wtxid);
-        });
-
-        let txid_merkle_tree = merkle_tree::BitcoinMerkleTree::new(
-            block
-                .txdata
-                .iter()
-                .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
-                .collect(),
-        );
-
-        assert_eq!(
-            txid_merkle_tree.root(),
-            block.header.merkle_root(),
-            "Merkle root mismatch"
-        );
-
-        let coinbase_proof = txid_merkle_tree.get_idx_path(0);
-
-        (
-            InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof),
-            completeness_proof,
-        )
-    }
-
-    // Extract the list blob transactions relevant to a particular rollup from a block, along with inclusion and
-    // completeness proofs for that set of transactions. The output of this method will be passed to the verifier.
-    async fn extract_relevant_blobs_with_proof_light_client(
-        &self,
-        block: &Self::FilteredBlock,
-    ) -> (
-        Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction>,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
-    ) {
-        info!(
-            "Extracting relevant txs with proof from block {:?}",
-            block.header.block_hash()
-        );
-
-        let txs = self.extract_relevant_blobs_light_client(block);
-        let (inclusion_proof, completeness_proof) =
-            self.get_extraction_proof_light_client(block).await;
-
-        (txs, inclusion_proof, completeness_proof)
+        (relevant_txs, inclusion_proof, completeness_proof)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -1005,17 +969,6 @@ impl DaService for BitcoinService {
         &self,
     ) -> UnboundedSender<Option<SenderWithNotifier<Self::TransactionId>>> {
         self.inscribes_queue.clone()
-    }
-
-    async fn send_aggregated_zk_proof(
-        &self,
-        _aggregated_proof_data: &[u8],
-    ) -> Result<u64, Self::Error> {
-        unimplemented!();
-    }
-
-    async fn get_aggregated_proofs_at(&self, _height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
-        unimplemented!();
     }
 
     #[instrument(level = "trace", skip(self))]
@@ -1062,12 +1015,48 @@ impl DaService for BitcoinService {
         })
     }
 
-    #[instrument(level = "trace", skip(self))]
-    async fn get_relevant_blobs_of_pending_transactions(
+    async fn get_pending_sequencer_commitments(
         &self,
-    ) -> Vec<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
+        sequencer_da_pub_key: &[u8],
+    ) -> Vec<SequencerCommitment> {
         let pending_txs = self.get_pending_transactions().await.unwrap();
-        get_relevant_blobs_from_txs(pending_txs, &self.reveal_batch_prover_prefix)
+
+        let mut sequencer_commitments = Vec::new();
+
+        for tx in &pending_txs {
+            if !tx
+                .compute_wtxid()
+                .to_byte_array()
+                .as_slice()
+                .starts_with(&self.to_batch_proof_prefix)
+            {
+                continue;
+            }
+
+            if let Ok(tx) = parse_batch_proof_transaction(tx) {
+                match tx {
+                    ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
+                        // we check on da pending txs of our wallet however let's keep consistency
+                        if seq_comm.get_sig_verified_hash().is_some()
+                            && seq_comm.public_key == sequencer_da_pub_key
+                        {
+                            let da_data = DaDataBatchProof::try_from_slice(&seq_comm.body);
+                            match da_data {
+                                Ok(da_data) => match da_data {
+                                    DaDataBatchProof::SequencerCommitment(commitment) => {
+                                        sequencer_commitments.push(commitment);
+                                    }
+                                },
+                                Err(err) => {
+                                    warn!("Pending transaction blob failed to be parsed: {}", err);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        sequencer_commitments
     }
 }
 
@@ -1182,49 +1171,6 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
     Ok(Some(fee_rate))
 }
 
-pub fn get_relevant_blobs_from_txs_light_client(
-    txs: Vec<Transaction>,
-    reveal_wtxid_prefix: &[u8],
-) -> Vec<BlobWithSender> {
-    let mut relevant_txs = Vec::new();
-
-    for tx in txs {
-        if !tx
-            .compute_wtxid()
-            .to_byte_array()
-            .as_slice()
-            .starts_with(reveal_wtxid_prefix)
-        {
-            continue;
-        }
-
-        if let Ok(tx) = parse_light_client_transaction(&tx) {
-            match tx {
-                ParsedLightClientTransaction::Complete(complete) => {
-                    if let Some(hash) = complete.get_sig_verified_hash() {
-                        let blob = decompress_blob(&complete.body);
-                        let relevant_tx = BlobWithSender::new(blob, complete.public_key, hash);
-
-                        relevant_txs.push(relevant_tx);
-                    }
-                }
-                ParsedLightClientTransaction::Aggregate(aggregate) => {
-                    if let Some(hash) = aggregate.get_sig_verified_hash() {
-                        let relevant_tx =
-                            BlobWithSender::new(aggregate.body, aggregate.public_key, hash);
-
-                        relevant_txs.push(relevant_tx);
-                    }
-                }
-                ParsedLightClientTransaction::Chunk(_) => {
-                    // ignore
-                }
-            }
-        }
-    }
-    relevant_txs
-}
-
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -1237,10 +1183,10 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
-    use sov_rollup_interface::da::{DaVerifier, SequencerCommitment};
+    use sov_rollup_interface::da::{DaNamespace, DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
-    use super::{get_fee_rate_from_mempool_space, BitcoinService};
+    use super::{get_fee_rate_from_mempool_space, get_relevant_blobs_from_txs, BitcoinService};
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
     use crate::service::BitcoinServiceConfig;
@@ -1282,8 +1228,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                to_batch_proof_prefix: vec![1, 1],
+                to_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1313,8 +1259,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![5, 6],
-                reveal_light_client_prefix: vec![5, 5],
+                to_batch_proof_prefix: vec![5, 6],
+                to_light_client_prefix: vec![5, 5],
             },
             tx,
         )
@@ -1345,8 +1291,8 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                to_batch_proof_prefix: vec![1, 1],
+                to_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1467,48 +1413,6 @@ mod tests {
             .expect("Failed to send transaction");
     }
 
-    // #[tokio::test]
-    // async fn get_finalized_at() {
-    //     let da_service = get_service().await;
-
-    //     da_service
-    //         .get_finalized_at(132)
-    //         .await
-    //         .expect("Failed to get block");
-    // }
-
-    // #[tokio::test]
-    // async fn subscription_test() {
-    //     // Setup and get the service
-    //     let service = get_service().await;
-
-    //     // Subscribe to the stream
-    //     let mut stream = service.subscribe_finalized_header().await.unwrap();
-    //     println!("Subscribed to finalized header stream");
-
-    //     // Generate a new block and wait for the operation to complete
-    //     service
-    //         .client
-    //         .generate_to_address(
-    //             Address::from_str("bcrt1qxuds94z3pqwqea2p4f4ev4f25s6uu7y3avljrl")
-    //                 .unwrap()
-    //                 .require_network(bitcoin::Network::Regtest)
-    //                 .unwrap(),
-    //             1,
-    //         )
-    //         .await
-    //         .unwrap();
-    //     println!("Generated a new block");
-
-    //     // Await the next item from the stream
-    //     if let Some(header_result) = stream.next().await {
-    //         println!("Got header: {:?}", header_result);
-    //         assert!(header_result.is_ok());
-    //     } else {
-    //         panic!("Failed to receive header from stream");
-    //     }
-    // }
-
     #[tokio::test]
     async fn extract_relevant_blobs() {
         let da_service = get_service().await;
@@ -1522,7 +1426,8 @@ mod tests {
             txdata: block_txs,
         };
 
-        let txs = da_service.extract_relevant_blobs(&block);
+        let (txs, _, _) =
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert_eq!(txs, relevant_txs);
     }
@@ -1530,8 +1435,8 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            reveal_batch_prover_prefix: vec![1, 1],
-            reveal_light_client_prefix: vec![2, 2],
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
         });
 
         let da_service = get_service().await;
@@ -1545,10 +1450,16 @@ mod tests {
         };
 
         let (txs, inclusion_proof, completeness_proof) =
-            da_service.extract_relevant_blobs_with_proof(&block).await;
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert!(verifier
-            .verify_relevant_tx_list(block.header(), &txs, inclusion_proof, completeness_proof)
+            .verify_transactions(
+                block.header(),
+                &txs,
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToBatchProver
+            )
             .is_ok());
     }
 
@@ -1578,8 +1489,8 @@ mod tests {
         let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                reveal_batch_prover_prefix: vec![1, 1],
-                reveal_light_client_prefix: vec![2, 2],
+                to_batch_proof_prefix: vec![1, 1],
+                to_light_client_prefix: vec![2, 2],
             },
             tx,
         )
@@ -1627,7 +1538,8 @@ mod tests {
 
         let block = BitcoinBlock { header, txdata };
 
-        let txs = da_service.extract_relevant_blobs(&block);
+        let (txs, _, _) =
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert_ne!(
             txs.first().unwrap().sender.0,
@@ -1655,42 +1567,39 @@ mod tests {
         // tx id = 0x8a1df48198a509cd91930ff44cbb92ef46e80458b1999e16aa6923171894fba3
         // block hash = 0x4ebbe86ead2e7f397419c25b0757bea281353a0592eb692614d13f0e87c5a7ff
         // the tx_hex = "020000000001012a2b5f4a9aef27067aff1bfe058076043667f0618075b94253d58c9f5b7b85d40000000000fdffffff01220200000000000016001421e826b290c95a5c65059b3a48e97a91f422d1330340f1148ce0807ebd683fad97376225ea2eea0dcef89f609e6e563bc5bb4f25c34d96e4741da9d84130ddb9b5a111703332983fdd20a461ae25c9434cde1e9d8733fd60012044e67148e60dd2ab07bb2505f2e3e9298aada763dd4635bce71bcf2f96a6691aac0063010107736f762d627463010240cc4b23d2cb3e22b2c57a59f24088764f39f7b789847e983b9ee9ce7682578c2b7dbdf4384e230c942b91ae5ce6b1ba33587f549fedee4d19e54ff3a8e54601e801032102588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9010400004cc41b7b01f845c786b10e90638b5cd88023081823b06c20b90040401052860738a7c6cd60c7358f581158bbf7e6bc92c7391efe57ed40c593d8a2e09839969526a688dd6cdf3e13965aeca8592c53b7e8bbce8f89ea5492b146f243b3e5a5035eae51c7ebe6b8bc3cab03487b71a7990116d8b5afdc53370e95bb16a7c0adbd8489749b96ad15ae448c2be3bb332f7dc39b6d967b026f9f591af96f3669f1f7c9cc7b1dd047a2c392bbd145daf11142776253e420f5eccc169afb55693d0febc27f0db159036821c044e67148e60dd2ab07bb2505f2e3e9298aada763dd4635bce71bcf2f96a6691a00000000";
-        let header = HeaderWrapper::new(
-            Header {
-                version: Version::from_consensus(536870912),
-                prev_blockhash: BlockHash::from_str(
-                    "4ebd11342b9d9e2a23b0f14c17a12bbb4f52a9290fe6a1cf313c270d5a49c2ea",
-                )
-                .unwrap(),
-                merkle_root: TxMerkleNode::from_str(
-                    "a720804fbad45307b61958059c06f787a1ae10180ce91df2802a40023dea7e84",
-                )
-                .unwrap(),
-                time: 1723820296,
-                bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
-                nonce: 0,
-            },
-            3,
-            2273,
-            WitnessMerkleNode::from_str(
-                "ab0edbf1611637701117cfc70b878b4196be1c5e4c256609ca8b620a0838860a",
-            )
-            .unwrap()
-            .as_raw_hash()
-            .to_byte_array(),
-        );
+        // let header = HeaderWrapper::new(
+        //     Header {
+        //         version: Version::from_consensus(536870912),
+        //         prev_blockhash: BlockHash::from_str(
+        //             "4ebd11342b9d9e2a23b0f14c17a12bbb4f52a9290fe6a1cf313c270d5a49c2ea",
+        //         )
+        //         .unwrap(),
+        //         merkle_root: TxMerkleNode::from_str(
+        //             "a720804fbad45307b61958059c06f787a1ae10180ce91df2802a40023dea7e84",
+        //         )
+        //         .unwrap(),
+        //         time: 1723820296,
+        //         bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+        //         nonce: 0,
+        //     },
+        //     3,
+        //     2273,
+        //     WitnessMerkleNode::from_str(
+        //         "ab0edbf1611637701117cfc70b878b4196be1c5e4c256609ca8b620a0838860a",
+        //     )
+        //     .unwrap()
+        //     .as_raw_hash()
+        //     .to_byte_array(),
+        // );
 
         let txs_str = std::fs::read_to_string("test_data/mock_txs.txt").unwrap();
 
-        let txdata: Vec<TransactionWrapper> = txs_str
+        let txdata: Vec<_> = txs_str
             .lines()
             .map(|tx| parse_hex_transaction(tx).unwrap())
-            .map(Into::into)
             .collect();
 
-        let block = BitcoinBlock { header, txdata };
-
-        let txs = da_service.extract_relevant_blobs(&block);
+        let txs = get_relevant_blobs_from_txs(txdata, &[1]);
 
         assert_eq!(
             txs.first().unwrap().sender.0,

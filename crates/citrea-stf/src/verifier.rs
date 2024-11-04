@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use citrea_primitives::forks::FORKS;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
 
@@ -45,11 +45,12 @@ where
             panic!("Invalid hash of DA block header of commitments");
         }
 
-        let validity_condition = self.da_verifier.verify_relevant_tx_list(
+        let validity_condition = self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
             &data.da_data,
             data.inclusion_proof,
             data.completeness_proof,
+            DaNamespace::ToBatchProver,
         )?;
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");

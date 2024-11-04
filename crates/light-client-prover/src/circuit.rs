@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::{DaDataLightClient, DaVerifier};
+use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::ZkvmGuest;
 
 use crate::input::LightClientCircuitInput;
@@ -19,11 +19,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     // Verify data from da
     let _validity_condition = da_verifier
-        .verify_relevant_tx_list_light_client(
+        .verify_transactions(
             &input.da_block_header,
             input.da_data.as_slice(),
             input.inclusion_proof,
             input.completeness_proof,
+            DaNamespace::ToLightClientProver,
         )
         .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
 
