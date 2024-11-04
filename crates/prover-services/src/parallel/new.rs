@@ -57,8 +57,11 @@ where
         thread_pool_size: usize,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
-        assert!(thread_pool_size > 0, "Prover thread pool size must be greater than 1");
-        
+        assert!(
+            thread_pool_size > 0,
+            "Prover thread pool size must be greater than 1"
+        );
+
         match proof_mode {
             ProofGenMode::Skip => {
                 tracing::info!("Prover is configured to skip proving");
@@ -90,7 +93,7 @@ where
         })
     }
 
-    /// Creates a new `ParallelProverService` with thread_pool_size retrieved from 
+    /// Creates a new `ParallelProverService` with thread_pool_size retrieved from
     /// environment variable `PARALLEL_PROOF_LIMIT`. If non-existent, will panic.
     pub fn new_from_env(
         da_service: Da,
@@ -99,7 +102,10 @@ where
         zk_storage: Stf::PreState,
         ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
-        let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT").expect("PARALLEL_PROOF_LIMIT must be set").parse::<usize>().expect("PARALLEL_PROOF_LIMIT must be valid unsigned number");
+        let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT")
+            .expect("PARALLEL_PROOF_LIMIT must be set")
+            .parse::<usize>()
+            .expect("PARALLEL_PROOF_LIMIT must be valid unsigned number");
 
         Self::new(
             da_service,
@@ -119,10 +125,7 @@ where
         &mut self,
     ) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
         if let ProofGenMode::Skip = *self.proof_mode.lock() {
-            tracing::debug!(
-                "Skipped proving {} proofs",
-                self.proof_queue.len(),
-            );
+            tracing::debug!("Skipped proving {} proofs", self.proof_queue.len(),);
 
             self.proof_queue.clear();
 
