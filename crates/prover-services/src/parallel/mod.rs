@@ -29,7 +29,7 @@ where
 
     proof_mode: Arc<Mutex<ProofGenMode<Da, Vm, Stf>>>,
 
-    da_service: Da,
+    da_service: Arc<Da>,
     vm: Vm,
     zk_storage: Stf::PreState,
     ledger_db: LedgerDB,
@@ -46,7 +46,7 @@ where
 {
     /// Creates a new prover.
     pub fn new(
-        da_service: Da,
+        da_service: Arc<Da>,
         vm: Vm,
         proof_mode: ProofGenMode<Da, Vm, Stf>,
         zk_storage: Stf::PreState,
@@ -92,7 +92,7 @@ where
     /// Creates a new `ParallelProverService` with thread_pool_size retrieved from
     /// environment variable `PARALLEL_PROOF_LIMIT`. If non-existent, will panic.
     pub fn new_from_env(
-        da_service: Da,
+        da_service: Arc<Da>,
         vm: Vm,
         proof_mode: ProofGenMode<Da, Vm, Stf>,
         zk_storage: Stf::PreState,
