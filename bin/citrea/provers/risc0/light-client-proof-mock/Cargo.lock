@@ -732,6 +732,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "citrea-risc0-adapter"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh",
+ "hex",
+ "risc0-zkvm",
+ "serde",
+ "sov-rollup-interface",
+ "tracing",
+]
+
+[[package]]
 name = "const-hex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1433,12 +1447,12 @@ dependencies = [
  "anyhow",
  "citrea-light-client-prover",
  "citrea-primitives",
+ "citrea-risc0-adapter",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-state",
 ]
@@ -2544,20 +2558,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
-]
-
-[[package]]
-name = "sov-risc0-adapter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "bytemuck",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "serde",
- "sov-rollup-interface",
 ]
 
 [[package]]

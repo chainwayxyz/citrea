@@ -554,13 +554,13 @@ name = "batch-proof-mock"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
+ "citrea-risc0-adapter",
  "citrea-stf",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-risc0-adapter",
  "sov-state",
 ]
 
@@ -842,6 +842,20 @@ dependencies = [
  "brotli",
  "reth-primitives",
  "sov-rollup-interface",
+]
+
+[[package]]
+name = "citrea-risc0-adapter"
+version = "0.5.0-rc.1"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh",
+ "hex",
+ "risc0-zkvm",
+ "serde",
+ "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -2794,20 +2808,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
-]
-
-[[package]]
-name = "sov-risc0-adapter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "bytemuck",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "serde",
- "sov-rollup-interface",
 ]
 
 [[package]]

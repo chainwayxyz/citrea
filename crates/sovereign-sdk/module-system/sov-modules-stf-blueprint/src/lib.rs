@@ -441,6 +441,8 @@ where
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
+        // the header hash does not need to be verified here because the full
+        // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmation,
@@ -664,6 +666,13 @@ where
                     previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
                     index_soft_confirmation += 1;
                 } else {
+                    // before going to the next DA block header, we must check if it's hash was supplied
+                    // correctly
+                    assert!(
+                        da_block_headers[index_headers].verify_hash(),
+                        "Invalid DA block header hash"
+                    );
+
                     index_headers += 1;
 
                     // this can also be done in soft confirmation rule enforcer?
@@ -710,6 +719,12 @@ where
                 index_headers,
                 da_block_headers.len() - 1,
                 "All DA headers must be checked"
+            );
+
+            // also it's hash wasn't verified
+            assert!(
+                da_block_headers[index_headers].verify_hash(),
+                "Invalid DA block header hash"
             );
 
             // now verify the claimed merkle root of soft confirmation hashes

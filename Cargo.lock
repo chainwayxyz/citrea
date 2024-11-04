@@ -1716,7 +1716,7 @@ dependencies = [
  "citrea-fullnode",
  "citrea-light-client-prover",
  "citrea-primitives",
- "citrea-risc0-bonsai-adapter",
+ "citrea-risc0-adapter",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
@@ -1990,11 +1990,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "citrea-risc0-bonsai-adapter"
+name = "citrea-risc0-adapter"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "backoff",
  "bincode",
  "bonsai-sdk",
  "borsh",
@@ -2002,7 +2001,6 @@ dependencies = [
  "risc0-zkvm",
  "serde",
  "sov-db",
- "sov-risc0-adapter",
  "sov-rollup-interface 0.5.0-rc.1",
  "tracing",
 ]
@@ -7499,25 +7497,6 @@ dependencies = [
  "sov-state",
  "tempfile",
  "tracing",
-]
-
-[[package]]
-name = "sov-risc0-adapter"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "bincode",
- "borsh",
- "bytemuck",
- "once_cell",
- "parking_lot",
- "risc0-circuit-rv32im",
- "risc0-zkp",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "serde",
- "sov-rollup-interface 0.5.0-rc.1",
- "sov-zk-cycle-utils",
 ]
 
 [[package]]

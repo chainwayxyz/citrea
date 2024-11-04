@@ -1,6 +1,8 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
 EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
+CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
+PARALLEL_PROOF_LIMIT := 1
 
 .PHONY: help
 
@@ -35,7 +37,7 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test: build $(EF_TESTS_DIR) ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
+	RISC0_DEV_MODE=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install --locked dprint

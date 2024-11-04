@@ -7,6 +7,7 @@ pub use risc0_zkvm::sha::Digest;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::Matches;
 
+pub mod guest;
 #[cfg(feature = "native")]
 pub mod host;
 
@@ -42,5 +43,17 @@ impl Matches<Digest> for Risc0MethodId {
 impl Matches<[u32; 8]> for Risc0MethodId {
     fn matches(&self, other: &[u32; 8]) -> bool {
         &self.0 == other
+    }
+}
+
+impl From<Risc0MethodId> for [u32; 8] {
+    fn from(val: Risc0MethodId) -> Self {
+        val.0
+    }
+}
+
+impl From<[u32; 8]> for Risc0MethodId {
+    fn from(value: [u32; 8]) -> Self {
+        Risc0MethodId(value)
     }
 }

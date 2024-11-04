@@ -277,7 +277,12 @@ pub trait BlockHeaderTrait:
     fn prev_hash(&self) -> Self::Hash;
 
     /// Hash the type to get the digest.
+    /// This is pre computed so can't be trusted in zk
+    /// until `verify_hash` is called
     fn hash(&self) -> Self::Hash;
+
+    /// Verify the hash of the block.
+    fn verify_hash(&self) -> bool;
 
     /// Transactions commitment of the block.
     fn txs_commitment(&self) -> Self::Hash;

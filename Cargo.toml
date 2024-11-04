@@ -14,14 +14,13 @@ members = [
   "crates/primitives",
   "crates/prover-services",
   "crates/pruning",
-  "crates/risc0-bonsai",
+  "crates/risc0",
   "crates/sequencer",
   "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
   # "crates/sp1",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
-  "crates/sovereign-sdk/adapters/risc0",
   "crates/sovereign-sdk/adapters/mock-da",
   "crates/sovereign-sdk/adapters/mock-zkvm",
   # Full Node

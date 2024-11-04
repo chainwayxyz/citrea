@@ -1,5 +1,5 @@
 [package]
-name = "citrea-risc0-bonsai-adapter"
+name = "citrea-risc0-adapter"
 version = { workspace = true }
 authors = { workspace = true }
 edition = { workspace = true }
@@ -7,13 +7,12 @@ homepage = { workspace = true }
 license = { workspace = true }
 readme = "README.md"
 repository = { workspace = true }
-description = "An adapter allowing Citrea to connect with Bonsai"
+description = "An adapter allowing Citrea to use risc0 proving system"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = { workspace = true }
-backoff = { workspace = true, optional = true }
 bincode = { workspace = true }
 bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -21,18 +20,15 @@ hex = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
-sov-risc0-adapter = { path = "../sovereign-sdk/adapters/risc0", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 tracing = { workspace = true }
 
 [features]
 default = []
 native = [
-  "dep:backoff",
   "dep:bonsai-sdk",
   "dep:sov-db",
   "risc0-zkvm/prove",
-  "sov-risc0-adapter/native",
   "sov-rollup-interface/native",
 ]
 bench = ["native"]

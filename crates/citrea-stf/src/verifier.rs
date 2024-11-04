@@ -40,6 +40,11 @@ where
     ) -> Result<(), Da::Error> {
         println!("Running sequencer commitments in DA slot");
         let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
+
+        if !data.da_block_header_of_commitments.verify_hash() {
+            panic!("Invalid hash of DA block header of commitments");
+        }
+
         let validity_condition = self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
             &data.da_data,

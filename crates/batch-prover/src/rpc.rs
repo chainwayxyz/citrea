@@ -33,7 +33,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -77,7 +77,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -97,7 +97,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -122,7 +122,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
-    Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
+    Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -223,8 +223,7 @@ where
                 )
             })?;
 
-        prove_l1(
-            self.context.da_service.clone(),
+        prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness>(
             self.context.prover_service.clone(),
             self.context.ledger.clone(),
             self.context.code_commitments_by_spec.clone(),
@@ -257,7 +256,7 @@ where
     Da: DaService,
     DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
-    Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
+    Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
