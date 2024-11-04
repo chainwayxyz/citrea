@@ -85,10 +85,10 @@ pub trait Zkvm: Send + Sync {
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.
     /// TODO: specify a deserializer for the output
-    fn verify_and_extract_output<Da: DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<StateTransition<Da, Root>, Self::Error>;
+    ) -> Result<T, Self::Error>;
 }
 
 /// A trait which is accessible from within a zkVM program.
