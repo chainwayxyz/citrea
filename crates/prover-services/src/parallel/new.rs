@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use citrea_stf::verifier::StateTransitionVerifier;
-use futures::future;
+use futures::{future, SinkExt};
 use parking_lot::Mutex;
 use risc0_zkvm::Receipt;
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
@@ -134,7 +134,7 @@ where
         self.proof_queue.push(proof_data);
     }
 
-    pub async fn prove(&mut self) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
+    pub async fn prove_and_submit(&mut self) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
         if let ProofGenMode::Skip = *self.proof_mode.lock() {
             tracing::debug!(
                 "Skipped proving {} proofs in block {:?}",
@@ -154,28 +154,33 @@ where
         );
 
         let proof_queue = std::mem::take(&mut self.proof_queue);
-        let mut rxs = vec![];
-        // Initialize proof workers
-        for proof_data in proof_queue.into_iter() {
-            let rx = self.prove_with(proof_data);
-            rxs.push(rx);
-        }
-
-        // Wait for all proofs to be completed
-        let proofs = future::try_join_all(rxs)
-            .await
-            .expect("Should not have channel errors");
+        // Prove all
+        let proofs = self.prove(proof_queue).await;
 
         // Submit proofs to DA
         let mut tx_ids = vec![];
         for proof in proofs {
-            let tx_id = self.submit_proof_to_da(proof).await?;
+            let tx_id = self.submit_proof(proof).await?;
             tx_ids.push(tx_id);
         }
 
         self.current_da_hash = None;
 
         Ok(tx_ids)
+    }
+
+    async fn prove(&mut self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
+        let mut rxs = Vec::with_capacity(proof_queue.len());
+        // Initialize proof workers
+        for proof_data in proof_queue {
+            let rx = self.prove_with(proof_data);
+            rxs.push(rx);
+        }
+
+        // Wait for all proofs to be completed
+        future::try_join_all(rxs)
+            .await
+            .expect("Should not have channel errors")
     }
 
     fn prove_with(&self, (input, assumptions): ProofData) -> oneshot::Receiver<Vec<u8>> {
@@ -198,7 +203,7 @@ where
         rx
     }
 
-    async fn submit_proof_to_da(
+    async fn submit_proof(
         &self,
         proof: Proof,
     ) -> anyhow::Result<<Da as DaService>::TransactionId> {
