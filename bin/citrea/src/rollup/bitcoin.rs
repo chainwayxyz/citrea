@@ -7,7 +7,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
-use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 // use citrea_sp1::host::SP1Host;
@@ -137,8 +137,8 @@ impl RollupBlueprint for BitcoinRollup {
             BitcoinService::new_with_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
-                    reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
-                    reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -147,8 +147,8 @@ impl RollupBlueprint for BitcoinRollup {
             BitcoinService::new_without_wallet_check(
                 rollup_config.da.clone(),
                 RollupParams {
-                    reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
-                    reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -187,8 +187,8 @@ impl RollupBlueprint for BitcoinRollup {
         let zk_storage = ZkStorage::new();
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
         });
 
         ParallelProverService::new_with_default_workers(
@@ -220,8 +220,8 @@ impl RollupBlueprint for BitcoinRollup {
         let zk_storage = ZkStorage::new();
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
-            reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
-            reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
         });
 
         ParallelProverService::new_with_default_workers(
