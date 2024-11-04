@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier};
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, MockValidityCond};
 
@@ -54,22 +54,13 @@ impl DaVerifier for MockDaVerifier {
         Self {}
     }
 
-    fn verify_relevant_tx_list(
+    fn verify_transactions(
         &self,
         _block_header: &<Self::Spec as DaSpec>::BlockHeader,
         _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        Ok(Default::default())
-    }
-
-    fn verify_relevant_tx_list_light_client(
-        &self,
-        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
-        _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
-        _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
+        _namespace: DaNamespace,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(Default::default())
     }
