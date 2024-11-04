@@ -244,18 +244,7 @@ where
         let vm = self.vm.clone();
         let proofs = vm.recover_proving_sessions()?;
 
-        let mut results = Vec::with_capacity(proofs.len());
-        for proof in proofs.into_iter() {
-            let da_data = DaData::ZKProof(proof.clone());
-            let tx_id = self
-                .da_service
-                .send_transaction(da_data)
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?;
-            results.push((tx_id, proof));
-        }
-
-        Ok(results)
+        self.submit_proofs(proofs).await
     }
 }
 
