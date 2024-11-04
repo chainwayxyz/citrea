@@ -176,7 +176,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
         Ok(Vec::new())
 
-        // TODO: fix this
+        // TODO: fix this https://github.com/chainwayxyz/citrea/issues/1410
         //
         // let sessions = self.ledger_db.get_pending_proving_sessions()?;
         // tracing::info!("Recovering {} bonsai sessions", sessions.len());
