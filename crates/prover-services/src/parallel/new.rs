@@ -164,15 +164,15 @@ where
     }
 
     async fn prove(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
-        let mut proofs = Vec::with_capacity(proof_queue.len());
+        let mut proof_futs = Vec::with_capacity(proof_queue.len());
         // Initialize proof workers
         for proof_data in proof_queue {
-            let proof = self.prove_with_data(proof_data);
-            proofs.push(proof);
+            let proof_fut = self.prove_with_data(proof_data);
+            proof_futs.push(proof_fut);
         }
 
         // Wait for all proofs to be completed
-        future::join_all(proofs).await
+        future::join_all(proof_futs).await
     }
 
     async fn prove_with_data(&self, (input, assumptions): ProofData) -> Proof {
