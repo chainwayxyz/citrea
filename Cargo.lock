@@ -5164,7 +5164,6 @@ dependencies = [
  "parking_lot",
  "rand 0.8.5",
  "rayon",
- "risc0-zkvm",
  "rs_merkle",
  "serde",
  "sha2",

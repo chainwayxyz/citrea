@@ -425,7 +425,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
     ) -> Result<T, Self::Error> {
         let receipt: Receipt = bincode::deserialize(proof)?;
 
-        Ok(BorshDeserialize::try_from_slice(&receipt.journal.bytes)?)
+        Ok(T::try_from_slice(&receipt.journal.bytes)?)
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {

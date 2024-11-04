@@ -111,10 +111,10 @@ pub trait ProverService<Vm: Zkvm> {
 
     /// Wait for proving to be complete and extract the output
     /// from the prover service.
-    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
+    async fn wait_for_proving_and_extract_output_and_proof<T: BorshDeserialize>(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<T, anyhow::Error>;
+    ) -> Result<(T, Proof), anyhow::Error>;
 
     /// Sends the ZK proof to the DA.
     async fn wait_for_proving_and_send_to_da(

@@ -196,7 +196,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
     ) -> Result<T, Self::Error> {
         let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(proof)?;
 
-        BorshDeserialize::try_from_slice(&data.hint).map_err(Into::into)
+        T::try_from_slice(&data.hint).map_err(Into::into)
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {

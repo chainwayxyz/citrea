@@ -236,4 +236,9 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub batch_proof_method_id: [u32; 8],
     /// Batch proofs outputs
     pub batch_proof_journals: Vec<Vec<u8>>,
+    /// Light client proof method id
+    pub light_client_proof_method_id: [u32; 8],
+    /// Light client proof output
+    /// Optional because the first light client proof doesn't have a previous proof
+    pub light_client_proof_journal: Option<Vec<u8>>,
 }

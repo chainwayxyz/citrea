@@ -11,7 +11,9 @@ use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmHost};
+use sov_rollup_interface::zk::{
+    LightClientCircuitInput, LightClientCircuitOutput, Proof, ZkvmHost,
+};
 use sov_stf_runner::ProverService;
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
@@ -32,7 +34,7 @@ where
     da_service: Arc<Da>,
     batch_prover_da_pub_key: Vec<u8>,
     batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    _light_client_proof_code_commitment: Vm::CodeCommitment,
+    light_client_proof_code_commitment: Vm::CodeCommitment,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
 }
@@ -61,7 +63,7 @@ where
             da_service,
             batch_prover_da_pub_key,
             batch_proof_code_commitments_by_spec,
-            _light_client_proof_code_commitment: light_client_proof_code_commitment,
+            light_client_proof_code_commitment,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
         }
@@ -152,13 +154,13 @@ where
             .expect("Batch proof code commitment not found");
 
         let mut assumptions = vec![];
-        let mut journals = vec![];
+        let mut batch_proof_journals = vec![];
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 match Vm::verify(proof.as_slice(), batch_proof_method_id) {
                     Ok(output) => {
                         assumptions.push(proof);
-                        journals.push(output);
+                        batch_proof_journals.push(output);
                     }
                     Err(e) => {
                         tracing::error!("Failed to verify batch proof: {:?}", e);
@@ -167,17 +169,41 @@ where
                 }
             }
         }
+        let previous_l1_height = l1_height - 1;
+        let proof_data = self
+            .ledger_db
+            .get_light_client_proof_data_by_l1_height(previous_l1_height)?;
+        let mut light_client_proof_journal = None;
+        if let Some(proof_data) = proof_data {
+            let proof = proof_data.proof;
+            let output = proof_data.light_client_circuit_output;
+            assumptions.push(proof);
+            light_client_proof_journal = Some(borsh::to_vec(&output)?);
+        }
 
         let circuit_input = self
-            .create_circuit_input(da_data, l1_block, batch_proof_method_id, journals)
+            .create_circuit_input(
+                da_data,
+                l1_block,
+                batch_proof_method_id,
+                &self.light_client_proof_code_commitment,
+                batch_proof_journals,
+                light_client_proof_journal,
+            )
             .await;
 
-        let circuit_output = self.prove(circuit_input, assumptions).await?;
+        let (circuit_output, proof) = self.prove(circuit_input, assumptions).await?;
 
         tracing::info!(
             "Generated proof for L1 block: {l1_height} output={:?}",
             circuit_output
         );
+
+        self.ledger_db.insert_light_client_proof_data_by_l1_height(
+            l1_height,
+            proof,
+            circuit_output,
+        )?;
 
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
@@ -217,8 +243,10 @@ where
         &self,
         da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
         l1_block: &Da::FilteredBlock,
-        batch_prover_code_commitment: &<Vm as Zkvm>::CodeCommitment,
-        journals: Vec<Vec<u8>>,
+        batch_proof_code_commitment: &<Vm as Zkvm>::CodeCommitment,
+        light_client_proof_code_commitment: &<Vm as Zkvm>::CodeCommitment,
+        batch_proof_journals: Vec<Vec<u8>>,
+        light_client_proof_journal: Option<Vec<u8>>,
     ) -> LightClientCircuitInput<Da::Spec> {
         let (inclusion_proof, completeness_proof) = self
             .da_service
@@ -231,8 +259,10 @@ where
             completeness_proof,
             da_block_header: l1_block.header().clone(),
             batch_prover_da_pub_key: self.batch_prover_da_pub_key.clone(),
-            batch_proof_method_id: batch_prover_code_commitment.clone().into(),
-            batch_proof_journals: journals,
+            batch_proof_method_id: batch_proof_code_commitment.clone().into(),
+            batch_proof_journals,
+            light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
+            light_client_proof_journal,
         }
     }
 
@@ -240,7 +270,7 @@ where
         &self,
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
-    ) -> Result<LightClientCircuitOutput, anyhow::Error> {
+    ) -> Result<(LightClientCircuitOutput, Proof), anyhow::Error> {
         let da_slot_hash = circuit_input.da_block_header.hash();
         let prover_service = self.prover_service.as_ref();
 
@@ -254,11 +284,9 @@ where
 
         prover_service.prove(da_slot_hash.clone()).await?;
 
-        let output: LightClientCircuitOutput = prover_service
-            .wait_for_proving_and_extract_output(da_slot_hash)
-            .await?;
-
-        Ok(output)
+        prover_service
+            .wait_for_proving_and_extract_output_and_proof(da_slot_hash)
+            .await
     }
 }
 

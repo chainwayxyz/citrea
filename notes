@@ -1,0 +1,8 @@
+update da handler, it should put different journals in circ
+> add light client method id to circ input
+> verify prev light client proof
+
+
+sov-db IMOIRTS lcpc
+lcpc IMPORTS sov-modules-api
+sov-modules-api ImPORTS - sov-db

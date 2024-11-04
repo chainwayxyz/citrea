@@ -6,7 +6,6 @@ use borsh::BorshDeserialize;
 use citrea_stf::verifier::StateTransitionVerifier;
 use parking_lot::Mutex;
 use prover::Prover;
-use risc0_zkvm::Receipt;
 use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
@@ -156,21 +155,15 @@ where
         )
     }
 
-    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
+    async fn wait_for_proving_and_extract_output_and_proof<T: BorshDeserialize>(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<T, anyhow::Error> {
+    ) -> Result<(T, Proof), anyhow::Error> {
         let proof = self.wait_for_proof(block_header_hash).await?;
-
-        // TODO: maybe extract this to Vm?
-        // Extract journal
-
-        let receipt: Receipt = bincode::deserialize(&proof)?;
-        let journal = receipt.journal;
-
+        let output =
+            Vm::extract_output::<Da::Spec, T>(&proof).expect("Proof should be deserializable");
         self.ledger_db.clear_pending_proving_sessions()?;
-
-        Ok(T::try_from_slice(&journal.bytes)?)
+        Ok((output, proof))
     }
 
     async fn wait_for_proving_and_send_to_da(
