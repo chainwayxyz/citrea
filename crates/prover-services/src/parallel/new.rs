@@ -11,7 +11,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{
-    ProofProcessingStatus, ProverService, ProverServiceError, WitnessSubmissionStatus,
+    ProofProcessingStatus, ProverService, ProverService2, ProverServiceError, WitnessSubmissionStatus
 };
 use tokio::sync::oneshot;
 
@@ -117,34 +117,6 @@ where
         )
     }
 
-    pub fn add_proof_data(&mut self, proof_data: ProofData) {
-        self.proof_queue.push(proof_data);
-    }
-
-    pub async fn prove_and_submit(
-        &mut self,
-    ) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
-        if let ProofGenMode::Skip = *self.proof_mode.lock() {
-            tracing::debug!("Skipped proving {} proofs", self.proof_queue.len(),);
-
-            self.proof_queue.clear();
-
-            return Ok(vec![]);
-        }
-
-        assert!(
-            !self.proof_queue.is_empty(),
-            "Prove should never be called before setting some proofs"
-        );
-
-        // Clear current proof data
-        let proof_queue = std::mem::take(&mut self.proof_queue);
-
-        // Prove all
-        let proofs = self.prove(proof_queue).await;
-        // Submit proofs to DA
-        self.submit_proofs(proofs).await
-    }
 
     async fn prove(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
         let num_threads = self.thread_pool.current_num_threads();
@@ -218,6 +190,44 @@ where
     }
 }
 
+#[async_trait]
+impl<Da, Vm, Stf> ProverService2 for ParallelProverService<Da, Vm, Stf>
+where
+    Da: DaService,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf::PreState: Clone + Send + Sync,
+{
+    type DaService = Da;
+
+    fn add_proof_data(&mut self, proof_data: ProofData) {
+        self.proof_queue.push(proof_data);
+    }
+
+    async fn prove_and_submit(
+        &mut self,
+    ) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
+        if let ProofGenMode::Skip = *self.proof_mode.lock() {
+            tracing::debug!("Skipped proving {} proofs", self.proof_queue.len(),);
+            self.proof_queue.clear();
+            return Ok(vec![]);
+        }
+
+        assert!(
+            !self.proof_queue.is_empty(),
+            "Prove should never be called before setting some proofs"
+        );
+
+        // Clear current proof data
+        let proof_queue = std::mem::take(&mut self.proof_queue);
+
+        // Prove all
+        let proofs = self.prove(proof_queue).await;
+        // Submit proofs to DA
+        self.submit_proofs(proofs).await
+    }
+}
+
 fn make_proof<Da, Vm, Stf>(
     mut vm: Vm,
     zk_storage: Stf::PreState,
@@ -238,76 +248,5 @@ where
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         ProofGenMode::Execute => vm.run(false),
         ProofGenMode::Prove => vm.run(true),
-    }
-}
-
-#[async_trait]
-impl<Da, Vm, V> ProverService<Vm> for ParallelProverService<Da, Vm, V>
-where
-    Da: DaService,
-    Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
-    V::PreState: Clone + Send + Sync,
-{
-    type DaService = Da;
-
-    async fn submit_assumptions(
-        &self,
-        assumptions: Vec<Vec<u8>>,
-        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) {
-        todo!()
-    }
-
-    async fn submit_input(
-        &self,
-        input: Vec<u8>,
-        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> WitnessSubmissionStatus {
-        todo!()
-    }
-
-    async fn prove(
-        &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofProcessingStatus, ProverServiceError> {
-        todo!()
-    }
-
-    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
-        &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<T, anyhow::Error> {
-        todo!()
-    }
-
-    async fn wait_for_proving_and_send_to_da(
-        &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        da_service: &Arc<Self::DaService>,
-    ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
-        todo!()
-    }
-
-    async fn recover_proving_sessions_and_send_to_da(
-        &self,
-        da_service: &Arc<Self::DaService>,
-    ) -> Result<Vec<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
-        todo!()
-    }
-}
-
-impl<Da, Vm, V> ParallelProverService<Da, Vm, V>
-where
-    Da: DaService,
-    Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
-    V::PreState: Clone + Send + Sync,
-{
-    async fn wait_for_proof(
-        &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> anyhow::Result<Proof> {
-        todo!()
     }
 }

@@ -77,6 +77,28 @@ pub enum ProverServiceError {
     Other(#[from] anyhow::Error),
 }
 
+pub(crate) type Input = Vec<u8>;
+pub(crate) type Assumptions = Vec<Vec<u8>>;
+pub(crate) type ProofData = (Input, Assumptions);
+
+/// This service is responsible for ZK proof generation.
+/// The proof generation process involves the following stages:
+///     1. Submitting an input and assumptions using `add_proof_data` method.
+///     2. Generate proof and submit it to DA Service with the `prove_and_submit` method.
+#[async_trait]
+pub trait ProverService2 {
+    /// Data Availability service.
+    type DaService: DaService;
+
+    /// Add proof data, namely input and assumptions to ProverService.
+    fn add_proof_data(&mut self, proof_data: ProofData);
+
+    /// Prove added input and assumptions and submit the proof to DA.
+    async fn prove_and_submit(
+        &mut self,
+    ) -> anyhow::Result<Vec<<Self::DaService as DaService>::TransactionId>>;
+}
+
 /// This service is responsible for ZK proof generation.
 /// The proof generation process involves the following stages:
 ///     1. Submitting an input witness using the `submit_input` method to a prover service.
