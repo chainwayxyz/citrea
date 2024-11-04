@@ -16,9 +16,15 @@ use sov_stf_runner::ProverService;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
     let TestProver {
         prover_service, vm, ..
-    } = make_new_prover(1);
+    } = make_new_prover(1, da_service);
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
@@ -27,18 +33,24 @@ async fn test_successful_prover_execution() {
             vec![],
         ))
         .await;
-    let proofs = prover_service.prove().await.unwrap();
+
     vm.make_proof();
+    let proofs = prover_service.prove().await.unwrap();
 
     prover_service.submit_proofs(proofs).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_parallel_proving_and_extract() {
-    let num_cpus = num_cpus::get();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
     let TestProver {
         prover_service, vm, ..
-    } = make_new_prover(num_cpus);
+    } = make_new_prover(2, da_service);
 
     let header_hash_1 = MockHash::from([0; 32]);
     prover_service
@@ -70,10 +82,15 @@ async fn test_parallel_proving_and_extract() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_parallel_proving_and_submit() {
-    let num_cpus = num_cpus::get();
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
     let TestProver {
         prover_service, vm, ..
-    } = make_new_prover(num_cpus);
+    } = make_new_prover(2, da_service);
 
     let header_hash_1 = MockHash::from([0; 32]);
     prover_service
@@ -104,13 +121,7 @@ struct TestProver {
     vm: MockZkvm<MockValidityCond>,
 }
 
-fn make_new_prover(thread_pool_size: usize) -> TestProver {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let da_service = Arc::new(MockDaService::new(
-        MockAddress::from([0; 32]),
-        tmpdir.path(),
-    ));
-
+fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> TestProver {
     let vm = MockZkvm::new(MockValidityCond::default());
     let proof_mode = ProofGenMode::Execute;
 

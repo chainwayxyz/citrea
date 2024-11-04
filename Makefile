@@ -1,6 +1,7 @@
 # The release tag of https://github.com/ethereum/tests to use for EF tests
 EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
+PARALLEL_PROOF_LIMIT := 1
 
 .PHONY: help
 
