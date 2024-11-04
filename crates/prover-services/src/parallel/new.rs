@@ -3,22 +3,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
-use citrea_stf::verifier::StateTransitionVerifier;
-use futures::{future, SinkExt};
+use futures::future;
 use parking_lot::Mutex;
-use risc0_zkvm::Receipt;
-use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
+use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::{DaData, DaSpec};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{
-    ProofProcessingStatus, ProverGuestRunConfig, ProverService, ProverServiceError,
+    ProofProcessingStatus, ProverService, ProverServiceError,
     WitnessSubmissionStatus,
 };
-use tokio::sync::{oneshot, Semaphore};
+use tokio::sync::oneshot;
 
-use crate::{ProofGenConfig, ProofGenMode};
+use crate::ProofGenMode;
 
 pub(crate) type Input = Vec<u8>;
 pub(crate) type Assumptions = Vec<Vec<u8>>;
@@ -164,15 +162,34 @@ where
     }
 
     async fn prove(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
-        let mut proof_futs = Vec::with_capacity(proof_queue.len());
+        let num_threads = self.thread_pool.current_num_threads();
+
+        // Future buffer to keep track of ongoing provings
+        let mut future_buffer= Vec::with_capacity(num_threads);
+        let mut proofs = vec![Proof::default(); proof_queue.len()];
         // Initialize proof workers
-        for proof_data in proof_queue {
+        for (idx, proof_data) in proof_queue.into_iter().enumerate() {
+            if future_buffer.len() == num_threads {
+                // If no available threads, wait for one of the proofs to finish
+                let ((idx, proof), _, remaining_futures) = future::select_all(future_buffer).await;
+                proofs[idx] = proof;
+                future_buffer = remaining_futures;
+            }
+
             let proof_fut = self.prove_with_data(proof_data);
-            proof_futs.push(proof_fut);
+            future_buffer.push(Box::pin(async move {
+                let proof = proof_fut.await;
+                (idx, proof)
+            }));
         }
 
-        // Wait for all proofs to be completed
-        future::join_all(proof_futs).await
+        // Wait for all the remaining proofs to complete
+        let remaining_proofs = future::join_all(future_buffer).await;
+        for (idx, proof) in remaining_proofs {
+            proofs[idx] = proof;
+        }
+
+        proofs
     }
 
     async fn prove_with_data(&self, (input, assumptions): ProofData) -> Proof {
