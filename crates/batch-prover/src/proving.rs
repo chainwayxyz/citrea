@@ -363,7 +363,7 @@ where
         .get_l1_height_of_l1_hash(slot_hash)?
         .expect("l1 height should exist");
 
-    if let Err(e) = ledger_db.insert_proof_data_by_l1_height(
+    if let Err(e) = ledger_db.insert_batch_proof_data_by_l1_height(
         l1_height,
         tx_id_u8,
         proof,

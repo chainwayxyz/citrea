@@ -519,7 +519,7 @@ impl BatchProverLedgerOps for LedgerDB {
 
     /// Stores proof related data on disk, accessible via l1 slot height
     #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
-    fn insert_proof_data_by_l1_height(
+    fn insert_batch_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
