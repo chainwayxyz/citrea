@@ -157,7 +157,7 @@ where
         let mut rxs = vec![];
         // Initialize proof workers
         for proof_data in proof_queue.into_iter() {
-            let rx = self.prove_inner(proof_data);
+            let rx = self.prove_with(proof_data);
             rxs.push(rx);
         }
 
@@ -165,16 +165,20 @@ where
         let proofs = future::try_join_all(rxs)
             .await
             .expect("Should not have channel errors");
+
+        // Submit proofs to DA
         let mut tx_ids = vec![];
         for proof in proofs {
             let tx_id = self.submit_proof_to_da(proof).await?;
             tx_ids.push(tx_id);
         }
 
+        self.current_da_hash = None;
+
         Ok(tx_ids)
     }
 
-    fn prove_inner(&self, (input, assumptions): ProofData) -> oneshot::Receiver<Vec<u8>> {
+    fn prove_with(&self, (input, assumptions): ProofData) -> oneshot::Receiver<Vec<u8>> {
         let mut vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
         let proof_mode = self.proof_mode.clone();
