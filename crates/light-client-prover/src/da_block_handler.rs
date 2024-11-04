@@ -11,16 +11,13 @@ use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
-
-use crate::input::LightClientCircuitInput;
-use crate::output::LightClientCircuitOutput;
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
 where

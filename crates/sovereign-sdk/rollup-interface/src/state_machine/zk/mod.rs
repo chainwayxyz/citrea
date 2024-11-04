@@ -210,3 +210,30 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
+
+/// The output of light client proof
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize)]
+pub struct LightClientCircuitOutput {
+    /// State root of the node after the light client proof
+    pub state_root: [u8; 32],
+}
+
+/// The input of light client proof
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct LightClientCircuitInput<Da: DaSpec> {
+    /// The `crate::da::DaData` that are being processed as blobs.
+    pub da_data: Vec<Da::BlobTransaction>,
+    /// The inclusion proof for all DA data.
+    pub inclusion_proof: Da::InclusionMultiProof,
+    /// The completeness proof for all DA data.
+    pub completeness_proof: Da::CompletenessProof,
+    /// DA block header that the batch proofs were found in.
+    pub da_block_header: Da::BlockHeader,
+
+    /// Public key of the batch prover
+    pub batch_prover_da_pub_key: Vec<u8>,
+    /// Batch proof method id
+    pub batch_proof_method_id: [u32; 8],
+    /// Batch proofs outputs
+    pub batch_proof_journals: Vec<Vec<u8>>,
+}

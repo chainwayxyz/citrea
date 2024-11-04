@@ -1,10 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaVerifier};
-use sov_rollup_interface::zk::ZkvmGuest;
-
-use crate::input::LightClientCircuitInput;
-use crate::output::LightClientCircuitOutput;
+use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmGuest};
 
 #[derive(Debug)]
 pub enum LightClientVerificationError {
