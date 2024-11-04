@@ -6,7 +6,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::schema::types::SlotNumber;
+use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -170,15 +170,38 @@ where
             }
         }
         let previous_l1_height = l1_height - 1;
-        let proof_data = self
+        match self
             .ledger_db
-            .get_light_client_proof_data_by_l1_height(previous_l1_height)?;
-        let mut light_client_proof_journal = None;
-        if let Some(proof_data) = proof_data {
-            let proof = proof_data.proof;
-            let output = proof_data.light_client_circuit_output;
-            assumptions.push(proof);
-            light_client_proof_journal = Some(borsh::to_vec(&output)?);
+            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
+        {
+            Some(data) => {
+                let proof = data.proof;
+                let output = data.light_client_circuit_output;
+                assumptions.push(proof);
+                batch_proof_journals.push(output);
+            }
+            None => {
+                let initial_l1_height = self
+                    .ledger_db
+                    .get_soft_confirmation_by_number(&BatchNumber(0))?
+                    .unwrap()
+                    .da_slot_height;
+                // If the prev block is the block before the first processed l1 block
+                // then we don't have a previous light client proof, so just give an info
+                if previous_l1_height == initial_l1_height - 1 {
+                    tracing::info!(
+                        "No previous light client proof found for L1 block: {}",
+                        previous_l1_height
+                    );
+                }
+                // If not then we have a problem
+                else {
+                    panic!(
+                        "No previous light client proof found for L1 block: {}",
+                        previous_l1_height
+                    );
+                }
+            }
         }
 
         let circuit_input = self
