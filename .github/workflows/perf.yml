@@ -30,7 +30,7 @@ jobs:
           override: true
           components: rustfmt, clippy
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: ubicloud/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
