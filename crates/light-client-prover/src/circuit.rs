@@ -14,6 +14,16 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 ) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
     let input: LightClientCircuitInput<DaV::Spec> = guest.read_from_host();
 
+    // Start by verifying the previous light client proof
+    // If this is the first light client proof, skip this step
+    if let Some(light_client_proof_journal) = input.light_client_proof_journal {
+        G::verify(
+            &light_client_proof_journal,
+            &input.light_client_proof_method_id.into(),
+        )
+        .unwrap();
+    }
+
     // Verify data from da
     let _validity_condition = da_verifier
         .verify_relevant_tx_list_light_client(
