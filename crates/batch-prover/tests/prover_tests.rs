@@ -68,8 +68,8 @@ async fn test_parallel_proving_and_extract() {
         ))
         .await;
 
-    let proofs = prover_service.prove().await.unwrap();
     vm.make_proof();
+    let proofs = prover_service.prove().await.unwrap();
 
     let state_transitions = prover_service
         .extract_output::<StateTransition<MockDaSpec, [u8; 0]>>(proofs)
@@ -108,8 +108,8 @@ async fn test_parallel_proving_and_submit() {
         ))
         .await;
 
-    let proofs = prover_service.prove().await.unwrap();
     vm.make_proof();
+    let proofs = prover_service.prove().await.unwrap();
 
     let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
     assert_eq!(txs_and_proofs.len(), 2);
