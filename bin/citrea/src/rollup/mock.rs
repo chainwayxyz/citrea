@@ -141,15 +141,8 @@ impl RollupBlueprint for MockDemoRollup {
             ProverGuestRunConfig::Prove => ProofGenMode::Prove,
         };
 
-        ParallelProverService::new(
-            da_service.clone(),
-            vm,
-            proof_mode,
-            zk_storage,
-            1,
-            ledger_db,
-        )
-        .expect("Should be able to instantiate prover service")
+        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
+            .expect("Should be able to instantiate prover service")
     }
 
     async fn create_light_client_prover_service(
@@ -179,15 +172,8 @@ impl RollupBlueprint for MockDemoRollup {
             ProverGuestRunConfig::Prove => ProofGenMode::Prove,
         };
 
-        ParallelProverService::new(
-            da_service.clone(),
-            vm,
-            proof_mode,
-            zk_storage,
-            1,
-            ledger_db,
-        )
-        .expect("Should be able to instantiate prover service")
+        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
+            .expect("Should be able to instantiate prover service")
     }
 
     fn create_storage_manager(

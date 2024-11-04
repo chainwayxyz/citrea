@@ -245,14 +245,7 @@ impl RollupBlueprint for BitcoinRollup {
             ProverGuestRunConfig::Prove => ProofGenMode::Prove,
         };
 
-        ParallelProverService::new(
-            da_service.clone(),
-            vm,
-            proof_mode,
-            zk_storage,
-            1,
-            ledger_db,
-        )
-        .expect("Should be able to instantiate prover service")
+        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
+            .expect("Should be able to instantiate prover service")
     }
 }
