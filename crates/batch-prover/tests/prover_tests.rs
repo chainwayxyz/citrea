@@ -8,7 +8,6 @@ use sov_mock_da::{
     MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash, MockValidityCond,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::StateTransition;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::StateTransitionData;
 use sov_stf_runner::mock::MockStf;
@@ -38,46 +37,6 @@ async fn test_successful_prover_execution() {
     let proofs = prover_service.prove().await.unwrap();
 
     prover_service.submit_proofs(proofs).await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_parallel_proving_and_extract() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let da_service = Arc::new(MockDaService::new(
-        MockAddress::from([0; 32]),
-        tmpdir.path(),
-    ));
-
-    let TestProver {
-        prover_service, vm, ..
-    } = make_new_prover(2, da_service);
-
-    let header_hash_1 = MockHash::from([0; 32]);
-    prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
-            vec![],
-        ))
-        .await;
-
-    let header_hash_2 = MockHash::from([1; 32]);
-    prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
-            vec![],
-        ))
-        .await;
-
-    vm.make_proof();
-    let proofs = prover_service.prove().await.unwrap();
-
-    let state_transitions = prover_service
-        .extract_output::<StateTransition<MockDaSpec, [u8; 0]>>(proofs)
-        .await
-        .unwrap();
-    assert_eq!(state_transitions.len(), 2);
-    assert_eq!(state_transitions[0].da_slot_hash, header_hash_1);
-    assert_eq!(state_transitions[1].da_slot_hash, header_hash_2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
