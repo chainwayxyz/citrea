@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::Zkvm;
 use sov_rollup_interface::da::DaSpec;
@@ -111,10 +110,10 @@ pub trait ProverService<Vm: Zkvm> {
 
     /// Wait for proving to be complete and extract the output
     /// from the prover service.
-    async fn wait_for_proving_and_extract_output_and_proof<T: BorshDeserialize>(
+    async fn wait_for_proving_and_extract_proof(
         &self,
         block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<(T, Proof), anyhow::Error>;
+    ) -> Result<Proof, anyhow::Error>;
 
     /// Sends the ZK proof to the DA.
     async fn wait_for_proving_and_send_to_da(

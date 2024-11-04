@@ -2,7 +2,6 @@ mod prover;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use citrea_stf::verifier::StateTransitionVerifier;
 use parking_lot::Mutex;
 use prover::Prover;
@@ -155,15 +154,11 @@ where
         )
     }
 
-    async fn wait_for_proving_and_extract_output_and_proof<T: BorshDeserialize>(
+    async fn wait_for_proving_and_extract_proof(
         &self,
         block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<(T, Proof), anyhow::Error> {
-        let proof = self.wait_for_proof(block_header_hash).await?;
-        let output =
-            Vm::extract_output::<Da::Spec, T>(&proof).expect("Proof should be deserializable");
-        self.ledger_db.clear_pending_proving_sessions()?;
-        Ok((output, proof))
+    ) -> Result<Proof, anyhow::Error> {
+        self.wait_for_proof(block_header_hash).await
     }
 
     async fn wait_for_proving_and_send_to_da(

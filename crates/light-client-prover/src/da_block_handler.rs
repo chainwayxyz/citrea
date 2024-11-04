@@ -192,7 +192,10 @@ where
             )
             .await;
 
-        let (circuit_output, proof) = self.prove(circuit_input, assumptions).await?;
+        let proof = self.prove(circuit_input, assumptions).await?;
+
+        let circuit_output = Vm::extract_output::<Da::Spec, LightClientCircuitOutput>(&proof)
+            .expect("Should deserialize valid proof");
 
         tracing::info!(
             "Generated proof for L1 block: {l1_height} output={:?}",
@@ -270,7 +273,7 @@ where
         &self,
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
-    ) -> Result<(LightClientCircuitOutput, Proof), anyhow::Error> {
+    ) -> Result<Proof, anyhow::Error> {
         let da_slot_hash = circuit_input.da_block_header.hash();
         let prover_service = self.prover_service.as_ref();
 
@@ -285,7 +288,7 @@ where
         prover_service.prove(da_slot_hash.clone()).await?;
 
         prover_service
-            .wait_for_proving_and_extract_output_and_proof(da_slot_hash)
+            .wait_for_proving_and_extract_proof(da_slot_hash)
             .await
     }
 }
