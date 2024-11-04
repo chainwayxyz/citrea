@@ -210,6 +210,7 @@ jobs:
           CI_TEST_MODE: 1
           RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+          PARALLEL_PROOF_LIMIT: 1
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -379,6 +380,7 @@ jobs:
           TEST_BITCOIN_DOCKER: 1
           CI_TEST_MODE: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+          PARALLEL_PROOF_LIMIT: 1
 
   system-contracts:
     strategy:
