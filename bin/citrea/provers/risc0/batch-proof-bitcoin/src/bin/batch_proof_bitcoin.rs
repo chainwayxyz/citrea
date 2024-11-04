@@ -1,7 +1,7 @@
 #![no_main]
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
-use citrea_primitives::{TO_BATCH_PROOVER_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
@@ -21,7 +21,7 @@ pub fn main() {
     let mut stf_verifier = StfVerifier::new(
         stf,
         BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: TO_BATCH_PROOVER_PREFIX.to_vec(),
+            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
             to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
         }),
     );

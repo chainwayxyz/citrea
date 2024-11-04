@@ -13,7 +13,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::{TO_BATCH_PROOVER_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use tokio::sync::mpsc::UnboundedSender;
@@ -188,7 +188,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                 bitcoin_da_service_config,
                 RollupParams {
                     to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_prover_prefix: TO_BATCH_PROOVER_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx.clone(),
             )

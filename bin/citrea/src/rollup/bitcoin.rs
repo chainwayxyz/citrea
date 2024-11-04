@@ -7,7 +7,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
-use citrea_primitives::{TO_BATCH_PROOVER_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_bonsai_adapter::host::Risc0BonsaiHost;
 use citrea_risc0_bonsai_adapter::Digest;
 // use citrea_sp1::host::SP1Host;
@@ -138,7 +138,7 @@ impl RollupBlueprint for BitcoinRollup {
                 rollup_config.da.clone(),
                 RollupParams {
                     to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_prover_prefix: TO_BATCH_PROOVER_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -148,7 +148,7 @@ impl RollupBlueprint for BitcoinRollup {
                 rollup_config.da.clone(),
                 RollupParams {
                     to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-                    to_batch_prover_prefix: TO_BATCH_PROOVER_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
             )
@@ -188,7 +188,7 @@ impl RollupBlueprint for BitcoinRollup {
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
             to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-            to_batch_prover_prefix: TO_BATCH_PROOVER_PREFIX.to_vec(),
+            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
         });
 
         ParallelProverService::new_with_default_workers(
@@ -221,7 +221,7 @@ impl RollupBlueprint for BitcoinRollup {
 
         let da_verifier = BitcoinVerifier::new(RollupParams {
             to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-            to_batch_prover_prefix: TO_BATCH_PROOVER_PREFIX.to_vec(),
+            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
         });
 
         ParallelProverService::new_with_default_workers(

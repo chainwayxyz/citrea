@@ -27,7 +27,7 @@ const fn get_max_txbody_size() -> usize {
 }
 
 /// Prefix for the reveal transaction ids - batch proof namespace.
-pub const TO_BATCH_PROOVER_PREFIX: &[u8] = get_reveal_batch_proof_prefix();
+pub const TO_BATCH_PROOF_PREFIX: &[u8] = get_reveal_batch_proof_prefix();
 
 /// Prefix for the reveal transaction ids - light client namespace.
 pub const TO_LIGHT_CLIENT_PREFIX: &[u8] = get_reveal_light_client_prefix();

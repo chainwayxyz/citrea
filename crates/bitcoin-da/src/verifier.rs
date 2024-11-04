@@ -22,7 +22,7 @@ use crate::spec::BitcoinSpec;
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
 pub struct BitcoinVerifier {
-    to_batch_prover_prefix: Vec<u8>,
+    to_batch_proof_prefix: Vec<u8>,
     to_light_client_prefix: Vec<u8>,
 }
 
@@ -113,7 +113,7 @@ impl DaVerifier for BitcoinVerifier {
 
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {
-            to_batch_prover_prefix: params.to_batch_prover_prefix,
+            to_batch_proof_prefix: params.to_batch_proof_prefix,
             to_light_client_prefix: params.to_light_client_prefix,
         }
     }
@@ -133,7 +133,7 @@ impl DaVerifier for BitcoinVerifier {
         let mut inclusion_iter = inclusion_proof.wtxids.iter();
 
         let prefix = match namespace {
-            DaNamespace::ToBatchProver => self.to_batch_prover_prefix.as_slice(),
+            DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
             DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
         };
         // Check starting bytes tx that parsed correctly is in blobs
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn correct() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
         let header = HeaderWrapper::new(
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn false_coinbase_input_witness_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -514,7 +514,7 @@ mod tests {
     #[test]
     fn false_coinbase_script_pubkey_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -612,7 +612,7 @@ mod tests {
     #[test]
     fn false_witness_script_should_fail() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -703,7 +703,7 @@ mod tests {
     #[test]
     fn different_wtxid_fails_verification() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -750,7 +750,7 @@ mod tests {
     #[test]
     fn extra_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -773,7 +773,7 @@ mod tests {
     #[test]
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -796,7 +796,7 @@ mod tests {
     #[test]
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -819,7 +819,7 @@ mod tests {
     #[test]
     fn break_order_of_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -842,7 +842,7 @@ mod tests {
     #[test]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -865,7 +865,7 @@ mod tests {
     #[test]
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -888,7 +888,7 @@ mod tests {
     #[test]
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -911,7 +911,7 @@ mod tests {
     #[test]
     fn break_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -935,7 +935,7 @@ mod tests {
     #[test]
     fn break_rel_tx_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -958,7 +958,7 @@ mod tests {
     #[test]
     fn break_rel_tx_and_completeness_proof_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -982,7 +982,7 @@ mod tests {
     #[test]
     fn tamper_rel_tx_content() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -1006,7 +1006,7 @@ mod tests {
     #[test]
     fn tamper_senders() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -1034,7 +1034,7 @@ mod tests {
     #[test]
     fn missing_rel_tx() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 

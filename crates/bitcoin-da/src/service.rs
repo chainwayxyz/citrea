@@ -99,7 +99,7 @@ pub struct BitcoinService {
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     to_light_client_prefix: Vec<u8>,
-    to_batch_prover_prefix: Vec<u8>,
+    to_batch_proof_prefix: Vec<u8>,
     inscribes_queue: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
     tx_backup_dir: PathBuf,
 }
@@ -145,7 +145,7 @@ impl BitcoinService {
             network: config.network,
             da_private_key: private_key,
             to_light_client_prefix: chain_params.to_light_client_prefix,
-            to_batch_prover_prefix: chain_params.to_batch_prover_prefix,
+            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
@@ -180,7 +180,7 @@ impl BitcoinService {
             network: config.network,
             da_private_key,
             to_light_client_prefix: chain_params.to_light_client_prefix,
-            to_batch_prover_prefix: chain_params.to_batch_prover_prefix,
+            to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
         })
@@ -421,7 +421,7 @@ impl BitcoinService {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
 
-                let prefix = self.to_batch_prover_prefix.clone();
+                let prefix = self.to_batch_proof_prefix.clone();
                 // create inscribe transactions
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
@@ -810,7 +810,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_batch_prover_prefix)
+                .starts_with(&self.to_batch_proof_prefix)
             {
                 continue;
             }
@@ -853,7 +853,7 @@ impl DaService for BitcoinService {
         );
 
         let prefix = match namespace {
-            DaNamespace::ToBatchProver => self.to_batch_prover_prefix.as_slice(),
+            DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
             DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
         };
 
@@ -1028,7 +1028,7 @@ impl DaService for BitcoinService {
                 .compute_wtxid()
                 .to_byte_array()
                 .as_slice()
-                .starts_with(&self.to_batch_prover_prefix)
+                .starts_with(&self.to_batch_proof_prefix)
             {
                 continue;
             }
@@ -1228,7 +1228,7 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                to_batch_prover_prefix: vec![1, 1],
+                to_batch_proof_prefix: vec![1, 1],
                 to_light_client_prefix: vec![2, 2],
             },
             tx,
@@ -1259,7 +1259,7 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                to_batch_prover_prefix: vec![5, 6],
+                to_batch_proof_prefix: vec![5, 6],
                 to_light_client_prefix: vec![5, 5],
             },
             tx,
@@ -1291,7 +1291,7 @@ mod tests {
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                to_batch_prover_prefix: vec![1, 1],
+                to_batch_proof_prefix: vec![1, 1],
                 to_light_client_prefix: vec![2, 2],
             },
             tx,
@@ -1435,7 +1435,7 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_prover_prefix: vec![1, 1],
+            to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
@@ -1489,7 +1489,7 @@ mod tests {
         let incorrect_service = BitcoinService::new_without_wallet_check(
             runtime_config,
             RollupParams {
-                to_batch_prover_prefix: vec![1, 1],
+                to_batch_proof_prefix: vec![1, 1],
                 to_light_client_prefix: vec![2, 2],
             },
             tx,
