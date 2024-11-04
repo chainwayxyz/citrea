@@ -6,9 +6,10 @@ use sov_rollup_interface::zk::ZkvmHost;
 mod parallel;
 pub use parallel::*;
 
-/// Represents the possible modes of execution for a zkVM program
-pub enum ProofGenConfig<Stf, Da: DaService, Vm: ZkvmHost>
+pub enum ProofGenMode<Da, Vm, Stf>
 where
+    Da: DaService,
+    Vm: ZkvmHost,
     Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
 {
     /// Skips proving.
@@ -19,5 +20,5 @@ where
     /// produce a zk proof
     Execute,
     /// The prover runs the rollup verification logic in the zkVM and produces a zk proof
-    Prover,
+    Prove,
 }

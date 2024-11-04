@@ -12,8 +12,6 @@ repository.workspace = true
 # Citrea Deps
 citrea-common = { path = "../common" }
 citrea-primitives = { path = "../primitives", features = ["native"] }
-citrea-stf = { path = "../citrea-stf" }
-prover-services = { path = "../prover-services" }
 sequencer-client = { path = "../sequencer-client" }
 
 # Sov SDK deps
@@ -48,8 +46,8 @@ tracing = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 
+citrea-stf = { path = "../citrea-stf", features = ["native"] }
+prover-services = { path = "../prover-services" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["mock"] }
-
-citrea-stf = { path = "../citrea-stf", features = ["native"] }

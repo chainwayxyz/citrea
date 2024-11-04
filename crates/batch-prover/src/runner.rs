@@ -47,7 +47,7 @@ where
     Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
         + StfBlueprintTrait<C, Da::Spec, Vm>,
 
-    Ps: ProverService<Vm>,
+    Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
 {
     start_l2_height: u64,
@@ -85,7 +85,7 @@ where
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
-    Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
+    Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: BatchProverLedgerOps + Clone + 'static,
 {
     /// Creates a new `StateTransitionRunner`.

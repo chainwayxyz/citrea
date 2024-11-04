@@ -1,245 +1,272 @@
-mod prover;
+use std::ops::DerefMut;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
-use citrea_stf::verifier::StateTransitionVerifier;
-use parking_lot::Mutex;
-use prover::Prover;
+use futures::future;
 use risc0_zkvm::Receipt;
-use sov_db::ledger_db::{LedgerDB, ProvingServiceLedgerOps};
-use sov_rollup_interface::da::{DaData, DaSpec};
+use sov_db::ledger_db::LedgerDB;
+use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::{
-    ProofProcessingStatus, ProverGuestRunConfig, ProverService, ProverServiceError,
-    WitnessSubmissionStatus,
-};
+use sov_stf_runner::ProverService;
+use tokio::sync::{oneshot, Mutex};
 
-use self::prover::ProverStatus;
-use crate::ProofGenConfig;
+use crate::ProofGenMode;
+
+pub(crate) type Input = Vec<u8>;
+pub(crate) type Assumptions = Vec<Vec<u8>>;
+pub(crate) type ProofData = (Input, Assumptions);
 
 /// Prover service that generates proofs in parallel.
-pub struct ParallelProverService<Da, Vm, V>
+pub struct ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
-    Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Vm: ZkvmHost + 'static,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    Stf::PreState: Clone + Send + Sync + 'static,
 {
-    pub vm: Vm,
-    prover_config: Arc<Mutex<ProofGenConfig<V, Da, Vm>>>,
+    thread_pool: rayon::ThreadPool,
 
-    zk_storage: V::PreState,
-    prover_state: Prover<Da>,
-    ledger_db: LedgerDB,
+    proof_mode: Arc<Mutex<ProofGenMode<Da, Vm, Stf>>>,
+
+    da_service: Arc<Da>,
+    vm: Vm,
+    zk_storage: Stf::PreState,
+    _ledger_db: LedgerDB,
+
+    proof_queue: Arc<Mutex<Vec<ProofData>>>,
 }
 
-impl<Da, Vm, V> ParallelProverService<Da, Vm, V>
+impl<Da, Vm, Stf> ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
-    V::PreState: Clone + Send + Sync,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
     pub fn new(
+        da_service: Arc<Da>,
         vm: Vm,
-        zk_stf: V,
-        da_verifier: Da::Verifier,
-        config: ProverGuestRunConfig,
-        zk_storage: V::PreState,
-        num_threads: usize,
-        ledger_db: LedgerDB,
+        proof_mode: ProofGenMode<Da, Vm, Stf>,
+        zk_storage: Stf::PreState,
+        thread_pool_size: usize,
+        _ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
-        let stf_verifier =
-            StateTransitionVerifier::<V, Da::Verifier, Vm::Guest>::new(zk_stf, da_verifier);
+        assert!(
+            thread_pool_size > 0,
+            "Prover thread pool size must be greater than 1"
+        );
 
-        let config: ProofGenConfig<V, Da, Vm> = match config {
-            ProverGuestRunConfig::Skip => ProofGenConfig::Skip,
-            ProverGuestRunConfig::Simulate => ProofGenConfig::Simulate(stf_verifier),
-            ProverGuestRunConfig::Execute => ProofGenConfig::Execute,
-            ProverGuestRunConfig::Prove => ProofGenConfig::Prover,
-        };
-
-        // output config
-        match config {
-            ProofGenConfig::Skip => {
+        match proof_mode {
+            ProofGenMode::Skip => {
                 tracing::info!("Prover is configured to skip proving");
             }
-            ProofGenConfig::Simulate(_) => {
+            ProofGenMode::Simulate(_) => {
                 tracing::info!("Prover is configured to simulate proving");
             }
-            ProofGenConfig::Execute => {
+            ProofGenMode::Execute => {
                 tracing::info!("Prover is configured to execute proving");
             }
-            ProofGenConfig::Prover => {
+            ProofGenMode::Prove => {
                 tracing::info!("Prover is configured to prove");
             }
-        }
+        };
 
-        let prover_config = Arc::new(Mutex::new(config));
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(thread_pool_size)
+            .build()
+            .expect("Thread pool must be built");
 
         Ok(Self {
+            thread_pool,
+            proof_mode: Arc::new(Mutex::new(proof_mode)),
+            da_service,
             vm,
-            prover_config,
-            prover_state: Prover::new(num_threads)?,
             zk_storage,
-            ledger_db,
+            _ledger_db,
+            proof_queue: Arc::new(Mutex::new(vec![])),
         })
     }
 
-    /// Creates a new prover.
-    pub fn new_with_default_workers(
+    /// Creates a new `ParallelProverService` with thread_pool_size retrieved from
+    /// environment variable `PARALLEL_PROOF_LIMIT`. If non-existent, will panic.
+    pub fn new_from_env(
+        da_service: Arc<Da>,
         vm: Vm,
-        zk_stf: V,
-        da_verifier: Da::Verifier,
-        proving_mode: ProverGuestRunConfig,
-        zk_storage: V::PreState,
-        ledger_db: LedgerDB,
+        proof_mode: ProofGenMode<Da, Vm, Stf>,
+        zk_storage: Stf::PreState,
+        _ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
-        let num_cpus = num_cpus::get();
-        assert!(num_cpus > 1, "Unable to create parallel prover service");
+        let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT")
+            .expect("PARALLEL_PROOF_LIMIT must be set")
+            .parse::<usize>()
+            .expect("PARALLEL_PROOF_LIMIT must be valid unsigned number");
 
         Self::new(
+            da_service,
             vm,
-            zk_stf,
-            da_verifier,
-            proving_mode,
+            proof_mode,
             zk_storage,
-            num_cpus - 1,
-            ledger_db,
+            thread_pool_size,
+            _ledger_db,
         )
+    }
+
+    async fn prove_all(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
+        let num_threads = self.thread_pool.current_num_threads();
+
+        // Future buffer to keep track of ongoing provings
+        let mut ongoing_proofs = Vec::with_capacity(num_threads);
+        let mut proofs = vec![Proof::default(); proof_queue.len()];
+        // Initialize proof workers
+        for (idx, proof_data) in proof_queue.into_iter().enumerate() {
+            if ongoing_proofs.len() == num_threads {
+                // If no available threads, wait for one of the proofs to finish
+                let ((idx, proof), _, remaining_proofs) = future::select_all(ongoing_proofs).await;
+                proofs[idx] = proof;
+                ongoing_proofs = remaining_proofs;
+            }
+
+            let proof_fut = self.prove_one(proof_data);
+            ongoing_proofs.push(Box::pin(async move {
+                let proof = proof_fut.await;
+                (idx, proof)
+            }));
+        }
+
+        // Wait for all the remaining proofs to complete
+        let remaining_proofs = future::join_all(ongoing_proofs).await;
+        for (idx, proof) in remaining_proofs {
+            proofs[idx] = proof;
+        }
+
+        proofs
+    }
+
+    async fn prove_one(&self, (input, assumptions): ProofData) -> Proof {
+        let mut vm = self.vm.clone();
+        let zk_storage = self.zk_storage.clone();
+        let proof_mode = self.proof_mode.clone();
+
+        vm.add_hint(input);
+        for assumption in assumptions {
+            vm.add_assumption(assumption);
+        }
+
+        let (tx, rx) = oneshot::channel();
+        self.thread_pool.spawn(move || {
+            let proof =
+                make_proof(vm, zk_storage, proof_mode).expect("Proof creation must not fail");
+            let _ = tx.send(proof);
+        });
+
+        rx.await.expect("Should not have channel errors")
+    }
+
+    async fn submit_proof(&self, proof: Proof) -> anyhow::Result<<Da as DaService>::TransactionId> {
+        let da_data = DaData::ZKProof(proof);
+        self.da_service
+            .send_transaction(da_data)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))
     }
 }
 
 #[async_trait]
-impl<Da, Vm, V> ProverService<Vm> for ParallelProverService<Da, Vm, V>
+impl<Da, Vm, Stf> ProverService for ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
-    Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
-    V::PreState: Clone + Send + Sync,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf::PreState: Clone + Send + Sync,
 {
     type DaService = Da;
 
-    async fn submit_assumptions(
-        &self,
-        assumptions: Vec<Vec<u8>>,
-        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) {
-        self.prover_state
-            .submit_assumptions(assumptions, da_slot_hash);
+    async fn add_proof_data(&self, proof_data: ProofData) {
+        let mut proof_queue = self.proof_queue.lock().await;
+        proof_queue.push(proof_data);
     }
 
-    async fn submit_input(
-        &self,
-        input: Vec<u8>,
-        da_slot_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> WitnessSubmissionStatus {
-        self.prover_state.submit_input(input, da_slot_hash)
+    async fn prove(&self) -> anyhow::Result<Vec<Proof>> {
+        let mut proof_queue = self.proof_queue.lock().await;
+        if let ProofGenMode::Skip = *self.proof_mode.lock().await {
+            tracing::debug!("Skipped proving {} proofs", proof_queue.len());
+            proof_queue.clear();
+            return Ok(vec![]);
+        }
+
+        assert!(
+            !proof_queue.is_empty(),
+            "Prove should never be called before setting some proofs"
+        );
+
+        // Clear current proof data
+        let proof_queue = std::mem::take(&mut *proof_queue);
+
+        // Prove all
+        Ok(self.prove_all(proof_queue).await)
     }
 
-    async fn prove(
+    async fn extract_output<T: BorshDeserialize>(
         &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofProcessingStatus, ProverServiceError> {
-        let vm = self.vm.clone();
-        let zk_storage = self.zk_storage.clone();
-
-        tracing::info!("Starting proving for da  block: {:?},", block_header_hash,);
-        self.prover_state.start_proving(
-            block_header_hash,
-            self.prover_config.clone(),
-            vm,
-            zk_storage,
-        )
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<T>> {
+        // Extract output
+        Ok(proofs
+            .into_iter()
+            .map(|proof| {
+                let receipt: Receipt =
+                    bincode::deserialize(&proof).expect("bincode deserialize must not fail");
+                let journal = receipt.journal;
+                T::try_from_slice(&journal.bytes).expect("Borsh deserialize must not fail")
+            })
+            .collect())
     }
 
-    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
+    async fn submit_proofs(
         &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> Result<T, anyhow::Error> {
-        let proof = self.wait_for_proof(block_header_hash).await?;
-
-        // TODO: maybe extract this to Vm?
-        // Extract journal
-
-        let receipt: Receipt = bincode::deserialize(&proof)?;
-        let journal = receipt.journal;
-
-        self.ledger_db.clear_pending_proving_sessions()?;
-
-        Ok(T::try_from_slice(&journal.bytes)?)
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+        let mut tx_and_proof = Vec::with_capacity(proofs.len());
+        for proof in proofs {
+            let tx_id = self.submit_proof(proof.clone()).await?;
+            tx_and_proof.push((tx_id, proof));
+        }
+        Ok(tx_and_proof)
     }
 
-    async fn wait_for_proving_and_send_to_da(
+    async fn recover_and_submit_proving_sessions(
         &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-        da_service: &Arc<Self::DaService>,
-    ) -> Result<(<Da as DaService>::TransactionId, Proof), anyhow::Error> {
-        let proof = self.wait_for_proof(block_header_hash).await?;
-        let da_data = DaData::ZKProof(proof.clone());
-
-        let tx_id = da_service
-            .send_transaction(da_data)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))?;
-
-        self.ledger_db.clear_pending_proving_sessions()?;
-
-        Ok((tx_id, proof))
-    }
-
-    async fn recover_proving_sessions_and_send_to_da(
-        &self,
-        da_service: &Arc<Self::DaService>,
-    ) -> Result<Vec<(<Da as DaService>::TransactionId, Proof)>, anyhow::Error> {
-        tracing::debug!("Checking if ongoing bonsai session exists");
-
+    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
         let vm = self.vm.clone();
         let proofs = vm.recover_proving_sessions()?;
 
-        let mut results = Vec::new();
-
-        for proof in proofs.into_iter() {
-            let da_data = DaData::ZKProof(proof.clone());
-            let tx_id = da_service
-                .send_transaction(da_data)
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?;
-            results.push((tx_id, proof));
-        }
-        self.ledger_db.clear_pending_proving_sessions()?;
-        Ok(results)
+        self.submit_proofs(proofs).await
     }
 }
 
-impl<Da, Vm, V> ParallelProverService<Da, Vm, V>
+fn make_proof<Da, Vm, Stf>(
+    mut vm: Vm,
+    zk_storage: Stf::PreState,
+    proof_mode: Arc<Mutex<ProofGenMode<Da, Vm, Stf>>>,
+) -> Result<Proof, anyhow::Error>
 where
     Da: DaService,
-    Vm: ZkvmHost + 'static,
-    V: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
-    V::PreState: Clone + Send + Sync,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf::PreState: Send + Sync,
 {
-    async fn wait_for_proof(
-        &self,
-        block_header_hash: <Da::Spec as DaSpec>::SlotHash,
-    ) -> anyhow::Result<Proof> {
-        loop {
-            let status = self
-                .prover_state
-                .get_prover_status_for_da_submission(block_header_hash.clone())?;
-
-            match status {
-                ProverStatus::Proved(proof) => break Ok(proof),
-                ProverStatus::ProvingInProgress => {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                }
-                _ => {
-                    // function will not return any other type of status
-                }
-            }
-        }
+    let mut proof_mode = proof_mode.blocking_lock();
+    match proof_mode.deref_mut() {
+        ProofGenMode::Skip => Ok(Vec::default()),
+        ProofGenMode::Simulate(ref mut verifier) => verifier
+            .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
+            .map(|_| Vec::default())
+            .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
+        ProofGenMode::Execute => vm.run(false),
+        ProofGenMode::Prove => vm.run(true),
     }
 }

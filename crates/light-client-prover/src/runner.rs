@@ -60,7 +60,7 @@ pub struct CitreaLightClientProver<Da, Vm, Ps, DB>
 where
     Da: DaService + Send + Sync,
     Vm: ZkvmHost,
-    Ps: ProverService<Vm>,
+    Ps: ProverService,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
     _runner_config: RunnerConfig,
@@ -80,7 +80,7 @@ impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
 where
     Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
     Vm: ZkvmHost,
-    Ps: ProverService<Vm, DaService = Da> + Send + Sync + 'static,
+    Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
