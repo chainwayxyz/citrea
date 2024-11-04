@@ -189,6 +189,7 @@ where
         let batch_prover_da_pub_key = self.public_keys.prover_da_pub_key.clone();
         let batch_proof_commitments_by_spec = self.batch_proof_commitments_by_spec.clone();
         let light_client_proof_commitment = self.light_client_proof_commitment.clone();
+        let sequencer_client = self.sequencer_client.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<Vm, Da, Ps, DB>::new(
@@ -199,6 +200,7 @@ where
                 batch_prover_da_pub_key,
                 batch_proof_commitments_by_spec,
                 light_client_proof_commitment,
+                Arc::new(sequencer_client),
             );
             l1_block_handler
                 .run(last_l1_height_scanned.0, cancellation_token)

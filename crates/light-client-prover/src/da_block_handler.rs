@@ -5,8 +5,9 @@ use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
+use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -37,6 +38,7 @@ where
     light_client_proof_code_commitment: Vm::CodeCommitment,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    sequencer_client: Arc<SequencerClient>,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -55,6 +57,7 @@ where
         batch_prover_da_pub_key: Vec<u8>,
         batch_proof_code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_code_commitment: Vm::CodeCommitment,
+        sequencer_client: Arc<SequencerClient>,
     ) -> Self {
         Self {
             _prover_config: prover_config,
@@ -66,6 +69,7 @@ where
             light_client_proof_code_commitment,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
+            sequencer_client,
         }
     }
 
@@ -183,13 +187,14 @@ where
             }
             None => {
                 let initial_l1_height = self
-                    .ledger_db
-                    .get_soft_confirmation_by_number(&BatchNumber(0))?
+                    .sequencer_client
+                    .get_soft_confirmation::<Da::Spec>(1)
+                    .await?
                     .unwrap()
                     .da_slot_height;
                 // If the prev block is the block before the first processed l1 block
                 // then we don't have a previous light client proof, so just give an info
-                if previous_l1_height == initial_l1_height - 1 {
+                if previous_l1_height == initial_l1_height {
                     tracing::info!(
                         "No previous light client proof found for L1 block: {}",
                         previous_l1_height
