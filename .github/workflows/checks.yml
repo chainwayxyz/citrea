@@ -373,8 +373,6 @@ jobs:
         run: make test
         env:
           RUST_BACKTRACE: 1
-          BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
-          BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
           RISC0_DEV_MODE: 1                             # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
           CI_TEST_MODE: 1
