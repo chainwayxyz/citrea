@@ -11,8 +11,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{
-    ProofProcessingStatus, ProverService, ProverServiceError,
-    WitnessSubmissionStatus,
+    ProofProcessingStatus, ProverService, ProverServiceError, WitnessSubmissionStatus,
 };
 use tokio::sync::oneshot;
 
@@ -132,7 +131,9 @@ where
         self.proof_queue.push(proof_data);
     }
 
-    pub async fn prove_and_submit(&mut self) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
+    pub async fn prove_and_submit(
+        &mut self,
+    ) -> anyhow::Result<Vec<<Da as DaService>::TransactionId>> {
         if let ProofGenMode::Skip = *self.proof_mode.lock() {
             tracing::debug!(
                 "Skipped proving {} proofs in block {:?}",
@@ -165,7 +166,7 @@ where
         let num_threads = self.thread_pool.current_num_threads();
 
         // Future buffer to keep track of ongoing provings
-        let mut future_buffer= Vec::with_capacity(num_threads);
+        let mut future_buffer = Vec::with_capacity(num_threads);
         let mut proofs = vec![Proof::default(); proof_queue.len()];
         // Initialize proof workers
         for (idx, proof_data) in proof_queue.into_iter().enumerate() {
@@ -224,10 +225,7 @@ where
         Ok(tx_ids)
     }
 
-    async fn submit_proof(
-        &self,
-        proof: Proof,
-    ) -> anyhow::Result<<Da as DaService>::TransactionId> {
+    async fn submit_proof(&self, proof: Proof) -> anyhow::Result<<Da as DaService>::TransactionId> {
         let da_data = DaData::ZKProof(proof);
         self.da_service
             .send_transaction(da_data)
