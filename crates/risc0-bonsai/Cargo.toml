@@ -13,7 +13,6 @@ description = "An adapter allowing Citrea to connect with Bonsai"
 
 [dependencies]
 anyhow = { workspace = true }
-backoff = { workspace = true, optional = true }
 bincode = { workspace = true }
 bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
@@ -28,7 +27,6 @@ tracing = { workspace = true }
 [features]
 default = []
 native = [
-  "dep:backoff",
   "dep:bonsai-sdk",
   "dep:sov-db",
   "risc0-zkvm/prove",
