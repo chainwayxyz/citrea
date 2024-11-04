@@ -170,6 +170,7 @@ where
             }
         }
         let previous_l1_height = l1_height - 1;
+        let mut light_client_proof_journal = None;
         match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
@@ -178,7 +179,7 @@ where
                 let proof = data.proof;
                 let output = data.light_client_circuit_output;
                 assumptions.push(proof);
-                batch_proof_journals.push(output);
+                light_client_proof_journal = Some(borsh::to_vec(&output)?);
             }
             None => {
                 let initial_l1_height = self
