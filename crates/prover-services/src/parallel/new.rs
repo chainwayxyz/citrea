@@ -166,26 +166,26 @@ where
         let num_threads = self.thread_pool.current_num_threads();
 
         // Future buffer to keep track of ongoing provings
-        let mut future_buffer = Vec::with_capacity(num_threads);
+        let mut ongoing_proofs = Vec::with_capacity(num_threads);
         let mut proofs = vec![Proof::default(); proof_queue.len()];
         // Initialize proof workers
         for (idx, proof_data) in proof_queue.into_iter().enumerate() {
-            if future_buffer.len() == num_threads {
+            if ongoing_proofs.len() == num_threads {
                 // If no available threads, wait for one of the proofs to finish
-                let ((idx, proof), _, remaining_futures) = future::select_all(future_buffer).await;
+                let ((idx, proof), _, remaining_proofs) = future::select_all(ongoing_proofs).await;
                 proofs[idx] = proof;
-                future_buffer = remaining_futures;
+                ongoing_proofs = remaining_proofs;
             }
 
             let proof_fut = self.prove_with_data(proof_data);
-            future_buffer.push(Box::pin(async move {
+            ongoing_proofs.push(Box::pin(async move {
                 let proof = proof_fut.await;
                 (idx, proof)
             }));
         }
 
         // Wait for all the remaining proofs to complete
-        let remaining_proofs = future::join_all(future_buffer).await;
+        let remaining_proofs = future::join_all(ongoing_proofs).await;
         for (idx, proof) in remaining_proofs {
             proofs[idx] = proof;
         }
