@@ -2,7 +2,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::Write;
-use sov_rollup_interface::zk::ZkvmGuest;
+use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
+
+use crate::Risc0MethodId;
 
 /// A guest for the RISC0 VM. Implements the `ZkvmGuest` trait
 ///  in terms of Risc0's env::read and env::commit functions.
@@ -29,5 +31,31 @@ impl ZkvmGuest for Risc0Guest {
         let buf = borsh::to_vec(item).expect("Serialization to vec is infallible");
         let mut journal = env::journal();
         journal.write_slice(&buf);
+    }
+}
+
+impl Zkvm for Risc0Guest {
+    type CodeCommitment = Risc0MethodId;
+
+    type Error = anyhow::Error;
+
+    fn verify(
+        journal: &[u8],
+        code_commitment: &Self::CodeCommitment,
+    ) -> Result<Vec<u8>, Self::Error> {
+        env::verify(code_commitment.0, journal)
+            .expect("Guest side verification error should be Infallible");
+        Ok(journal.to_vec())
+    }
+
+    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+        journal: &[u8],
+        code_commitment: &Self::CodeCommitment,
+    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+        env::verify(code_commitment.0, journal)
+            .expect("Guest side verification error should be Infallible");
+        Ok(BorshDeserialize::deserialize(
+            &mut journal.to_vec().as_slice(),
+        )?)
     }
 }

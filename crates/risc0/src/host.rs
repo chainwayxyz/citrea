@@ -7,10 +7,10 @@ use risc0_zkvm::{
     Receipt,
 };
 use sov_db::ledger_db::LedgerDB;
-use sov_risc0_adapter::guest::Risc0Guest;
-use sov_risc0_adapter::host::add_benchmarking_callbacks;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{debug, info};
+
+use crate::guest::Risc0Guest;
 
 type StarkSessionId = String;
 type SnarkSessionId = String;
@@ -106,7 +106,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     /// Guest simulation (execute mode) is run inside the Risc0 VM locally
     fn simulate_with_hints(&mut self) -> Self::Guest {
-        Risc0Guest::with_hints(std::mem::take(&mut self.env))
+        todo!("we don't use it yet")
     }
 
     fn add_assumption(&mut self, receipt_buf: Vec<u8>) {
@@ -125,7 +125,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
             std::env::set_var("RISC0_DEV_MODE", "1");
         }
 
-        let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+        let mut env = ExecutorEnvBuilder::default();
         for assumption in self.assumptions.iter() {
             env.add_assumption(assumption.clone());
         }

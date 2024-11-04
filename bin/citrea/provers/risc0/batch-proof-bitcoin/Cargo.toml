@@ -13,10 +13,10 @@ risc0-zkvm-platform = { version = "1.1.2" }
 anyhow = "1.0.68"
 bitcoin-da = { path = "../../../../../crates/bitcoin-da", default-features = false }
 citrea-primitives = { path = "../../../../../crates/primitives" }
+citrea-risc0-adapter = { path = "../../../../../crates/risc0" }
 citrea-stf = { path = "../../../../../crates/citrea-stf" }
 sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
-sov-risc0-adapter = { path = "../../../../../crates/sovereign-sdk/adapters/risc0" }
 sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
 sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
 
