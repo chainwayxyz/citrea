@@ -8,7 +8,7 @@ use citrea_common::LightClientProverConfig;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::SlotNumber;
 use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -136,9 +136,9 @@ where
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
             .expect("Setting l1 height of l1 hash in ledger db");
 
-        let mut da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction> = self
+        let (mut da_data, inclusion_proof, completeness_proof) = self
             .da_service
-            .extract_relevant_blobs_light_client(l1_block);
+            .extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToLightClientProver);
 
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
         tracing::info!(
@@ -171,9 +171,15 @@ where
             }
         }
 
-        let circuit_input = self
-            .create_circuit_input(da_data, l1_block, batch_proof_method_id, journals)
-            .await;
+        let circuit_input = LightClientCircuitInput {
+            da_data,
+            inclusion_proof,
+            completeness_proof,
+            da_block_header: l1_block.header().clone(),
+            batch_prover_da_pub_key: self.batch_prover_da_pub_key.clone(),
+            batch_proof_method_id: batch_proof_method_id.clone().into(),
+            batch_proof_journals: journals,
+        };
 
         let circuit_output = self.prove(circuit_input, assumptions).await?;
 
@@ -214,29 +220,6 @@ where
         });
 
         batch_proofs
-    }
-
-    async fn create_circuit_input(
-        &self,
-        da_data: Vec<<<Da as DaService>::Spec as DaSpec>::BlobTransaction>,
-        l1_block: &Da::FilteredBlock,
-        batch_prover_code_commitment: &<Vm as Zkvm>::CodeCommitment,
-        journals: Vec<Vec<u8>>,
-    ) -> LightClientCircuitInput<Da::Spec> {
-        let (inclusion_proof, completeness_proof) = self
-            .da_service
-            .get_extraction_proof_light_client(l1_block)
-            .await;
-
-        LightClientCircuitInput {
-            da_data,
-            inclusion_proof,
-            completeness_proof,
-            da_block_header: l1_block.header().clone(),
-            batch_prover_da_pub_key: self.batch_prover_da_pub_key.clone(),
-            batch_proof_method_id: batch_prover_code_commitment.clone().into(),
-            batch_proof_journals: journals,
-        }
     }
 
     async fn prove(

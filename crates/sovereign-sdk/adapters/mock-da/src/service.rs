@@ -9,7 +9,8 @@ use borsh::BorshDeserialize;
 use pin_project::pin_project;
 use sha2::Digest;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaSpec, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaNamespace,
+    DaSpec, SequencerCommitment, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
 use sov_rollup_interface::zk::Proof;
@@ -253,6 +254,41 @@ impl MockDaService {
         Ok(height)
     }
 
+    /// Extract blobs
+    pub fn extract_relevant_blobs(&self, block: &MockBlock) -> Vec<MockBlob> {
+        let mut res = vec![];
+        for b in block.blobs.clone() {
+            let mut clone_for_full_data = b.clone();
+            let full_data = clone_for_full_data.full_data();
+            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+                res.push(b)
+            }
+        }
+        res
+    }
+
+    /// Send proofs (old API)
+    #[cfg(test)]
+    async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> anyhow::Result<u64> {
+        let blocks = self.blocks.lock().await;
+
+        self.add_blob(&blocks, Default::default(), proof.to_vec())
+    }
+
+    /// Get proofs (old API)
+    #[cfg(test)]
+    async fn get_aggregated_proofs_at(&self, height: u64) -> anyhow::Result<Vec<Vec<u8>>> {
+        let blobs = self.get_block_at(height).await?.blobs;
+        Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
+    }
+
+    /// Subscribe to finalized headers (old API)
+    #[cfg(test)]
+    async fn subscribe_finalized_header(&self) -> anyhow::Result<MockDaBlockHeaderStream> {
+        let receiver = self.finalized_header_sender.subscribe();
+        Ok(MockDaBlockHeaderStream::new(receiver))
+    }
+
     /// Executes planned fork if it is planned at given height
     async fn planned_fork_handler(&self, height: u64) -> anyhow::Result<()> {
         let planned_fork_now = {
@@ -365,11 +401,6 @@ impl DaService for MockDaService {
         Ok(blocks.get(index as u64).unwrap().header().clone())
     }
 
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        let receiver = self.finalized_header_sender.subscribe();
-        Ok(MockDaBlockHeaderStream::new(receiver))
-    }
-
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
@@ -381,25 +412,10 @@ impl DaService for MockDaService {
             .unwrap_or(GENESIS_HEADER))
     }
 
-    fn extract_relevant_blobs(
+    async fn extract_relevant_zk_proofs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
-        let mut res = vec![];
-        for b in block.blobs.clone() {
-            let mut clone_for_full_data = b.clone();
-            let full_data = clone_for_full_data.full_data();
-            if DaDataBatchProof::try_from_slice(full_data).is_ok() {
-                res.push(b)
-            }
-        }
-        res
-    }
-
-    async fn extract_relevant_proofs(
-        &self,
-        block: &Self::FilteredBlock,
-        _prover_pk: &[u8],
+        _prover_da_pub_key: &[u8],
     ) -> anyhow::Result<Vec<Proof>> {
         let mut res = vec![];
         for mut b in block.blobs.clone() {
@@ -414,55 +430,48 @@ impl DaService for MockDaService {
         Ok(res)
     }
 
-    fn extract_relevant_blobs_light_client(
+    fn extract_relevant_sequencer_commitments(
         &self,
         block: &Self::FilteredBlock,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        _sequencer_da_pub_key: &[u8],
+    ) -> anyhow::Result<Vec<SequencerCommitment>> {
         let mut res = vec![];
-        for b in block.blobs.clone() {
-            let mut clone_for_full_data = b.clone();
-            let full_data = clone_for_full_data.full_data();
-            if DaDataLightClient::try_from_slice(full_data).is_ok() {
-                res.push(b)
+        for mut b in block.blobs.clone() {
+            if let Ok(r) = DaDataBatchProof::try_from_slice(b.full_data()) {
+                let DaDataBatchProof::SequencerCommitment(seq_com) = r;
+                res.push(seq_com);
             }
         }
-        res
+        Ok(res)
     }
 
-    async fn get_extraction_proof_light_client(
-        &self,
-        _block: &Self::FilteredBlock,
-    ) -> (
-        <Self::Spec as DaSpec>::InclusionMultiProof,
-        <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
-        ([0u8; 32], ())
-    }
-
-    async fn extract_relevant_blobs_with_proof_light_client(
+    fn extract_relevant_blobs_with_proof(
         &self,
         block: &Self::FilteredBlock,
+        namespace: DaNamespace,
     ) -> (
         Vec<<Self::Spec as DaSpec>::BlobTransaction>,
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
     ) {
-        let relevant_txs = self.extract_relevant_blobs_light_client(block);
-
-        let (etx_proofs, rollup_row_proofs) = self.get_extraction_proof_light_client(block).await;
-
-        (relevant_txs, etx_proofs, rollup_row_proofs)
-    }
-
-    async fn get_extraction_proof(
-        &self,
-        _block: &Self::FilteredBlock,
-        _blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
-    ) -> (
-        <Self::Spec as DaSpec>::InclusionMultiProof,
-        <Self::Spec as DaSpec>::CompletenessProof,
-    ) {
-        ([0u8; 32], ())
+        let mut txs = vec![];
+        for b in block.blobs.clone() {
+            let mut clone_for_full_data = b.clone();
+            let full_data = clone_for_full_data.full_data();
+            match namespace {
+                DaNamespace::ToBatchProver => {
+                    if DaDataBatchProof::try_from_slice(full_data).is_ok() {
+                        txs.push(b)
+                    }
+                }
+                DaNamespace::ToLightClientProver => {
+                    if DaDataLightClient::try_from_slice(full_data).is_ok() {
+                        txs.push(b)
+                    }
+                }
+            };
+        }
+        (txs, [0u8; 32], ())
     }
 
     #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]
@@ -498,17 +507,6 @@ impl DaService for MockDaService {
         tx
     }
 
-    async fn send_aggregated_zk_proof(&self, proof: &[u8]) -> Result<u64, Self::Error> {
-        let blocks = self.blocks.lock().await;
-
-        self.add_blob(&blocks, Default::default(), proof.to_vec())
-    }
-
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
-        let blobs = self.get_block_at(height).await?.blobs;
-        Ok(blobs.into_iter().map(|b| b.zk_proofs_data).collect())
-    }
-
     async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
         // Mock constant
         Ok(10_u128)
@@ -525,9 +523,10 @@ impl DaService for MockDaService {
             .ok_or_else(|| anyhow::anyhow!("Block with hash {:?} not found", hash))
     }
 
-    async fn get_relevant_blobs_of_pending_transactions(
+    async fn get_pending_sequencer_commitments(
         &self,
-    ) -> Vec<<Self::Spec as DaSpec>::BlobTransaction> {
+        _sequencer_da_pub_key: &[u8],
+    ) -> Vec<SequencerCommitment> {
         vec![]
     }
 }
