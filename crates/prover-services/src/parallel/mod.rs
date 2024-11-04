@@ -1,3 +1,4 @@
+mod new;
 mod prover;
 use std::sync::Arc;
 

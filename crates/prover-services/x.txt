@@ -1,0 +1,7 @@
+prover_service.set_current_da(da_slot_hash);
+
+for (idx, input, assumptions) in da_proofs {
+    prover_service.add_proof_data(idx, input, assumptions);
+}
+
+prover_service.prove().await;

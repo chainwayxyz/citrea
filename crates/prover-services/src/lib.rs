@@ -21,3 +21,20 @@ where
     /// The prover runs the rollup verification logic in the zkVM and produces a zk proof
     Prover,
 }
+
+pub enum ProofGenMode<Da, Vm, Stf>
+where
+    Da: DaService,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
+{
+    /// Skips proving.
+    Skip,
+    /// The simulator runs the rollup verifier logic without even emulating the zkVM
+    Simulate(StateTransitionVerifier<Stf, Da::Verifier, Vm::Guest>),
+    /// The executor runs the rollup verification logic in the zkVM, but does not actually
+    /// produce a zk proof
+    Execute,
+    /// The prover runs the rollup verification logic in the zkVM and produces a zk proof
+    Prove,
+}
