@@ -25,8 +25,6 @@ use crate::da_block_handler::{
 };
 use crate::errors::L1ProcessingError;
 
-type TxId<Da> = <Da as DaService>::TransactionId;
-
 pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
     da_service: Arc<Da>,
     ledger: DB,
@@ -219,50 +217,39 @@ where
         .map_err(|e| anyhow!("{e}"))?
         .unwrap_or(vec![]);
 
+    // Add each non-proven proof's data to ProverService
     for state_transition_data in state_transitions {
         if !state_transition_already_proven::<StateRoot, Witness, Da>(
             &state_transition_data,
             &submitted_proofs,
         ) {
-            let txs_and_proofs =
-                generate_and_submit_proof(prover_service.clone(), state_transition_data)
-                    .await
-                    .map_err(|e| anyhow!("{e}"))?;
-
-            extract_and_store_proof::<DB, Da, Vm, StateRoot>(
-                ledger.clone(),
-                txs_and_proofs,
-                code_commitments_by_spec.clone(),
-            )
-            .await
-            .map_err(|e| anyhow!("{e}"))?;
-
-            save_commitments(
-                ledger.clone(),
-                &sequencer_commitments,
-                l1_block.header().height(),
-            );
+            prover_service
+                .add_proof_data((borsh::to_vec(&state_transition_data)?, vec![]))
+                .await;
         }
     }
 
+    // Prove all proofs in parallel
+    let txs_and_proofs = prover_service
+        .prove_and_submit()
+        .await
+        .map_err(|e| anyhow!(e))?;
+
+    extract_and_store_proof::<DB, Da, Vm, StateRoot>(
+        ledger.clone(),
+        txs_and_proofs,
+        code_commitments_by_spec.clone(),
+    )
+    .await
+    .map_err(|e| anyhow!("{e}"))?;
+
+    save_commitments(
+        ledger.clone(),
+        &sequencer_commitments,
+        l1_block.header().height(),
+    );
+
     Ok(())
-}
-
-pub(crate) async fn generate_and_submit_proof<Ps, Da, StateRoot, Witness>(
-    prover_service: Arc<Ps>,
-    transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
-) -> Result<Vec<(TxId<Da>, Proof)>, anyhow::Error>
-where
-    Ps: ProverService<DaService = Da>,
-    Da: DaService,
-    StateRoot: BorshSerialize,
-    Witness: BorshSerialize,
-{
-    prover_service
-        .add_proof_data((borsh::to_vec(&transition_data)?, vec![]))
-        .await;
-
-    prover_service.prove_and_submit().await
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
