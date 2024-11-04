@@ -27,7 +27,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
-    Ps: ProverService<Vm>,
+    Ps: ProverService,
 {
     _prover_config: LightClientProverConfig,
     prover_service: Arc<Ps>,
@@ -44,7 +44,7 @@ impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     DB: LightClientProverLedgerOps + SharedLedgerOps + Clone,
 {
     #[allow(clippy::too_many_arguments)]
@@ -227,24 +227,19 @@ where
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
     ) -> Result<LightClientCircuitOutput, anyhow::Error> {
-        let da_slot_hash = circuit_input.da_block_header.hash();
         let prover_service = self.prover_service.as_ref();
 
         prover_service
-            .submit_input(borsh::to_vec(&circuit_input)?, da_slot_hash.clone())
+            .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
             .await;
 
-        prover_service
-            .submit_assumptions(assumptions, da_slot_hash.clone())
-            .await;
+        let proofs = self.prover_service.prove().await?;
 
-        prover_service.prove(da_slot_hash.clone()).await?;
-
-        let output: LightClientCircuitOutput = prover_service
-            .wait_for_proving_and_extract_output(da_slot_hash)
-            .await?;
-
-        Ok(output)
+        // Light client always does proving one-by-one, so its ok to get the first element
+        self.prover_service
+            .extract_output(proofs)
+            .await
+            .map(|mut outputs| outputs.remove(0))
     }
 }
 

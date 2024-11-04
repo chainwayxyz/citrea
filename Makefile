@@ -2,6 +2,7 @@
 EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
+PARALLEL_PROOF_LIMIT := 1
 
 .PHONY: help
 
