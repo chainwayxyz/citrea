@@ -20,7 +20,7 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedProofResponse, BatchProofResponse, SequencerCommitmentResponse,
+    BatchProofResponse, LastVerifiedProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
 };
 
@@ -533,26 +533,34 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_proofs_by_slot_height(&self, height: u64) -> Vec<BatchProofResponse> {
+    pub(crate) async fn ledger_get_batch_proofs_by_slot_height(
+        &self,
+        height: u64,
+    ) -> Vec<BatchProofResponse> {
         self.http_client
-            .request("ledger_getProofsBySlotHeight", rpc_params![height])
+            .request("ledger_getBatchProofsBySlotHeight", rpc_params![height])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn ledger_get_verified_proofs_by_slot_height(
+    pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
         &self,
         height: u64,
     ) -> Option<Vec<VerifiedProofResponse>> {
         self.http_client
-            .request("ledger_getVerifiedProofsBySlotHeight", rpc_params![height])
+            .request(
+                "ledger_getVerifiedBatchProofsBySlotHeight",
+                rpc_params![height],
+            )
             .await
             .ok()
     }
 
-    pub(crate) async fn ledger_get_last_verified_proof(&self) -> Option<LastVerifiedProofResponse> {
+    pub(crate) async fn ledger_get_last_verified_batch_proof(
+        &self,
+    ) -> Option<LastVerifiedProofResponse> {
         self.http_client
-            .request("ledger_getLastVerifiedProof", rpc_params![])
+            .request("ledger_getLastVerifiedBatchProof", rpc_params![])
             .await
             .ok()
     }

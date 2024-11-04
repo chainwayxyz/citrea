@@ -5,8 +5,8 @@
 
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse, SoftConfirmationStatus,
-    VerifiedProofResponse,
+    BatchProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse,
+    SoftConfirmationStatus, VerifiedProofResponse,
 };
 
 use crate::HexHash;
@@ -63,12 +63,18 @@ pub trait Rpc {
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
     /// Gets proof by slot height.
-    #[method(name = "getProofsBySlotHeight")]
-    async fn get_proofs_by_slot_height(&self, height: u64) -> RpcResult<Option<BatchProofResponse>>;
+    #[method(name = "getBatchProofsBySlotHeight")]
+    async fn get_batch_proofs_by_slot_height(
+        &self,
+        height: u64,
+    ) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets proof by slot hash.
-    #[method(name = "getProofsBySlotHash")]
-    async fn get_proofs_by_slot_hash(&self, hash: [u8; 32]) -> RpcResult<Option<BatchProofResponse>>;
+    #[method(name = "getBatchProofsBySlotHash")]
+    async fn get_batch_proofs_by_slot_hash(
+        &self,
+        hash: [u8; 32],
+    ) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets the height pf most recent committed soft confirmation.
     #[method(name = "getHeadSoftConfirmation")]
@@ -79,13 +85,13 @@ pub trait Rpc {
     async fn get_head_soft_confirmation_height(&self) -> RpcResult<u64>;
 
     /// Gets verified proofs by slot height
-    #[method(name = "getVerifiedProofsBySlotHeight")]
-    async fn get_verified_proofs_by_slot_height(
+    #[method(name = "getVerifiedBatchProofsBySlotHeight")]
+    async fn get_verified_batch_proofs_by_slot_height(
         &self,
         height: u64,
     ) -> RpcResult<Option<Vec<VerifiedProofResponse>>>;
 
     /// Gets last verified proog
-    #[method(name = "getLastVerifiedProof")]
-    async fn get_last_verified_proof(&self) -> RpcResult<Option<VerifiedProofResponse>>;
+    #[method(name = "getLastVerifiedBatchProof")]
+    async fn get_last_verified_batch_proof(&self) -> RpcResult<Option<VerifiedProofResponse>>;
 }

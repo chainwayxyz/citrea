@@ -20,7 +20,7 @@ use crate::schema::tables::{
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
     PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
     SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
-    SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
@@ -793,7 +793,7 @@ impl NodeLedgerOps for LedgerDB {
     ) -> anyhow::Result<()> {
         let verified_proofs = self
             .db
-            .get::<VerifiedProofsBySlotNumber>(&SlotNumber(l1_height))?;
+            .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(l1_height))?;
 
         match verified_proofs {
             Some(mut verified_proofs) => {
@@ -802,8 +802,10 @@ impl NodeLedgerOps for LedgerDB {
                     state_transition,
                 };
                 verified_proofs.push(stored_verified_proof);
-                self.db
-                    .put::<VerifiedProofsBySlotNumber>(&SlotNumber(l1_height), &verified_proofs)
+                self.db.put::<VerifiedBatchProofsBySlotNumber>(
+                    &SlotNumber(l1_height),
+                    &verified_proofs,
+                )
             }
             None => self.db.put(
                 &SlotNumber(l1_height),

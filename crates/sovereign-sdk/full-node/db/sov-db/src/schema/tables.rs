@@ -68,7 +68,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
-    VerifiedProofsBySlotNumber::table_name(),
+    VerifiedBatchProofsBySlotNumber::table_name(),
     MempoolTxs::table_name(),
     PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
@@ -320,7 +320,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Proof data on L1 slot verified by full node
-    (VerifiedProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
+    (VerifiedBatchProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
 );
 
 define_table_with_seek_key_codec!(

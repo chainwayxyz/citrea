@@ -141,7 +141,7 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proofs_by_slot_height(3)
+        .ledger_get_batch_proofs_by_slot_height(3)
         .await[0]
         .clone();
 
@@ -160,7 +160,7 @@ async fn full_node_verify_proof_and_store() {
     // So the full node should see the proof in block 4
     wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(60))).await;
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(4)
+        .ledger_get_verified_batch_proofs_by_slot_height(4)
         .await
         .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
@@ -319,7 +319,7 @@ async fn test_prover_prove_rpc() {
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proofs_by_slot_height(3)
+        .ledger_get_batch_proofs_by_slot_height(3)
         .await[0]
         .clone();
 
@@ -338,7 +338,7 @@ async fn test_prover_prove_rpc() {
     // So the full node should see the proof in block 4
     wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(60))).await;
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(4)
+        .ledger_get_verified_batch_proofs_by_slot_height(4)
         .await
         .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
