@@ -243,14 +243,18 @@ where
         &self,
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
-    ) -> Result<Vec<LightClientCircuitOutput>, anyhow::Error> {
+    ) -> Result<LightClientCircuitOutput, anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
 
         prover_service
             .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
             .await;
 
-        self.prover_service.prove_and_extract().await
+        // Light client always does proving one-by-one
+        self.prover_service
+            .prove_and_extract()
+            .await
+            .map(|mut outputs| outputs.remove(0))
     }
 }
 
