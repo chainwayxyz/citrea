@@ -25,9 +25,9 @@ pub(crate) type ProofData = (Input, Assumptions);
 pub struct ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
-    Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
-    Stf::PreState: Clone + Send + Sync,
+    Vm: ZkvmHost + 'static,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    Stf::PreState: Clone + Send + Sync + 'static,
 {
     thread_pool: rayon::ThreadPool,
 
@@ -44,8 +44,8 @@ where
 impl<Da, Vm, Stf> ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
-    Vm: ZkvmHost + 'static,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
     Stf::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
@@ -225,9 +225,9 @@ fn make_proof<Da, Vm, Stf>(
 ) -> Result<Proof, anyhow::Error>
 where
     Da: DaService,
-    Vm: ZkvmHost + 'static,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
-    Stf::PreState: Send + Sync + 'static,
+    Vm: ZkvmHost,
+    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf::PreState: Send + Sync,
 {
     let mut proof_mode = proof_mode.lock();
     match proof_mode.deref_mut() {
