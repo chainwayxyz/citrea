@@ -43,7 +43,7 @@ impl TestCase for BasicSyncTest {
 
         // Sync both nodes
         f.bitcoin_nodes
-            .wait_for_sync(Duration::from_secs(30))
+            .wait_for_sync(Some(Duration::from_secs(30)))
             .await?;
 
         let height0 = da0.get_block_count().await?;
