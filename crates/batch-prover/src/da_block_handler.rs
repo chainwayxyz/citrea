@@ -269,17 +269,15 @@ where
 
     async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<(), anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
-        let results = prover_service.recover_and_submit_proving_sessions().await?;
+        let txs_and_proofs = prover_service.recover_and_submit_proving_sessions().await?;
 
-        for (tx_id, proof) in results {
-            extract_and_store_proof::<DB, Da, Vm, StateRoot>(
-                self.ledger_db.clone(),
-                tx_id,
-                proof,
-                self.code_commitments_by_spec.clone(),
-            )
-            .await?;
-        }
+        extract_and_store_proof::<DB, Da, Vm, StateRoot>(
+            self.ledger_db.clone(),
+            txs_and_proofs,
+            self.code_commitments_by_spec.clone(),
+        )
+        .await?;
+
         Ok(())
     }
 }

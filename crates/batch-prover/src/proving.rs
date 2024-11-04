@@ -18,7 +18,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::da_block_handler::{
     break_sequencer_commitments_into_groups, get_state_transition_data_from_commitments,
@@ -227,15 +227,14 @@ where
             &state_transition_data,
             &submitted_proofs,
         ) {
-            let (tx_id, proof) =
+            let txs_and_proofs =
                 generate_and_submit_proof(prover_service.clone(), state_transition_data)
                     .await
                     .map_err(|e| anyhow!("{e}"))?;
 
             extract_and_store_proof::<DB, Da, Vm, StateRoot>(
                 ledger.clone(),
-                tx_id,
-                proof,
+                txs_and_proofs,
                 code_commitments_by_spec.clone(),
             )
             .await
@@ -255,7 +254,7 @@ where
 pub(crate) async fn generate_and_submit_proof<Ps, Da, StateRoot, Witness>(
     prover_service: Arc<Ps>,
     transition_data: StateTransitionData<StateRoot, Witness, Da::Spec>,
-) -> Result<(TxId<Da>, Proof), anyhow::Error>
+) -> Result<Vec<(TxId<Da>, Proof)>, anyhow::Error>
 where
     Ps: ProverService<DaService = Da>,
     Da: DaService,
@@ -264,10 +263,7 @@ where
 {
     prover_service.add_proof_data((borsh::to_vec(&transition_data)?, vec![]));
 
-    prover_service.prove_and_submit().await?;
-
-    // TODO: dont forget!!
-    todo!()
+    prover_service.prove_and_submit().await
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
@@ -299,8 +295,7 @@ where
 
 pub(crate) async fn extract_and_store_proof<DB, Da, Vm, StateRoot>(
     ledger_db: DB,
-    tx_id: <Da as DaService>::TransactionId,
-    proof: Proof,
+    txs_and_proofs: Vec<(<Da as DaService>::TransactionId, Proof)>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
 ) -> Result<(), anyhow::Error>
 where
@@ -315,47 +310,49 @@ where
         + AsRef<[u8]>
         + Debug,
 {
-    let tx_id_u8 = tx_id.into();
+    for (tx_id, proof) in txs_and_proofs {
+        let tx_id_u8 = tx_id.into();
 
-    // l1_height => (tx_id, proof, transition_data)
-    // save proof along with tx id to db, should be queriable by slot number or slot hash
-    let transition_data = Vm::extract_output::<<Da as DaService>::Spec, StateRoot>(&proof)
-        .expect("Proof should be deserializable");
+        // l1_height => (tx_id, proof, transition_data)
+        // save proof along with tx id to db, should be queriable by slot number or slot hash
+        let transition_data = Vm::extract_output::<<Da as DaService>::Spec, StateRoot>(&proof)
+            .expect("Proof should be deserializable");
 
-    info!("Verifying proof!");
+        info!("Verifying proof!");
 
-    let code_commitment = code_commitments_by_spec
-        .get(&transition_data.last_active_spec_id)
-        .expect("Proof public input must contain valid spec id");
-    Vm::verify(proof.as_slice(), code_commitment)
-        .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
+        let code_commitment = code_commitments_by_spec
+            .get(&transition_data.last_active_spec_id)
+            .expect("Proof public input must contain valid spec id");
+        Vm::verify(proof.as_slice(), code_commitment)
+            .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-    info!("transition data: {:?}", transition_data);
+        debug!("transition data: {:?}", transition_data);
 
-    let slot_hash = transition_data.da_slot_hash.into();
+        let slot_hash = transition_data.da_slot_hash.into();
 
-    let stored_state_transition = StoredStateTransition {
-        initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
-        final_state_root: transition_data.final_state_root.as_ref().to_vec(),
-        state_diff: transition_data.state_diff,
-        da_slot_hash: slot_hash,
-        sequencer_commitments_range: transition_data.sequencer_commitments_range,
-        sequencer_public_key: transition_data.sequencer_public_key,
-        sequencer_da_public_key: transition_data.sequencer_da_public_key,
-        preproven_commitments: transition_data.preproven_commitments,
-        validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
-    };
-    let l1_height = ledger_db
-        .get_l1_height_of_l1_hash(slot_hash)?
-        .expect("l1 height should exist");
+        let stored_state_transition = StoredStateTransition {
+            initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
+            final_state_root: transition_data.final_state_root.as_ref().to_vec(),
+            state_diff: transition_data.state_diff,
+            da_slot_hash: slot_hash,
+            sequencer_commitments_range: transition_data.sequencer_commitments_range,
+            sequencer_public_key: transition_data.sequencer_public_key,
+            sequencer_da_public_key: transition_data.sequencer_da_public_key,
+            preproven_commitments: transition_data.preproven_commitments,
+            validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
+        };
+        let l1_height = ledger_db
+            .get_l1_height_of_l1_hash(slot_hash)?
+            .expect("l1 height should exist");
 
-    if let Err(e) = ledger_db.insert_proof_data_by_l1_height(
-        l1_height,
-        tx_id_u8,
-        proof,
-        stored_state_transition,
-    ) {
-        panic!("Failed to put proof data in the ledger db: {}", e);
+        if let Err(e) = ledger_db.insert_proof_data_by_l1_height(
+            l1_height,
+            tx_id_u8,
+            proof,
+            stored_state_transition,
+        ) {
+            panic!("Failed to put proof data in the ledger db: {}", e);
+        }
     }
     Ok(())
 }

@@ -2,6 +2,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use borsh::BorshDeserialize;
 use futures::future;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaData;
@@ -183,6 +184,34 @@ where
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
+
+    async fn prove_and_extract<T: BorshDeserialize>(
+        &self,
+    ) -> anyhow::Result<Vec<T>> {
+        let mut proof_queue = self.proof_queue.lock().await;
+        if let ProofGenMode::Skip = *self.proof_mode.lock().await {
+            tracing::debug!("Skipped proving {} proofs", proof_queue.len());
+            proof_queue.clear();
+            return Ok(vec![]);
+        }
+
+        assert!(
+            !proof_queue.is_empty(),
+            "Prove should never be called before setting some proofs"
+        );
+
+        // Clear current proof data
+        let proof_queue = std::mem::take(&mut *proof_queue);
+
+        // Prove all
+        let proofs = self.prove(proof_queue).await;
+
+        // Extract output
+        Ok(proofs
+            .into_iter()
+            .map(|proof| borsh::from_slice(&proof).unwrap())
+            .collect())
+    }
 }
 
 #[async_trait]
@@ -223,6 +252,7 @@ where
         // Submit proofs to DA
         self.submit_proofs(proofs.clone()).await
     }
+
 
     async fn recover_and_submit_proving_sessions(
         &self,

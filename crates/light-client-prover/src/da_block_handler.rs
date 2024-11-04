@@ -251,6 +251,7 @@ where
             .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
             .await;
 
+        // TODO: prove and extract output not submit
         let output = prover_service.prove_and_submit().await?;
 
         // TODO: dont forget!!!
