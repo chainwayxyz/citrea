@@ -89,13 +89,20 @@ pub trait ProverService {
     /// Add proof data, namely input and assumptions to ProverService.
     async fn add_proof_data(&self, proof_data: ProofData);
 
-    /// Prove added input and assumptions and submit the proof to DA.
-    async fn prove_and_submit(
+    /// Prove added input and assumptions.
+    async fn prove(&self) -> anyhow::Result<Vec<Proof>>;
+
+    /// Submit proofs to DA.
+    async fn submit_proofs(
         &self,
+        proofs: Vec<Proof>,
     ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
 
-    /// Prove added input and assumptions and extract the specified output from journal.
-    async fn prove_and_extract<T: BorshDeserialize>(&self) -> anyhow::Result<Vec<T>>;
+    /// Extracts the journal output of the given proofs and borsh deserializes them.
+    async fn extract_output<T: BorshDeserialize>(
+        &self,
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<T>>;
 
     /// Recover the ongoing sessions and submit them to DA.
     async fn recover_and_submit_proving_sessions(

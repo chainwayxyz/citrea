@@ -115,7 +115,7 @@ where
         )
     }
 
-    async fn prove(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
+    async fn prove_all(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
         let num_threads = self.thread_pool.current_num_threads();
 
         // Future buffer to keep track of ongoing provings
@@ -130,7 +130,7 @@ where
                 ongoing_proofs = remaining_proofs;
             }
 
-            let proof_fut = self.prove_with_data(proof_data);
+            let proof_fut = self.prove_one(proof_data);
             ongoing_proofs.push(Box::pin(async move {
                 let proof = proof_fut.await;
                 (idx, proof)
@@ -146,7 +146,7 @@ where
         proofs
     }
 
-    async fn prove_with_data(&self, (input, assumptions): ProofData) -> Proof {
+    async fn prove_one(&self, (input, assumptions): ProofData) -> Proof {
         let mut vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
         let proof_mode = self.proof_mode.clone();
@@ -164,18 +164,6 @@ where
         });
 
         rx.await.expect("Should not have channel errors")
-    }
-
-    async fn submit_proofs(
-        &self,
-        proofs: Vec<Proof>,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
-        let mut tx_and_proof = Vec::with_capacity(proofs.len());
-        for proof in proofs {
-            let tx_id = self.submit_proof(proof.clone()).await?;
-            tx_and_proof.push((tx_id, proof));
-        }
-        Ok(tx_and_proof)
     }
 
     async fn submit_proof(&self, proof: Proof) -> anyhow::Result<<Da as DaService>::TransactionId> {
@@ -202,9 +190,7 @@ where
         proof_queue.push(proof_data);
     }
 
-    async fn prove_and_submit(
-        &self,
-    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+    async fn prove(&self) -> anyhow::Result<Vec<Proof>> {
         let mut proof_queue = self.proof_queue.lock().await;
         if let ProofGenMode::Skip = *self.proof_mode.lock().await {
             tracing::debug!("Skipped proving {} proofs", proof_queue.len());
@@ -221,30 +207,13 @@ where
         let proof_queue = std::mem::take(&mut *proof_queue);
 
         // Prove all
-        let proofs = self.prove(proof_queue).await;
-        // Submit proofs to DA
-        self.submit_proofs(proofs.clone()).await
+        Ok(self.prove_all(proof_queue).await)
     }
 
-    async fn prove_and_extract<T: BorshDeserialize>(&self) -> anyhow::Result<Vec<T>> {
-        let mut proof_queue = self.proof_queue.lock().await;
-        if let ProofGenMode::Skip = *self.proof_mode.lock().await {
-            tracing::debug!("Skipped proving {} proofs", proof_queue.len());
-            proof_queue.clear();
-            return Ok(vec![]);
-        }
-
-        assert!(
-            !proof_queue.is_empty(),
-            "Prove should never be called before setting some proofs"
-        );
-
-        // Clear current proof data
-        let proof_queue = std::mem::take(&mut *proof_queue);
-
-        // Prove all
-        let proofs = self.prove(proof_queue).await;
-
+    async fn extract_output<T: BorshDeserialize>(
+        &self,
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<T>> {
         // Extract output
         Ok(proofs
             .into_iter()
@@ -255,6 +224,18 @@ where
                 T::try_from_slice(&journal.bytes).expect("Borsh deserialize must not fail")
             })
             .collect())
+    }
+
+    async fn submit_proofs(
+        &self,
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<(<Da as DaService>::TransactionId, Proof)>> {
+        let mut tx_and_proof = Vec::with_capacity(proofs.len());
+        for proof in proofs {
+            let tx_id = self.submit_proof(proof.clone()).await?;
+            tx_and_proof.push((tx_id, proof));
+        }
+        Ok(tx_and_proof)
     }
 
     async fn recover_and_submit_proving_sessions(

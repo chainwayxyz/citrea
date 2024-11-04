@@ -250,9 +250,11 @@ where
             .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
             .await;
 
-        // Light client always does proving one-by-one
+        let proofs = self.prover_service.prove().await?;
+
+        // Light client always does proving one-by-one, so its ok to get the first element
         self.prover_service
-            .prove_and_extract()
+            .extract_output(proofs)
             .await
             .map(|mut outputs| outputs.remove(0))
     }

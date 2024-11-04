@@ -230,10 +230,9 @@ where
     }
 
     // Prove all proofs in parallel
-    let txs_and_proofs = prover_service
-        .prove_and_submit()
-        .await
-        .map_err(|e| anyhow!(e))?;
+    let proofs = prover_service.prove().await?;
+
+    let txs_and_proofs = prover_service.submit_proofs(proofs).await?;
 
     extract_and_store_proof::<DB, Da, Vm, StateRoot>(
         ledger.clone(),
