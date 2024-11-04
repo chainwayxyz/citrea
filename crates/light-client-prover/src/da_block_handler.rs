@@ -244,18 +244,13 @@ where
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
     ) -> Result<Vec<LightClientCircuitOutput>, anyhow::Error> {
-        let da_slot_hash = circuit_input.da_block_header.hash();
         let prover_service = self.prover_service.as_ref();
 
         prover_service
             .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
             .await;
 
-        // TODO: prove and extract output not submit
-        let output = prover_service.prove_and_submit().await?;
-
-        // TODO: dont forget!!!
-        todo!()
+        self.prover_service.prove_and_extract().await
     }
 }
 

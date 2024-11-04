@@ -238,7 +238,6 @@ where
             if should_prove {
                 if l1_height >= self.skip_submission_until_l1 {
                     prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness>(
-                        self.da_service.clone(),
                         self.prover_service.clone(),
                         self.ledger_db.clone(),
                         self.code_commitments_by_spec.clone(),

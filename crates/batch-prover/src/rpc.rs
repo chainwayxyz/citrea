@@ -224,7 +224,6 @@ where
             })?;
 
         prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness>(
-            self.context.da_service.clone(),
             self.context.prover_service.clone(),
             self.context.ledger.clone(),
             self.context.code_commitments_by_spec.clone(),

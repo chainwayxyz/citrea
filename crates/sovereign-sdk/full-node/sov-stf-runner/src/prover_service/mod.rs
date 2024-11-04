@@ -98,6 +98,9 @@ pub trait ProverService {
         &self,
     ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
 
+    /// Prove added input and assumptions and extract the specified output from journal.
+    async fn prove_and_extract<T: BorshDeserialize>(&self) -> anyhow::Result<Vec<T>>;
+
     /// Recover the ongoing sessions and submit them to DA.
     async fn recover_and_submit_proving_sessions(
         &self,

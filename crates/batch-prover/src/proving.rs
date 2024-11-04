@@ -193,7 +193,6 @@ where
 }
 
 pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
-    da_service: Arc<Da>,
     prover_service: Arc<Ps>,
     ledger: DB,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -219,8 +218,6 @@ where
         .get_proofs_by_l1_height(l1_block.header().height())
         .map_err(|e| anyhow!("{e}"))?
         .unwrap_or(vec![]);
-
-    let da_block_hash = l1_block.header().hash();
 
     for state_transition_data in state_transitions {
         if !state_transition_already_proven::<StateRoot, Witness, Da>(
@@ -261,7 +258,9 @@ where
     StateRoot: BorshSerialize,
     Witness: BorshSerialize,
 {
-    prover_service.add_proof_data((borsh::to_vec(&transition_data)?, vec![]));
+    prover_service
+        .add_proof_data((borsh::to_vec(&transition_data)?, vec![]))
+        .await;
 
     prover_service.prove_and_submit().await
 }

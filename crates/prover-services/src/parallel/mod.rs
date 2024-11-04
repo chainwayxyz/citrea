@@ -4,6 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use futures::future;
+use risc0_zkvm::Receipt;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
@@ -33,7 +34,7 @@ where
     da_service: Arc<Da>,
     vm: Vm,
     zk_storage: Stf::PreState,
-    ledger_db: LedgerDB,
+    _ledger_db: LedgerDB,
 
     proof_queue: Arc<Mutex<Vec<ProofData>>>,
 }
@@ -52,7 +53,7 @@ where
         proof_mode: ProofGenMode<Da, Vm, Stf>,
         zk_storage: Stf::PreState,
         thread_pool_size: usize,
-        ledger_db: LedgerDB,
+        _ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
         assert!(
             thread_pool_size > 0,
@@ -85,7 +86,7 @@ where
             da_service,
             vm,
             zk_storage,
-            ledger_db,
+            _ledger_db,
             proof_queue: Arc::new(Mutex::new(vec![])),
         })
     }
@@ -97,7 +98,7 @@ where
         vm: Vm,
         proof_mode: ProofGenMode<Da, Vm, Stf>,
         zk_storage: Stf::PreState,
-        ledger_db: LedgerDB,
+        _ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
         let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT")
             .expect("PARALLEL_PROOF_LIMIT must be set")
@@ -110,7 +111,7 @@ where
             proof_mode,
             zk_storage,
             thread_pool_size,
-            ledger_db,
+            _ledger_db,
         )
     }
 
@@ -184,34 +185,6 @@ where
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
-
-    async fn prove_and_extract<T: BorshDeserialize>(
-        &self,
-    ) -> anyhow::Result<Vec<T>> {
-        let mut proof_queue = self.proof_queue.lock().await;
-        if let ProofGenMode::Skip = *self.proof_mode.lock().await {
-            tracing::debug!("Skipped proving {} proofs", proof_queue.len());
-            proof_queue.clear();
-            return Ok(vec![]);
-        }
-
-        assert!(
-            !proof_queue.is_empty(),
-            "Prove should never be called before setting some proofs"
-        );
-
-        // Clear current proof data
-        let proof_queue = std::mem::take(&mut *proof_queue);
-
-        // Prove all
-        let proofs = self.prove(proof_queue).await;
-
-        // Extract output
-        Ok(proofs
-            .into_iter()
-            .map(|proof| borsh::from_slice(&proof).unwrap())
-            .collect())
-    }
 }
 
 #[async_trait]
@@ -253,6 +226,36 @@ where
         self.submit_proofs(proofs.clone()).await
     }
 
+    async fn prove_and_extract<T: BorshDeserialize>(&self) -> anyhow::Result<Vec<T>> {
+        let mut proof_queue = self.proof_queue.lock().await;
+        if let ProofGenMode::Skip = *self.proof_mode.lock().await {
+            tracing::debug!("Skipped proving {} proofs", proof_queue.len());
+            proof_queue.clear();
+            return Ok(vec![]);
+        }
+
+        assert!(
+            !proof_queue.is_empty(),
+            "Prove should never be called before setting some proofs"
+        );
+
+        // Clear current proof data
+        let proof_queue = std::mem::take(&mut *proof_queue);
+
+        // Prove all
+        let proofs = self.prove(proof_queue).await;
+
+        // Extract output
+        Ok(proofs
+            .into_iter()
+            .map(|proof| {
+                let receipt: Receipt =
+                    bincode::deserialize(&proof).expect("bincode deserialize must not fail");
+                let journal = receipt.journal;
+                T::try_from_slice(&journal.bytes).expect("Borsh deserialize must not fail")
+            })
+            .collect())
+    }
 
     async fn recover_and_submit_proving_sessions(
         &self,
