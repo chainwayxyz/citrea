@@ -721,6 +721,12 @@ where
                 "All DA headers must be checked"
             );
 
+            // also it's hash wasn't verified
+            assert!(
+                da_block_headers[index_headers].verify_hash(),
+                "Invalid DA block header hash"
+            );
+
             // now verify the claimed merkle root of soft confirmation hashes
             let mut soft_confirmation_hashes = vec![];
 
