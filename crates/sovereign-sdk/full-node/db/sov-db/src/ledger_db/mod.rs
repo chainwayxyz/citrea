@@ -22,7 +22,7 @@ use crate::schema::tables::{
     SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
+    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredSlot,
     StoredSoftConfirmation, StoredStateTransition, StoredVerifiedProof,
 };
 
@@ -526,7 +526,7 @@ impl BatchProverLedgerOps for LedgerDB {
         proof: Proof,
         state_transition: StoredStateTransition,
     ) -> anyhow::Result<()> {
-        let data_to_store = StoredProof {
+        let data_to_store = StoredBatchProof {
             l1_tx_id,
             proof,
             state_transition,
@@ -545,7 +545,10 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_proofs_by_l1_height(&self, l1_height: u64) -> anyhow::Result<Option<Vec<StoredProof>>> {
+    fn get_proofs_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
         self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))
     }
 

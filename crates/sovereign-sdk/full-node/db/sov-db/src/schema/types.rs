@@ -75,7 +75,7 @@ pub struct StoredSlot {
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredProof {
+pub struct StoredBatchProof {
     /// Tx id
     pub l1_tx_id: [u8; 32],
     /// Proof
@@ -84,8 +84,8 @@ pub struct StoredProof {
     pub state_transition: StoredStateTransition,
 }
 
-impl From<StoredProof> for ProofResponse {
-    fn from(value: StoredProof) -> Self {
+impl From<StoredBatchProof> for ProofResponse {
+    fn from(value: StoredBatchProof) -> Self {
         Self {
             l1_tx_id: value.l1_tx_id,
             proof: value.proof,

@@ -10,7 +10,7 @@ use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments}
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, StoredProof, StoredStateTransition};
+use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredStateTransition};
 use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -283,7 +283,7 @@ where
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
     state_transition: &StateTransitionData<StateRoot, Witness, Da::Spec>,
-    proofs: &Vec<StoredProof>,
+    proofs: &Vec<StoredBatchProof>,
 ) -> bool
 where
     Da: DaService,

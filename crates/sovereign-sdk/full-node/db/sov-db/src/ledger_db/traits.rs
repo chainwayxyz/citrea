@@ -10,7 +10,7 @@ use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot, StoredSoftConfirmation,
+    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredSlot, StoredSoftConfirmation,
     StoredStateTransition,
 };
 
@@ -171,7 +171,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<()>;
 
     /// Gets proofs by L1 height
-    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredProof>>>;
+    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
