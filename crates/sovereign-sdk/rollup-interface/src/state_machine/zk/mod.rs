@@ -216,6 +216,9 @@ pub struct StateTransitionData<StateRoot, Witness, Da: DaSpec> {
 pub struct LightClientCircuitOutput {
     /// State root of the node after the light client proof
     pub state_root: [u8; 32],
+    /// The method id of the light client proof
+    /// This is used to compare the previous light client proof method id with the input (current) method id
+    pub light_client_proof_method_id: [u32; 8],
 }
 
 /// The input of light client proof
