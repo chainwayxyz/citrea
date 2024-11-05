@@ -1,5 +1,5 @@
 use borsh::BorshDeserialize;
-use sov_modules_api::BlobReaderTrait;
+use sov_modules_api::{BlobReaderTrait, StateTransition};
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmGuest};
 
@@ -14,23 +14,24 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 ) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
     let input: LightClientCircuitInput<DaV::Spec> = guest.read_from_host();
 
-    // Start by verifying the previous light client proof
-    // If this is the first light client proof, skip this step
-    if let Some(light_client_proof_journal) = input.light_client_proof_journal {
-        let deserialized_previous_light_client_proof_journal =
-            G::verify_and_extract_output::<LightClientCircuitOutput>(
-                &light_client_proof_journal,
+    // Verify the previous light client proof if it exists
+    let deserialized_previous_light_client_proof_journal = input
+        .light_client_proof_journal
+        .as_ref()
+        .map(|proof_journal| {
+            let deserialized = G::verify_and_extract_output::<LightClientCircuitOutput>(
+                proof_journal,
                 &input.light_client_proof_method_id.into(),
             )
             .expect("Should have verified the light client proof");
 
-        // TODO: Once we implement light client method id by spec update this to do the right checks
-        // Assert that the output method id and the input method id are the same
-        assert_eq!(
-            input.light_client_proof_method_id,
-            deserialized_previous_light_client_proof_journal.light_client_proof_method_id
-        );
-    }
+            // Ensure input and output method IDs match
+            assert_eq!(
+                input.light_client_proof_method_id,
+                deserialized.light_client_proof_method_id
+            );
+            deserialized
+        });
 
     // Verify data from da
     let _validity_condition = da_verifier
@@ -61,23 +62,55 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
     }
 
-    let batch_proof_journals = input.batch_proof_journals;
-    let batch_proof_method_id = input.batch_proof_method_id;
-    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
-    // https://github.com/chainwayxyz/citrea/issues/1401
-    for journal in batch_proof_journals {
-        G::verify(&journal, &batch_proof_method_id.into()).unwrap();
+    // Verify all batch proofs
+    for journal in &input.batch_proof_journals {
+        G::verify(journal, &input.batch_proof_method_id.into()).unwrap();
     }
 
-    // do what you want with proofs
-    // complete proof has raw bytes inside
-    // to extract *and* verify the proof you need to use the zk guest
-    // can be passed from the guest code to this function
+    // Deserialize batch proof journals
+    let mut deserialized_journals: Vec<_> = input
+        .batch_proof_journals
+        .iter()
+        .map(|journal| {
+            StateTransition::<DaV::Spec, [u8; 32]>::try_from_slice(journal)
+                .expect("Should have deserialized the journal")
+        })
+        .collect();
+
+    // Ensure the journals are sorted and check state root order
+    if !deserialized_journals.is_empty() {
+        // Sort the journals first
+        deserialized_journals.sort_unstable_by_key(|journal| journal.sequencer_commitments_range.0);
+
+        // Now safely access the first journal after sorting
+        if let Some(first_journal) = deserialized_journals.first() {
+            if let Some(previous_journal) = &deserialized_previous_light_client_proof_journal {
+                assert_eq!(
+                    first_journal.initial_state_root,
+                    previous_journal.state_root
+                );
+            }
+        }
+
+        // Check if other state roots are in order
+        for windows in deserialized_journals.windows(2) {
+            assert_eq!(windows[0].final_state_root, windows[1].initial_state_root);
+        }
+    }
+
+    // For the output state root, update with the latest state root if a batch proof journal is present
+    // Otherwise, use the state root from the previous light client proof
+    // If it is the first light client proof and there are no journals zero it out
+    let final_state_root = deserialized_journals.last().map_or_else(
+        || {
+            deserialized_previous_light_client_proof_journal
+                .map_or([0u8; 32], |journal| journal.state_root)
+        },
+        |journal| journal.final_state_root,
+    );
 
     Ok(LightClientCircuitOutput {
-        state_root: [1; 32],
+        state_root: final_state_root,
         light_client_proof_method_id: input.light_client_proof_method_id,
     })
-
-    // First
 }
