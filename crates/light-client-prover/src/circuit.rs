@@ -33,6 +33,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             input.light_client_proof_method_id,
             previous_light_client_proof_output.light_client_proof_method_id
         );
+        // Verify that previous light client da block hash, matches the prev hash of the current block
+        assert_eq!(
+            input.da_block_header.prev_hash(),
+            previous_light_client_proof_output.da_block_hash
+        );
 
         Some(previous_light_client_proof_output)
 
@@ -72,11 +77,15 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 .expect("Batch proof could not be verified");
 
                         if idx == 0 {
-                            if let Some(ref previous_light_client_proof_output) = previous_light_client_proof_output {
-                                // If this is the first batch proof we need to verify:
-                                // TODO: 1. Previous light client proof output header hash matches first batch proof's prev header hash?
-                                // 2. Previous light client proof output state root matches starting batch proof state root
-                                assert_eq!(previous_light_client_proof_output.state_root, batch_proof_output.initial_state_root);
+                            if let Some(ref previous_light_client_proof_output) =
+                                previous_light_client_proof_output
+                            {
+                                // If this is the first batch proof we need to verify that
+                                // previous light client proof output state root matches starting batch proof state root
+                                assert_eq!(
+                                    previous_light_client_proof_output.state_root,
+                                    batch_proof_output.initial_state_root
+                                );
                             }
                         }
                     }
