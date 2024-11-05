@@ -216,7 +216,7 @@ pub struct ProofResponse {
     /// Proof
     pub proof: ProofRpcResponse,
     /// State transition
-    pub state_transition: StateTransitionRpcResponse,
+    pub proof_output: BatchProofOutputRpcResponse,
 }
 
 /// The rpc response of proof by l1 slot height
@@ -226,7 +226,7 @@ pub struct VerifiedProofResponse {
     /// Proof
     pub proof: ProofRpcResponse,
     /// State transition
-    pub state_transition: StateTransitionRpcResponse,
+    pub proof_output: BatchProofOutputRpcResponse,
 }
 
 /// The rpc response of the last verified proof
@@ -245,7 +245,7 @@ pub type ProofRpcResponse = Vec<u8>;
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StateTransitionRpcResponse {
+pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup before the transition
     #[serde(with = "hex::serde")]
     pub initial_state_root: Vec<u8>,

@@ -219,15 +219,9 @@ async fn test_all_flow() {
 
     assert_eq!(proof_l1_height, 4);
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
-    assert_eq!(
-        last_proof.state_transition,
-        full_node_proof[0].state_transition
-    );
+    assert_eq!(last_proof.proof_output, full_node_proof[0].proof_output);
 
-    assert_eq!(
-        prover_proof.state_transition,
-        full_node_proof[0].state_transition
-    );
+    assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
@@ -309,14 +303,14 @@ async fn test_all_flow() {
     assert_eq!(proof_l1_height, 6);
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
-        last_proof.state_transition,
-        full_node_proof_data[0].state_transition
+        last_proof.proof_output,
+        full_node_proof_data[0].proof_output
     );
 
     assert_eq!(prover_proof_data.proof, full_node_proof_data[0].proof);
     assert_eq!(
-        prover_proof_data.state_transition,
-        full_node_proof_data[0].state_transition
+        prover_proof_data.proof_output,
+        full_node_proof_data[0].proof_output
     );
 
     let balance = full_node_test_client

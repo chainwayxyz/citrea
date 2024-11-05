@@ -181,8 +181,8 @@ where
             )
             .await;
 
-            let (sequencer_commitments, state_transitions) = match data_to_prove {
-                Ok((commitments, transitions)) => (commitments, transitions),
+            let (sequencer_commitments, inputs) = match data_to_prove {
+                Ok((commitments, inputs)) => (commitments, inputs),
                 Err(e) => match e {
                     L1ProcessingError::NoSeqCommitments { l1_height } => {
                         info!("No sequencer commitment found at height {}", l1_height,);
@@ -243,7 +243,7 @@ where
                         self.code_commitments_by_spec.clone(),
                         l1_block.clone(),
                         sequencer_commitments,
-                        state_transitions,
+                        inputs,
                     )
                     .await?;
                 } else {
@@ -332,7 +332,7 @@ async fn sync_l1<Da>(
     }
 }
 
-pub(crate) async fn get_state_transition_data_from_commitments<
+pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,

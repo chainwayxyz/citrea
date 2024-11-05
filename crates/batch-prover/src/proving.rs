@@ -10,7 +10,7 @@ use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments}
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, StoredProof, StoredStateTransition};
+use sov_db::schema::types::{BatchNumber, StoredBatchProofOutput, StoredProof};
 use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
@@ -21,7 +21,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, info};
 
 use crate::da_block_handler::{
-    break_sequencer_commitments_into_groups, get_state_transition_data_from_commitments,
+    break_sequencer_commitments_into_groups, get_batch_proof_circuit_input_from_commitments,
 };
 use crate::errors::L1ProcessingError;
 
@@ -112,7 +112,7 @@ where
         _ => vec![(0..=sequencer_commitments.len() - 1)],
     };
 
-    let mut state_transitions = vec![];
+    let mut batch_proof_circuit_inputs = vec![];
 
     for sequencer_commitments_range in ranges {
         let first_l2_height_of_l1 =
@@ -123,7 +123,7 @@ where
             state_transition_witnesses,
             soft_confirmations,
             da_block_headers_of_soft_confirmations,
-        ) = get_state_transition_data_from_commitments(
+        ) = get_batch_proof_circuit_input_from_commitments(
             &sequencer_commitments[sequencer_commitments_range.clone()],
             &da_service,
             &ledger,
@@ -160,31 +160,30 @@ where
             })?
             .expect("There should be a state root");
 
-        let state_transition_data: BatchProofCircuitInput<StateRoot, Witness, Da::Spec> =
-            BatchProofCircuitInput {
-                initial_state_root,
-                final_state_root,
-                initial_batch_hash,
-                da_data: da_data.clone(),
-                da_block_header_of_commitments: da_block_header_of_commitments.clone(),
-                inclusion_proof: inclusion_proof.clone(),
-                completeness_proof: completeness_proof.clone(),
-                soft_confirmations,
-                state_transition_witnesses,
-                da_block_headers_of_soft_confirmations,
-                preproven_commitments: preproven_commitments.to_vec(),
-                sequencer_commitments_range: (
-                    *sequencer_commitments_range.start() as u32,
-                    *sequencer_commitments_range.end() as u32,
-                ),
-                sequencer_public_key: sequencer_pub_key.clone(),
-                sequencer_da_public_key: sequencer_da_pub_key.clone(),
-            };
+        let input: BatchProofCircuitInput<StateRoot, Witness, Da::Spec> = BatchProofCircuitInput {
+            initial_state_root,
+            final_state_root,
+            initial_batch_hash,
+            da_data: da_data.clone(),
+            da_block_header_of_commitments: da_block_header_of_commitments.clone(),
+            inclusion_proof: inclusion_proof.clone(),
+            completeness_proof: completeness_proof.clone(),
+            soft_confirmations,
+            state_transition_witnesses,
+            da_block_headers_of_soft_confirmations,
+            preproven_commitments: preproven_commitments.to_vec(),
+            sequencer_commitments_range: (
+                *sequencer_commitments_range.start() as u32,
+                *sequencer_commitments_range.end() as u32,
+            ),
+            sequencer_public_key: sequencer_pub_key.clone(),
+            sequencer_da_public_key: sequencer_da_pub_key.clone(),
+        };
 
-        state_transitions.push(state_transition_data);
+        batch_proof_circuit_inputs.push(input);
     }
 
-    Ok((sequencer_commitments, state_transitions))
+    Ok((sequencer_commitments, batch_proof_circuit_inputs))
 }
 
 pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
@@ -193,7 +192,7 @@ pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block: Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    state_transitions: Vec<BatchProofCircuitInput<StateRoot, Witness, Da::Spec>>,
+    inputs: Vec<BatchProofCircuitInput<StateRoot, Witness, Da::Spec>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -215,13 +214,10 @@ where
         .unwrap_or(vec![]);
 
     // Add each non-proven proof's data to ProverService
-    for state_transition_data in state_transitions {
-        if !state_transition_already_proven::<StateRoot, Witness, Da>(
-            &state_transition_data,
-            &submitted_proofs,
-        ) {
+    for input in inputs {
+        if !state_transition_already_proven::<StateRoot, Witness, Da>(&input, &submitted_proofs) {
             prover_service
-                .add_proof_data((borsh::to_vec(&state_transition_data)?, vec![]))
+                .add_proof_data((borsh::to_vec(&input)?, vec![]))
                 .await;
         }
     }
@@ -249,7 +245,7 @@ where
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
-    state_transition: &BatchProofCircuitInput<StateRoot, Witness, Da::Spec>,
+    input: &BatchProofCircuitInput<StateRoot, Witness, Da::Spec>,
     proofs: &Vec<StoredProof>,
 ) -> bool
 where
@@ -264,10 +260,9 @@ where
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
 {
     for proof in proofs {
-        if proof.state_transition.initial_state_root == state_transition.initial_state_root.as_ref()
-            && proof.state_transition.final_state_root == state_transition.final_state_root.as_ref()
-            && proof.state_transition.sequencer_commitments_range
-                == state_transition.sequencer_commitments_range
+        if proof.proof_output.initial_state_root == input.initial_state_root.as_ref()
+            && proof.proof_output.final_state_root == input.final_state_root.as_ref()
+            && proof.proof_output.sequencer_commitments_range == input.sequencer_commitments_range
         {
             return true;
         }
@@ -312,7 +307,7 @@ where
 
         let slot_hash = transition_data.da_slot_hash.into();
 
-        let stored_state_transition = StoredStateTransition {
+        let stored_batch_proof_output = StoredBatchProofOutput {
             initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
             final_state_root: transition_data.final_state_root.as_ref().to_vec(),
             state_diff: transition_data.state_diff,
@@ -331,7 +326,7 @@ where
             l1_height,
             tx_id_u8,
             proof,
-            stored_state_transition,
+            stored_batch_proof_output,
         ) {
             panic!("Failed to put proof data in the ledger db: {}", e);
         }
