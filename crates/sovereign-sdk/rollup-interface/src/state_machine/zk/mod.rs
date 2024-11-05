@@ -181,7 +181,7 @@ pub trait Matches<T> {
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
+pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StateRoot,
     /// The state root after the state transition
@@ -199,7 +199,7 @@ pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
     /// The soft confirmations that are inside the sequencer commitments.
-    pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
+    pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<Witness>>,
     /// DA block headers the soft confirmations was constructed on.
