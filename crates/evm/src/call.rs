@@ -13,7 +13,7 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecover
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::system_contracts::{BitcoinLightClient, Bridge};
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
-use crate::{Evm, PendingTransaction, SystemEvent};
+use crate::{citrea_spec_id_to_evm_spec_id, Evm, PendingTransaction, SystemEvent};
 
 #[cfg_attr(
     feature = "serde",
@@ -36,12 +36,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
         l1_fee_rate: u128,
         cfg: EvmChainConfig,
         block_env: BlockEnv,
+        active_spec: SpecId,
         working_set: &mut WorkingSet<C>,
     ) {
         // don't use self.block_env here
         // function is expected to use block_env passed as argument
 
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&block_env, cfg);
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(cfg, active_spec);
 
         let l1_block_hash_exists = self
             .accounts
@@ -140,7 +141,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .collect();
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
-        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(&self.block_env, cfg);
+        let active_evm_spec = citrea_spec_id_to_evm_spec_id(context.active_spec());
+        let cfg_env: CfgEnvWithHandlerCfg = get_cfg_env(cfg, active_evm_spec);
 
         let l1_fee_rate = context.l1_fee_rate();
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
@@ -245,28 +247,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
 /// Get cfg env for a given block number
 /// Returns correct config depending on spec for given block number
-pub(crate) fn get_cfg_env(block_env: &BlockEnv, cfg: EvmChainConfig) -> CfgEnvWithHandlerCfg {
-    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(
-        CfgEnv::default(),
-        get_spec_id(cfg.spec, block_env.number),
-    );
+pub(crate) fn get_cfg_env(cfg: EvmChainConfig, spec_id: SpecId) -> CfgEnvWithHandlerCfg {
+    let mut cfg_env = CfgEnvWithHandlerCfg::new_with_spec_id(CfgEnv::default(), spec_id);
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     cfg_env
-}
-
-/// Get spec id for a given block number
-/// Returns the first spec id defined for block >= block_number
-pub(crate) fn get_spec_id(spec: Vec<(u64, SpecId)>, block_number: u64) -> SpecId {
-    match spec.binary_search_by(|&(k, _)| k.cmp(&block_number)) {
-        Ok(index) => spec[index].1,
-        Err(index) => {
-            if index > 0 {
-                spec[index - 1].1
-            } else {
-                // this should never happen as we cover this in genesis
-                panic!("EVM spec must start from block 0")
-            }
-        }
-    }
 }

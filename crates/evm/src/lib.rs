@@ -34,11 +34,11 @@ mod tests;
 
 use evm::db::EvmDb;
 use reth_primitives::{Address, TxHash, B256};
-pub use revm::primitives::SpecId;
+pub use revm::primitives::SpecId as EvmSpecId;
 use revm::primitives::U256;
 #[cfg(feature = "native")]
 use sov_modules_api::{AccessoryWorkingSet, StateVecAccessor};
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Error, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 #[cfg(feature = "native")]
@@ -212,5 +212,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Option<PendingTransaction> {
         self.native_pending_transactions
             .last(&mut accessory_working_set.accessory_state())
+    }
+}
+
+const fn citrea_spec_id_to_evm_spec_id(spec_id: CitreaSpecId) -> EvmSpecId {
+    match spec_id {
+        CitreaSpecId::Genesis => EvmSpecId::SHANGHAI,
+        // Any other citrea spec id mapped to cancun
+        _ => EvmSpecId::CANCUN,
     }
 }

@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use crate::evm::primitive_types::{Block, BlockEnv};
 use crate::evm::system_events::SystemEvent;
-use crate::Evm;
+use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
 impl<C: sov_modules_api::Context> Evm<C>
 where
@@ -104,12 +104,15 @@ where
         // they don't use the wrong value
         self.block_env = new_pending_env;
 
+        let active_evm_spec = citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec);
+
         if !system_events.is_empty() {
             self.execute_system_events(
                 system_events,
                 soft_confirmation_info.l1_fee_rate(),
                 cfg,
                 new_pending_env,
+                active_evm_spec,
                 working_set,
             );
         }

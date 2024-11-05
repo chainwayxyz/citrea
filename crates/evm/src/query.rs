@@ -6,6 +6,7 @@ use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
+use citrea_primitives::forks::FORKS;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
@@ -27,6 +28,7 @@ use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use serde::{Deserialize, Serialize};
+use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -40,7 +42,9 @@ use crate::evm::primitive_types::{BlockEnv, Receipt, SealedBlock, TransactionSig
 use crate::evm::DbAccount;
 use crate::handler::{diff_size_send_eth_eoa, TxInfo};
 use crate::rpc_helpers::*;
-use crate::{BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError};
+use crate::{
+    citrea_spec_id_to_evm_spec_id, BloomFilter, Evm, EvmChainConfig, FilterBlockOption, FilterError,
+};
 /// Gas per transaction not creating a contract.
 pub const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 
@@ -531,7 +535,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .cfg
                 .get(working_set)
                 .expect("EVM chain config should be set");
-            let cfg_env = get_cfg_env(&block_env, cfg);
+
+            let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_env.number).spec_id;
+            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+            let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
             (block_env, cfg_env)
         };
@@ -619,7 +627,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .cfg
                 .get(working_set)
                 .expect("EVM chain config should be set");
-            let cfg_env = get_cfg_env(&block_env, cfg);
+
+            let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_env.number).spec_id;
+            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+            let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
             (l1_fee_rate, block_env, cfg_env)
         };
@@ -717,7 +729,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .cfg
                 .get(working_set)
                 .expect("EVM chain config should be set");
-            let cfg_env = get_cfg_env(&block_env, cfg);
+
+            let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_env.number).spec_id;
+            let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+            let cfg_env = get_cfg_env(cfg, evm_spec_id);
 
             (l1_fee_rate, block_env, cfg_env)
         };
@@ -1147,7 +1163,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
-        let cfg_env = get_cfg_env(&block_env, cfg);
+
+        let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_env.number).spec_id;
+        let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
+
+        let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
 
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state

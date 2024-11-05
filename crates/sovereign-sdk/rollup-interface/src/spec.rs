@@ -28,6 +28,8 @@ mod spec {
         /// Genesis spec
         #[default]
         Genesis = 0,
+        /// First fork activates the light client proof and EVM cancun upgrade (with no kzg precompile)
+        Fork1 = 1,
     }
 }
 

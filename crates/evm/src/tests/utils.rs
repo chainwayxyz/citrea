@@ -209,7 +209,6 @@ pub(crate) fn get_evm_config(
             nonce: 0,
             storage: Default::default(),
         }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         ..Default::default()
     };
@@ -234,7 +233,6 @@ pub(crate) fn get_evm_config_starting_base_fee(
             nonce: 0,
             storage: Default::default(),
         }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         starting_base_fee,
         coinbase: PRIORITY_FEE_VAULT,
@@ -273,9 +271,6 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
             },
             nonce: 1
         }],
-        spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
-            .into_iter()
-            .collect(),
         chain_id: 1000,
         block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
         coinbase: Address::from([3u8; 20]),
