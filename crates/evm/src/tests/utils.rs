@@ -23,10 +23,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "82d04e48b7bbcc7239fc123b0eda02586c5f2d45557d66a313183a7f1626f5a6"
+        "600287474db03ec020caf020ad58fe9c7918bd9b078ddfdba31642daae8bdffe"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "5c5e936b06651c65b4e539500afa8563122173f04f1da9c812d717c0064c1051"
+        "6945eecef532f6de29cc417e3b9c2a948ab9b0af8c167392c3955a090f1cbb16"
     ));
 }
 
@@ -273,7 +273,7 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
             },
             nonce: 1
         }],
-        spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
+        spec: vec![(0, SpecId::SHANGHAI)]
             .into_iter()
             .collect(),
         chain_id: 1000,
