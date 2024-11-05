@@ -86,7 +86,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     fn apply_soft_confirmation_txs(
         &mut self,
         _soft_confirmation_info: HookSoftConfirmationInfo,
-        _txs: Vec<Vec<u8>>,
+        _txs: &[Vec<u8>],
         _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (
         sov_modules_api::WorkingSet<C>,

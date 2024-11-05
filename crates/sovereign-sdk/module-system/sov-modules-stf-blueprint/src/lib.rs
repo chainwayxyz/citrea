@@ -147,7 +147,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
@@ -229,7 +229,7 @@ where
     fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
@@ -472,7 +472,7 @@ where
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
                     soft_confirmation_info,
-                    soft_confirmation.txs().to_vec(),
+                    soft_confirmation.txs(),
                     batch_workspace,
                 );
 

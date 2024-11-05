@@ -307,7 +307,7 @@ where
 
                                 let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
                                     soft_confirmation_info.clone(),
-                                    txs.clone(),
+                                    &txs,
                                     working_set_to_discard,
                                 );
 
@@ -453,7 +453,7 @@ where
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
                         soft_confirmation_info,
-                        txs.clone(),
+                        &txs,
                         batch_workspace,
                     );
                 }

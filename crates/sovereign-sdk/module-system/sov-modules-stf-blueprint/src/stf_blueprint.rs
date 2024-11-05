@@ -63,7 +63,7 @@ where
     pub fn apply_sov_txs_inner(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let mut tx_receipts = Vec::with_capacity(txs.len());
@@ -71,7 +71,8 @@ where
             let raw_tx_hash = <C as Spec>::Hasher::digest(&raw_tx).into();
             // Stateless verification of transaction, such as signature check
             // TODO: https://github.com/chainwayxyz/citrea/issues/1061
-            let tx = Transaction::<C>::deserialize_reader(&mut &*raw_tx)
+            let mut reader = std::io::Cursor::new(raw_tx);
+            let tx = Transaction::<C>::deserialize_reader(&mut reader)
                 .expect("Sequencer must not include non-deserializable transaction.");
             tx.verify()
                 .expect("Sequencer must include correctly signed transaction.");
