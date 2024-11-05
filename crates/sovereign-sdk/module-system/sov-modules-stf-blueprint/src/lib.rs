@@ -205,8 +205,6 @@ where
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!("Applying soft confirmation in STF Blueprint");
 
-        println!("Witness: {:?}", state_witness.len());
-        println!("Offchain Witness: {:?}", offchain_witness.len());
         let checkpoint = StateCheckpoint::with_witness(pre_state, state_witness, offchain_witness);
         let batch_workspace = checkpoint.to_revertable();
 
