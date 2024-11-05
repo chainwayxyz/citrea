@@ -4,7 +4,7 @@ use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
-    LightClientCircuitInput, LightClientCircuitOutput, StateTransition, ZkvmGuest,
+    BatchProofCircuitOutput, LightClientCircuitInput, LightClientCircuitOutput, ZkvmGuest,
 };
 
 #[derive(Debug)]
@@ -72,7 +72,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         .batch_proof_journals
         .iter()
         .map(|journal| {
-            G::verify_and_extract_output::<StateTransition<DaV::Spec, [u8; 32]>>(
+            G::verify_and_extract_output::<BatchProofCircuitOutput<DaV::Spec, [u8; 32]>>(
                 journal,
                 &input.batch_proof_method_id.into(),
             )
