@@ -93,7 +93,7 @@ impl TestCase for BasicProverTest {
 
         {
             // print some debug info about state diff
-            let state_diff = &proofs[0].state_transition.state_diff;
+            let state_diff = &proofs[0].proof_output.state_diff;
             let state_diff_size: usize = state_diff
                 .iter()
                 .map(|(k, v)| k.len() + v.as_ref().map(|v| v.len()).unwrap_or_default())
@@ -231,7 +231,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         assert!(proofs
             .first()
             .unwrap()
-            .state_transition
+            .proof_output
             .preproven_commitments
             .is_empty());
 
@@ -302,7 +302,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             proofs
                 .first()
                 .unwrap()
-                .state_transition
+                .proof_output
                 .preproven_commitments
                 .len(),
             1
