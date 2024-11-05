@@ -121,8 +121,6 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -156,8 +154,6 @@ jobs:
         with:
           toolchain: nightly-2024-07-27
           override: true
-      - name: Rust Cache
-        uses: ubicloud/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
