@@ -106,7 +106,7 @@ fn make_transition_data(
     BatchProofCircuitInput {
         initial_state_root: [],
         final_state_root: [],
-        initial_batch_hash: [0; 32],
+        prev_soft_confirmation_hash: [0; 32],
         inclusion_proof: [0; 32],
         completeness_proof: (),
         da_data: vec![],

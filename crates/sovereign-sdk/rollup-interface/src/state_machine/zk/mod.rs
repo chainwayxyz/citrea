@@ -136,8 +136,10 @@ pub struct BatchProofCircuitOutput<Da: DaSpec, Root> {
     pub initial_state_root: Root,
     /// The state of the rollup after the transition
     pub final_state_root: Root,
-    /// The hash before the state transition
-    pub initial_batch_hash: [u8; 32],
+    /// The hash of the last soft confirmation before the state transition
+    pub prev_soft_confirmation_hash: [u8; 32],
+    /// The hash of the last soft confirmation in the state transition
+    pub final_soft_confirmation_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
@@ -187,7 +189,7 @@ pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
     /// The state root after the state transition
     pub final_state_root: StateRoot,
     /// The hash before the state transition
-    pub initial_batch_hash: [u8; 32],
+    pub prev_soft_confirmation_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
     pub da_data: Vec<Da::BlobTransaction>,
     /// DA block header that the sequencer commitments were found in.
