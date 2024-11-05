@@ -215,6 +215,34 @@ pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
     pub sequencer_commitments_range: (u32, u32),
 }
 
+/// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining
+/// This struct is passed as an output to the light client circuit
+/// After that the new circuit will read that info to update the state root if possible
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+pub struct BatchProofInfo {
+    /// Initial state root of the batch proof
+    pub initial_state_root: [u8; 32],
+    /// Final state root of the batch proof
+    pub final_state_root: [u8; 32],
+    /// The last processed l2 height in the batch proof
+    pub last_l2_height: u64,
+}
+
+impl BatchProofInfo {
+    /// Create a new `BatchProofInfo` instance.
+    pub fn new(
+        initial_state_root: [u8; 32],
+        final_state_root: [u8; 32],
+        last_l2_height: u64,
+    ) -> Self {
+        Self {
+            initial_state_root,
+            final_state_root,
+            last_l2_height,
+        }
+    }
+}
+
 /// The output of light client proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct LightClientCircuitOutput {
@@ -223,6 +251,10 @@ pub struct LightClientCircuitOutput {
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
     pub light_client_proof_method_id: [u32; 8],
+    /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
+    pub unverified_batch_proofs_info: Vec<BatchProofInfo>,
+    /// Last l2 height the light client proof verifies
+    pub last_l2_height: u64,
 }
 
 /// The input of light client proof
