@@ -219,8 +219,7 @@ where
             batch_proof_method_id: batch_proof_method_id.clone().into(),
             batch_proof_journals,
             light_client_proof_method_id: self.light_client_proof_code_commitment.clone().into(),
-
-            light_client_proof_journal,
+            previous_light_client_proof_journal: light_client_proof_journal,
         };
 
         let proof = self.prove(circuit_input, assumptions).await?;

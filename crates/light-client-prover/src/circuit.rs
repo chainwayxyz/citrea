@@ -16,10 +16,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     // Start by verifying the previous light client proof
     // If this is the first light client proof, skip this step
-    if let Some(light_client_proof_journal) = input.light_client_proof_journal {
-        let deserialized_previous_light_client_proof_journal =
+    if let Some(previous_light_client_proof_journal) = input.previous_light_client_proof_journal {
+        let previous_light_client_proof_output =
             G::verify_and_extract_output::<LightClientCircuitOutput>(
-                &light_client_proof_journal,
+                &previous_light_client_proof_journal,
                 &input.light_client_proof_method_id.into(),
             )
             .expect("Should have verified the light client proof");
@@ -28,7 +28,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         // Assert that the output method id and the input method id are the same
         assert_eq!(
             input.light_client_proof_method_id,
-            deserialized_previous_light_client_proof_journal.light_client_proof_method_id
+            previous_light_client_proof_output.light_client_proof_method_id
         );
     }
 

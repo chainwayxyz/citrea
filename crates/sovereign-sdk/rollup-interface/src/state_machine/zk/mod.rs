@@ -245,5 +245,5 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub light_client_proof_method_id: [u32; 8],
     /// Light client proof output
     /// Optional because the first light client proof doesn't have a previous proof
-    pub light_client_proof_journal: Option<Vec<u8>>,
+    pub previous_light_client_proof_journal: Option<Vec<u8>>,
 }
