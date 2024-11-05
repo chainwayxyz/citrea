@@ -457,7 +457,7 @@ where
         SoftConfirmationError,
     > {
         let soft_confirmation_info = HookSoftConfirmationInfo::new(
-            &soft_confirmation,
+            soft_confirmation,
             pre_state_root.as_ref().to_vec(),
             current_spec,
         );
