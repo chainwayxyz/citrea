@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use borsh::BorshDeserialize;
-use sov_modules_api::{BlobReaderTrait, StateTransition};
+use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
-use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmGuest};
+use sov_rollup_interface::zk::{
+    LightClientCircuitInput, LightClientCircuitOutput, StateTransition, ZkvmGuest,
+};
 
 #[derive(Debug)]
 pub enum LightClientVerificationError {
