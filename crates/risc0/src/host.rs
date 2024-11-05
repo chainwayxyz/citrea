@@ -166,7 +166,7 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(proof)?;
         let journal = receipt.journal;
 
@@ -224,7 +224,7 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
 
         #[allow(clippy::clone_on_copy)]

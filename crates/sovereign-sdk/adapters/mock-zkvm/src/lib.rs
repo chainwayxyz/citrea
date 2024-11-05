@@ -10,7 +10,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{Matches, Proof, StateTransitionData, ValidityCondition};
+use sov_rollup_interface::zk::{BatchProofCircuitInput, Matches, Proof, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -159,7 +159,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
         Ok(BorshDeserialize::deserialize(&mut &*output)?)
     }
@@ -195,12 +195,12 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
         let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(proof)?;
-        let st: StateTransitionData<Root, (), Da> =
+        let st: BatchProofCircuitInput<Root, (), Da> =
             BorshDeserialize::deserialize(&mut &*data.hint)?;
 
-        Ok(sov_rollup_interface::zk::StateTransition {
+        Ok(sov_rollup_interface::zk::BatchProofCircuitOutput {
             initial_state_root: st.initial_state_root,
             final_state_root: st.final_state_root,
             initial_batch_hash: st.initial_batch_hash,
@@ -238,7 +238,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
         unimplemented!()
     }
 }

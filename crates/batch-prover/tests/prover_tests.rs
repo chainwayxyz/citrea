@@ -9,7 +9,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::zk::StateTransitionData;
+use sov_rollup_interface::zk::BatchProofCircuitInput;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::ProverService;
 
@@ -102,8 +102,8 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
 
 fn make_transition_data(
     header_hash: MockHash,
-) -> StateTransitionData<[u8; 0], Vec<u8>, MockDaSpec> {
-    StateTransitionData {
+) -> BatchProofCircuitInput<[u8; 0], Vec<u8>, MockDaSpec> {
+    BatchProofCircuitInput {
         initial_state_root: [],
         final_state_root: [],
         initial_batch_hash: [0; 32],

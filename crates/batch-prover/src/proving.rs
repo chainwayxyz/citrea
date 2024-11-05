@@ -15,7 +15,7 @@ use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{Proof, StateTransitionData, ZkvmHost};
+use sov_rollup_interface::zk::{BatchProofCircuitInput, Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -36,7 +36,7 @@ pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<StateTransitionData<StateRoot, Witness, Da::Spec>>,
+        Vec<BatchProofCircuitInput<StateRoot, Witness, Da::Spec>>,
     ),
     L1ProcessingError,
 >
@@ -160,8 +160,8 @@ where
             })?
             .expect("There should be a state root");
 
-        let state_transition_data: StateTransitionData<StateRoot, Witness, Da::Spec> =
-            StateTransitionData {
+        let state_transition_data: BatchProofCircuitInput<StateRoot, Witness, Da::Spec> =
+            BatchProofCircuitInput {
                 initial_state_root,
                 final_state_root,
                 initial_batch_hash,
@@ -193,7 +193,7 @@ pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block: Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    state_transitions: Vec<StateTransitionData<StateRoot, Witness, Da::Spec>>,
+    state_transitions: Vec<BatchProofCircuitInput<StateRoot, Witness, Da::Spec>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -249,7 +249,7 @@ where
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
-    state_transition: &StateTransitionData<StateRoot, Witness, Da::Spec>,
+    state_transition: &BatchProofCircuitInput<StateRoot, Witness, Da::Spec>,
     proofs: &Vec<StoredProof>,
 ) -> bool
 where

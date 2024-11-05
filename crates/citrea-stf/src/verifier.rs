@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use citrea_primitives::forks::FORKS;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
+use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Zkvm, ZkvmGuest};
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da, Zk>
@@ -39,7 +39,7 @@ where
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
         println!("Running sequencer commitments in DA slot");
-        let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
+        let data: BatchProofCircuitInput<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");
@@ -79,7 +79,7 @@ where
             "Invalid final state root"
         );
 
-        let out: StateTransition<Da::Spec, _> = StateTransition {
+        let out: BatchProofCircuitOutput<Da::Spec, _> = BatchProofCircuitOutput {
             initial_state_root: data.initial_state_root,
             final_state_root,
             initial_batch_hash: data.initial_batch_hash,
