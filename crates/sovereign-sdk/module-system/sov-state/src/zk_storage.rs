@@ -68,6 +68,15 @@ where
         witness.get_hint()
     }
 
+    fn get_offchain(
+        &self,
+        _key: &StorageKey,
+        _version: Option<jmt::Version>,
+        witness: &mut Self::Witness,
+    ) -> Option<StorageValue> {
+        witness.get_hint()
+    }
+
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn compute_state_update(
         &self,
