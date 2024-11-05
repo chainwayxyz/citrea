@@ -57,21 +57,28 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // https://github.com/chainwayxyz/citrea/issues/1401
     let batch_proof_method_id = input.batch_proof_method_id;
     // Parse the batch proof da data
-    for blob in input.da_data {
+    // TODO: We are currently assuming batch proofs are ordered. Erce pr will handle that so I am currently ignoring that case.
+    for (idx, blob) in input.da_data.iter().enumerate() {
         if blob.sender().as_ref() == input.batch_prover_da_pub_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
             if let Ok(data) = data {
                 match data {
                     DaDataLightClient::Complete(proof) => {
-                        // 1. deserialize proof to receipt and extract journal
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
-                        // 2. call G::verify_and_extract_output with the journal
                         let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
                             G::verify_and_extract_output(&journal, &batch_proof_method_id.into())
                                 .expect("Batch proof could not be verified");
-                        // 3. Do necessary light client verifications
+
+                        if idx == 0 {
+                            if let Some(ref previous_light_client_proof_output) = previous_light_client_proof_output {
+                                // If this is the first batch proof we need to verify:
+                                // TODO: 1. Previous light client proof output header hash matches first batch proof's prev header hash?
+                                // 2. Previous light client proof output state root matches starting batch proof state root
+                                assert_eq!(previous_light_client_proof_output.state_root, batch_proof_output.initial_state_root);
+                            }
+                        }
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
