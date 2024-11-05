@@ -13,7 +13,6 @@ use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
-use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
@@ -782,11 +781,10 @@ where
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
-        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
+        let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
+        let hash = Into::<[u8; 32]>::into(digest);
 
-        let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
-
-        let signature = self.sov_tx_signer_priv_key.sign(&raw);
+        let signature = self.sov_tx_signer_priv_key.sign(&hash);
         let pub_key = self.sov_tx_signer_priv_key.pub_key();
         Ok(SignedSoftConfirmation::new(
             soft_confirmation.l2_height(),

@@ -8,10 +8,11 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use digest::{Digest, Output};
 use serde::{Deserialize, Serialize};
 
 /// Contains raw transactions and information about the soft confirmation block
-#[derive(Debug, PartialEq, BorshSerialize)]
+#[derive(Debug, PartialEq)]
 pub struct UnsignedSoftConfirmation<'txs> {
     l2_height: u64,
     da_slot_height: u64,
@@ -78,6 +79,23 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
     /// Sequencer block timestamp
     pub fn timestamp(&self) -> u64 {
         self.timestamp
+    }
+    /// Compute digest for the whole UnsignedSoftConfirmation struct
+    pub fn compute_digest<D: Digest>(&self) -> Output<D> {
+        let mut hasher = D::new();
+        hasher.update(self.l2_height.to_be_bytes());
+        hasher.update(self.da_slot_height.to_be_bytes());
+        hasher.update(self.da_slot_hash);
+        hasher.update(self.da_slot_txs_commitment);
+        for tx in self.txs {
+            hasher.update(tx);
+        }
+        for deposit in &self.deposit_data {
+            hasher.update(deposit);
+        }
+        hasher.update(self.l1_fee_rate.to_be_bytes());
+        hasher.update(self.timestamp.to_be_bytes());
+        hasher.finalize()
     }
 }
 

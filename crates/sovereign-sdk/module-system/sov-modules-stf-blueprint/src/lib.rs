@@ -15,7 +15,6 @@ use sov_modules_api::{
     Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet, Zkvm,
 };
 use sov_rollup_interface::da::{DaDataBatchProof, SequencerCommitment};
-use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
@@ -258,12 +257,9 @@ where
             soft_confirmation.timestamp(),
         );
 
-        let unsigned_raw = borsh::to_vec(&unsigned).unwrap();
-
         // check the claimed hash
-        if soft_confirmation.hash()
-            != Into::<[u8; 32]>::into(<C as Spec>::Hasher::digest(unsigned_raw))
-        {
+        let digest = unsigned.compute_digest::<<C as Spec>::Hasher>();
+        if soft_confirmation.hash() != Into::<[u8; 32]>::into(digest) {
             return (
                 Err(SoftConfirmationError::InvalidSoftConfirmationHash),
                 batch_workspace.revert(),
@@ -272,7 +268,7 @@ where
 
         // verify signature
         if verify_soft_confirmation_signature::<C>(
-            unsigned,
+            soft_confirmation,
             soft_confirmation.signature(),
             sequencer_public_key,
         )
@@ -802,16 +798,14 @@ where
 }
 
 fn verify_soft_confirmation_signature<C: Context>(
-    unsigned_soft_confirmation: UnsignedSoftConfirmation,
+    signed_soft_confirmation: &SignedSoftConfirmation,
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
-    let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
+    let message = signed_soft_confirmation.hash();
 
     let signature = C::Signature::try_from(signature)?;
 
-    // TODO: if verify function is modified to take the claimed hash in signed soft confirmation
-    // we wouldn't need to hash the thing twice
     signature.verify(
         &C::PublicKey::try_from(sequencer_public_key)?,
         message.as_slice(),
