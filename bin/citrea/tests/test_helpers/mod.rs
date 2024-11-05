@@ -308,7 +308,7 @@ pub async fn wait_for_proof(test_client: &TestClient, slot_height: u64, timeout:
             slot_height
         );
         let proof = test_client
-            .ledger_get_verified_proofs_by_slot_height(slot_height)
+            .ledger_get_verified_batch_proofs_by_slot_height(slot_height)
             .await;
         if proof.is_some() {
             break;

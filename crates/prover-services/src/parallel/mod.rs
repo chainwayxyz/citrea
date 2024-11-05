@@ -2,9 +2,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use futures::future;
-use risc0_zkvm::Receipt;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
@@ -208,22 +206,6 @@ where
 
         // Prove all
         Ok(self.prove_all(proof_queue).await)
-    }
-
-    async fn extract_output<T: BorshDeserialize>(
-        &self,
-        proofs: Vec<Proof>,
-    ) -> anyhow::Result<Vec<T>> {
-        // Extract output
-        Ok(proofs
-            .into_iter()
-            .map(|proof| {
-                let receipt: Receipt =
-                    bincode::deserialize(&proof).expect("bincode deserialize must not fail");
-                let journal = receipt.journal;
-                T::try_from_slice(&journal.bytes).expect("Borsh deserialize must not fail")
-            })
-            .collect())
     }
 
     async fn submit_proofs(

@@ -48,9 +48,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     fn run(&mut self, with_proof: bool) -> Result<Proof, anyhow::Error>;
 
     /// Extracts public input and receipt from the proof.
-    fn extract_output<Da: DaSpec, Root: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<BatchProofCircuitOutput<Da, Root>, Self::Error>;
+    fn extract_output<Da: DaSpec, T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;
 
     /// Host recovers pending proving sessions and returns proving results
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
@@ -87,10 +85,10 @@ pub trait Zkvm: Send + Sync {
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.
     /// TODO: specify a deserializer for the output
-    fn verify_and_extract_output<Da: DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<BatchProofCircuitOutput<Da, Root>, Self::Error>;
+    ) -> Result<T, Self::Error>;
 }
 
 /// A trait which is accessible from within a zkVM program.
@@ -211,4 +209,39 @@ pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
+}
+
+/// The output of light client proof
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+pub struct LightClientCircuitOutput {
+    /// State root of the node after the light client proof
+    pub state_root: [u8; 32],
+    /// The method id of the light client proof
+    /// This is used to compare the previous light client proof method id with the input (current) method id
+    pub light_client_proof_method_id: [u32; 8],
+}
+
+/// The input of light client proof
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct LightClientCircuitInput<Da: DaSpec> {
+    /// The `crate::da::DaData` that are being processed as blobs.
+    pub da_data: Vec<Da::BlobTransaction>,
+    /// The inclusion proof for all DA data.
+    pub inclusion_proof: Da::InclusionMultiProof,
+    /// The completeness proof for all DA data.
+    pub completeness_proof: Da::CompletenessProof,
+    /// DA block header that the batch proofs were found in.
+    pub da_block_header: Da::BlockHeader,
+
+    /// Public key of the batch prover
+    pub batch_prover_da_pub_key: Vec<u8>,
+    /// Batch proof method id
+    pub batch_proof_method_id: [u32; 8],
+    /// Batch proofs outputs
+    pub batch_proof_journals: Vec<Vec<u8>>,
+    /// Light client proof method id
+    pub light_client_proof_method_id: [u32; 8],
+    /// Light client proof output
+    /// Optional because the first light client proof doesn't have a previous proof
+    pub light_client_proof_journal: Option<Vec<u8>>,
 }

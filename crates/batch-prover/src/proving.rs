@@ -10,12 +10,12 @@ use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments}
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, StoredBatchProofOutput, StoredProof};
+use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
 use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{BatchProofCircuitInput, Proof, ZkvmHost};
+use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -246,7 +246,7 @@ where
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
     input: &BatchProofCircuitInput<StateRoot, Witness, Da::Spec>,
-    proofs: &Vec<StoredProof>,
+    proofs: &Vec<StoredBatchProof>,
 ) -> bool
 where
     Da: DaService,
@@ -291,9 +291,12 @@ where
         let tx_id_u8 = tx_id.into();
 
         // l1_height => (tx_id, proof, transition_data)
-        // save proof along with tx id to db, should be queriable by slot number or slot hash
-        let transition_data = Vm::extract_output::<<Da as DaService>::Spec, StateRoot>(&proof)
-            .expect("Proof should be deserializable");
+        // save proof along with tx id to db, should be queryable by slot number or slot hash
+        let transition_data = Vm::extract_output::<
+            <Da as DaService>::Spec,
+            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+        >(&proof)
+        .expect("Proof should be deserializable");
 
         info!("Verifying proof!");
 
@@ -322,7 +325,7 @@ where
             .get_l1_height_of_l1_hash(slot_hash)?
             .expect("l1 height should exist");
 
-        if let Err(e) = ledger_db.insert_proof_data_by_l1_height(
+        if let Err(e) = ledger_db.insert_batch_proof_data_by_l1_height(
             l1_height,
             tx_id_u8,
             proof,

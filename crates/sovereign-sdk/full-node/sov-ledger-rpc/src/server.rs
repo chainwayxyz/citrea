@@ -90,30 +90,36 @@ where
         },
     )?;
 
-    rpc.register_blocking_method("ledger_getProofsBySlotHeight", move |params, ledger, _| {
-        // Returns proof on DA slot with given height
-        let height: u64 = params.one()?;
-        ledger
-            .get_proof_data_by_l1_height(height)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-
-    rpc.register_blocking_method("ledger_getProofsBySlotHash", move |params, ledger, _| {
-        // Returns proof on DA slot with given height
-        let hash: [u8; 32] = params.one()?;
-        let height = ledger
-            .get_slot_number_by_hash(hash)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
-        match height {
-            Some(height) => ledger
-                .get_proof_data_by_l1_height(height)
-                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
-            None => Ok(None),
-        }
-    })?;
+    rpc.register_blocking_method(
+        "ledger_getBatchProofsBySlotHeight",
+        move |params, ledger, _| {
+            // Returns proof on DA slot with given height
+            let height: u64 = params.one()?;
+            ledger
+                .get_batch_proof_data_by_l1_height(height)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
 
     rpc.register_blocking_method(
-        "ledger_getVerifiedProofsBySlotHeight",
+        "ledger_getBatchProofsBySlotHash",
+        move |params, ledger, _| {
+            // Returns proof on DA slot with given height
+            let hash: [u8; 32] = params.one()?;
+            let height = ledger
+                .get_slot_number_by_hash(hash)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
+            match height {
+                Some(height) => ledger
+                    .get_batch_proof_data_by_l1_height(height)
+                    .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
+                None => Ok(None),
+            }
+        },
+    )?;
+
+    rpc.register_blocking_method(
+        "ledger_getVerifiedBatchProofsBySlotHeight",
         move |params, ledger, _| {
             // Returns proof on DA slot with given height
             let height: u64 = params.one()?;
@@ -123,10 +129,10 @@ where
         },
     )?;
 
-    rpc.register_blocking_method("ledger_getLastVerifiedProof", move |_, ledger, _| {
+    rpc.register_blocking_method("ledger_getLastVerifiedBatchProof", move |_, ledger, _| {
         // Returns latest proof data
         ledger
-            .get_last_verified_proof()
+            .get_last_verified_batch_proof()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 

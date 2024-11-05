@@ -5,13 +5,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
+use sov_rollup_interface::zk::{LightClientCircuitOutput, Proof};
 use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProofOutput, StoredProof, StoredSlot,
-    StoredSoftConfirmation,
+    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredBatchProofOutput,
+    StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
 };
 
 /// Shared ledger operations
@@ -162,7 +162,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 
     /// Stores proof related data on disk, accessible via l1 slot height
     /// Inserts proofs of state transitions of multiple ranges of sequencer commitments found in an l1 block
-    fn insert_proof_data_by_l1_height(
+    fn insert_batch_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
@@ -171,7 +171,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<()>;
 
     /// Gets proofs by L1 height
-    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredProof>>>;
+    fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
 
     /// Set the witness by L2 height
     fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
@@ -187,7 +187,21 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
 }
 
 /// Light client prover ledger operations
-pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {}
+pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
+    /// Inserts light client proof data by L1 height
+    fn insert_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+        proof: Proof,
+        light_client_proof_output: LightClientCircuitOutput,
+    ) -> Result<()>;
+
+    /// Gets light client proof data by L1 height
+    fn get_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> Result<Option<StoredLightClientProof>>;
+}
 
 /// Ledger operations for the prover service
 pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send + Sync {

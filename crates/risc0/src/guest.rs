@@ -48,14 +48,12 @@ impl Zkvm for Risc0Guest {
         Ok(journal.to_vec())
     }
 
-    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         journal: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         env::verify(code_commitment.0, journal)
             .expect("Guest side verification error should be Infallible");
-        Ok(BorshDeserialize::deserialize(
-            &mut journal.to_vec().as_slice(),
-        )?)
+        Ok(T::deserialize(&mut journal.to_vec().as_slice())?)
     }
 }
