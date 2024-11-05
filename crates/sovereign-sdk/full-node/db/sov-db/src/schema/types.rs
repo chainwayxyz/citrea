@@ -10,7 +10,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
-use sov_rollup_interface::zk::{CumulativeStateDiff, LightClientCircuitOutput, Proof};
+use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -72,13 +72,25 @@ pub struct StoredSlot {
     /// The range of batches which occurred in this slot.
     pub batches: std::ops::Range<BatchNumber>,
 }
+/// The on-disk format for a light client proof output
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredLightClientProofOutput {
+    /// State root of the node after the light client proof
+    pub state_root: [u8; 32],
+    /// The method id of the light client proof
+    /// This is used to compare the previous light client proof method id with the input (current) method id
+    pub light_client_proof_method_id: [u32; 8],
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    pub da_block_hash: [u8; 32],
+}
 /// The on-disk format for a light client proof
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProof {
     /// The proof
     pub proof: Proof,
-    /// The light client circuit output
-    pub light_client_circuit_output: LightClientCircuitOutput,
+    /// The light client circuit proof output
+    pub light_client_proof_output: StoredLightClientProofOutput,
 }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition

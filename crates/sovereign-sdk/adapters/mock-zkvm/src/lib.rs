@@ -154,6 +154,10 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
         Ok(serialized_proof[33..].to_vec())
     }
 
+    fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        Ok(serialized_proof[33..].to_vec())
+    }
+
     fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
@@ -216,6 +220,10 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error> {
+        unimplemented!()
+    }
+
+    fn extract_raw_output(_serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
         unimplemented!()
     }
 

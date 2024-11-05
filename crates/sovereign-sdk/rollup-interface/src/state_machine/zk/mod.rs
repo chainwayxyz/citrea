@@ -82,6 +82,9 @@ pub trait Zkvm: Send + Sync {
         code_commitment: &Self::CodeCommitment,
     ) -> Result<Vec<u8>, Self::Error>;
 
+    /// Extracts the raw output without doing any verification.
+    fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error>;
+
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.
     /// TODO: specify a deserializer for the output
@@ -215,12 +218,15 @@ pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
 
 /// The output of light client proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-pub struct LightClientCircuitOutput {
+pub struct LightClientCircuitOutput<Da: DaSpec> {
     /// State root of the node after the light client proof
     pub state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
     pub light_client_proof_method_id: [u32; 8],
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    pub da_block_hash: Da::SlotHash,
 }
 
 /// The input of light client proof
@@ -239,8 +245,6 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub batch_prover_da_pub_key: Vec<u8>,
     /// Batch proof method id
     pub batch_proof_method_id: [u32; 8],
-    /// Batch proofs outputs
-    pub batch_proof_journals: Vec<Vec<u8>>,
     /// Light client proof method id
     pub light_client_proof_method_id: [u32; 8],
     /// Light client proof output

@@ -2,6 +2,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::Write;
+use risc0_zkvm::Receipt;
 use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
 
 use crate::Risc0MethodId;
@@ -46,6 +47,11 @@ impl Zkvm for Risc0Guest {
         env::verify(code_commitment.0, journal)
             .expect("Guest side verification error should be Infallible");
         Ok(journal.to_vec())
+    }
+
+    fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        Ok(receipt.journal.bytes.to_vec())
     }
 
     fn verify_and_extract_output<T: BorshDeserialize>(

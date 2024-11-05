@@ -1,5 +1,6 @@
 use borsh::BorshDeserialize;
-use sov_modules_api::BlobReaderTrait;
+use sov_modules_api::da::BlockHeaderTrait;
+use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait};
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmGuest};
 
@@ -11,14 +12,16 @@ pub enum LightClientVerificationError {
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
     guest: &G,
-) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
+) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
     let input: LightClientCircuitInput<DaV::Spec> = guest.read_from_host();
 
     // Start by verifying the previous light client proof
     // If this is the first light client proof, skip this step
-    if let Some(previous_light_client_proof_journal) = input.previous_light_client_proof_journal {
+    let previous_light_client_proof_output = if let Some(previous_light_client_proof_journal) =
+        input.previous_light_client_proof_journal
+    {
         let previous_light_client_proof_output =
-            G::verify_and_extract_output::<LightClientCircuitOutput>(
+            G::verify_and_extract_output::<LightClientCircuitOutput<DaV::Spec>>(
                 &previous_light_client_proof_journal,
                 &input.light_client_proof_method_id.into(),
             )
@@ -30,7 +33,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             input.light_client_proof_method_id,
             previous_light_client_proof_output.light_client_proof_method_id
         );
-    }
+
+        Some(previous_light_client_proof_output)
+
+        // TODO: Compare previous proof output header hash with first batch proof input
+        // TODO: Compare previous proof output state root with first batch proof input
+    } else {
+        None
+    };
 
     // Verify data from da
     let _validity_condition = da_verifier
@@ -43,8 +53,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         )
         .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
 
-    let mut complete_proofs = vec![];
-    // Try parsing the data
+    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
+    // https://github.com/chainwayxyz/citrea/issues/1401
+    let batch_proof_method_id = input.batch_proof_method_id;
+    // Parse the batch proof da data
     for blob in input.da_data {
         if blob.sender().as_ref() == input.batch_prover_da_pub_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
@@ -52,21 +64,20 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             if let Ok(data) = data {
                 match data {
                     DaDataLightClient::Complete(proof) => {
-                        complete_proofs.push(proof);
+                        // 1. deserialize proof to receipt and extract journal
+                        let journal =
+                            G::extract_raw_output(&proof).expect("DaData proofs must be valid");
+                        // 2. call G::verify_and_extract_output with the journal
+                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
+                            G::verify_and_extract_output(&journal, &batch_proof_method_id.into())
+                                .expect("Batch proof could not be verified");
+                        // 3. Do necessary light client verifications
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
                 }
             }
         }
-    }
-
-    let batch_proof_journals = input.batch_proof_journals;
-    let batch_proof_method_id = input.batch_proof_method_id;
-    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
-    // https://github.com/chainwayxyz/citrea/issues/1401
-    for journal in batch_proof_journals {
-        G::verify(&journal, &batch_proof_method_id.into()).unwrap();
     }
 
     // do what you want with proofs
@@ -77,6 +88,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     Ok(LightClientCircuitOutput {
         state_root: [1; 32],
         light_client_proof_method_id: input.light_client_proof_method_id,
+        da_block_hash: input.da_block_header.hash(),
     })
 
     // First

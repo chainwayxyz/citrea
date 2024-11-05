@@ -24,8 +24,8 @@ use crate::schema::tables::{
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
-    StoredBatchProofOutput, StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
-    StoredVerifiedProof,
+    StoredBatchProofOutput, StoredLightClientProof, StoredLightClientProofOutput, StoredSlot,
+    StoredSoftConfirmation, StoredVerifiedProof,
 };
 
 /// Implementation of database migrator
@@ -508,11 +508,11 @@ impl LightClientProverLedgerOps for LedgerDB {
         &self,
         l1_height: u64,
         proof: Proof,
-        light_client_circuit_output: sov_rollup_interface::zk::LightClientCircuitOutput,
+        light_client_proof_output: StoredLightClientProofOutput,
     ) -> anyhow::Result<()> {
         let data_to_store = StoredLightClientProof {
             proof,
-            light_client_circuit_output,
+            light_client_proof_output,
         };
 
         self.db
