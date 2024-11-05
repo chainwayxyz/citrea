@@ -40,9 +40,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         );
 
         Some(previous_light_client_proof_output)
-
-        // TODO: Compare previous proof output header hash with first batch proof input
-        // TODO: Compare previous proof output state root with first batch proof input
     } else {
         None
     };
