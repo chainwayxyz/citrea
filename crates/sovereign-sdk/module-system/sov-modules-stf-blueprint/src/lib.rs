@@ -252,8 +252,8 @@ where
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
-            soft_confirmation.txs(),
-            soft_confirmation.deposit_data(),
+            soft_confirmation.txs().to_vec(),
+            soft_confirmation.deposit_data().to_vec(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.timestamp(),
         );
@@ -273,7 +273,7 @@ where
         // verify signature
         if verify_soft_confirmation_signature::<C>(
             unsigned,
-            soft_confirmation.signature_as_ref(),
+            soft_confirmation.signature(),
             sequencer_public_key,
         )
         .is_err()
@@ -472,7 +472,7 @@ where
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
                     soft_confirmation_info,
-                    soft_confirmation.txs(),
+                    soft_confirmation.txs().to_vec(),
                     batch_workspace,
                 );
 

@@ -167,23 +167,18 @@ impl SignedSoftConfirmation {
     }
 
     /// Txs of signed batch
-    pub fn txs(&self) -> Vec<Vec<u8>> {
-        self.txs.clone()
+    pub fn txs(&self) -> &[Vec<u8>] {
+        self.txs.as_slice()
     }
 
     /// Deposit data
-    pub fn deposit_data(&self) -> Vec<Vec<u8>> {
-        self.deposit_data.clone()
+    pub fn deposit_data(&self) -> &[Vec<u8>] {
+        self.deposit_data.as_slice()
     }
 
     /// Signature of the sequencer
-    pub fn signature(&self) -> Vec<u8> {
-        self.signature.clone()
-    }
-
-    /// Signature of the sequencer as ref
-    pub fn signature_as_ref(&self) -> &[u8] {
-        self.signature.as_ref()
+    pub fn signature(&self) -> &[u8] {
+        self.signature.as_slice()
     }
 
     /// Borsh serialized data
@@ -197,8 +192,8 @@ impl SignedSoftConfirmation {
     }
 
     /// Public key of sequencer
-    pub fn pub_key(&self) -> Vec<u8> {
-        self.pub_key.clone()
+    pub fn pub_key(&self) -> &[u8] {
+        self.pub_key.as_slice()
     }
 
     /// Sets l1 fee rate
