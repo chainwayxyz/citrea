@@ -157,6 +157,8 @@ pub struct BatchProofCircuitOutput<Da: DaSpec, Root> {
     pub last_active_spec_id: SpecId,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
+    /// The last processed l2 height in the processed sequencer commitments.
+    pub last_l2_height: u64,
 }
 
 /// This trait expresses that a type can check a validity condition.

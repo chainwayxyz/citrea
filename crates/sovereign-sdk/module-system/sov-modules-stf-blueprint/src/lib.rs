@@ -19,11 +19,11 @@ use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
-pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::stf::{
-    SlotResult, SoftConfirmationError, SoftConfirmationReceipt, SoftConfirmationResult,
-    StateTransitionFunction,
+    ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationError, SoftConfirmationReceipt,
+    SoftConfirmationResult, StateTransitionFunction,
 };
+pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
 
@@ -526,7 +526,7 @@ where
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
         mut preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
+    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
 
         // First extract all sequencer commitments
@@ -793,11 +793,13 @@ where
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
-        (
-            current_state_root,
+        ApplySequencerCommitmentsOutput {
+            final_state_root: current_state_root,
             state_diff,
-            fork_manager.active_fork().spec_id,
-        )
+            last_active_spec_id: fork_manager.active_fork().spec_id,
+            // There has to be a height
+            last_l2_height: last_commitment_end_height.unwrap(),
+        }
     }
 }
 
