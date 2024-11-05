@@ -190,7 +190,7 @@ jobs:
         with:
           components: llvm-tools-preview
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: ubicloud/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install risc0
