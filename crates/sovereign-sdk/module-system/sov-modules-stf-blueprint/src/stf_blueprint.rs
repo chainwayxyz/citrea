@@ -68,7 +68,7 @@ where
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let mut tx_receipts = Vec::with_capacity(txs.len());
         for raw_tx in txs {
-            let raw_tx_hash = <C as Spec>::Hasher::digest(&raw_tx).into();
+            let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
             // Stateless verification of transaction, such as signature check
             // TODO: https://github.com/chainwayxyz/citrea/issues/1061
             let mut reader = std::io::Cursor::new(raw_tx);
