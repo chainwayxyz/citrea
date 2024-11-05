@@ -634,13 +634,9 @@ pub struct OffchainWorkingSet<'a, C: Context> {
 
 impl<'a, C: Context> StateReaderAndWriter for OffchainWorkingSet<'a, C> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        if !cfg!(feature = "native") {
-            None
-        } else {
-            match &mut self.ws.archival_offchain_working_set {
-                None => self.ws.offchain_delta.get(key),
-                Some(ref mut archival_working_set) => archival_working_set.get(key),
-            }
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.get(key),
+            Some(ref mut archival_working_set) => archival_working_set.get(key),
         }
     }
 
