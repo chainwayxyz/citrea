@@ -26,6 +26,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             .expect("Should have verified the light client proof");
 
             // Ensure input and output method IDs match
+            // TODO: Once we have light client method id by spec update accordingly
             assert_eq!(
                 input.light_client_proof_method_id,
                 deserialized.light_client_proof_method_id
@@ -62,46 +63,53 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
     }
 
-    // Verify all batch proofs
-    for journal in &input.batch_proof_journals {
-        G::verify(journal, &input.batch_proof_method_id.into()).unwrap();
-    }
-
     // Deserialize batch proof journals
-    let mut deserialized_journals: Vec<_> = input
+    let mut deserialized_outputs: Vec<_> = input
         .batch_proof_journals
         .iter()
         .map(|journal| {
-            StateTransition::<DaV::Spec, [u8; 32]>::try_from_slice(journal)
-                .expect("Should have deserialized the journal")
+            G::verify_and_extract_output::<StateTransition<DaV::Spec, [u8; 32]>>(
+                journal,
+                &input.batch_proof_method_id.into(),
+            )
+            .expect("Should have verified and extracted the batch proof")
         })
         .collect();
 
-    // Ensure the journals are sorted and check state root order
-    if !deserialized_journals.is_empty() {
-        // Sort the journals first
-        deserialized_journals.sort_unstable_by_key(|journal| journal.sequencer_commitments_range.0);
+    // If we have a previous light client proof, check they can be chained
+    // If not, skip for now
+    // TODO: Once we have a manually planted light client proof use that and assume prev light client proof always exists
+    // So there will be no need for all these checks
+    if let Some(previous_output) = &deserialized_previous_light_client_proof_journal {
+        // Start with the previous light client proof's final state root
+        let mut current_final_state_root = previous_output.state_root;
 
-        // Now safely access the first journal after sorting
-        if let Some(first_journal) = deserialized_journals.first() {
-            if let Some(previous_journal) = &deserialized_previous_light_client_proof_journal {
-                assert_eq!(
-                    first_journal.initial_state_root,
-                    previous_journal.state_root
-                );
+        // Initialize an index for iterating and searching journals
+        let mut i = 0;
+
+        while i < deserialized_outputs.len() {
+            // Check if the current journal's initial state matches the expected current final state
+            if deserialized_outputs[i].initial_state_root == current_final_state_root {
+                // Update the current final state to this journal's final state
+                current_final_state_root = deserialized_outputs[i].final_state_root;
+                // Move to the next journal
+                i += 1;
+            } else {
+                // If no match, search for the correct journal in the remaining list
+                if let Some(pos) = deserialized_outputs[i + 1..]
+                    .iter()
+                    .position(|journal| journal.initial_state_root == current_final_state_root)
+                {
+                    // Swap the found matching journal to the current position
+                    deserialized_outputs.swap(i, i + 1 + pos);
+                } else {
+                    panic!("No matching journal found for state root chaining");
+                }
             }
-        }
-
-        // Check if other state roots are in order
-        for windows in deserialized_journals.windows(2) {
-            assert_eq!(windows[0].final_state_root, windows[1].initial_state_root);
         }
     }
 
-    // For the output state root, update with the latest state root if a batch proof journal is present
-    // Otherwise, use the state root from the previous light client proof
-    // If it is the first light client proof and there are no journals zero it out
-    let final_state_root = deserialized_journals.last().map_or_else(
+    let final_state_root = deserialized_outputs.last().map_or_else(
         || {
             deserialized_previous_light_client_proof_journal
                 .map_or([0u8; 32], |journal| journal.state_root)
