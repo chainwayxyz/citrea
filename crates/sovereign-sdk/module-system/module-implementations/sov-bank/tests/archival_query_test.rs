@@ -283,7 +283,7 @@ fn commit(working_set: WorkingSet<DefaultContext>, storage: ProverStorage<Snapsh
     let working_set = checkpoint.to_revertable();
     let mut checkpoint = working_set.checkpoint();
     let accessory_log = checkpoint.freeze_non_provable();
-    let offchain_log = checkpoint.freeze_offchain();
+    let (offchain_log, _) = checkpoint.freeze_offchain();
 
     storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 }

@@ -36,7 +36,7 @@ fn nested_module_call_test() {
     // Test the `zk` execution.
     {
         let zk_storage = ZkStorage::new();
-        let working_set = &mut WorkingSet::with_witness(zk_storage, witness);
+        let working_set = &mut WorkingSet::with_witness(zk_storage, witness, Default::default());
         execute_module_logic::<ZkDefaultContext>(working_set);
         test_state_update::<ZkDefaultContext>(working_set);
     }

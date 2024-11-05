@@ -276,6 +276,10 @@ struct OffchainDelta<S: Storage> {
 
 impl<S: Storage> OffchainDelta<S> {
     fn new(storage: S, version: Option<u64>) -> Self {
+        Self::with_witness(storage, Default::default(), version)
+    }
+
+    fn with_witness(storage: S, witness: S::Witness, version: Option<u64>) -> Self {
         let writes = match version {
             None => Default::default(),
             Some(v) => RevertableWrites {
@@ -286,11 +290,11 @@ impl<S: Storage> OffchainDelta<S> {
         Self {
             storage,
             writes,
-            witness: Default::default(),
+            witness,
         }
     }
 
-    fn freeze(&mut self) -> OrderedReadsAndWrites {
+    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
         let writes = mem::take(&mut self.writes);
         let ordered_writes = writes
             .cache
@@ -298,10 +302,15 @@ impl<S: Storage> OffchainDelta<S> {
             .map(|write| (write.0, write.1))
             .collect();
 
-        OrderedReadsAndWrites {
-            ordered_writes,
-            ..Default::default()
-        }
+        let witness = mem::take(&mut self.witness);
+
+        (
+            OrderedReadsAndWrites {
+                ordered_writes,
+                ..Default::default()
+            },
+            witness,
+        )
     }
 }
 
@@ -355,12 +364,13 @@ impl<C: Context> StateCheckpoint<C> {
     /// by the given [`Storage`] and witness.
     pub fn with_witness(
         inner: <C as Spec>::Storage,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
+        state_witness: <<C as Spec>::Storage as Storage>::Witness,
+        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
     ) -> Self {
         Self {
-            delta: Delta::with_witness(inner.clone(), witness, None),
+            delta: Delta::with_witness(inner.clone(), state_witness, None),
             accessory_delta: AccessoryDelta::new(inner.clone(), None),
-            offchain_delta: OffchainDelta::new(inner, None),
+            offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
         }
     }
 
@@ -407,7 +417,12 @@ impl<C: Context> StateCheckpoint<C> {
     /// You can then use these to call
     /// [`Storage::validate_and_commit_with_accessory_update`], together with
     /// the data extracted with [`StateCheckpoint::freeze`].
-    pub fn freeze_offchain(&mut self) -> OrderedReadsAndWrites {
+    pub fn freeze_offchain(
+        &mut self,
+    ) -> (
+        OrderedReadsAndWrites,
+        <<C as Spec>::Storage as Storage>::Witness,
+    ) {
         self.offchain_delta.freeze()
     }
 }
@@ -499,9 +514,10 @@ impl<C: Context> WorkingSet<C> {
     /// and a custom witness value.
     pub fn with_witness(
         inner: <C as Spec>::Storage,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
+        state_witness: <<C as Spec>::Storage as Storage>::Witness,
+        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
     ) -> Self {
-        StateCheckpoint::with_witness(inner, witness).to_revertable()
+        StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for

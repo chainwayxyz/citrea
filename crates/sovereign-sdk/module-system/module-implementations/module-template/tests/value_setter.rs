@@ -21,13 +21,16 @@ fn test_value_setter() {
         test_value_setter_helper(context, &config, &mut working_set);
     }
 
-    let (_, witness) = working_set.checkpoint().freeze();
+    let mut checkpoint = working_set.checkpoint();
+    let (_, state_witness) = checkpoint.freeze();
+    let (_, offchain_witness) = checkpoint.freeze_offchain();
 
     // Test Zk-Context
     {
         let config = ExampleModuleConfig {};
         let zk_context = ZkDefaultContext::new(admin, sequencer, 1, SpecId::Genesis, 0);
-        let mut zk_working_set = WorkingSet::with_witness(ZkStorage::new(), witness);
+        let mut zk_working_set =
+            WorkingSet::with_witness(ZkStorage::new(), state_witness, offchain_witness);
         test_value_setter_helper(zk_context, &config, &mut zk_working_set);
     }
 }
