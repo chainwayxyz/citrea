@@ -134,8 +134,10 @@ pub struct BatchProofCircuitOutput<Da: DaSpec, Root> {
     pub initial_state_root: Root,
     /// The state of the rollup after the transition
     pub final_state_root: Root,
-    /// The hash before the state transition
-    pub initial_batch_hash: [u8; 32],
+    /// The hash of the last soft confirmation before the state transition
+    pub prev_soft_confirmation_hash: [u8; 32],
+    /// The hash of the last soft confirmation in the state transition
+    pub final_soft_confirmation_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
@@ -179,13 +181,13 @@ pub trait Matches<T> {
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
+pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StateRoot,
     /// The state root after the state transition
     pub final_state_root: StateRoot,
     /// The hash before the state transition
-    pub initial_batch_hash: [u8; 32],
+    pub prev_soft_confirmation_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
     pub da_data: Vec<Da::BlobTransaction>,
     /// DA block header that the sequencer commitments were found in.
@@ -197,7 +199,7 @@ pub struct BatchProofCircuitInput<StateRoot, Witness, Da: DaSpec> {
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
     /// The soft confirmations that are inside the sequencer commitments.
-    pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
+    pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
     /// Corresponding witness for the soft confirmations.
     pub state_transition_witnesses: VecDeque<Vec<Witness>>,
     /// DA block headers the soft confirmations was constructed on.

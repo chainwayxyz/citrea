@@ -36,7 +36,7 @@ pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<StateRoot, Witness, Da::Spec>>,
+        Vec<BatchProofCircuitInput<'static, StateRoot, Witness, Da::Spec>>,
     ),
     L1ProcessingError,
 >
@@ -163,7 +163,7 @@ where
         let input: BatchProofCircuitInput<StateRoot, Witness, Da::Spec> = BatchProofCircuitInput {
             initial_state_root,
             final_state_root,
-            initial_batch_hash,
+            prev_soft_confirmation_hash: initial_batch_hash,
             da_data: da_data.clone(),
             da_block_header_of_commitments: da_block_header_of_commitments.clone(),
             inclusion_proof: inclusion_proof.clone(),
@@ -192,7 +192,7 @@ pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block: Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<StateRoot, Witness, Da::Spec>>,
+    inputs: Vec<BatchProofCircuitInput<'_, StateRoot, Witness, Da::Spec>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,

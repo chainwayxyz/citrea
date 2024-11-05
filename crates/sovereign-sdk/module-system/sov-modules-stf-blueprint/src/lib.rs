@@ -147,7 +147,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
@@ -229,7 +229,7 @@ where
     fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
@@ -253,7 +253,7 @@ where
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.txs(),
-            soft_confirmation.deposit_data(),
+            soft_confirmation.deposit_data().to_vec(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.timestamp(),
         );
@@ -273,7 +273,7 @@ where
         // verify signature
         if verify_soft_confirmation_signature::<C>(
             unsigned,
-            soft_confirmation.signature_as_ref(),
+            soft_confirmation.signature(),
             sequencer_public_key,
         )
         .is_err()
@@ -457,7 +457,7 @@ where
         SoftConfirmationError,
     > {
         let soft_confirmation_info = HookSoftConfirmationInfo::new(
-            soft_confirmation.clone(),
+            soft_confirmation,
             pre_state_root.as_ref().to_vec(),
             current_spec,
         );

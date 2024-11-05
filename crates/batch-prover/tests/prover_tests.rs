@@ -102,11 +102,11 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
 
 fn make_transition_data(
     header_hash: MockHash,
-) -> BatchProofCircuitInput<[u8; 0], Vec<u8>, MockDaSpec> {
+) -> BatchProofCircuitInput<'static, [u8; 0], Vec<u8>, MockDaSpec> {
     BatchProofCircuitInput {
         initial_state_root: [],
         final_state_root: [],
-        initial_batch_hash: [0; 32],
+        prev_soft_confirmation_hash: [0; 32],
         inclusion_proof: [0; 32],
         completeness_proof: (),
         da_data: vec![],

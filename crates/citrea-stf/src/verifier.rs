@@ -53,6 +53,19 @@ where
             DaNamespace::ToBatchProver,
         )?;
 
+        // the hash will be checked inside the stf
+        // so we can early copy that and use in the output
+        // since the run will fail if the hash is wrong
+        let final_soft_confirmation_hash = data
+            .soft_confirmations
+            .iter()
+            .last()
+            .expect("Should have at least one sequencer commitment")
+            .iter()
+            .last()
+            .expect("Should have at least one soft confirmation")
+            .hash();
+
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff, last_active_spec_id) = self
             .app
@@ -60,7 +73,7 @@ where
                 data.sequencer_public_key.as_ref(),
                 data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
-                data.initial_batch_hash,
+                data.prev_soft_confirmation_hash,
                 pre_state,
                 data.da_data,
                 data.sequencer_commitments_range,
@@ -82,7 +95,8 @@ where
         let out: BatchProofCircuitOutput<Da::Spec, _> = BatchProofCircuitOutput {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            initial_batch_hash: data.initial_batch_hash,
+            prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
+            final_soft_confirmation_hash,
             validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
