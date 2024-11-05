@@ -99,7 +99,7 @@ fn genesis_cfg() {
     assert_eq!(
         cfg,
         EvmChainConfig {
-            spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)],
+            spec: vec![(0, SpecId::SHANGHAI)],
             chain_id: 1000,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             coinbase: Address::from([3u8; 20]),
