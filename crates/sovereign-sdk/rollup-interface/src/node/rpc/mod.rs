@@ -216,25 +216,25 @@ pub struct BatchProofResponse {
     /// Proof
     pub proof: ProofRpcResponse,
     /// State transition
-    pub state_transition: StateTransitionRpcResponse,
+    pub proof_output: BatchProofOutputRpcResponse,
 }
 
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VerifiedProofResponse {
+pub struct VerifiedBatchProofResponse {
     /// Proof
     pub proof: ProofRpcResponse,
     /// State transition
-    pub state_transition: StateTransitionRpcResponse,
+    pub proof_output: BatchProofOutputRpcResponse,
 }
 
 /// The rpc response of the last verified proof
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LastVerifiedProofResponse {
+pub struct LastVerifiedBatchProofResponse {
     /// Proof data
-    pub proof: VerifiedProofResponse,
+    pub proof: VerifiedBatchProofResponse,
     /// L1 height of the proof
     pub height: u64,
 }
@@ -245,7 +245,7 @@ pub type ProofRpcResponse = Vec<u8>;
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StateTransitionRpcResponse {
+pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup before the transition
     #[serde(with = "hex::serde")]
     pub initial_state_root: Vec<u8>,
@@ -452,12 +452,12 @@ pub trait LedgerRpcProvider {
     fn get_verified_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error>;
+    ) -> Result<Option<Vec<VerifiedBatchProofResponse>>, anyhow::Error>;
 
     /// Get last verified proof
     fn get_last_verified_batch_proof(
         &self,
-    ) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
+    ) -> Result<Option<LastVerifiedBatchProofResponse>, anyhow::Error>;
 
     /// Get head soft confirmation
     fn get_head_soft_confirmation(&self)

@@ -24,7 +24,7 @@ use crate::schema::tables::{
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
-    StoredLightClientProof, StoredSlot, StoredSoftConfirmation, StoredStateTransition,
+    StoredBatchProofOutput, StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
     StoredVerifiedProof,
 };
 
@@ -545,18 +545,18 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
+    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
     fn insert_batch_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
         proof: Proof,
-        state_transition: StoredStateTransition,
+        proof_output: StoredBatchProofOutput,
     ) -> anyhow::Result<()> {
         let data_to_store = StoredBatchProof {
             l1_tx_id,
             proof,
-            state_transition,
+            proof_output,
         };
         let proofs = self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))?;
         match proofs {
@@ -784,12 +784,12 @@ impl SequencerLedgerOps for LedgerDB {
 
 impl NodeLedgerOps for LedgerDB {
     /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
+    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
     fn update_verified_proof_data(
         &self,
         l1_height: u64,
         proof: Proof,
-        state_transition: StoredStateTransition,
+        proof_output: StoredBatchProofOutput,
     ) -> anyhow::Result<()> {
         let verified_proofs = self
             .db
@@ -799,7 +799,7 @@ impl NodeLedgerOps for LedgerDB {
             Some(mut verified_proofs) => {
                 let stored_verified_proof = StoredVerifiedProof {
                     proof,
-                    state_transition,
+                    proof_output,
                 };
                 verified_proofs.push(stored_verified_proof);
                 self.db.put::<VerifiedBatchProofsBySlotNumber>(
@@ -811,7 +811,7 @@ impl NodeLedgerOps for LedgerDB {
                 &SlotNumber(l1_height),
                 &vec![StoredVerifiedProof {
                     proof,
-                    state_transition,
+                    proof_output,
                 }],
             ),
         }

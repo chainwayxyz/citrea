@@ -196,7 +196,7 @@ pub use sov_rollup_interface::soft_confirmation::{
 };
 pub use sov_rollup_interface::stf::{Event, StateDiff};
 pub use sov_rollup_interface::zk::{
-    StateTransition, ValidityCondition, ValidityConditionChecker, Zkvm,
+    BatchProofCircuitOutput, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 

@@ -5,8 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, HexTx, SoftConfirmationResponse, StateTransitionRpcResponse, TxIdentifier,
-    TxResponse, VerifiedProofResponse,
+    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, SoftConfirmationResponse, TxIdentifier,
+    TxResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
@@ -88,8 +88,8 @@ pub struct StoredBatchProof {
     pub l1_tx_id: [u8; 32],
     /// Proof
     pub proof: Proof,
-    /// State transition
-    pub state_transition: StoredStateTransition,
+    /// Output
+    pub proof_output: StoredBatchProofOutput,
 }
 
 impl From<StoredBatchProof> for BatchProofResponse {
@@ -97,7 +97,7 @@ impl From<StoredBatchProof> for BatchProofResponse {
         Self {
             l1_tx_id: value.l1_tx_id,
             proof: value.proof,
-            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+            proof_output: BatchProofOutputRpcResponse::from(value.proof_output),
         }
     }
 }
@@ -108,21 +108,21 @@ pub struct StoredVerifiedProof {
     /// Verified Proof
     pub proof: Proof,
     /// State transition
-    pub state_transition: StoredStateTransition,
+    pub proof_output: StoredBatchProofOutput,
 }
 
-impl From<StoredVerifiedProof> for VerifiedProofResponse {
+impl From<StoredVerifiedProof> for VerifiedBatchProofResponse {
     fn from(value: StoredVerifiedProof) -> Self {
         Self {
             proof: value.proof,
-            state_transition: StateTransitionRpcResponse::from(value.state_transition),
+            proof_output: BatchProofOutputRpcResponse::from(value.proof_output),
         }
     }
 }
 
 /// The on-disk format for a state transition.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
-pub struct StoredStateTransition {
+pub struct StoredBatchProofOutput {
     /// The state of the rollup before the transition
     pub initial_state_root: Vec<u8>,
     /// The state of the rollup after the transition
@@ -146,8 +146,8 @@ pub struct StoredStateTransition {
     pub validity_condition: Vec<u8>,
 }
 
-impl From<StoredStateTransition> for StateTransitionRpcResponse {
-    fn from(value: StoredStateTransition) -> Self {
+impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
+    fn from(value: StoredBatchProofOutput) -> Self {
         Self {
             initial_state_root: value.initial_state_root,
             final_state_root: value.final_state_root,

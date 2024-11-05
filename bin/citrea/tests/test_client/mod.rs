@@ -20,8 +20,8 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
 use sov_rollup_interface::rpc::{
-    BatchProofResponse, LastVerifiedProofResponse, SequencerCommitmentResponse,
-    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
+    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
 };
 
 pub const SEND_ETH_GAS: u128 = 21001;
@@ -546,7 +546,7 @@ impl TestClient {
     pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
         &self,
         height: u64,
-    ) -> Option<Vec<VerifiedProofResponse>> {
+    ) -> Option<Vec<VerifiedBatchProofResponse>> {
         self.http_client
             .request(
                 "ledger_getVerifiedBatchProofsBySlotHeight",
@@ -558,7 +558,7 @@ impl TestClient {
 
     pub(crate) async fn ledger_get_last_verified_batch_proof(
         &self,
-    ) -> Option<LastVerifiedProofResponse> {
+    ) -> Option<LastVerifiedBatchProofResponse> {
         self.http_client
             .request("ledger_getLastVerifiedBatchProof", rpc_params![])
             .await

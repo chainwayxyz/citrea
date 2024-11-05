@@ -6,7 +6,7 @@
 use jsonrpsee::proc_macros::rpc;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse,
-    SoftConfirmationStatus, VerifiedProofResponse,
+    SoftConfirmationStatus, VerifiedBatchProofResponse,
 };
 
 use crate::HexHash;
@@ -89,9 +89,9 @@ pub trait Rpc {
     async fn get_verified_batch_proofs_by_slot_height(
         &self,
         height: u64,
-    ) -> RpcResult<Option<Vec<VerifiedProofResponse>>>;
+    ) -> RpcResult<Option<Vec<VerifiedBatchProofResponse>>>;
 
     /// Gets last verified proog
     #[method(name = "getLastVerifiedBatchProof")]
-    async fn get_last_verified_batch_proof(&self) -> RpcResult<Option<VerifiedProofResponse>>;
+    async fn get_last_verified_batch_proof(&self) -> RpcResult<Option<VerifiedBatchProofResponse>>;
 }

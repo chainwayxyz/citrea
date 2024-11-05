@@ -10,8 +10,8 @@ use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredLightClientProof, StoredSlot,
-    StoredSoftConfirmation, StoredStateTransition,
+    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredBatchProofOutput,
+    StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
 };
 
 /// Shared ledger operations
@@ -145,7 +145,7 @@ pub trait NodeLedgerOps: SharedLedgerOps {
         &self,
         l1_height: u64,
         proof: Proof,
-        state_transition: StoredStateTransition,
+        output: StoredBatchProofOutput,
     ) -> Result<()>;
 
     /// Get the most recent committed slot, if any
@@ -167,7 +167,7 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
         l1_height: u64,
         l1_tx_id: [u8; 32],
         proof: Proof,
-        state_transition: StoredStateTransition,
+        output: StoredBatchProofOutput,
     ) -> Result<()>;
 
     /// Gets proofs by L1 height

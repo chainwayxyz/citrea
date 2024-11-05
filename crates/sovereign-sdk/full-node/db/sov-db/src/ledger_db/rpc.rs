@@ -1,8 +1,8 @@
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
-    sequencer_commitment_to_response, BatchProofResponse, LastVerifiedProofResponse,
+    sequencer_commitment_to_response, BatchProofResponse, LastVerifiedBatchProofResponse,
     LedgerRpcProvider, SequencerCommitmentResponse, SoftConfirmationIdentifier,
-    SoftConfirmationResponse, VerifiedProofResponse,
+    SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 
 use crate::schema::tables::{
@@ -159,7 +159,7 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_verified_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error> {
+    ) -> Result<Option<Vec<VerifiedBatchProofResponse>>, anyhow::Error> {
         match self
             .db
             .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(height))?
@@ -167,7 +167,7 @@ impl LedgerRpcProvider for LedgerDB {
             Some(stored_proofs) => Ok(Some(
                 stored_proofs
                     .into_iter()
-                    .map(VerifiedProofResponse::from)
+                    .map(VerifiedBatchProofResponse::from)
                     .collect(),
             )),
             None => Ok(None),
@@ -176,11 +176,11 @@ impl LedgerRpcProvider for LedgerDB {
 
     fn get_last_verified_batch_proof(
         &self,
-    ) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error> {
+    ) -> Result<Option<LastVerifiedBatchProofResponse>, anyhow::Error> {
         let mut iter = self.db.iter::<VerifiedBatchProofsBySlotNumber>()?;
         iter.seek_to_last();
         match iter.next() {
-            Some(Ok(item)) => Ok(Some(LastVerifiedProofResponse {
+            Some(Ok(item)) => Ok(Some(LastVerifiedBatchProofResponse {
                 proof: item.value[0].clone().into(),
                 height: item.key.0,
             })),

@@ -165,10 +165,7 @@ async fn full_node_verify_proof_and_store() {
         .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
-    assert_eq!(
-        prover_proof.state_transition,
-        full_node_proof[0].state_transition
-    );
+    assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
@@ -343,10 +340,7 @@ async fn test_prover_prove_rpc() {
         .unwrap();
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
-    assert_eq!(
-        prover_proof.state_transition,
-        full_node_proof[0].state_transition
-    );
+    assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
