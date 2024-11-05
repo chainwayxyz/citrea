@@ -9,7 +9,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::REVEAL_BATCH_PROOF_PREFIX;
+use citrea_primitives::TO_BATCH_PROOF_PREFIX;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_rollup_interface::da::{BlobReaderTrait, DaData};
@@ -198,7 +198,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             let hash = da.get_block_hash(height).await?;
             let block = da.get_block(&hash).await?;
 
-            let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_BATCH_PROOF_PREFIX);
+            let mut blobs = get_relevant_blobs_from_txs(block.txdata, TO_BATCH_PROOF_PREFIX);
 
             for mut blob in blobs.drain(0..) {
                 let data = BlobReaderTrait::full_data(&mut blob);
@@ -269,7 +269,7 @@ impl SequencerSendCommitmentsToDaTest {
         let hash = da.get_block_hash(finalized_height).await?;
         let block = da.get_block(&hash).await?;
 
-        let mut blobs = get_relevant_blobs_from_txs(block.txdata, REVEAL_BATCH_PROOF_PREFIX);
+        let mut blobs = get_relevant_blobs_from_txs(block.txdata, TO_BATCH_PROOF_PREFIX);
 
         assert_eq!(blobs.len(), 1);
 

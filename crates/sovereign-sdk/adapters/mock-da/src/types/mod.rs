@@ -139,6 +139,10 @@ impl BlockHeaderTrait for MockBlockHeader {
     fn time(&self) -> Time {
         self.time.clone()
     }
+
+    fn verify_hash(&self) -> bool {
+        true
+    }
 }
 
 /// The configuration for mock da

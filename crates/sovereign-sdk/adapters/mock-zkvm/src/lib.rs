@@ -8,9 +8,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{Matches, Proof, StateTransitionData, ValidityCondition};
+use sov_rollup_interface::zk::{Matches, Proof, ValidityCondition};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -19,6 +17,26 @@ pub struct MockCodeCommitment(pub [u8; 32]);
 impl Matches<MockCodeCommitment> for MockCodeCommitment {
     fn matches(&self, other: &MockCodeCommitment) -> bool {
         self.0 == other.0
+    }
+}
+
+impl From<MockCodeCommitment> for [u32; 8] {
+    fn from(val: MockCodeCommitment) -> Self {
+        let mut output = [0u32; 8];
+        for (i, chunk) in val.0.chunks(4).enumerate() {
+            output[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        }
+        output
+    }
+}
+
+impl From<[u32; 8]> for MockCodeCommitment {
+    fn from(value: [u32; 8]) -> Self {
+        let mut output = [0u8; 32];
+        for (i, &val) in value.iter().enumerate() {
+            output[i * 4..(i + 1) * 4].copy_from_slice(&val.to_le_bytes());
+        }
+        MockCodeCommitment(output)
     }
 }
 
@@ -136,12 +154,12 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
         Ok(serialized_proof[33..].to_vec())
     }
 
-    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         let output = Self::verify(serialized_proof, code_commitment)?;
-        Ok(BorshDeserialize::deserialize(&mut &*output)?)
+        Ok(T::deserialize(&mut &*output)?)
     }
 }
 
@@ -160,43 +178,25 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
         self.committed_data.push_back(data)
     }
 
+    fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
+        unimplemented!()
+    }
+
     fn simulate_with_hints(&mut self) -> Self::Guest {
         MockZkGuest {}
     }
 
     fn run(&mut self, _with_proof: bool) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
         self.worker_thread_notifier.wait();
-        let data = self.committed_data.pop_front().unwrap_or_default();
-        Ok(sov_rollup_interface::zk::Proof::PublicInput(data))
+        Ok(self.committed_data.pop_front().unwrap_or_default())
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
-        match proof {
-            sov_rollup_interface::zk::Proof::PublicInput(pub_input) => {
-                let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(pub_input)?;
-                let st: StateTransitionData<Root, (), Da> =
-                    BorshDeserialize::deserialize(&mut &*data.hint)?;
+    ) -> Result<T, Self::Error> {
+        let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(proof)?;
 
-                Ok(sov_rollup_interface::zk::StateTransition {
-                    initial_state_root: st.initial_state_root,
-                    final_state_root: st.final_state_root,
-                    initial_batch_hash: st.initial_batch_hash,
-                    validity_condition: data.validity_condition,
-                    state_diff: Default::default(),
-                    da_slot_hash: st.da_block_header_of_commitments.hash(),
-                    sequencer_public_key: vec![],
-                    sequencer_da_public_key: vec![],
-                    sequencer_commitments_range: (0, 0),
-                    last_active_spec_id: SpecId::Genesis,
-                    preproven_commitments: vec![],
-                })
-            }
-            sov_rollup_interface::zk::Proof::Full(_) => {
-                panic!("Mock DA doesn't generate real proofs")
-            }
-        }
+        T::try_from_slice(&data.hint).map_err(Into::into)
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
@@ -219,10 +219,10 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         unimplemented!()
     }
 
-    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         unimplemented!()
     }
 }

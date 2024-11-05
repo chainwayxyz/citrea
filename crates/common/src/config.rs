@@ -33,8 +33,6 @@ pub struct RunnerConfig {
     pub sequencer_client_url: String,
     /// Saves sequencer soft confirmations if set to true
     pub include_tx_body: bool,
-    /// Only true for tests
-    pub accept_public_input_as_proven: Option<bool>,
     /// Number of blocks to request during sync
     #[serde(default = "default_sync_blocks_count")]
     pub sync_blocks_count: u64,
@@ -46,9 +44,6 @@ impl FromEnv for RunnerConfig {
         Ok(Self {
             sequencer_client_url: std::env::var("SEQUENCER_CLIENT_URL")?,
             include_tx_body: std::env::var("INCLUDE_TX_BODY")?.parse()?,
-            accept_public_input_as_proven: std::env::var("ACCEPT_PUBLIC_INPUT_AS_PROVEN")
-                .ok()
-                .and_then(|val| val.parse().ok()),
             sync_blocks_count: std::env::var("SYNC_BLOCKS_COUNT")
                 .ok()
                 .and_then(|val| val.parse().ok())
@@ -446,7 +441,6 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_owned(),
                 include_tx_body: true,
-                accept_public_input_as_proven: None,
                 sync_blocks_count: 10,
                 pruning_config: None,
             }),
@@ -648,7 +642,6 @@ mod tests {
             runner: Some(RunnerConfig {
                 sequencer_client_url: "http://0.0.0.0:12346".to_string(),
                 include_tx_body: true,
-                accept_public_input_as_proven: None,
                 sync_blocks_count: default_sync_blocks_count(),
                 pruning_config: Some(PruningConfig { distance: 1000 }),
             }),

@@ -1364,6 +1364,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_cpus"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
+dependencies = [
+ "hermit-abi",
+ "libc",
+]
+
+[[package]]
 name = "object"
 version = "0.36.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2128,6 +2138,7 @@ dependencies = [
  "byteorder",
  "hex",
  "jmt",
+ "num_cpus",
  "rlimit",
  "rocksdb",
  "serde",
@@ -2255,17 +2266,14 @@ dependencies = [
  "arbitrary",
  "bcs",
  "borsh",
- "hex",
  "jmt",
  "proptest",
  "proptest-derive",
  "serde",
- "serde_json",
  "sha2",
  "sov-db",
  "sov-modules-core",
  "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]
@@ -2395,9 +2403,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.39.3"
+version = "1.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9babc99b9923bfa4804bd74722ff02c0381021eafa4db9949217e3be8e84fff5"
+checksum = "e2b070231665d27ad9ec9b8df639893f46727666c6767db40317fbe920a5d998"
 dependencies = [
  "backtrace",
  "bytes",

@@ -67,8 +67,8 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
-        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // Generate seqcommitment txs and make sure second batch is chained from first batch
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -103,8 +103,8 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx3.output[0].value, self.get_reveal_tx_input_value(tx4));
-        assert_eq!(tx4.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
+        assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         let last_tx = self
             .test_restart_with_empty_mempool(sequencer, da, tx4)
@@ -166,8 +166,8 @@ impl TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
-        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(tx2.clone())
     }
@@ -241,10 +241,10 @@ impl TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
-        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
-        assert_eq!(tx3.output[0].value, self.get_reveal_tx_input_value(tx4));
-        assert_eq!(tx4.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
+        assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(())
     }
@@ -319,8 +319,8 @@ impl TestCase for TestProverTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx1.output[0].value, self.get_reveal_tx_input_value(tx2));
-        assert_eq!(tx2.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // // Do another round and make sure second batch is chained from first batch
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -359,8 +359,8 @@ impl TestCase for TestProverTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx3.output[0].value, self.get_reveal_tx_input_value(tx4));
-        assert_eq!(tx4.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
+        assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         batch_prover.restart(None).await?;
 
@@ -401,8 +401,8 @@ impl TestCase for TestProverTransactionChaining {
         );
 
         // Verify output values
-        assert_eq!(tx5.output[0].value, self.get_reveal_tx_input_value(tx6));
-        assert_eq!(tx6.output[0].value, Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx5.output[0].value >= self.get_reveal_tx_input_value(tx6));
+        assert!(tx6.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(())
     }

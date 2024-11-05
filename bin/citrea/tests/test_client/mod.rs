@@ -20,10 +20,11 @@ use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
 use sov_rollup_interface::rpc::{
-    LastVerifiedProofResponse, ProofResponse, SequencerCommitmentResponse,
-    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedProofResponse,
+    BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
+    SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
 };
 
+pub const SEND_ETH_GAS: u128 = 21001;
 pub const MAX_FEE_PER_GAS: u128 = 1000000001;
 
 pub struct TestClient {
@@ -253,12 +254,8 @@ impl TestClient {
         let req = TransactionRequest::default()
             .from(self.from_addr)
             .to(to_addr)
-            .value(U256::from(value));
-
-        let gas = self.client.estimate_gas(&req).await.unwrap();
-
-        let req = req
-            .gas_limit(gas)
+            .value(U256::from(value))
+            .gas_limit(SEND_ETH_GAS)
             .nonce(nonce)
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10))
             .max_fee_per_gas(max_fee_per_gas.unwrap_or(MAX_FEE_PER_GAS));
@@ -536,26 +533,34 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn ledger_get_proofs_by_slot_height(&self, height: u64) -> Vec<ProofResponse> {
+    pub(crate) async fn ledger_get_batch_proofs_by_slot_height(
+        &self,
+        height: u64,
+    ) -> Vec<BatchProofResponse> {
         self.http_client
-            .request("ledger_getProofsBySlotHeight", rpc_params![height])
+            .request("ledger_getBatchProofsBySlotHeight", rpc_params![height])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn ledger_get_verified_proofs_by_slot_height(
+    pub(crate) async fn ledger_get_verified_batch_proofs_by_slot_height(
         &self,
         height: u64,
-    ) -> Option<Vec<VerifiedProofResponse>> {
+    ) -> Option<Vec<VerifiedBatchProofResponse>> {
         self.http_client
-            .request("ledger_getVerifiedProofsBySlotHeight", rpc_params![height])
+            .request(
+                "ledger_getVerifiedBatchProofsBySlotHeight",
+                rpc_params![height],
+            )
             .await
             .ok()
     }
 
-    pub(crate) async fn ledger_get_last_verified_proof(&self) -> Option<LastVerifiedProofResponse> {
+    pub(crate) async fn ledger_get_last_verified_batch_proof(
+        &self,
+    ) -> Option<LastVerifiedBatchProofResponse> {
         self.http_client
-            .request("ledger_getLastVerifiedProof", rpc_params![])
+            .request("ledger_getLastVerifiedBatchProof", rpc_params![])
             .await
             .ok()
     }

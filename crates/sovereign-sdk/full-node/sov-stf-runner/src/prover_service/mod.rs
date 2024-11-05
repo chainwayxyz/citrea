@@ -1,10 +1,5 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::Zkvm;
-use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::Proof;
 use thiserror::Error;
@@ -77,48 +72,33 @@ pub enum ProverServiceError {
     Other(#[from] anyhow::Error),
 }
 
+pub(crate) type Input = Vec<u8>;
+pub(crate) type Assumptions = Vec<Vec<u8>>;
+pub(crate) type ProofData = (Input, Assumptions);
+
 /// This service is responsible for ZK proof generation.
 /// The proof generation process involves the following stages:
-///     1. Submitting a witness using the `submit_witness` method to a prover service.
-///     2. Initiating proof generation with the `prove` method.
-/// Once the proof is ready, it can be sent to the DA with `send_proof_to_da` method.
-/// Currently, the cancellation of proving jobs for submitted witnesses is not supported,
-/// but this functionality will be added in the future (#1185).
+///     1. Submitting an input and assumptions using `add_proof_data` method.
+///     2. Generate proof and submit it to DA Service with the `prove_and_submit` method.
 #[async_trait]
-pub trait ProverService<Vm: Zkvm> {
+pub trait ProverService {
     /// Data Availability service.
     type DaService: DaService;
 
-    /// Submit a witness for proving.
-    async fn submit_witness(
-        &self,
-        input: Vec<u8>,
-        da_slot_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> WitnessSubmissionStatus;
+    /// Add proof data, namely input and assumptions to ProverService.
+    async fn add_proof_data(&self, proof_data: ProofData);
 
-    /// Creates ZKP prove for a block corresponding to `block_header_hash`.
-    async fn prove(
-        &self,
-        block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<ProofProcessingStatus, ProverServiceError>;
+    /// Prove added input and assumptions.
+    async fn prove(&self) -> anyhow::Result<Vec<Proof>>;
 
-    /// Wait for proving to be complete and extract the output
-    /// from the prover service.
-    async fn wait_for_proving_and_extract_output<T: BorshDeserialize>(
+    /// Submit proofs to DA.
+    async fn submit_proofs(
         &self,
-        block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-    ) -> Result<T, anyhow::Error>;
+        proofs: Vec<Proof>,
+    ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
 
-    /// Sends the ZK proof to the DA.
-    async fn wait_for_proving_and_send_to_da(
+    /// Recover the ongoing sessions and submit them to DA.
+    async fn recover_and_submit_proving_sessions(
         &self,
-        block_header_hash: <<Self::DaService as DaService>::Spec as DaSpec>::SlotHash,
-        da_service: &Arc<Self::DaService>,
-    ) -> Result<(<Self::DaService as DaService>::TransactionId, Proof), anyhow::Error>;
-
-    /// Recovers pending proving sessions and sends proofs to the DA.
-    async fn recover_proving_sessions_and_send_to_da(
-        &self,
-        da_service: &Arc<Self::DaService>,
-    ) -> Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>, anyhow::Error>;
+    ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
 }

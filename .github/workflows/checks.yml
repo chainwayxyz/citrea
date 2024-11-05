@@ -85,7 +85,7 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: ubicloud/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -121,8 +121,6 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -156,8 +154,6 @@ jobs:
         with:
           toolchain: nightly-2024-07-27
           override: true
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -190,7 +186,7 @@ jobs:
         with:
           components: llvm-tools-preview
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: ubicloud/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install risc0
@@ -207,8 +203,10 @@ jobs:
         env:
           RUST_BACKTRACE: 1
           TEST_BITCOIN_DOCKER: 1
-          SHORT_PREFIX: 1
+          CI_TEST_MODE: 1
+          RISC0_DEV_MODE: 1 # This is needed to generate mock proofs and verify them
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+          PARALLEL_PROOF_LIMIT: 1
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -334,7 +332,7 @@ jobs:
           override: true
       - name: cargo install cargo-hack
         uses: taiki-e/install-action@cargo-hack
-      - uses: Swatinem/rust-cache@v2
+      - uses: ubicloud/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
       - name: Run check
@@ -356,7 +354,7 @@ jobs:
       - name: Toolchain
         uses: dtolnay/rust-toolchain@1.79.0
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: ubicloud/rust-cache@v2
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
@@ -372,11 +370,11 @@ jobs:
         run: make test
         env:
           RUST_BACKTRACE: 1
-          BONSAI_API_URL: ${{ secrets.BONSAI_API_URL }} # TODO: remove this once we don't use the client on tests
-          BONSAI_API_KEY: ${{ secrets.BONSAI_API_KEY }} # TODO: remove this once we don't use the client on tests
+          RISC0_DEV_MODE: 1                             # This is needed to generate mock proofs and verify them
           TEST_BITCOIN_DOCKER: 1
-          SHORT_PREFIX: 1
+          CI_TEST_MODE: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
+          PARALLEL_PROOF_LIMIT: 1
 
   system-contracts:
     strategy:
@@ -453,7 +451,7 @@ jobs:
           name: citrea-build
           path: target/release
 
-      - name: Check BATCH_PROVER_BITCOIN_ID
+      - name: Check BATCH_PROOF_BITCOIN_ID
         id: check-id
         uses: ./.github/actions/validate-bitcoin-da
         with:

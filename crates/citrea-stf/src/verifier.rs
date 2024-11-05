@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use citrea_primitives::forks::FORKS;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{StateTransition, StateTransitionData, Zkvm, ZkvmGuest};
+use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Zkvm, ZkvmGuest};
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da, Zk>
@@ -39,13 +39,32 @@ where
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
         println!("Running sequencer commitments in DA slot");
-        let data: StateTransitionData<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
-        let validity_condition = self.da_verifier.verify_relevant_tx_list(
+        let data: BatchProofCircuitInput<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
+
+        if !data.da_block_header_of_commitments.verify_hash() {
+            panic!("Invalid hash of DA block header of commitments");
+        }
+
+        let validity_condition = self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
             &data.da_data,
             data.inclusion_proof,
             data.completeness_proof,
+            DaNamespace::ToBatchProver,
         )?;
+
+        // the hash will be checked inside the stf
+        // so we can early copy that and use in the output
+        // since the run will fail if the hash is wrong
+        let final_soft_confirmation_hash = data
+            .soft_confirmations
+            .iter()
+            .last()
+            .expect("Should have at least one sequencer commitment")
+            .iter()
+            .last()
+            .expect("Should have at least one soft confirmation")
+            .hash();
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let (final_state_root, state_diff, last_active_spec_id) = self
@@ -54,7 +73,7 @@ where
                 data.sequencer_public_key.as_ref(),
                 data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
-                data.initial_batch_hash,
+                data.prev_soft_confirmation_hash,
                 pre_state,
                 data.da_data,
                 data.sequencer_commitments_range,
@@ -73,10 +92,11 @@ where
             "Invalid final state root"
         );
 
-        let out: StateTransition<Da::Spec, _> = StateTransition {
+        let out: BatchProofCircuitOutput<Da::Spec, _> = BatchProofCircuitOutput {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            initial_batch_hash: data.initial_batch_hash,
+            prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
+            final_soft_confirmation_hash,
             validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),

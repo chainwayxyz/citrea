@@ -7,11 +7,6 @@ use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
 use sov_rollup_interface::stf::StateDiff;
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_zk_cycle_macros::cycle_tracker;
-
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-extern crate risc0_zkvm;
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default)]

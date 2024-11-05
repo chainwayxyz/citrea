@@ -56,15 +56,16 @@ impl DB {
         path: impl AsRef<Path>,
         name: &'static str,
         column_families: impl IntoIterator<Item = impl Into<String>>,
-        db_opts: &rocksdb::Options,
+        options: &RawRocksdbOptions,
     ) -> anyhow::Result<Self> {
         let db = DB::open_with_cfds(
-            db_opts,
+            &options.db_options,
             path,
             name,
             column_families.into_iter().map(|cf_name| {
                 let mut cf_opts = rocksdb::Options::default();
                 cf_opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+                cf_opts.set_block_based_table_factory(&options.block_options);
                 rocksdb::ColumnFamilyDescriptor::new(cf_name, cf_opts)
             }),
         )?;
@@ -328,6 +329,15 @@ impl DB {
     }
 }
 
+/// Raw rocksdb config wrapper. Useful to convert user provided config into
+/// the actual rocksdb config with all defaults set.
+pub struct RawRocksdbOptions {
+    /// Global db options
+    pub db_options: rocksdb::Options,
+    /// Per column-family options
+    pub block_options: rocksdb::BlockBasedOptions,
+}
+
 /// Readability alias for a key in the DB.
 pub type SchemaKey = Vec<u8>;
 /// Readability alias for a value in the DB.
@@ -386,8 +396,17 @@ mod tests {
         db_opts.create_if_missing(true);
         db_opts.create_missing_column_families(true);
 
-        let db = DB::open(tmpdir.path(), "test_db_debug", column_families, &db_opts)
-            .expect("Failed to open DB.");
+        let block_opts = rocksdb::BlockBasedOptions::default();
+        let db = DB::open(
+            tmpdir.path(),
+            "test_db_debug",
+            column_families,
+            &RawRocksdbOptions {
+                db_options: db_opts,
+                block_options: block_opts,
+            },
+        )
+        .expect("Failed to open DB.");
 
         let db_debug = format!("{:?}", db);
         assert!(db_debug.contains("test_db_debug"));

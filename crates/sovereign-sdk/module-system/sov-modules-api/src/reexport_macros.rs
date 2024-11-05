@@ -2,9 +2,6 @@
 /// type.
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::DispatchCall;
-/// Derives the <runtime_name>Event enum for a given runtime.
-#[cfg(feature = "macros")]
-pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
 #[cfg(feature = "macros")]
@@ -41,7 +38,7 @@ pub use sov_modules_macros::MessageCodec;
 ///     type Event = ();
 ///     
 ///     fn call(
-///        &self,
+///        &mut self,
 ///        _msg: Self::CallMessage,
 ///        _context: &Self::Context,
 ///        _working_set: &mut WorkingSet<C>,
@@ -114,20 +111,6 @@ pub mod macros {
     /// arguments for each of these structs.
     ///
     /// To exclude a module from the CLI, use the `#[cli_skip]` attribute.
-    ///
-    /// ## Examples
-    /// ```
-    /// use sov_modules_api::{Context, DispatchCall, MessageCodec};
-    /// use sov_modules_api::default_context::DefaultContext;
-    /// use sov_modules_api::macros::CliWallet;
-    ///
-    /// #[derive(DispatchCall, MessageCodec, CliWallet)]
-    /// #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
-    /// pub struct Runtime<C: Context> {
-    ///     pub bank: sov_bank::Bank<C>,
-    ///     // ...
-    /// }
-    /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::CliWallet;
     /// Implement [`CliWalletArg`](crate::CliWalletArg) for the annotated struct or enum. Unions are not supported.

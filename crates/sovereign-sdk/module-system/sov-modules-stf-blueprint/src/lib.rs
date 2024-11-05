@@ -27,13 +27,9 @@ use sov_rollup_interface::stf::{
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
 
-mod batch;
 mod stf_blueprint;
-mod tx_verifier;
 
-pub use batch::Batch;
 pub use stf_blueprint::StfBlueprint;
-pub use tx_verifier::RawTx;
 
 /// The tx hook for a blueprint runtime
 pub struct RuntimeTxHook<C: Context> {
@@ -152,7 +148,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
@@ -235,7 +231,7 @@ where
     fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
@@ -258,8 +254,8 @@ where
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
-            soft_confirmation.txs(),
-            soft_confirmation.deposit_data(),
+            soft_confirmation.txs().to_vec(),
+            soft_confirmation.deposit_data().to_vec(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.timestamp(),
         );
@@ -279,7 +275,7 @@ where
         // verify signature
         if verify_soft_confirmation_signature::<C>(
             unsigned,
-            soft_confirmation.signature_as_ref(),
+            soft_confirmation.signature(),
             sequencer_public_key,
         )
         .is_err()
@@ -452,6 +448,8 @@ where
         pre_state: Self::PreState,
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
+        // the header hash does not need to be verified here because the full
+        // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmation,
@@ -676,6 +674,13 @@ where
                     previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
                     index_soft_confirmation += 1;
                 } else {
+                    // before going to the next DA block header, we must check if it's hash was supplied
+                    // correctly
+                    assert!(
+                        da_block_headers[index_headers].verify_hash(),
+                        "Invalid DA block header hash"
+                    );
+
                     index_headers += 1;
 
                     // this can also be done in soft confirmation rule enforcer?
@@ -722,6 +727,12 @@ where
                 index_headers,
                 da_block_headers.len() - 1,
                 "All DA headers must be checked"
+            );
+
+            // also it's hash wasn't verified
+            assert!(
+                da_block_headers[index_headers].verify_hash(),
+                "Invalid DA block header hash"
             );
 
             // now verify the claimed merkle root of soft confirmation hashes

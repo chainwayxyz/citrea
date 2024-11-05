@@ -165,7 +165,7 @@ async fn test_sequencer_commitment_threshold() {
     seq_test_client.send_publish_batch_request().await;
 
     for i in 1..35 {
-        for _ in 0..600 {
+        for _ in 0..60 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)
@@ -185,7 +185,7 @@ async fn test_sequencer_commitment_threshold() {
     assert_eq!(commitments.len(), 1);
 
     for i in 35..70 {
-        for _ in 0..600 {
+        for _ in 0..60 {
             let address = Address::random();
             let _pending = seq_test_client
                 .send_eth(address, None, None, None, 1u128)

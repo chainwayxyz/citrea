@@ -44,7 +44,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     DB: BatchProverLedgerOps,
-    Ps: ProverService<Vm>,
+    Ps: ProverService,
     StateRoot: BorshDeserialize
         + BorshSerialize
         + Serialize
@@ -72,7 +72,7 @@ impl<Vm, Da, Ps, DB, StateRoot, Witness> L1BlockHandler<Vm, Da, Ps, DB, StateRoo
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Ps: ProverService<Vm, DaService = Da>,
+    Ps: ProverService<DaService = Da>,
     DB: BatchProverLedgerOps + Clone + 'static,
     StateRoot: BorshDeserialize
         + BorshSerialize
@@ -181,8 +181,8 @@ where
             )
             .await;
 
-            let (sequencer_commitments, state_transitions) = match data_to_prove {
-                Ok((commitments, transitions)) => (commitments, transitions),
+            let (sequencer_commitments, inputs) = match data_to_prove {
+                Ok((commitments, inputs)) => (commitments, inputs),
                 Err(e) => match e {
                     L1ProcessingError::NoSeqCommitments { l1_height } => {
                         info!("No sequencer commitment found at height {}", l1_height,);
@@ -237,14 +237,13 @@ where
 
             if should_prove {
                 if l1_height >= self.skip_submission_until_l1 {
-                    prove_l1(
-                        self.da_service.clone(),
+                    prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness>(
                         self.prover_service.clone(),
                         self.ledger_db.clone(),
                         self.code_commitments_by_spec.clone(),
                         l1_block.clone(),
                         sequencer_commitments,
-                        state_transitions,
+                        inputs,
                     )
                     .await?;
                 } else {
@@ -269,19 +268,15 @@ where
 
     async fn check_and_recover_ongoing_proving_sessions(&self) -> Result<(), anyhow::Error> {
         let prover_service = self.prover_service.as_ref();
-        let results = prover_service
-            .recover_proving_sessions_and_send_to_da(&self.da_service)
-            .await?;
+        let txs_and_proofs = prover_service.recover_and_submit_proving_sessions().await?;
 
-        for (tx_id, proof) in results {
-            extract_and_store_proof::<DB, Da, Vm, StateRoot>(
-                self.ledger_db.clone(),
-                tx_id,
-                proof,
-                self.code_commitments_by_spec.clone(),
-            )
-            .await?;
-        }
+        extract_and_store_proof::<DB, Da, Vm, StateRoot>(
+            self.ledger_db.clone(),
+            txs_and_proofs,
+            self.code_commitments_by_spec.clone(),
+        )
+        .await?;
+
         Ok(())
     }
 }
@@ -337,7 +332,7 @@ async fn sync_l1<Da>(
     }
 }
 
-pub(crate) async fn get_state_transition_data_from_commitments<
+pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,

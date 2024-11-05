@@ -44,7 +44,7 @@ jobs:
         run: |
           cargo build --release
 
-      - name: Check BATCH_PROVER_BITCOIN_ID
+      - name: Check BATCH_PROOF_BITCOIN_ID
         id: check-id
         uses: ./.github/actions/validate-bitcoin-da
         with:
@@ -81,7 +81,7 @@ jobs:
           source $HOME/.cargo/env
           cargo build --release
 
-      - name: Check BATCH_PROVER_BITCOIN_ID
+      - name: Check BATCH_PROOF_BITCOIN_ID
         id: check-id
         uses: ./.github/actions/validate-bitcoin-da
         with:

@@ -16,10 +16,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - short_prefix: 1
-            short_prefix_value: "-short-prefix"
-          - short_prefix: 0
-            short_prefix_value: ""
+          - ci_test_mode: 1
+            ci_test_mode_value: "-ci"
+          - ci_test_mode: 0
+            ci_test_mode_value: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Project
         env:
-          SHORT_PREFIX: ${{ matrix.short_prefix }}
+          CI_TEST_MODE: ${{ matrix.ci_test_mode }}
         run: |
           cargo build --release
 
@@ -68,7 +68,7 @@ jobs:
         with:
           file: ./build-push/nightly/Dockerfile
           context: ./build-push/nightly
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea-test:${{ env.IMAGE_TAG }}${{ matrix.short_prefix_value }}
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea-test:${{ env.IMAGE_TAG }}${{ matrix.ci_test_mode_value }}
           platforms: linux/amd64
           push: true
           load: false

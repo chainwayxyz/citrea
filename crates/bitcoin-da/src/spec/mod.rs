@@ -25,8 +25,8 @@ pub mod utxo;
 pub struct BitcoinSpec;
 
 pub struct RollupParams {
-    pub reveal_light_client_prefix: Vec<u8>,
-    pub reveal_batch_prover_prefix: Vec<u8>,
+    pub to_light_client_prefix: Vec<u8>,
+    pub to_batch_proof_prefix: Vec<u8>,
 }
 
 impl DaSpec for BitcoinSpec {

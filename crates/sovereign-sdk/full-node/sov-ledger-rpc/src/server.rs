@@ -11,26 +11,6 @@ const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
 /// Creates a new [`jsonrpsee::RpcModule`] that exposes all JSON-RPC methods
 /// necessary to interface with the [`LedgerRpcProvider`].
-///
-/// # Example
-/// ```
-/// use sov_ledger_rpc::server::rpc_module;
-/// use tempfile::tempdir;
-/// use sov_db::ledger_db::LedgerDB;
-///
-/// /// Creates a new [`LedgerDB`] and starts serving JSON-RPC requests.
-/// async fn rpc_server() -> jsonrpsee::server::ServerHandle {
-///     let dir = tempdir().unwrap();
-///     let db = LedgerDB::with_path(dir).unwrap();
-///     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
-///
-///     let server = jsonrpsee::server::ServerBuilder::default()
-///         .build("127.0.0.1:0")
-///         .await
-///         .unwrap();
-///     server.start(rpc_module)
-/// }
-/// ```
 pub fn rpc_module<T, B, Tx>(ledger: T) -> anyhow::Result<RpcModule<T>>
 where
     T: LedgerRpcProvider + Send + Sync + 'static,
@@ -110,30 +90,36 @@ where
         },
     )?;
 
-    rpc.register_blocking_method("ledger_getProofsBySlotHeight", move |params, ledger, _| {
-        // Returns proof on DA slot with given height
-        let height: u64 = params.one()?;
-        ledger
-            .get_proof_data_by_l1_height(height)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
-    })?;
-
-    rpc.register_blocking_method("ledger_getProofsBySlotHash", move |params, ledger, _| {
-        // Returns proof on DA slot with given height
-        let hash: [u8; 32] = params.one()?;
-        let height = ledger
-            .get_slot_number_by_hash(hash)
-            .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
-        match height {
-            Some(height) => ledger
-                .get_proof_data_by_l1_height(height)
-                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
-            None => Ok(None),
-        }
-    })?;
+    rpc.register_blocking_method(
+        "ledger_getBatchProofsBySlotHeight",
+        move |params, ledger, _| {
+            // Returns proof on DA slot with given height
+            let height: u64 = params.one()?;
+            ledger
+                .get_batch_proof_data_by_l1_height(height)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
+        },
+    )?;
 
     rpc.register_blocking_method(
-        "ledger_getVerifiedProofsBySlotHeight",
+        "ledger_getBatchProofsBySlotHash",
+        move |params, ledger, _| {
+            // Returns proof on DA slot with given height
+            let hash: [u8; 32] = params.one()?;
+            let height = ledger
+                .get_slot_number_by_hash(hash)
+                .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))?;
+            match height {
+                Some(height) => ledger
+                    .get_batch_proof_data_by_l1_height(height)
+                    .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e)),
+                None => Ok(None),
+            }
+        },
+    )?;
+
+    rpc.register_blocking_method(
+        "ledger_getVerifiedBatchProofsBySlotHeight",
         move |params, ledger, _| {
             // Returns proof on DA slot with given height
             let height: u64 = params.one()?;
@@ -143,10 +129,10 @@ where
         },
     )?;
 
-    rpc.register_blocking_method("ledger_getLastVerifiedProof", move |_, ledger, _| {
+    rpc.register_blocking_method("ledger_getLastVerifiedBatchProof", move |_, ledger, _| {
         // Returns latest proof data
         ledger
-            .get_last_verified_proof()
+            .get_last_verified_batch_proof()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
 

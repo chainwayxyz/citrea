@@ -18,6 +18,7 @@ pub struct HeaderWrapper {
     pub tx_count: u32,
     pub height: u64,
     txs_commitment: [u8; 32],
+    precomputed_hash: BlockHashWrapper,
 }
 
 impl BlockHeaderTrait for HeaderWrapper {
@@ -28,7 +29,11 @@ impl BlockHeaderTrait for HeaderWrapper {
     }
 
     fn hash(&self) -> Self::Hash {
-        BlockHashWrapper::from(self.header.block_hash().to_byte_array())
+        self.precomputed_hash.clone()
+    }
+
+    fn verify_hash(&self) -> bool {
+        self.hash() == BlockHashWrapper::from(self.header.block_hash().to_byte_array())
     }
 
     fn txs_commitment(&self) -> Self::Hash {
@@ -56,6 +61,7 @@ impl HeaderWrapper {
             tx_count,
             height,
             txs_commitment,
+            precomputed_hash: BlockHashWrapper::from(header.block_hash().to_byte_array()),
         }
     }
 

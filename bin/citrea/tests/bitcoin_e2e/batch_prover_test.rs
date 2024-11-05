@@ -13,7 +13,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use citrea_primitives::{REVEAL_BATCH_PROOF_PREFIX, REVEAL_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use tokio::sync::mpsc::UnboundedSender;
@@ -93,7 +93,7 @@ impl TestCase for BasicProverTest {
 
         {
             // print some debug info about state diff
-            let state_diff = &proofs[0].state_transition.state_diff;
+            let state_diff = &proofs[0].proof_output.state_diff;
             let state_diff_size: usize = state_diff
                 .iter()
                 .map(|(k, v)| k.len() + v.as_ref().map(|v| v.len()).unwrap_or_default())
@@ -187,8 +187,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             BitcoinService::new_with_wallet_check(
                 bitcoin_da_service_config,
                 RollupParams {
-                    reveal_light_client_prefix: REVEAL_LIGHT_CLIENT_PREFIX.to_vec(),
-                    reveal_batch_prover_prefix: REVEAL_BATCH_PROOF_PREFIX.to_vec(),
+                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx.clone(),
             )
@@ -231,7 +231,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         assert!(proofs
             .first()
             .unwrap()
-            .state_transition
+            .proof_output
             .preproven_commitments
             .is_empty());
 
@@ -302,7 +302,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             proofs
                 .first()
                 .unwrap()
-                .state_transition
+                .proof_output
                 .preproven_commitments
                 .len(),
             1
@@ -344,7 +344,7 @@ impl TestCase for LocalProvingTest {
     fn test_env() -> TestCaseEnv {
         TestCaseEnv {
             test: vec![
-                ("SHORT_PREFIX", "1"),
+                ("CI_TEST_MODE", "1"),
                 ("BONSAI_API_URL", ""),
                 ("BONSAI_API_KEY", ""),
             ],

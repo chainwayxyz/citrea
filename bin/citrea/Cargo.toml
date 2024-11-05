@@ -20,8 +20,9 @@ citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
 citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
-citrea-risc0-bonsai-adapter = { path = "../../crates/risc0-bonsai", features = ["native"] }
+citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
+# citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
@@ -81,14 +82,17 @@ tokio = { workspace = true }
 
 revm = { workspace = true }
 
-log = "0.4"
+log = "0.4.22"
 regex = "1.10"
 rustc_version_runtime = { workspace = true }
 
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 bitcoincore-rpc.workspace = true
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "0a6492ebbb7" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "faf3414" }
+
+[build-dependencies]
+sp1-helper = { version = "3.0.0", default-features = false }
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).

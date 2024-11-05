@@ -57,7 +57,11 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let ledger_db =
             LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files))?;
-        let executed_migrations = ledger_db.get_executed_migrations()?;
+
+        // Return an empty vector for executed migrations in case of an error since the iteration fails
+        // because of the absence of the table.
+        let executed_migrations = ledger_db.get_executed_migrations().unwrap_or(vec![]);
+
         // Drop the lock file
         drop(ledger_db);
 
