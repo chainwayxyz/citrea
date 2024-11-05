@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use reth_primitives::{Address, TxKind};
-use revm::primitives::{CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
@@ -10,7 +10,6 @@ use super::db::{DBError, EvmDb};
 use super::db_init::InitEvmDb;
 use super::executor;
 use crate::evm::handler::CitreaExternal;
-use crate::evm::primitive_types::BlockEnv;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::test_signer::TestSigner;
@@ -62,7 +61,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
         let tx = &tx.try_into().unwrap();
         let block_env = BlockEnv {
-            gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
+            gas_limit: U256::from(reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT),
             ..Default::default()
         };
 

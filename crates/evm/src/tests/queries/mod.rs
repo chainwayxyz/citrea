@@ -6,7 +6,7 @@ mod log_tests;
 use std::str::FromStr;
 
 use reth_primitives::{address, Address, Bytes};
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;

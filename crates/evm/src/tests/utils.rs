@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{address, Address, Bytes, TxKind, B256};
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, WorkingSet};

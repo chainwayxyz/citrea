@@ -1,6 +1,6 @@
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
+    BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use sov_modules_api::{native_error, native_trace};
@@ -9,7 +9,6 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
-use super::primitive_types::BlockEnv;
 use crate::db::DBError;
 use crate::SYSTEM_SIGNER;
 
@@ -24,7 +23,7 @@ where
 {
     /// Creates a new Citrea EVM with the given parameters.
     pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
-        let evm_env = Env::boxed(config_env.cfg_env, block_env.into(), Default::default());
+        let evm_env = Env::boxed(config_env.cfg_env, block_env, Default::default());
         let evm_context = EvmContext::new_with_env(db, evm_env);
         let context = Context::new(evm_context, ext);
         let handler = citrea_handler(config_env.handler_cfg);
@@ -92,7 +91,7 @@ pub(crate) fn execute_multiple_tx<
         return vec![];
     }
 
-    let block_gas_limit = block_env.gas_limit;
+    let block_gas_limit: u64 = block_env.gas_limit.saturating_to();
 
     let mut cumulative_gas_used = prev_gas_used;
 

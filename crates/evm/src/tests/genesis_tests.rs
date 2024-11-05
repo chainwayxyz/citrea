@@ -11,7 +11,6 @@ use sov_modules_api::prelude::*;
 use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, EvmChainConfig};
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_HASH, GENESIS_STATE_ROOT};
-use crate::EvmConfig;
 
 lazy_static! {
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
@@ -167,7 +166,7 @@ fn genesis_block() {
 fn genesis_head() {
     let (evm, mut working_set) = get_evm(&get_evm_test_config());
     let head = evm.head.get(&mut working_set).unwrap();
-
+    println!("{:?}", head);
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
     let genesis_block = evm
         .blocks

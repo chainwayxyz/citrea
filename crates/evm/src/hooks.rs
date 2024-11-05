@@ -1,6 +1,7 @@
 use alloy_primitives::B256;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::{Bloom, Bytes, U256};
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
@@ -8,7 +9,7 @@ use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
-use crate::evm::primitive_types::{Block, BlockEnv};
+use crate::evm::primitive_types::Block;
 use crate::evm::system_events::SystemEvent;
 use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
@@ -86,32 +87,40 @@ where
         let basefee = calculate_next_block_base_fee(
             parent_block.header.gas_used as u128,
             parent_block.header.gas_limit as u128,
-            parent_block.header.base_fee_per_gas,
+            parent_block.header.base_fee_per_gas.unwrap_or_default(),
             cfg.base_fee_params,
-        )
-        .unwrap() as u64;
+        );
+
+        let active_evm_spec = citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec);
 
         let new_pending_env = BlockEnv {
-            number: parent_block.header.number + 1,
+            number: U256::from(parent_block.header.number + 1),
             coinbase: cfg.coinbase,
-            timestamp: soft_confirmation_info.timestamp,
-            prevrandao: soft_confirmation_info.da_slot_hash.into(),
-            basefee,
-            gas_limit: cfg.block_gas_limit,
+            timestamp: U256::from(soft_confirmation_info.timestamp),
+            prevrandao: Some(soft_confirmation_info.da_slot_hash.into()),
+            basefee: U256::from(basefee),
+            gas_limit: U256::from(cfg.block_gas_limit),
+            difficulty: U256::ZERO,
+            blob_excess_gas_and_price: if active_evm_spec >= SpecId::CANCUN {
+                Some(BlobExcessGasAndPrice {
+                    excess_blob_gas: 0,
+                    blob_gasprice: 0,
+                })
+            } else {
+                None
+            },
         };
 
         // set early. so that if underlying calls use `self.block_env`
         // they don't use the wrong value
-        self.block_env = new_pending_env;
-
-        let active_evm_spec = citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec);
+        self.block_env = new_pending_env.clone();
 
         if !system_events.is_empty() {
             self.execute_system_events(
                 system_events,
                 soft_confirmation_info.l1_fee_rate(),
                 cfg,
-                new_pending_env,
+                new_pending_env.clone(),
                 active_evm_spec,
                 working_set,
             );
@@ -123,9 +132,9 @@ where
         // remove block 0, keep blocks 1-256
         // then on block 258
         // remove block 1, keep blocks 2-257
-        if new_pending_env.number > 256 {
+        if new_pending_env.number > U256::from(256) {
             self.latest_block_hashes
-                .remove(&U256::from(new_pending_env.number - 257), working_set);
+                .remove(&(new_pending_env.number - U256::from(257)), working_set);
         }
 
         self.last_l1_hash
@@ -155,9 +164,11 @@ where
 
         let expected_block_number = parent_block.header.number + 1;
         assert_eq!(
-            self.block_env.number, expected_block_number,
+            self.block_env.number,
+            U256::from(expected_block_number),
             "Pending head must be set to block {}, but found block {}",
-            expected_block_number, self.block_env.number
+            expected_block_number,
+            self.block_env.number
         );
 
         let pending_transactions = &mut self.pending_transactions;
@@ -181,14 +192,14 @@ where
         let base_fee_per_gas = calculate_next_block_base_fee(
             parent_block.header.gas_used as u128,
             parent_block.header.gas_limit as u128,
-            parent_block.header.base_fee_per_gas,
+            parent_block.header.base_fee_per_gas.unwrap_or_default(),
             cfg.base_fee_params,
         );
 
         let header = reth_primitives::Header {
             parent_hash: parent_block.header.hash(),
-            timestamp: self.block_env.timestamp,
-            number: self.block_env.number,
+            timestamp: self.block_env.timestamp.saturating_to(),
+            number: self.block_env.number.saturating_to(),
             ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_slot_hook
@@ -202,11 +213,11 @@ where
                 .iter()
                 .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom),
             difficulty: U256::ZERO,
-            gas_limit: self.block_env.gas_limit,
+            gas_limit: self.block_env.gas_limit.saturating_to(),
             gas_used,
-            mix_hash: self.block_env.prevrandao,
+            mix_hash: self.block_env.prevrandao.unwrap_or_else(|| B256::default()),
             nonce: 0,
-            base_fee_per_gas,
+            base_fee_per_gas: Some(base_fee_per_gas as u64),
             extra_data: Bytes::default(),
             // EIP-4844 related fields
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912

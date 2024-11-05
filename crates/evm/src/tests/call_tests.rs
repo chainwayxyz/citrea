@@ -6,7 +6,7 @@ use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, U64};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::BlockOverrides;
-use revm::primitives::{hex, SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{hex, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;

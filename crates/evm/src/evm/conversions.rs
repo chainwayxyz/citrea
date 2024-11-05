@@ -1,12 +1,13 @@
 use reth_primitives::{
-    Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
-    KECCAK_EMPTY,
+    Bytes as RethBytes, SealedHeader, TransactionSigned, TransactionSignedEcRecovered,
+    TransactionSignedNoHash, KECCAK_EMPTY,
 };
 use revm::primitives::{
-    AccountInfo as ReVmAccountInfo, BlockEnv as ReVmBlockEnv, TransactTo, TxEnv, U256,
+    AccountInfo as ReVmAccountInfo, BlobExcessGasAndPrice, BlockEnv, SpecId, TransactTo, TxEnv,
+    U256,
 };
 
-use super::primitive_types::{BlockEnv, RlpEvmTransaction, TransactionSignedAndRecovered};
+use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
 
 impl From<AccountInfo> for ReVmAccountInfo {
@@ -41,23 +42,6 @@ impl From<AccountInfo> for reth_primitives::Account {
             balance: acc.balance,
             bytecode_hash: acc.code_hash,
             nonce: acc.nonce,
-        }
-    }
-}
-
-impl From<BlockEnv> for ReVmBlockEnv {
-    fn from(block_env: BlockEnv) -> Self {
-        Self {
-            number: U256::from(block_env.number),
-            coinbase: block_env.coinbase,
-            timestamp: U256::from(block_env.timestamp),
-            difficulty: U256::ZERO,
-            prevrandao: Some(block_env.prevrandao),
-            basefee: U256::from(block_env.basefee),
-            gas_limit: U256::from(block_env.gas_limit),
-            // EIP-4844 related field
-            // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-            blob_excess_gas_and_price: None,
         }
     }
 }
@@ -130,5 +114,25 @@ impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
             value.signed_transaction,
             value.signer,
         )
+    }
+}
+
+pub(crate) fn sealed_block_to_block_env(sealed_header: &SealedHeader, spec_id: SpecId) -> BlockEnv {
+    BlockEnv {
+        number: U256::from(sealed_header.number),
+        coinbase: sealed_header.beneficiary,
+        timestamp: U256::from(sealed_header.timestamp),
+        prevrandao: Some(sealed_header.mix_hash),
+        basefee: U256::from(sealed_header.base_fee_per_gas.unwrap_or_default()),
+        gas_limit: U256::from(sealed_header.gas_limit),
+        difficulty: U256::from(0),
+        blob_excess_gas_and_price: if spec_id >= SpecId::CANCUN {
+            Some(BlobExcessGasAndPrice {
+                excess_blob_gas: 0,
+                blob_gasprice: 0,
+            })
+        } else {
+            None
+        },
     }
 }

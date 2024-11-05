@@ -10,7 +10,7 @@ pub const FORKS: [Fork; 2] = [
     },
     Fork {
         spec_id: SpecId::Fork1,
-        activation_height: 100, // TODO: change this to the correct height once decided
+        activation_height: 99999999999, // TODO: change this to the correct height once decided
     },
     // Examples of how we can define further forks
     // Fork { spec_id: SpecId::Fork2, activation_height: 1000 },

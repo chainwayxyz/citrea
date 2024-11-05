@@ -5,14 +5,13 @@ use reth_primitives::{
     Address, Bloom, Bytes, Header, Signature, TransactionSigned, B256, EMPTY_OMMER_ROOT_HASH,
     KECCAK_EMPTY, U256,
 };
+use revm::primitives::BlockEnv;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
 
 use super::genesis_tests::GENESIS_DA_TXS_COMMITMENT;
-use crate::evm::primitive_types::{
-    Block, BlockEnv, Receipt, SealedBlock, TransactionSignedAndRecovered,
-};
+use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::tests::genesis_tests::BENEFICIARY;
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_STATE_ROOT};
 use crate::tests::DEFAULT_CHAIN_ID;
@@ -45,12 +44,14 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
     assert_eq!(
         pending_block,
         BlockEnv {
-            number: 2,
+            number: U256::from(2),
             coinbase: *BENEFICIARY,
-            timestamp: 54,
-            prevrandao: *DA_ROOT_HASH,
-            basefee: 767816299,
-            gas_limit: config.block_gas_limit,
+            timestamp: U256::from(54),
+            prevrandao: Some(*DA_ROOT_HASH),
+            basefee: U256::from(767816299),
+            gas_limit: U256::from(config.block_gas_limit),
+            difficulty: U256::ZERO,
+            blob_excess_gas_and_price: None
         }
     );
 }

@@ -35,7 +35,7 @@ mod tests;
 use evm::db::EvmDb;
 use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId as EvmSpecId;
-use revm::primitives::U256;
+use revm::primitives::{BlockEnv, U256};
 #[cfg(feature = "native")]
 use sov_modules_api::{AccessoryWorkingSet, StateVecAccessor};
 use sov_modules_api::{Error, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
@@ -43,7 +43,7 @@ use sov_state::codec::BcsCodec;
 
 #[cfg(feature = "native")]
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::primitive_types::{Block, BlockEnv, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Block, Receipt, TransactionSignedAndRecovered};
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 

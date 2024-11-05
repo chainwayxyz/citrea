@@ -205,6 +205,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             spec: vec![(0, SpecId::SHANGHAI)],
         };
 
+        println!("Chain config: {:?}", chain_cfg);
         self.cfg.set(&chain_cfg, working_set);
 
         let header = reth_primitives::Header {
@@ -260,7 +261,6 @@ mod tests {
     use std::str::FromStr;
 
     use reth_primitives::{hex, keccak256, Address, Bytes};
-    use revm::primitives::SpecId;
 
     use super::U256;
     use crate::{AccountData, EvmConfig};

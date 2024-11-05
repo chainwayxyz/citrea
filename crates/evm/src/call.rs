@@ -2,14 +2,14 @@ use core::panic;
 
 use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
+use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{native_error, CallResponse, WorkingSet};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
-use crate::evm::primitive_types::{BlockEnv, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::system_contracts::{BitcoinLightClient, Bridge};
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
@@ -109,7 +109,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 transaction: TransactionSignedAndRecovered {
                     signer: tx.signer(),
                     signed_transaction: tx.into(),
-                    block_number,
+                    block_number: block_number.saturating_to(),
                 },
                 receipt,
             };
@@ -160,7 +160,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let results = executor::execute_multiple_tx(
             evm_db,
-            self.block_env,
+            self.block_env.clone(),
             &users_txs,
             cfg_env,
             &mut citrea_handler_ext,
@@ -201,7 +201,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         transaction: TransactionSignedAndRecovered {
                             signer: evm_tx_recovered.signer(),
                             signed_transaction: evm_tx_recovered.into(),
-                            block_number,
+                            block_number: block_number.saturating_to(),
                         },
                         receipt,
                     };
