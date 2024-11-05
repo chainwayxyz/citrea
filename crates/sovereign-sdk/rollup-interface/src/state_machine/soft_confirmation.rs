@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
@@ -10,19 +11,19 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 /// Contains raw transactions and information about the soft confirmation block
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct UnsignedSoftConfirmation {
+#[derive(Debug, PartialEq, BorshSerialize)]
+pub struct UnsignedSoftConfirmation<'txs> {
     l2_height: u64,
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
-    txs: Vec<Vec<u8>>,
+    txs: &'txs [Vec<u8>],
     deposit_data: Vec<Vec<u8>>,
     l1_fee_rate: u128,
     timestamp: u64,
 }
 
-impl UnsignedSoftConfirmation {
+impl<'txs> UnsignedSoftConfirmation<'txs> {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
     pub fn new(
@@ -30,7 +31,7 @@ impl UnsignedSoftConfirmation {
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
-        txs: Vec<Vec<u8>>,
+        txs: &'txs [Vec<u8>],
         deposit_data: Vec<Vec<u8>>,
         l1_fee_rate: u128,
         timestamp: u64,
@@ -63,8 +64,8 @@ impl UnsignedSoftConfirmation {
         self.da_slot_txs_commitment
     }
     /// Raw transactions.
-    pub fn txs(&self) -> Vec<Vec<u8>> {
-        self.txs.clone()
+    pub fn txs(&self) -> &[Vec<u8>] {
+        self.txs
     }
     /// Deposit data from L1 chain
     pub fn deposit_data(&self) -> Vec<Vec<u8>> {
@@ -82,8 +83,8 @@ impl UnsignedSoftConfirmation {
 
 /// Signed version of the `UnsignedSoftConfirmation`
 /// Contains the signature and public key of the sequencer
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
-pub struct SignedSoftConfirmation {
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
+pub struct SignedSoftConfirmation<'txs> {
     l2_height: u64,
     hash: [u8; 32],
     prev_hash: [u8; 32],
@@ -91,14 +92,14 @@ pub struct SignedSoftConfirmation {
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
     l1_fee_rate: u128,
-    txs: Vec<Vec<u8>>,
+    txs: Cow<'txs, [Vec<u8>]>,
     signature: Vec<u8>,
     deposit_data: Vec<Vec<u8>>,
     pub_key: Vec<u8>,
     timestamp: u64,
 }
 
-impl SignedSoftConfirmation {
+impl<'txs> SignedSoftConfirmation<'txs> {
     /// Creates a signed soft confirmation batch
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -109,7 +110,7 @@ impl SignedSoftConfirmation {
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
         l1_fee_rate: u128,
-        txs: Vec<Vec<u8>>,
+        txs: Cow<'txs, [Vec<u8>]>,
         deposit_data: Vec<Vec<u8>>,
         signature: Vec<u8>,
         pub_key: Vec<u8>,
@@ -168,7 +169,7 @@ impl SignedSoftConfirmation {
 
     /// Txs of signed batch
     pub fn txs(&self) -> &[Vec<u8>] {
-        self.txs.as_slice()
+        &self.txs
     }
 
     /// Deposit data
@@ -179,11 +180,6 @@ impl SignedSoftConfirmation {
     /// Signature of the sequencer
     pub fn signature(&self) -> &[u8] {
         self.signature.as_slice()
-    }
-
-    /// Borsh serialized data
-    pub fn full_data(&mut self) -> Vec<u8> {
-        borsh::to_vec(self).unwrap()
     }
 
     /// L1 fee rate

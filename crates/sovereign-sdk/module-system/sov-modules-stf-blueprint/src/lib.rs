@@ -252,7 +252,7 @@ where
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
-            soft_confirmation.txs().to_vec(),
+            soft_confirmation.txs(),
             soft_confirmation.deposit_data().to_vec(),
             soft_confirmation.l1_fee_rate(),
             soft_confirmation.timestamp(),
@@ -457,7 +457,7 @@ where
         SoftConfirmationError,
     > {
         let soft_confirmation_info = HookSoftConfirmationInfo::new(
-            soft_confirmation.clone(),
+            soft_confirmation,
             pre_state_root.as_ref().to_vec(),
             current_spec,
         );

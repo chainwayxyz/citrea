@@ -176,7 +176,7 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
 
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
-#[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredSoftConfirmation {
     /// The l2 height of the soft confirmation
     pub l2_height: u64,
@@ -206,7 +206,7 @@ pub struct StoredSoftConfirmation {
     pub timestamp: u64,
 }
 
-impl From<StoredSoftConfirmation> for SignedSoftConfirmation {
+impl From<StoredSoftConfirmation> for SignedSoftConfirmation<'static> {
     fn from(value: StoredSoftConfirmation) -> Self {
         SignedSoftConfirmation::new(
             value.l2_height,
