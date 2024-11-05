@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use borsh::BorshDeserialize;
 use sov_modules_api::{BlobReaderTrait, StateTransition};
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
@@ -84,7 +86,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         // Start with the previous light client proof's final state root
         let mut current_final_state_root = previous_output.state_root;
 
-        // Initialize an index for iterating and searching journals
+        let mut journal_map: HashMap<[u8; 32], usize> = deserialized_outputs
+            .iter()
+            .enumerate()
+            .map(|(index, journal)| (journal.initial_state_root, index))
+            .collect();
+
         let mut i = 0;
 
         while i < deserialized_outputs.len() {
@@ -95,13 +102,15 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 // Move to the next journal
                 i += 1;
             } else {
-                // If no match, search for the correct journal in the remaining list
-                if let Some(pos) = deserialized_outputs[i + 1..]
-                    .iter()
-                    .position(|journal| journal.initial_state_root == current_final_state_root)
-                {
-                    // Swap the found matching journal to the current position
-                    deserialized_outputs.swap(i, i + 1 + pos);
+                // Use the map to find the correct journal quickly
+                if let Some(&pos) = journal_map.get(&current_final_state_root) {
+                    if pos > i {
+                        // Swap the found matching journal to the current position
+                        deserialized_outputs.swap(i, pos);
+                        // Update the map to reflect the swap
+                        journal_map.insert(deserialized_outputs[pos].initial_state_root, pos);
+                        journal_map.insert(deserialized_outputs[i].initial_state_root, i);
+                    }
                 } else {
                     panic!("No matching journal found for state root chaining");
                 }
