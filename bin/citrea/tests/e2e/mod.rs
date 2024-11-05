@@ -16,7 +16,7 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_rollup_interface::rpc::{LastVerifiedProofResponse, SoftConfirmationStatus};
+use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
 use tokio::task::JoinHandle;
 
@@ -189,7 +189,7 @@ async fn test_all_flow() {
     assert_eq!(commitments_hash, commitments);
 
     let prover_proof = prover_node_test_client
-        .ledger_get_proofs_by_slot_height(3)
+        .ledger_get_batch_proofs_by_slot_height(3)
         .await[0]
         .clone();
 
@@ -203,15 +203,15 @@ async fn test_all_flow() {
     // So the full node should see the proof in block 5
     wait_for_proof(&full_node_test_client, 4, Some(Duration::from_secs(120))).await;
     let full_node_proof = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(4)
+        .ledger_get_verified_batch_proofs_by_slot_height(4)
         .await
         .unwrap();
 
-    let LastVerifiedProofResponse {
+    let LastVerifiedBatchProofResponse {
         proof: last_proof,
         height: proof_l1_height,
     } = full_node_test_client
-        .ledger_get_last_verified_proof()
+        .ledger_get_last_verified_batch_proof()
         .await
         .unwrap();
 
@@ -219,15 +219,9 @@ async fn test_all_flow() {
 
     assert_eq!(proof_l1_height, 4);
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
-    assert_eq!(
-        last_proof.state_transition,
-        full_node_proof[0].state_transition
-    );
+    assert_eq!(last_proof.proof_output, full_node_proof[0].proof_output);
 
-    assert_eq!(
-        prover_proof.state_transition,
-        full_node_proof[0].state_transition
-    );
+    assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
@@ -289,34 +283,34 @@ async fn test_all_flow() {
     assert_eq!(commitments.len(), 1);
 
     let prover_proof_data = prover_node_test_client
-        .ledger_get_proofs_by_slot_height(5)
+        .ledger_get_batch_proofs_by_slot_height(5)
         .await[0]
         .clone();
 
     wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
     let full_node_proof_data = full_node_test_client
-        .ledger_get_verified_proofs_by_slot_height(6)
+        .ledger_get_verified_batch_proofs_by_slot_height(6)
         .await
         .unwrap();
 
-    let LastVerifiedProofResponse {
+    let LastVerifiedBatchProofResponse {
         proof: last_proof,
         height: proof_l1_height,
     } = full_node_test_client
-        .ledger_get_last_verified_proof()
+        .ledger_get_last_verified_batch_proof()
         .await
         .unwrap();
     assert_eq!(proof_l1_height, 6);
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
-        last_proof.state_transition,
-        full_node_proof_data[0].state_transition
+        last_proof.proof_output,
+        full_node_proof_data[0].proof_output
     );
 
     assert_eq!(prover_proof_data.proof, full_node_proof_data[0].proof);
     assert_eq!(
-        prover_proof_data.state_transition,
-        full_node_proof_data[0].state_transition
+        prover_proof_data.proof_output,
+        full_node_proof_data[0].proof_output
     );
 
     let balance = full_node_test_client

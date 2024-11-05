@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::Proof;
@@ -97,12 +96,6 @@ pub trait ProverService {
         &self,
         proofs: Vec<Proof>,
     ) -> anyhow::Result<Vec<(<Self::DaService as DaService>::TransactionId, Proof)>>;
-
-    /// Extracts the journal output of the given proofs and borsh deserializes them.
-    async fn extract_output<T: BorshDeserialize>(
-        &self,
-        proofs: Vec<Proof>,
-    ) -> anyhow::Result<Vec<T>>;
 
     /// Recover the ongoing sessions and submit them to DA.
     async fn recover_and_submit_proving_sessions(

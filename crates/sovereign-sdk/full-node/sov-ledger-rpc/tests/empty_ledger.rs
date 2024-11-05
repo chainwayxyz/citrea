@@ -52,9 +52,12 @@ async fn getters_succeed() {
         .await
         .unwrap();
 
-    rpc_client.get_proofs_by_slot_height(0).await.unwrap();
+    rpc_client.get_batch_proofs_by_slot_height(0).await.unwrap();
 
-    rpc_client.get_proofs_by_slot_hash([0; 32]).await.unwrap();
+    rpc_client
+        .get_batch_proofs_by_slot_hash([0; 32])
+        .await
+        .unwrap();
 
     rpc_client
         .get_head_soft_confirmation_height()
@@ -64,9 +67,9 @@ async fn getters_succeed() {
     rpc_client.get_head_soft_confirmation().await.unwrap();
 
     rpc_client
-        .get_verified_proofs_by_slot_height(0)
+        .get_verified_batch_proofs_by_slot_height(0)
         .await
         .unwrap();
 
-    rpc_client.get_last_verified_proof().await.unwrap();
+    rpc_client.get_last_verified_batch_proof().await.unwrap();
 }

@@ -24,7 +24,7 @@ use crate::proving::{data_to_prove, prove_l1};
 pub struct ProverInputResponse {
     pub commitment_range: (u32, u32),
     pub l1_block_height: u64,
-    pub encoded_serialized_state_transition_data: String,
+    pub encoded_serialized_batch_proof_input: String,
 }
 
 pub(crate) struct RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness>
@@ -153,7 +153,7 @@ where
                 )
             })?;
 
-        let (_, state_transitions) = data_to_prove::<Da, DB, StateRoot, Witness>(
+        let (_, inputs) = data_to_prove::<Da, DB, StateRoot, Witness>(
             self.context.da_service.clone(),
             self.context.ledger.clone(),
             self.context.sequencer_pub_key.clone(),
@@ -171,23 +171,23 @@ where
             )
         })?;
 
-        let mut state_transition_responses = vec![];
+        let mut batch_proof_circuit_input_responses = vec![];
 
-        for state_transition_data in state_transitions {
-            let range_start = state_transition_data.sequencer_commitments_range.0;
-            let range_end = state_transition_data.sequencer_commitments_range.1;
-            let serialized_state_transition = serialize_state_transition(state_transition_data);
+        for input in inputs {
+            let range_start = input.sequencer_commitments_range.0;
+            let range_end = input.sequencer_commitments_range.1;
+            let serialized_circuit_input = serialize_batch_proof_circuit_input(input);
 
             let response = ProverInputResponse {
                 commitment_range: (range_start, range_end),
                 l1_block_height: l1_height,
-                encoded_serialized_state_transition_data: hex::encode(serialized_state_transition),
+                encoded_serialized_batch_proof_input: hex::encode(serialized_circuit_input),
             };
 
-            state_transition_responses.push(response);
+            batch_proof_circuit_input_responses.push(response);
         }
 
-        Ok(state_transition_responses)
+        Ok(batch_proof_circuit_input_responses)
     }
 
     async fn prove(&self, l1_height: u64, group_commitments: Option<bool>) -> RpcResult<()> {
@@ -204,24 +204,23 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, state_transitions) =
-            data_to_prove::<Da, DB, StateRoot, Witness>(
-                self.context.da_service.clone(),
-                self.context.ledger.clone(),
-                self.context.sequencer_pub_key.clone(),
-                self.context.sequencer_da_pub_key.clone(),
-                self.context.l1_block_cache.clone(),
-                l1_block.clone(),
-                group_commitments,
+        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, StateRoot, Witness>(
+            self.context.da_service.clone(),
+            self.context.ledger.clone(),
+            self.context.sequencer_pub_key.clone(),
+            self.context.sequencer_da_pub_key.clone(),
+            self.context.l1_block_cache.clone(),
+            l1_block.clone(),
+            group_commitments,
+        )
+        .await
+        .map_err(|e| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(format!("{e}",)),
             )
-            .await
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )
-            })?;
+        })?;
 
         prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness>(
             self.context.prover_service.clone(),
@@ -229,7 +228,7 @@ where
             self.context.code_commitments_by_spec.clone(),
             l1_block,
             sequencer_commitments,
-            state_transitions,
+            inputs,
         )
         .await
         .map_err(|e| {
@@ -244,7 +243,7 @@ where
     }
 }
 
-fn serialize_state_transition<T: BorshSerialize>(item: T) -> Vec<u8> {
+fn serialize_batch_proof_circuit_input<T: BorshSerialize>(item: T) -> Vec<u8> {
     borsh::to_vec(&item).expect("Risc0 hint serialization is infallible")
 }
 

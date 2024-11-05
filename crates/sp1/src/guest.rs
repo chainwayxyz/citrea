@@ -30,10 +30,10 @@ impl Zkvm for SP1Guest {
         unimplemented!()
     }
 
-    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         unimplemented!()
     }
 }

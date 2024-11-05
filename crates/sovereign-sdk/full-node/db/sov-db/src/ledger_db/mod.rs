@@ -16,14 +16,16 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::TestTableNew;
 use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height,
-    L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff, MempoolTxs,
-    PendingProvingSessions, PendingSequencerCommitmentL2Range, ProofsBySlotNumber,
-    ProverLastScannedSlot, ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedProofsBySlotNumber, LEDGER_TABLES,
+    L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
+    LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
+    PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
+    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredProof, StoredSlot,
-    StoredSoftConfirmation, StoredStateTransition, StoredVerifiedProof,
+    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
+    StoredBatchProofOutput, StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
+    StoredVerifiedProof,
 };
 
 /// Implementation of database migrator
@@ -501,6 +503,31 @@ impl SharedLedgerOps for LedgerDB {
     }
 }
 
+impl LightClientProverLedgerOps for LedgerDB {
+    fn insert_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+        proof: Proof,
+        light_client_circuit_output: sov_rollup_interface::zk::LightClientCircuitOutput,
+    ) -> anyhow::Result<()> {
+        let data_to_store = StoredLightClientProof {
+            proof,
+            light_client_circuit_output,
+        };
+
+        self.db
+            .put::<LightClientProofBySlotNumber>(&SlotNumber(l1_height), &data_to_store)
+    }
+
+    fn get_light_client_proof_data_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<StoredLightClientProof>> {
+        self.db
+            .get::<LightClientProofBySlotNumber>(&SlotNumber(l1_height))
+    }
+}
+
 impl BatchProverLedgerOps for LedgerDB {
     /// Get the witness by L2 height
     #[instrument(level = "trace", skip_all, err)]
@@ -518,18 +545,18 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
-    fn insert_proof_data_by_l1_height(
+    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
+    fn insert_batch_proof_data_by_l1_height(
         &self,
         l1_height: u64,
         l1_tx_id: [u8; 32],
         proof: Proof,
-        state_transition: StoredStateTransition,
+        proof_output: StoredBatchProofOutput,
     ) -> anyhow::Result<()> {
-        let data_to_store = StoredProof {
+        let data_to_store = StoredBatchProof {
             l1_tx_id,
             proof,
-            state_transition,
+            proof_output,
         };
         let proofs = self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))?;
         match proofs {
@@ -545,7 +572,10 @@ impl BatchProverLedgerOps for LedgerDB {
     }
 
     #[instrument(level = "trace", skip(self), err)]
-    fn get_proofs_by_l1_height(&self, l1_height: u64) -> anyhow::Result<Option<Vec<StoredProof>>> {
+    fn get_proofs_by_l1_height(
+        &self,
+        l1_height: u64,
+    ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
         self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))
     }
 
@@ -598,8 +628,6 @@ impl BatchProverLedgerOps for LedgerDB {
         Ok(())
     }
 }
-
-impl LightClientProverLedgerOps for LedgerDB {}
 
 impl ProvingServiceLedgerOps for LedgerDB {
     /// Gets all pending sessions and step numbers
@@ -756,32 +784,34 @@ impl SequencerLedgerOps for LedgerDB {
 
 impl NodeLedgerOps for LedgerDB {
     /// Stores proof related data on disk, accessible via l1 slot height
-    #[instrument(level = "trace", skip(self, proof, state_transition), err, ret)]
+    #[instrument(level = "trace", skip(self, proof, proof_output), err, ret)]
     fn update_verified_proof_data(
         &self,
         l1_height: u64,
         proof: Proof,
-        state_transition: StoredStateTransition,
+        proof_output: StoredBatchProofOutput,
     ) -> anyhow::Result<()> {
         let verified_proofs = self
             .db
-            .get::<VerifiedProofsBySlotNumber>(&SlotNumber(l1_height))?;
+            .get::<VerifiedBatchProofsBySlotNumber>(&SlotNumber(l1_height))?;
 
         match verified_proofs {
             Some(mut verified_proofs) => {
                 let stored_verified_proof = StoredVerifiedProof {
                     proof,
-                    state_transition,
+                    proof_output,
                 };
                 verified_proofs.push(stored_verified_proof);
-                self.db
-                    .put::<VerifiedProofsBySlotNumber>(&SlotNumber(l1_height), &verified_proofs)
+                self.db.put::<VerifiedBatchProofsBySlotNumber>(
+                    &SlotNumber(l1_height),
+                    &verified_proofs,
+                )
             }
             None => self.db.put(
                 &SlotNumber(l1_height),
                 &vec![StoredVerifiedProof {
                     proof,
-                    state_transition,
+                    proof_output,
                 }],
             ),
         }

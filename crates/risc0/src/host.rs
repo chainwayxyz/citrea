@@ -164,13 +164,13 @@ impl<'a> ZkvmHost for Risc0BonsaiHost<'a> {
         Ok(serialized_receipt)
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         let receipt: Receipt = bincode::deserialize(proof)?;
         let journal = receipt.journal;
 
-        Ok(BorshDeserialize::try_from_slice(&journal.bytes)?)
+        Ok(T::try_from_slice(&journal.bytes)?)
     }
 
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error> {
@@ -221,17 +221,15 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         Ok(receipt.journal.bytes)
     }
 
-    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::BatchProofCircuitOutput<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
 
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
-        Ok(BorshDeserialize::deserialize(
-            &mut receipt.journal.bytes.as_slice(),
-        )?)
+        Ok(T::deserialize(&mut receipt.journal.bytes.as_slice())?)
     }
 }

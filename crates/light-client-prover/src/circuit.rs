@@ -1,10 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
-use sov_rollup_interface::zk::ZkvmGuest;
-
-use crate::input::LightClientCircuitInput;
-use crate::output::LightClientCircuitOutput;
+use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput, ZkvmGuest};
 
 #[derive(Debug)]
 pub enum LightClientVerificationError {
@@ -16,6 +13,24 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     guest: &G,
 ) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
     let input: LightClientCircuitInput<DaV::Spec> = guest.read_from_host();
+
+    // Start by verifying the previous light client proof
+    // If this is the first light client proof, skip this step
+    if let Some(light_client_proof_journal) = input.light_client_proof_journal {
+        let deserialized_previous_light_client_proof_journal =
+            G::verify_and_extract_output::<LightClientCircuitOutput>(
+                &light_client_proof_journal,
+                &input.light_client_proof_method_id.into(),
+            )
+            .expect("Should have verified the light client proof");
+
+        // TODO: Once we implement light client method id by spec update this to do the right checks
+        // Assert that the output method id and the input method id are the same
+        assert_eq!(
+            input.light_client_proof_method_id,
+            deserialized_previous_light_client_proof_journal.light_client_proof_method_id
+        );
+    }
 
     // Verify data from da
     let _validity_condition = da_verifier
@@ -61,6 +76,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     Ok(LightClientCircuitOutput {
         state_root: [1; 32],
+        light_client_proof_method_id: input.light_client_proof_method_id,
     })
 
     // First

@@ -133,9 +133,9 @@ impl ZkvmHost for SP1Host {
         }
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
         proof: &Proof,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         let public_values = match proof {
             Proof::PublicInput(data) => {
                 let public_values: SP1PublicValues = bincode::deserialize(data)?;
@@ -194,17 +194,15 @@ impl Zkvm for SP1Host {
         Ok(proof.public_values.to_vec())
     }
 
-    fn verify_and_extract_output<Da: sov_rollup_interface::da::DaSpec, Root: BorshDeserialize>(
+    fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<sov_rollup_interface::zk::StateTransition<Da, Root>, Self::Error> {
+    ) -> Result<T, Self::Error> {
         let proof: SP1ProofWithPublicValues = bincode::deserialize(serialized_proof)?;
 
         CLIENT.verify(&proof, &code_commitment.0)?;
 
-        Ok(BorshDeserialize::try_from_slice(
-            proof.public_values.as_slice(),
-        )?)
+        Ok(T::try_from_slice(proof.public_values.as_slice())?)
     }
 }
 

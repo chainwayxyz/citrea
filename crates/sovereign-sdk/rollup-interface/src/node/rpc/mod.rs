@@ -209,32 +209,32 @@ pub struct SequencerCommitmentResponse {
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProofResponse {
+pub struct BatchProofResponse {
     /// l1 tx id of
     #[serde(with = "hex::serde")]
     pub l1_tx_id: [u8; 32],
     /// Proof
     pub proof: ProofRpcResponse,
     /// State transition
-    pub state_transition: StateTransitionRpcResponse,
+    pub proof_output: BatchProofOutputRpcResponse,
 }
 
 /// The rpc response of proof by l1 slot height
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VerifiedProofResponse {
+pub struct VerifiedBatchProofResponse {
     /// Proof
     pub proof: ProofRpcResponse,
     /// State transition
-    pub state_transition: StateTransitionRpcResponse,
+    pub proof_output: BatchProofOutputRpcResponse,
 }
 
 /// The rpc response of the last verified proof
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LastVerifiedProofResponse {
+pub struct LastVerifiedBatchProofResponse {
     /// Proof data
-    pub proof: VerifiedProofResponse,
+    pub proof: VerifiedBatchProofResponse,
     /// L1 height of the proof
     pub height: u64,
 }
@@ -245,7 +245,7 @@ pub type ProofRpcResponse = Vec<u8>;
 /// The state transition response of ledger proof data rpc
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StateTransitionRpcResponse {
+pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup before the transition
     #[serde(with = "hex::serde")]
     pub initial_state_root: Vec<u8>,
@@ -442,20 +442,22 @@ pub trait LedgerRpcProvider {
         height: u64,
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, anyhow::Error>;
 
-    /// Get proof by l1 height
-    fn get_proof_data_by_l1_height(
+    /// Get batch proof by l1 height
+    fn get_batch_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<ProofResponse>>, anyhow::Error>;
+    ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error>;
 
     /// Get verified proof by l1 height
     fn get_verified_proof_data_by_l1_height(
         &self,
         height: u64,
-    ) -> Result<Option<Vec<VerifiedProofResponse>>, anyhow::Error>;
+    ) -> Result<Option<Vec<VerifiedBatchProofResponse>>, anyhow::Error>;
 
     /// Get last verified proof
-    fn get_last_verified_proof(&self) -> Result<Option<LastVerifiedProofResponse>, anyhow::Error>;
+    fn get_last_verified_batch_proof(
+        &self,
+    ) -> Result<Option<LastVerifiedBatchProofResponse>, anyhow::Error>;
 
     /// Get head soft confirmation
     fn get_head_soft_confirmation(&self)
