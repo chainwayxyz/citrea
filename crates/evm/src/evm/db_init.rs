@@ -30,9 +30,7 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
             .get(&address, self.working_set)
             .expect("Account should already be inserted");
         let db_account = DbAccount::new(address);
-        db_account
-            .storage
-            .set(&index, &value, &mut self.working_set);
+        db_account.storage.set(&index, &value, self.working_set);
     }
 }
 

@@ -33,12 +33,11 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
 
-                let keys_to_remove: Vec<U256> =
-                    db_account.keys.iter(&mut self.working_set).collect();
+                let keys_to_remove: Vec<U256> = db_account.keys.iter(self.working_set).collect();
                 for key in keys_to_remove {
-                    db_account.storage.delete(&key, &mut self.working_set);
+                    db_account.storage.delete(&key, self.working_set);
                 }
-                db_account.keys.clear(&mut self.working_set);
+                db_account.keys.clear(self.working_set);
 
                 // Do not clear account.code, because there
                 // may exist duplicate contracts with the same code.
@@ -73,14 +72,10 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
                 let value = value.present_value();
-                if db_account
-                    .storage
-                    .get(&key, &mut self.working_set)
-                    .is_none()
-                {
-                    db_account.keys.push(&key, &mut self.working_set);
+                if db_account.storage.get(&key, self.working_set).is_none() {
+                    db_account.keys.push(&key, self.working_set);
                 }
-                db_account.storage.set(&key, &value, &mut self.working_set);
+                db_account.storage.set(&key, &value, self.working_set);
             }
 
             if new_account_flag || check_account_info_changed(&info, &account_info) {
