@@ -23,10 +23,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "82d04e48b7bbcc7239fc123b0eda02586c5f2d45557d66a313183a7f1626f5a6"
+        "f11d2571a36f21a8f60ceb1263971965c0b79b94ee617d478fcc04f4b38e8ab8"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "5c5e936b06651c65b4e539500afa8563122173f04f1da9c812d717c0064c1051"
+        "cdecd99924745016bdd73fab99b8d64f4b0593c898ddbeeaf5169da3eea08f50"
     ));
 }
 
