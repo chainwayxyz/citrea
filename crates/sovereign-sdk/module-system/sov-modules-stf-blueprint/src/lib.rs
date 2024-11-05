@@ -332,7 +332,7 @@ where
             );
         }
 
-        let (state_root, witness, storage, state_diff) = {
+        let (state_root, witness, offchain_witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
