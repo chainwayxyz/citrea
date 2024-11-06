@@ -109,6 +109,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
 
         for output in deserialized_outputs.iter() {
+            // Do not add if last l2 height is smaller or equal to previous output
+            // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
             if output.last_l2_height <= previous_output.last_l2_height {
                 continue;
             }
@@ -138,16 +140,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
 
         // Collect unverified outputs
-        unverified_outputs = initial_to_final
-            .into_iter()
-            .map(
-                |(initial_state_root, (final_state_root, last_l2_height))| BatchProofInfo {
-                    initial_state_root,
-                    final_state_root,
-                    last_l2_height,
-                },
-            )
-            .collect::<Vec<_>>();
+        unverified_outputs = collect_unverified_outputs(&mut initial_to_final);
     }
 
     Ok(LightClientCircuitOutput {
@@ -173,6 +166,21 @@ fn recursive_match_state_roots(
             (bp_info.final_state_root, bp_info.last_l2_height),
         );
     }
+}
+
+fn collect_unverified_outputs(
+    initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
+) -> Vec<BatchProofInfo> {
+    initial_to_final
+        .into_iter()
+        .map(
+            |(initial_state_root, (final_state_root, last_l2_height))| BatchProofInfo {
+                initial_state_root: initial_state_root.clone(),
+                final_state_root: final_state_root.clone(),
+                last_l2_height: last_l2_height.clone(),
+            },
+        )
+        .collect::<Vec<_>>()
 }
 
 #[test]
@@ -202,6 +210,18 @@ fn test_recursive_match_state_roots() {
     assert_eq!(only.0, [5u8; 32]);
 
     assert_eq!(initial_to_final.len(), 1);
+
+    let mut last_l2_height = 0;
+    let mut last_state_root = [0u8; 32];
+    if let Some((final_root, last_l2)) =
+        initial_to_final.remove(&bp_info_prev_state.final_state_root)
+    {
+        last_l2_height = last_l2;
+        last_state_root = final_root;
+    }
+
+    assert_eq!(last_l2_height, 4);
+    assert_eq!(last_state_root, [5u8; 32]);
 }
 
 #[test]
@@ -222,10 +242,10 @@ fn test_recursive_match_state_roots_empty_btreemap() {
 fn test_recursive_match_state_roots_with_unchainable_elements() {
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let bp_info = BatchProofInfo::new([45u8; 32], [46u8; 32], 45);
-    initial_to_final.insert([1u8; 32], ([2u8; 32], 1));
-    initial_to_final.insert([3u8; 32], ([5u8; 32], 3));
-    initial_to_final.insert([6u8; 32], ([7u8; 32], 6));
+    let bp_info = BatchProofInfo::new([45u8; 32], [46u8; 32], 46);
+    initial_to_final.insert([1u8; 32], ([2u8; 32], 2));
+    initial_to_final.insert([3u8; 32], ([5u8; 32], 5));
+    initial_to_final.insert([6u8; 32], ([7u8; 32], 7));
 
     recursive_match_state_roots(&mut initial_to_final, &bp_info);
 
@@ -239,13 +259,38 @@ fn test_recursive_match_state_roots_with_unchainable_elements() {
 
     let second = initial_to_final.get(&[3u8; 32]).unwrap();
     assert_eq!(second.0, [5u8; 32]);
-    assert_eq!(second.1, 3);
+    assert_eq!(second.1, 5);
 
     let third = initial_to_final.get(&[6u8; 32]).unwrap();
     assert_eq!(third.0, [7u8; 32]);
-    assert_eq!(third.1, 6);
+    assert_eq!(third.1, 7);
 
     let fourth = initial_to_final.get(&[45u8; 32]).unwrap();
     assert_eq!(fourth.0, [46u8; 32]);
-    assert_eq!(fourth.1, 45);
+    assert_eq!(fourth.1, 46);
+
+    let bp_info_prev = BatchProofInfo::new([1u8; 32], [1u8; 32], 1);
+
+    recursive_match_state_roots(&mut initial_to_final, &bp_info_prev);
+
+    assert_eq!(initial_to_final.len(), 4);
+
+    let first = initial_to_final.get(&[1u8; 32]).unwrap();
+    assert_eq!(first.0, [2u8; 32]);
+
+    let mut last_l2_height = 0;
+    let mut last_state_root = [0u8; 32];
+    if let Some((final_root, last_l2)) = initial_to_final.remove(&bp_info_prev.final_state_root) {
+        last_l2_height = last_l2;
+        last_state_root = final_root;
+    }
+
+    assert_eq!(last_l2_height, 2);
+    assert_eq!(last_state_root, [2u8; 32]);
+
+    let unverified_outputs = collect_unverified_outputs(&mut initial_to_final);
+    assert_eq!(unverified_outputs.len(), 3);
+    assert_eq!(unverified_outputs[0].initial_state_root, [3u8; 32]);
+    assert_eq!(unverified_outputs[1].initial_state_root, [6u8; 32]);
+    assert_eq!(unverified_outputs[2].initial_state_root, [45u8; 32]);
 }
