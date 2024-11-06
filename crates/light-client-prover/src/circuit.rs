@@ -82,7 +82,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let mut unverified_outputs = vec![];
+    let mut unchained_outputs = vec![];
 
     let mut last_state_root = [0u8; 32];
     let mut last_l2_height = 0;
@@ -94,16 +94,16 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     if let Some(previous_output) = &deserialized_previous_light_client_proof_journal {
         last_l2_height = previous_output.last_l2_height;
         last_state_root = previous_output.state_root;
-        for unverified_info in previous_output.unverified_batch_proofs_info.iter() {
-            if unverified_info.last_l2_height <= previous_output.last_l2_height {
+        for unchained_info in previous_output.unchained_batch_proofs_info.iter() {
+            if unchained_info.last_l2_height <= previous_output.last_l2_height {
                 continue;
             }
             // Add them directly as they are the ones that could not be matched
             initial_to_final.insert(
-                unverified_info.initial_state_root,
+                unchained_info.initial_state_root,
                 (
-                    unverified_info.final_state_root,
-                    unverified_info.last_l2_height,
+                    unchained_info.final_state_root,
+                    unchained_info.last_l2_height,
                 ),
             );
         }
@@ -133,20 +133,20 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 previous_output.last_l2_height,
             ),
         );
-        // Now only thing left is the state update if exists and others are unverified
+        // Now only thing left is the state update if exists and others are unchained
         if let Some((final_root, last_l2)) = initial_to_final.remove(&previous_output.state_root) {
             last_l2_height = last_l2;
             last_state_root = final_root;
         }
 
-        // Collect unverified outputs
-        unverified_outputs = collect_unverified_outputs(&mut initial_to_final);
+        // Collect unchained outputs
+        unchained_outputs = collect_unchained_outputs(&mut initial_to_final);
     }
 
     Ok(LightClientCircuitOutput {
         state_root: last_state_root,
         light_client_proof_method_id: input.light_client_proof_method_id,
-        unverified_batch_proofs_info: unverified_outputs,
+        unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
     })
 }
@@ -168,16 +168,16 @@ fn recursive_match_state_roots(
     }
 }
 
-fn collect_unverified_outputs(
+fn collect_unchained_outputs(
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
 ) -> Vec<BatchProofInfo> {
     initial_to_final
-        .into_iter()
+        .iter_mut()
         .map(
             |(initial_state_root, (final_state_root, last_l2_height))| BatchProofInfo {
-                initial_state_root: initial_state_root.clone(),
-                final_state_root: final_state_root.clone(),
-                last_l2_height: last_l2_height.clone(),
+                initial_state_root: *initial_state_root,
+                final_state_root: *final_state_root,
+                last_l2_height: *last_l2_height,
             },
         )
         .collect::<Vec<_>>()
@@ -288,9 +288,9 @@ fn test_recursive_match_state_roots_with_unchainable_elements() {
     assert_eq!(last_l2_height, 2);
     assert_eq!(last_state_root, [2u8; 32]);
 
-    let unverified_outputs = collect_unverified_outputs(&mut initial_to_final);
-    assert_eq!(unverified_outputs.len(), 3);
-    assert_eq!(unverified_outputs[0].initial_state_root, [3u8; 32]);
-    assert_eq!(unverified_outputs[1].initial_state_root, [6u8; 32]);
-    assert_eq!(unverified_outputs[2].initial_state_root, [45u8; 32]);
+    let unchained_outputs = collect_unchained_outputs(&mut initial_to_final);
+    assert_eq!(unchained_outputs.len(), 3);
+    assert_eq!(unchained_outputs[0].initial_state_root, [3u8; 32]);
+    assert_eq!(unchained_outputs[1].initial_state_root, [6u8; 32]);
+    assert_eq!(unchained_outputs[2].initial_state_root, [45u8; 32]);
 }

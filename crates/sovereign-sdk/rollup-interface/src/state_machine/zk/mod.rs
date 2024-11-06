@@ -252,7 +252,7 @@ pub struct LightClientCircuitOutput {
     /// This is used to compare the previous light client proof method id with the input (current) method id
     pub light_client_proof_method_id: [u32; 8],
     /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unverified_batch_proofs_info: Vec<BatchProofInfo>,
+    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
 }
