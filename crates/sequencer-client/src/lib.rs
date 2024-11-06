@@ -134,7 +134,7 @@ pub struct GetSoftConfirmationResponse {
     pub timestamp: u64,
 }
 
-impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation {
+impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation<'static> {
     fn from(val: GetSoftConfirmationResponse) -> Self {
         SignedSoftConfirmation::new(
             val.l2_height,

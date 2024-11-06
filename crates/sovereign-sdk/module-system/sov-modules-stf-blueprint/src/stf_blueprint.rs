@@ -63,15 +63,16 @@ where
     pub fn apply_sov_txs_inner(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        txs: Vec<Vec<u8>>,
+        txs: &[Vec<u8>],
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let mut tx_receipts = Vec::with_capacity(txs.len());
         for raw_tx in txs {
-            let raw_tx_hash = <C as Spec>::Hasher::digest(&raw_tx).into();
+            let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
             // Stateless verification of transaction, such as signature check
             // TODO: https://github.com/chainwayxyz/citrea/issues/1061
-            let tx = Transaction::<C>::deserialize_reader(&mut &*raw_tx)
+            let mut reader = std::io::Cursor::new(raw_tx);
+            let tx = Transaction::<C>::deserialize_reader(&mut reader)
                 .expect("Sequencer must not include non-deserializable transaction.");
             tx.verify()
                 .expect("Sequencer must include correctly signed transaction.");
@@ -208,7 +209,7 @@ where
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
         let hook_soft_confirmation_info =
-            HookSoftConfirmationInfo::new(soft_confirmation.clone(), pre_state_root, current_spec);
+            HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);
 
         if let Err(e) = self
             .runtime
@@ -229,9 +230,9 @@ where
                 da_slot_height: soft_confirmation.da_slot_height(),
                 da_slot_hash: soft_confirmation.da_slot_hash().into(),
                 da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
-                soft_confirmation_signature: soft_confirmation.signature(),
+                soft_confirmation_signature: soft_confirmation.signature().to_vec(),
                 pub_key: soft_confirmation.sequencer_pub_key().to_vec(),
-                deposit_data: soft_confirmation.deposit_data().clone(),
+                deposit_data: soft_confirmation.deposit_data().to_vec(),
                 l1_fee_rate: soft_confirmation.l1_fee_rate(),
                 timestamp: soft_confirmation.timestamp(),
             }),

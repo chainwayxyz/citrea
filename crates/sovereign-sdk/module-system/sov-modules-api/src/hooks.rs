@@ -106,7 +106,7 @@ pub struct HookSoftConfirmationInfo {
 
 impl HookSoftConfirmationInfo {
     pub fn new(
-        signed_soft_confirmation: SignedSoftConfirmation,
+        signed_soft_confirmation: &SignedSoftConfirmation,
         pre_state_root: Vec<u8>,
         current_spec: SpecId,
     ) -> Self {
@@ -118,7 +118,7 @@ impl HookSoftConfirmationInfo {
             pre_state_root: pre_state_root.to_vec(),
             current_spec,
             pub_key: signed_soft_confirmation.sequencer_pub_key().to_vec(),
-            deposit_data: signed_soft_confirmation.deposit_data(),
+            deposit_data: signed_soft_confirmation.deposit_data().to_vec(),
             l1_fee_rate: signed_soft_confirmation.l1_fee_rate(),
             timestamp: signed_soft_confirmation.timestamp(),
         }

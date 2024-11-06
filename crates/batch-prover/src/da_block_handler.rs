@@ -33,9 +33,9 @@ use tracing::{error, info, warn};
 use crate::errors::L1ProcessingError;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1};
 
-type CommitmentStateTransitionData<Witness, Da> = (
+type CommitmentStateTransitionData<'txs, Witness, Da> = (
     VecDeque<Vec<Witness>>,
-    VecDeque<Vec<SignedSoftConfirmation>>,
+    VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
@@ -341,7 +341,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     da_service: &Arc<Da>,
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
-) -> Result<CommitmentStateTransitionData<Witness, Da>, anyhow::Error> {
+) -> Result<CommitmentStateTransitionData<'static, Witness, Da>, anyhow::Error> {
     let mut state_transition_witnesses: VecDeque<Vec<Witness>> = VecDeque::new();
     let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
     let mut da_block_headers_of_soft_confirmations: VecDeque<
@@ -388,8 +388,8 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 };
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
-            let signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
-            commitment_soft_confirmations.push(signed_soft_confirmation.clone());
+            let signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.into();
+            commitment_soft_confirmations.push(signed_soft_confirmation);
         }
         soft_confirmations.push_back(commitment_soft_confirmations);
 

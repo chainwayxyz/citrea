@@ -307,7 +307,7 @@ where
 
                                 let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
                                     soft_confirmation_info.clone(),
-                                    txs.clone(),
+                                    &txs,
                                     working_set_to_discard,
                                 );
 
@@ -453,7 +453,7 @@ where
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
                         soft_confirmation_info,
-                        txs.clone(),
+                        &txs,
                         batch_workspace,
                     );
                 }
@@ -464,14 +464,14 @@ where
                     da_block.header().height(),
                     da_block.header().hash().into(),
                     da_block.header().txs_commitment().into(),
-                    txs,
+                    &txs,
                     deposit_data.clone(),
                     l1_fee_rate,
                     timestamp,
                 );
 
                 let mut signed_soft_confirmation =
-                    self.sign_soft_confirmation_batch(unsigned_batch, self.batch_hash)?;
+                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?;
 
                 let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     active_fork_spec,
@@ -777,11 +777,11 @@ where
     }
 
     /// Signs necessary info and returns a BlockTemplate
-    fn sign_soft_confirmation_batch(
+    fn sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: UnsignedSoftConfirmation,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
         let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
 
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
@@ -796,7 +796,7 @@ where
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.l1_fee_rate(),
-            soft_confirmation.txs(),
+            soft_confirmation.txs().into(),
             soft_confirmation.deposit_data(),
             borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
             borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,
