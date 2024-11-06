@@ -1225,7 +1225,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 opts.clone().unwrap_or_default(),
                 cfg_env.clone(),
                 block_env.clone(),
-                create_tx_env(&tx),
+                create_tx_env(&tx, cfg_env.handler_cfg.spec_id),
                 tx.hash(),
                 &mut evm_db,
                 l1_fee_rate,

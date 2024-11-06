@@ -40,7 +40,7 @@ where
         DB: DatabaseCommit,
     {
         self.evm.context.external.set_current_tx_hash(tx.hash());
-        *self.evm.tx_mut() = create_tx_env(tx);
+        *self.evm.tx_mut() = create_tx_env(tx, self.evm.spec_id());
         self.evm.transact_commit()
     }
 
@@ -51,7 +51,7 @@ where
         tx: &TransactionSignedEcRecovered,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
-        *self.evm.tx_mut() = create_tx_env(tx);
+        *self.evm.tx_mut() = create_tx_env(tx, self.evm.spec_id());
         self.evm.transact()
     }
 
