@@ -80,6 +80,8 @@ pub struct MockBlockHeader {
     pub height: u64,
     /// The time at which this block was created
     pub time: Time,
+    /// The bits of the block
+    pub bits: u32,
 }
 
 impl MockBlockHeader {
@@ -89,12 +91,14 @@ impl MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
         let txs_commitment = u64_to_bytes(height + 1);
+        let bits = (height + 1) as u32;
         MockBlockHeader {
             prev_hash: MockHash(prev_hash),
             hash: MockHash(hash),
             txs_commitment: MockHash(txs_commitment),
             height,
             time: Time::now(),
+            bits,
         }
     }
 }
@@ -142,6 +146,10 @@ impl BlockHeaderTrait for MockBlockHeader {
 
     fn verify_hash(&self) -> bool {
         true
+    }
+
+    fn bits(&self) -> u32 {
+        self.bits
     }
 }
 

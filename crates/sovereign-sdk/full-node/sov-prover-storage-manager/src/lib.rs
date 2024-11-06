@@ -538,6 +538,7 @@ mod tests {
             txs_commitment: MockHash::from([3; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let _storage = storage_manager.create_storage_on(&block_header).unwrap();
@@ -577,6 +578,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let storage_1 = storage_manager.create_storage_on(&block_header).unwrap();
@@ -619,6 +621,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         storage_manager.create_storage_on(&block_header).unwrap();
@@ -643,6 +646,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -650,6 +654,7 @@ mod tests {
             txs_commitment: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
 
         let _storage_a = storage_manager.create_storage_on(&block_a).unwrap();
@@ -678,6 +683,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         assert!(storage_manager.is_empty());
@@ -704,6 +710,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let snapshot_1 = {
@@ -741,6 +748,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let block_b = MockBlockHeader {
@@ -749,6 +757,7 @@ mod tests {
             txs_commitment: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
 
         let (snapshot_alien_1, snapshot_alien_2) = {
@@ -818,6 +827,7 @@ mod tests {
             txs_commitment: MockHash::from([i + 1; 32]),
             height: i as u64 + 1,
             time: Time::now(),
+            bits: 0,
         };
 
         for i in 0u8..4 {
@@ -866,6 +876,7 @@ mod tests {
                 txs_commitment: MockHash::from([42; 32]),
                 height: height as u64,
                 time: Time::now(),
+                bits: 0,
             };
             let storage = storage_manager.create_storage_on(&block).unwrap();
             storage_manager.save_change_set(&block, storage).unwrap();
@@ -878,6 +889,7 @@ mod tests {
                 txs_commitment: MockHash::from([42; 32]),
                 height: prev_hash as u64 + 1,
                 time: Time::now(),
+                bits: 0,
             };
             storage_manager.finalize(&block).unwrap();
             validate_internal_consistency(&storage_manager);
@@ -983,6 +995,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
@@ -990,6 +1003,7 @@ mod tests {
             txs_commitment: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
         let block_c = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -997,6 +1011,7 @@ mod tests {
             txs_commitment: MockHash::from([44; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_d = MockBlockHeader {
             prev_hash: MockHash::from([3; 32]),
@@ -1004,6 +1019,7 @@ mod tests {
             txs_commitment: MockHash::from([45; 32]),
             height: 4,
             time: Time::now(),
+            bits: 0,
         };
         let block_e = MockBlockHeader {
             prev_hash: MockHash::from([4; 32]),
@@ -1011,6 +1027,7 @@ mod tests {
             txs_commitment: MockHash::from([46; 32]),
             height: 5,
             time: Time::now(),
+            bits: 0,
         };
         let block_f = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
@@ -1018,6 +1035,7 @@ mod tests {
             txs_commitment: MockHash::from([47; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
         let block_g = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -1025,6 +1043,7 @@ mod tests {
             txs_commitment: MockHash::from([48; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_h = MockBlockHeader {
             prev_hash: MockHash::from([23; 32]),
@@ -1032,6 +1051,7 @@ mod tests {
             txs_commitment: MockHash::from([49; 32]),
             height: 4,
             time: Time::now(),
+            bits: 0,
         };
         let block_k = MockBlockHeader {
             prev_hash: MockHash::from([32; 32]),
@@ -1039,6 +1059,7 @@ mod tests {
             txs_commitment: MockHash::from([50; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_l = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -1046,6 +1067,7 @@ mod tests {
             txs_commitment: MockHash::from([51; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_m = MockBlockHeader {
             prev_hash: MockHash::from([13; 32]),
@@ -1053,6 +1075,7 @@ mod tests {
             txs_commitment: MockHash::from([52; 32]),
             height: 4,
             time: Time::now(),
+            bits: 0,
         };
 
         // Data
@@ -1332,6 +1355,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 6,
             time: Time::now(),
+            bits: 0,
         };
         let storage_last = storage_manager
             .create_storage_on(&new_block_after_e)

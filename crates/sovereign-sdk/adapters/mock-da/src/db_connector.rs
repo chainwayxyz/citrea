@@ -132,6 +132,7 @@ impl DbConnector {
                 txs_commitment: MockHash(row.get(2).unwrap()),
                 height: row.get(3).unwrap(),
                 time: serde_json::from_str(row.get::<_, String>(4).unwrap().as_str()).unwrap(),
+                bits: 0,
             },
             validity_cond: MockValidityCond {
                 is_valid: row.get(5).unwrap(),

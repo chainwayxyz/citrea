@@ -292,6 +292,9 @@ pub trait BlockHeaderTrait:
 
     /// The timestamp of the block
     fn time(&self) -> Time;
+
+    /// The bits of the block
+    fn bits(&self) -> u32;
 }
 
 #[derive(

@@ -117,6 +117,7 @@ fn make_transition_data(
             txs_commitment: header_hash,
             height: 0,
             time: Time::now(),
+            bits: 0,
         },
         soft_confirmations: VecDeque::new(),
         state_transition_witnesses: VecDeque::new(),
