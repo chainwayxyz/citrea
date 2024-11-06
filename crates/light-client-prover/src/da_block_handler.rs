@@ -195,6 +195,8 @@ where
                 // If the prev block is the block before the first processed l1 block
                 // then we don't have a previous light client proof, so just give an info
                 if previous_l1_height == initial_l1_height {
+                    // TODO: Provide genesis state root here to the light client proof circuit input
+
                     tracing::info!(
                         "No previous light client proof found for L1 block: {}",
                         previous_l1_height
