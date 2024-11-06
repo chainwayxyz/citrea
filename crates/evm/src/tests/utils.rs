@@ -274,7 +274,7 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
             },
             nonce: 1
         }],
-        spec: vec![(0, SpecId::BERLIN), (1, SpecId::SHANGHAI)]
+        spec: vec![(0, SpecId::SHANGHAI)]
             .into_iter()
             .collect(),
         chain_id: 1000,

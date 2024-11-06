@@ -106,7 +106,7 @@ pub struct HookSoftConfirmationInfo {
 
 impl HookSoftConfirmationInfo {
     pub fn new(
-        signed_soft_confirmation: SignedSoftConfirmation,
+        signed_soft_confirmation: &SignedSoftConfirmation,
         pre_state_root: Vec<u8>,
         current_spec: SpecId,
     ) -> Self {

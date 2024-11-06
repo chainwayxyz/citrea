@@ -209,7 +209,7 @@ where
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
         let hook_soft_confirmation_info =
-            HookSoftConfirmationInfo::new(soft_confirmation.clone(), pre_state_root, current_spec);
+            HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);
 
         if let Err(e) = self
             .runtime
