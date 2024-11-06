@@ -137,7 +137,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
+        .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
@@ -164,7 +164,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
+        .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register(inspector_handle_register)
         .build();
@@ -190,7 +190,7 @@ where
         .with_db(db)
         .with_external_context(&mut ext)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
+        .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register(citrea_handle_register)
         .build();

@@ -1,3 +1,4 @@
+use alloy_eips::eip4844::MAX_DATA_GAS_PER_BLOCK;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
@@ -86,6 +87,7 @@ pub(crate) fn execute_multiple_tx<
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
+    blob_gas_used: &mut u64,
 ) -> Vec<Result<ExecutionResult, EVMError<DBError>>> {
     if txs.is_empty() {
         return vec![];
@@ -103,6 +105,19 @@ pub(crate) fn execute_multiple_tx<
         let _span =
             trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
                 .entered();
+
+        if tx.is_eip4844()
+            // can unwrap because we checked if it's EIP-4844
+            && *blob_gas_used + tx.blob_gas_used().unwrap() > MAX_DATA_GAS_PER_BLOCK
+        {
+            native_error!("Blob gas used exceeds block gas limit");
+            tx_results.push(Err(EVMError::Custom(format!(
+                "Blob gas used exceeds block gas limit {:?}",
+                block_gas_limit
+            ))));
+            continue;
+        }
+
         let result_and_state = match evm.transact(tx) {
             Ok(result_and_state) => result_and_state,
             Err(e) => {
@@ -129,6 +144,11 @@ pub(crate) fn execute_multiple_tx<
             native_trace!("Commiting tx to DB");
             evm.commit(result_and_state.state);
             cumulative_gas_used += result_and_state.result.gas_used();
+
+            if tx.is_eip4844() {
+                *blob_gas_used += tx.blob_gas_used().unwrap();
+            }
+
             Ok(result_and_state.result)
         };
         tx_results.push(result);

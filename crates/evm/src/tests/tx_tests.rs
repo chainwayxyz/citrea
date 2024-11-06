@@ -163,7 +163,7 @@ fn prepare_call_block_env() {
     );
     assert_eq!(block_env.gas_limit, U256::from(block.header.gas_limit));
     assert_eq!(
-        block_env.prevrandao.unwrap_or_else(|| Default::default()),
+        block_env.prevrandao.unwrap_or_default(),
         block.header.mix_hash
     );
 }

@@ -1,4 +1,3 @@
-use alloy_eips::calc_excess_blob_gas;
 use alloy_primitives::B256;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::{Bloom, Bytes, U256};
@@ -33,6 +32,8 @@ where
         // it has implications way beyond our understanding
         // a holy line
         self.pending_transactions.clear();
+        // we have to set blob gas used to zero at the beginning of the block
+        self.blob_gas_used = 0;
 
         let mut parent_block = self
             .head
@@ -155,11 +156,6 @@ where
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
     ) {
-        let cfg = self
-            .cfg
-            .get(working_set)
-            .expect("EVM chain config should be set");
-
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
         let parent_block = self
@@ -223,20 +219,14 @@ where
             blob_gas_used: if citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec)
                 >= SpecId::CANCUN
             {
-                pending_transactions.iter().fold(0, |acc, tx| {
-                    acc + tx
-                        .transaction
-                        .signed_transaction
-                        .transaction
-                        .blob_gas_used()
-                        .unwrap_or(0)
-                })
+                Some(self.blob_gas_used)
             } else {
                 None
             },
             excess_blob_gas: self
                 .block_env
                 .blob_excess_gas_and_price
+                .as_ref()
                 .map(|x| x.excess_blob_gas),
             // EIP-4788 related field
             // unrelated for rollups

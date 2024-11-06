@@ -1646,12 +1646,12 @@ fn test_call_with_block_overrides() {
 
 #[test]
 fn test_blob_tx() {
-    let (config, dev_signer, contract_addr) =
+    let (config, dev_signer, _contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
     let (mut evm, mut working_set) = get_evm(&config);
 
     let l1_fee_rate = 0;
-    let mut l2_height = 2;
+    let l2_height = 2;
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
