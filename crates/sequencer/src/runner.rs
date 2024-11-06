@@ -13,7 +13,6 @@ use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
-use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
@@ -470,8 +469,13 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_confirmation =
-                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?;
+                let mut signed_soft_confirmation = if active_fork_spec
+                    >= sov_modules_api::SpecId::Fork1
+                {
+                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                } else {
+                    self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                };
 
                 let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     active_fork_spec,
@@ -782,8 +786,38 @@ where
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
-        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
+        let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
+        let hash = Into::<[u8; 32]>::into(digest);
 
+        let signature = self.sov_tx_signer_priv_key.sign(&hash);
+        let pub_key = self.sov_tx_signer_priv_key.pub_key();
+        Ok(SignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
+            hash,
+            prev_soft_confirmation_hash,
+            soft_confirmation.da_slot_height(),
+            soft_confirmation.da_slot_hash(),
+            soft_confirmation.da_slot_txs_commitment(),
+            soft_confirmation.l1_fee_rate(),
+            soft_confirmation.txs().into(),
+            soft_confirmation.deposit_data(),
+            borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
+            borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,
+            soft_confirmation.timestamp(),
+        ))
+    }
+
+    /// Old version of sign_soft_confirmation_batch
+    /// TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
+    ///   when removing this fn
+    /// FIXME: ^
+    fn pre_fork1_sign_soft_confirmation_batch<'txs>(
+        &mut self,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
+        prev_soft_confirmation_hash: [u8; 32],
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
+        use digest::Digest;
+        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
