@@ -55,7 +55,7 @@ where
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
-    rpc.register_blocking_method("ledger_getL2GenesisStateRoot", move |params, ledger, _| {
+    rpc.register_blocking_method("ledger_getL2GenesisStateRoot", move |_, ledger, _| {
         ledger
             .get_l2_genesis_state_root()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))

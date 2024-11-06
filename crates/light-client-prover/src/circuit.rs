@@ -1,3 +1,5 @@
+use core::panic;
+
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
@@ -114,7 +116,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             recursive_match_state_roots(
                 &mut initial_to_final,
                 &BatchProofInfo::new(
-                    previous_output.state_root,
+                    output.initial_state_root,
                     output.final_state_root,
                     output.last_l2_height,
                 ),
@@ -138,6 +140,38 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
         // Collect unchained outputs
         unchained_outputs = collect_unchained_outputs(&mut initial_to_final);
+    }
+    // First light client proof
+    else if let Some(genesis_state_root) = input.l2_genesis_state_root {
+        last_l2_height = 0;
+        last_state_root = genesis_state_root;
+
+        for output in deserialized_outputs.iter() {
+            recursive_match_state_roots(
+                &mut initial_to_final,
+                &BatchProofInfo::new(
+                    output.initial_state_root,
+                    output.final_state_root,
+                    output.last_l2_height,
+                ),
+            );
+        }
+
+        // Do recursive matching for previous/genesis state root
+        recursive_match_state_roots(
+            &mut initial_to_final,
+            &BatchProofInfo::new(genesis_state_root, genesis_state_root, 0),
+        );
+        // Now only thing left is the state update if exists and others are unchained
+        if let Some((final_root, last_l2)) = initial_to_final.remove(&genesis_state_root) {
+            last_l2_height = last_l2;
+            last_state_root = final_root;
+        }
+
+        // Collect unchained outputs
+        unchained_outputs = collect_unchained_outputs(&mut initial_to_final);
+    } else {
+        panic!("Should have either a previous light client proof or a genesis state root");
     }
 
     Ok(LightClientCircuitOutput {

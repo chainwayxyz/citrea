@@ -197,7 +197,7 @@ where
                 // then we don't have a previous light client proof, so just give an info
                 if previous_l1_height == initial_l1_height {
                     // TODO: Provide genesis state root here to the light client proof circuit input
-                    let l2_genesis_state_root: Option<[u8; 32]> = self
+                    l2_genesis_state_root = self
                         .sequencer_client
                         .get_l2_genesis_state_root()
                         .await?
