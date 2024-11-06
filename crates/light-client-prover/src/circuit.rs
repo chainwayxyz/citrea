@@ -95,9 +95,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         last_l2_height = previous_output.last_l2_height;
         last_state_root = previous_output.state_root;
         for unchained_info in previous_output.unchained_batch_proofs_info.iter() {
-            if unchained_info.last_l2_height <= previous_output.last_l2_height {
-                continue;
-            }
             // Add them directly as they are the ones that could not be matched
             initial_to_final.insert(
                 unchained_info.initial_state_root,
