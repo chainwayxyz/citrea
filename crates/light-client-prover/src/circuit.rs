@@ -103,7 +103,7 @@ fn verify_header_chain<Spec: DaSpec, G: ZkvmGuest>(
 
     let previous_light_client_proof_output =
         G::verify_and_extract_output::<LightClientCircuitOutput<Spec>>(
-            &previous_light_client_proof_journal,
+            previous_light_client_proof_journal,
             &input.light_client_proof_method_id.into(),
         )
         .expect("Got invalid previous light client proof");
@@ -201,6 +201,6 @@ fn bits_to_target(bits: u32) -> [u8; 32] {
 fn target_to_work(target: &[u8; 32]) -> U256 {
     let target = U256::from_be_slice(target);
     let target_plus_one = target.saturating_add(&U256::ONE);
-    let work = U256::MAX.wrapping_div(&target_plus_one);
-    work
+
+    U256::MAX.wrapping_div(&target_plus_one)
 }
