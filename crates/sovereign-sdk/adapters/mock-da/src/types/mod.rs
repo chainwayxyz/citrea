@@ -91,7 +91,7 @@ impl MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
         let txs_commitment = u64_to_bytes(height + 1);
-        let bits = (height + 1) as u32;
+        let bits = 0;
         MockBlockHeader {
             prev_hash: MockHash(prev_hash),
             hash: MockHash(hash),
