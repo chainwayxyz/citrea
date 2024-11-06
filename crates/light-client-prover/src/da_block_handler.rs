@@ -175,6 +175,7 @@ where
         }
         let previous_l1_height = l1_height - 1;
         let mut light_client_proof_journal = None;
+        let mut l2_genesis_state_root = None;
         match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
@@ -196,6 +197,11 @@ where
                 // then we don't have a previous light client proof, so just give an info
                 if previous_l1_height == initial_l1_height {
                     // TODO: Provide genesis state root here to the light client proof circuit input
+                    let l2_genesis_state_root: Option<[u8; 32]> = self
+                        .sequencer_client
+                        .get_l2_genesis_state_root()
+                        .await?
+                        .map(|v| v.as_slice().try_into().unwrap());
 
                     tracing::info!(
                         "No previous light client proof found for L1 block: {}",
@@ -223,6 +229,8 @@ where
             light_client_proof_method_id: self.light_client_proof_code_commitment.clone().into(),
 
             light_client_proof_journal,
+
+            l2_genesis_state_root,
         };
 
         let proof = self.prove(circuit_input, assumptions).await?;

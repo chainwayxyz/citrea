@@ -280,4 +280,6 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Light client proof output
     /// Optional because the first light client proof doesn't have a previous proof
     pub light_client_proof_journal: Option<Vec<u8>>,
+    /// L2 Genesis state root
+    pub l2_genesis_state_root: Option<[u8; 32]>,
 }
