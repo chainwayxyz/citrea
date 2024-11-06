@@ -84,10 +84,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let mut unchained_outputs = vec![];
+    let unchained_outputs;
 
-    let mut last_state_root = [0u8; 32];
-    let mut last_l2_height = 0;
+    let mut last_state_root;
+    let mut last_l2_height;
 
     // If we have a previous light client proof, check they can be chained
     // If not, skip for now
