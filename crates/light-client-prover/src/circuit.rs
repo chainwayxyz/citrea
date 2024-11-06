@@ -118,7 +118,7 @@ fn verify_da_block<Spec: DaSpec>(
     let target = bits_to_target(da_block_header.bits());
     let work_add = target_to_work(&target);
 
-    // TODO: this is first light client proof, hardcode the first da block and verify accordingly, first da block should be an epoch start block
+    // TODO: this is first light client proof, hardcode the first da block and verify accordingly
     let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
         // First light client proof must start from the first epoch block
         return BlockUpdates {
