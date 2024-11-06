@@ -1669,8 +1669,8 @@ pub(crate) fn build_rpc_receipt(
         state_root: None,
         // EIP-4844 related
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        blob_gas_price: None,
-        blob_gas_used: None,
+        blob_gas_price: transaction.max_fee_per_blob_gas(),
+        blob_gas_used: transaction.blob_gas_used().map(|x| x.into()),
         authorization_list: None,
     };
     AnyTransactionReceipt {

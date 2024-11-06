@@ -3,7 +3,9 @@ use std::str::FromStr;
 
 use alloy_eips::BlockId;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, U64};
+use reth_primitives::{
+    address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, B256, U64,
+};
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::BlockOverrides;
 use revm::primitives::{hex, KECCAK_EMPTY, U256};
@@ -1640,4 +1642,73 @@ fn test_call_with_block_overrides() {
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);
     assert_eq!(call_result, expected_hash);
+}
+
+#[test]
+fn test_blob_tx() {
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+    let (mut evm, mut working_set) = get_evm(&config);
+
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1, // wont be Fork1 at height 2 currently but we can trick the spec id
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    // Deploy block hashes contract
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sequencer_address = generate_address::<C>("sequencer");
+        let context = C::new(
+            sender_address,
+            sequencer_address,
+            l2_height,
+            SovSpecId::Genesis,
+            l1_fee_rate,
+        );
+
+        let blob_message = dev_signer
+            .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
+            .unwrap();
+
+        evm.call(
+            CallMessage {
+                txs: vec![blob_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let last_block = evm
+        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
+        .unwrap()
+        .unwrap();
+
+    println!("{:?}", last_block);
+
+    let receipt = evm
+        .get_block_receipts(
+            BlockId::Number(BlockNumberOrTag::Number(2)),
+            &mut working_set,
+        )
+        .unwrap()
+        .unwrap();
+
+    println!("receipt: {:?}", receipt);
 }

@@ -2,7 +2,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use reth_primitives::{
     Address, Bytes as RethBytes, Transaction as RethTransaction, TxEip1559 as RethTxEip1559,
-    TxKind, U256,
+    TxEip4844 as RethTxEip4844, TxKind, B256, U256,
 };
 use secp256k1::{PublicKey, SecretKey};
 
@@ -102,6 +102,31 @@ impl TestSigner {
         };
 
         let reth_tx = RethTransaction::Eip1559(reth_tx);
+        let signed = self.signer.sign_transaction(reth_tx, self.address)?;
+
+        Ok(RlpEvmTransaction {
+            rlp: signed.envelope_encoded().to_vec(),
+        })
+    }
+
+    pub(crate) fn sign_blob_transaction(
+        &self,
+        to: Address,
+        blob_versioned_hashes: Vec<B256>,
+        nonce: u64,
+    ) -> Result<RlpEvmTransaction, SignError> {
+        let reth_tx = RethTxEip4844 {
+            to,
+            nonce,
+            chain_id: DEFAULT_CHAIN_ID,
+            blob_versioned_hashes,
+            max_fee_per_blob_gas: 100000000000u128,
+            max_fee_per_gas: 100000000000u128,
+            gas_limit: 1_000_000u64,
+            ..Default::default()
+        };
+
+        let reth_tx = RethTransaction::Eip4844(reth_tx);
         let signed = self.signer.sign_transaction(reth_tx, self.address)?;
 
         Ok(RlpEvmTransaction {

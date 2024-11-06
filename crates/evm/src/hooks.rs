@@ -1,3 +1,4 @@
+use alloy_eips::calc_excess_blob_gas;
 use alloy_primitives::B256;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use reth_primitives::{Bloom, Bytes, U256};
@@ -93,6 +94,18 @@ where
 
         let active_evm_spec = citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec);
 
+        let blob_excess_gas_and_price = sealed_parent_block
+            .header
+            .next_block_excess_blob_gas()
+            .or_else(|| {
+                if active_evm_spec >= SpecId::CANCUN {
+                    Some(0)
+                } else {
+                    None
+                }
+            })
+            .map(BlobExcessGasAndPrice::new);
+
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number + 1),
             coinbase: cfg.coinbase,
@@ -101,14 +114,7 @@ where
             basefee: U256::from(basefee),
             gas_limit: U256::from(cfg.block_gas_limit),
             difficulty: U256::ZERO,
-            blob_excess_gas_and_price: if active_evm_spec >= SpecId::CANCUN {
-                Some(BlobExcessGasAndPrice {
-                    excess_blob_gas: 0,
-                    blob_gasprice: 0,
-                })
-            } else {
-                None
-            },
+            blob_excess_gas_and_price,
         };
 
         // set early. so that if underlying calls use `self.block_env`
@@ -189,13 +195,6 @@ where
             .map(|tx| tx.receipt.receipt.clone().with_bloom())
             .collect();
 
-        let base_fee_per_gas = calculate_next_block_base_fee(
-            parent_block.header.gas_used as u128,
-            parent_block.header.gas_limit as u128,
-            parent_block.header.base_fee_per_gas.unwrap_or_default(),
-            cfg.base_fee_params,
-        );
-
         let header = reth_primitives::Header {
             parent_hash: parent_block.header.hash(),
             timestamp: self.block_env.timestamp.saturating_to(),
@@ -215,14 +214,30 @@ where
             difficulty: U256::ZERO,
             gas_limit: self.block_env.gas_limit.saturating_to(),
             gas_used,
-            mix_hash: self.block_env.prevrandao.unwrap_or_else(|| B256::default()),
+            mix_hash: self.block_env.prevrandao.unwrap_or_default(),
             nonce: 0,
-            base_fee_per_gas: Some(base_fee_per_gas as u64),
+            base_fee_per_gas: Some(self.block_env.basefee.saturating_to()),
             extra_data: Bytes::default(),
             // EIP-4844 related fields
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-            blob_gas_used: None,
-            excess_blob_gas: None,
+            blob_gas_used: if citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec)
+                >= SpecId::CANCUN
+            {
+                pending_transactions.iter().fold(0, |acc, tx| {
+                    acc + tx
+                        .transaction
+                        .signed_transaction
+                        .transaction
+                        .blob_gas_used()
+                        .unwrap_or(0)
+                })
+            } else {
+                None
+            },
+            excess_blob_gas: self
+                .block_env
+                .blob_excess_gas_and_price
+                .map(|x| x.excess_blob_gas),
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
