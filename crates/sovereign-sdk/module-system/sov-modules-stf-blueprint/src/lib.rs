@@ -258,27 +258,53 @@ where
         );
 
         // check the claimed hash
-        let digest = unsigned.compute_digest::<<C as Spec>::Hasher>();
-        if soft_confirmation.hash() != Into::<[u8; 32]>::into(digest) {
-            return (
-                Err(SoftConfirmationError::InvalidSoftConfirmationHash),
-                batch_workspace.revert(),
-            );
-        }
+        if current_spec >= SpecId::Fork3 {
+            let digest = unsigned.compute_digest::<<C as Spec>::Hasher>();
+            let hash = Into::<[u8; 32]>::into(digest);
+            if soft_confirmation.hash() != hash {
+                return (
+                    Err(SoftConfirmationError::InvalidSoftConfirmationHash),
+                    batch_workspace.revert(),
+                );
+            }
 
-        // verify signature
-        if verify_soft_confirmation_signature::<C>(
-            soft_confirmation,
-            soft_confirmation.signature(),
-            sequencer_public_key,
-        )
-        .is_err()
-        {
-            return (
-                Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
-                batch_workspace.revert(),
-            );
-        }
+            // verify signature
+            if verify_soft_confirmation_signature::<C>(
+                soft_confirmation,
+                soft_confirmation.signature(),
+                sequencer_public_key,
+            )
+            .is_err()
+            {
+                return (
+                    Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
+                    batch_workspace.revert(),
+                );
+            }
+        } else {
+            let digest = unsigned.pre_fork_3_hash::<<C as Spec>::Hasher>();
+            let hash = Into::<[u8; 32]>::into(digest);
+            if soft_confirmation.hash() != hash {
+                return (
+                    Err(SoftConfirmationError::InvalidSoftConfirmationHash),
+                    batch_workspace.revert(),
+                );
+            }
+
+            // verify signature
+            if pre_fork_3_verify_soft_confirmation_signature::<C>(
+                &unsigned,
+                soft_confirmation.signature(),
+                sequencer_public_key,
+            )
+            .is_err()
+            {
+                return (
+                    Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
+                    batch_workspace.revert(),
+                );
+            }
+        };
 
         self.end_soft_confirmation_inner(
             current_spec,
@@ -803,6 +829,27 @@ fn verify_soft_confirmation_signature<C: Context>(
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
     let message = signed_soft_confirmation.hash();
+
+    let signature = C::Signature::try_from(signature)?;
+
+    signature.verify(
+        &C::PublicKey::try_from(sequencer_public_key)?,
+        message.as_slice(),
+    )?;
+
+    Ok(())
+}
+
+// Old version of verify_soft_confirmation_signature
+// TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
+//   when removing this fn
+// FIXME: ^
+fn pre_fork_3_verify_soft_confirmation_signature<C: Context>(
+    unsigned_soft_confirmation: &UnsignedSoftConfirmation,
+    signature: &[u8],
+    sequencer_public_key: &[u8],
+) -> Result<(), anyhow::Error> {
+    let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
 
     let signature = C::Signature::try_from(signature)?;
 

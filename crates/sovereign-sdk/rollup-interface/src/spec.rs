@@ -41,6 +41,7 @@ mod spec {
         Copy,
         Eq,
         PartialEq,
+        PartialOrd,
         Default,
         BorshDeserialize,
         BorshSerialize,
@@ -58,5 +59,7 @@ mod spec {
         Fork1 = 1,
         /// Second fork
         Fork2 = 2,
+        /// Third fork
+        Fork3 = 3,
     }
 }
