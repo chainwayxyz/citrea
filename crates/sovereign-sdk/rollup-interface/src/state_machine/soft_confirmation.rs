@@ -101,7 +101,7 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
     // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
     //   when removing this fn
     // FIXME: ^
-    pub fn pre_fork_3_hash<D: Digest>(&self) -> Output<D> {
+    pub fn pre_fork1_hash<D: Digest>(&self) -> Output<D> {
         let raw = borsh::to_vec(&self).unwrap();
         D::digest(raw.as_slice())
     }

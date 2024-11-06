@@ -258,7 +258,7 @@ where
         );
 
         // check the claimed hash
-        if current_spec >= SpecId::Fork3 {
+        if current_spec >= SpecId::Fork1 {
             let digest = unsigned.compute_digest::<<C as Spec>::Hasher>();
             let hash = Into::<[u8; 32]>::into(digest);
             if soft_confirmation.hash() != hash {
@@ -282,7 +282,7 @@ where
                 );
             }
         } else {
-            let digest = unsigned.pre_fork_3_hash::<<C as Spec>::Hasher>();
+            let digest = unsigned.pre_fork1_hash::<<C as Spec>::Hasher>();
             let hash = Into::<[u8; 32]>::into(digest);
             if soft_confirmation.hash() != hash {
                 return (
@@ -292,7 +292,7 @@ where
             }
 
             // verify signature
-            if pre_fork_3_verify_soft_confirmation_signature::<C>(
+            if pre_fork1_verify_soft_confirmation_signature::<C>(
                 &unsigned,
                 soft_confirmation.signature(),
                 sequencer_public_key,
@@ -844,7 +844,7 @@ fn verify_soft_confirmation_signature<C: Context>(
 // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
 //   when removing this fn
 // FIXME: ^
-fn pre_fork_3_verify_soft_confirmation_signature<C: Context>(
+fn pre_fork1_verify_soft_confirmation_signature<C: Context>(
     unsigned_soft_confirmation: &UnsignedSoftConfirmation,
     signature: &[u8],
     sequencer_public_key: &[u8],

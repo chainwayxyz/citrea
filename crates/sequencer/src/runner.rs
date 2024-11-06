@@ -470,11 +470,11 @@ where
                 );
 
                 let mut signed_soft_confirmation = if active_fork_spec
-                    >= sov_modules_api::SpecId::Fork3
+                    >= sov_modules_api::SpecId::Fork1
                 {
                     self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
                 } else {
-                    self.pre_fork_3_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                    self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
                 };
 
                 let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
@@ -811,7 +811,7 @@ where
     /// TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
     ///   when removing this fn
     /// FIXME: ^
-    fn pre_fork_3_sign_soft_confirmation_batch<'txs>(
+    fn pre_fork1_sign_soft_confirmation_batch<'txs>(
         &mut self,
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
         prev_soft_confirmation_hash: [u8; 32],
