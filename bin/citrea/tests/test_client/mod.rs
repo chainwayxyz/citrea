@@ -515,7 +515,7 @@ impl TestClient {
 
     pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
         self.http_client
-            .request("ledger_getLastScannedL1Hieght", rpc_params![])
+            .request("ledger_getLastScannedL1Height", rpc_params![])
             .await
             .unwrap()
     }

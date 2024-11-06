@@ -60,7 +60,7 @@ where
             .get_l2_genesis_state_root()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
     })?;
-    rpc.register_blocking_method("ledger_getLastScannedL1Hieght", move |_, ledger, _| {
+    rpc.register_blocking_method("ledger_getLastScannedL1Height", move |_, ledger, _| {
         ledger
             .get_last_scanned_l1_height()
             .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
