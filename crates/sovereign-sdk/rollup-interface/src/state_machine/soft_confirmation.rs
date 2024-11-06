@@ -12,7 +12,7 @@ use digest::{Digest, Output};
 use serde::{Deserialize, Serialize};
 
 /// Contains raw transactions and information about the soft confirmation block
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, BorshSerialize)]
 pub struct UnsignedSoftConfirmation<'txs> {
     l2_height: u64,
     da_slot_height: u64,
@@ -96,6 +96,14 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
         hasher.update(self.l1_fee_rate.to_be_bytes());
         hasher.update(self.timestamp.to_be_bytes());
         hasher.finalize()
+    }
+    /// Old version of compute_digest
+    // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
+    //   when removing this fn
+    // FIXME: ^
+    pub fn pre_fork1_hash<D: Digest>(&self) -> Output<D> {
+        let raw = borsh::to_vec(&self).unwrap();
+        D::digest(raw.as_slice())
     }
 }
 
