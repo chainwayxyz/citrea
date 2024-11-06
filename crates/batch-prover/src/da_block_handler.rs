@@ -35,7 +35,7 @@ use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1};
 
 type CommitmentStateTransitionData<'txs, Witness, Da> = (
     VecDeque<Vec<(Witness, Witness)>>,
-    VecDeque<Vec<SignedSoftConfirmation>>,
+    VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
