@@ -17,7 +17,7 @@ use jsonrpsee::RpcModule;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_modules_api::Context;
+use sov_modules_api::{Context, SignedSoftConfirmation};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -248,6 +248,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
+        let mut signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
@@ -258,7 +259,7 @@ where
             Default::default(),
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
-            &mut soft_confirmation.clone().into(),
+            &mut signed_soft_confirmation,
         )?;
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
@@ -274,11 +275,14 @@ where
 
         self.storage_manager.finalize_l2(l2_height)?;
 
-        self.ledger_db.commit_soft_confirmation(
-            next_state_root.as_ref(),
-            receipt,
-            self.include_tx_body,
-        )?;
+        let tx_bodies = if self.include_tx_body {
+            Some(signed_soft_confirmation.txs().to_owned())
+        } else {
+            None
+        };
+
+        self.ledger_db
+            .commit_soft_confirmation(next_state_root.as_ref(), receipt, tx_bodies)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),

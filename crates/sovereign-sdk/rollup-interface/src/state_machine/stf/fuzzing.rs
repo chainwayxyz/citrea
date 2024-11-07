@@ -135,7 +135,6 @@ impl<R: proptest::arbitrary::Arbitrary + 'static> proptest::arbitrary::Arbitrary
                     };
                     Self {
                         tx_hash,
-                        body_to_save,
                         events,
                         receipt,
                     }

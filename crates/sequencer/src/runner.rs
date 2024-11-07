@@ -521,8 +521,12 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                self.ledger_db
-                    .commit_soft_confirmation(next_state_root.as_ref(), receipt, true)?;
+                let tx_bodies = signed_soft_confirmation.txs().to_owned();
+                self.ledger_db.commit_soft_confirmation(
+                    next_state_root.as_ref(),
+                    receipt,
+                    Some(tx_bodies),
+                )?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
