@@ -104,6 +104,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
         })
     }
 }
+
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
 pub struct BitcoinService {
@@ -214,18 +215,6 @@ impl BitcoinService {
         mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
         token: CancellationToken,
     ) {
-        let mut prev_utxo = match self.get_prev_utxo().await {
-            Ok(Some(prev_utxo)) => Some(prev_utxo),
-            Ok(None) => {
-                info!("No pending transactions found");
-                None
-            }
-            Err(e) => {
-                error!(?e, "Failed to get pending transactions");
-                None
-            }
-        };
-
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
 
         loop {
@@ -238,7 +227,6 @@ impl BitcoinService {
                 request_opt = rx.recv() => {
                     if let Some(request) = request_opt {
                         trace!("A new request is received");
-                        let prev = prev_utxo.take();
                         loop {
                             // Build and send tx with retries:
                             let fee_sat_per_vbyte = match self.get_fee_rate().await {
@@ -251,25 +239,15 @@ impl BitcoinService {
                             };
                             match self
                                 .send_transaction_with_fee_rate(
-                                    prev.clone(),
                                     request.da_data.clone(),
                                     fee_sat_per_vbyte,
                                 )
                                 .await
                             {
-                            Ok((txids, tx)) => {
-                                let tx_id = TxidWrapper(tx.id);
-                                info!(%tx.id, "Sent tx to BitcoinDA");
-                                prev_utxo = Some(UTXO {
-                                    tx_id: tx.id,
-                                    vout: 0,
-                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-                                    address: None,
-                                    amount: tx.tx.output[0].value.to_sat(),
-                                    confirmations: 0,
-                                    spendable: true,
-                                    solvable: true,
-                                });
+                            Ok(txids) => {
+                                let txid = txids.last().unwrap();
+                                let tx_id = TxidWrapper(*txid);
+                                info!(%txid, "Sent tx to BitcoinDA");
                                 let _ = request.notify.send(Ok(tx_id));
 
                                 if let Err(e) = self.monitoring.monitor_transaction_chain(txids).await {
@@ -291,28 +269,18 @@ impl BitcoinService {
     }
 
     /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
-    /// `get_prev_utxo` is called on service startup in `spawn_da_queue`.
-    /// On very first startup, return any most recent UTXO.
-    /// Any subsequent startup would return latest reveal TX first output.
-    /// Sorts by (confirmations - ancestor_count), where lower values indicate more recent transactions.
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_prev_utxo(&self) -> Result<Option<UTXO>> {
-        let mut previous_utxos = self
-            .client
-            .list_unspent(Some(0), None, None, Some(true), None)
-            .await?;
+    async fn get_prev_utxo(&self) -> Option<UTXO> {
+        let (txid, tx) = self.monitoring.get_last_tx().await?;
 
-        // Make sure to retain only first utxo to keep utxo chaining logic in line with `spawn_da_queue` inner loop
-        previous_utxos.retain(|u| u.spendable && u.solvable && u.vout == 0);
+        let utxos = tx.to_utxos()?;
 
-        // Sort by (confirmations - ancestor_count)
-        // If any tx in mempool, confirmation would be 0 and ancestor count Some(_), giving us a negative value and prioritising in-mempool TXs
-        // If no tx in mempool, confirmation would be >= 0 and ancestor count None
-        previous_utxos.sort_unstable_by_key(|utxo| {
-            utxo.confirmations as i64 - (utxo.ancestor_count.unwrap_or(0) as i64)
-        });
+        // Check that tx out is still spendable
+        // If not found, utxo is already spent
+        self.client.get_tx_out(&txid, 0, Some(true)).await.ok()??;
 
-        Ok(previous_utxos.into_iter().next().map(|u| u.into()))
+        // Return first vout
+        utxos.into_iter().next()
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -354,24 +322,16 @@ impl BitcoinService {
     #[instrument(level = "trace", fields(prev_utxo), ret, err)]
     pub async fn send_transaction_with_fee_rate(
         &self,
-        mut prev_utxo: Option<UTXO>,
         da_data: DaData,
         fee_sat_per_vbyte: u64,
-    ) -> Result<(Vec<Txid>, TxWithId)> {
+    ) -> Result<Vec<Txid>> {
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
 
         // get all available utxos
         let utxos = self.get_utxos().await?;
-
-        // If Utxo has already been spent, fallback to get_prev_utxo
-        // Would happen in case of cpfp spending reveal output
-        if let Some(prev) = &prev_utxo {
-            if !utxos.iter().any(|utxo| utxo == prev) {
-                prev_utxo = self.get_prev_utxo().await?;
-            }
-        }
+        let prev_utxo = self.get_prev_utxo().await;
 
         // get address from a utxo
         let address = utxos[0]
@@ -461,7 +421,7 @@ impl BitcoinService {
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
-    ) -> Result<(Vec<Txid>, TxWithId)> {
+    ) -> Result<Vec<Txid>> {
         debug!("Sending chunked transaction");
         let mut raw_txs = Vec::with_capacity(commit_chunks.len() * 2 + 2);
 
@@ -495,14 +455,14 @@ impl BitcoinService {
             info!("Blob chunk aggregate tx sent. Hash: {last_txid}");
         }
 
-        Ok((txids, reveal))
+        Ok(txids)
     }
 
     pub async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
-    ) -> Result<(Vec<Txid>, TxWithId)> {
+    ) -> Result<Vec<Txid>> {
         let signed_raw_commit_tx = self
             .client
             .sign_raw_transaction_with_wallet(&commit, None, None)
@@ -514,7 +474,7 @@ impl BitcoinService {
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);
-        Ok((txids, reveal))
+        Ok(txids)
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -617,7 +577,7 @@ impl BitcoinService {
         };
         debug!("Creating CPFP TX for {parent_txid}");
 
-        let Some(utxo) = self.get_prev_utxo().await? else {
+        let Some(utxo) = self.get_prev_utxo().await else {
             bail!("Cannot bump fee for TX without prev_utxo available")
         };
 

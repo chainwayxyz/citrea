@@ -292,7 +292,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let fee_sat_per_vbyte = bitcoin_da_service.get_fee_rate().await.unwrap();
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                None,
                 DaData::SequencerCommitment(commitments.first().unwrap().clone()),
                 fee_sat_per_vbyte,
             )

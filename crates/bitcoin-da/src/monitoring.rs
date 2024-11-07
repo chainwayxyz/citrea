@@ -3,8 +3,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
-use bitcoin::{BlockHash, Transaction, Txid};
+use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use crate::service::FINALITY_DEPTH;
+use crate::spec::utxo::UTXO;
 
 const DEFAULT_CHECK_INTERVAL: u64 = 60;
 const DEFAULT_HISTORY_LIMIT: usize = 1_000; // Keep track of last 1k txs
@@ -50,12 +52,43 @@ pub enum TxStatus {
 #[derive(Debug, Clone)]
 pub struct MonitoredTx {
     pub tx: Transaction,
+    pub address: Option<Address<NetworkUnchecked>>,
     pub initial_broadcast: u64,
     pub initial_height: BlockHeight,
     pub last_checked: Instant,
     pub status: TxStatus,
     pub prev_tx: Option<Txid>, // Previous tx in chain
     pub next_tx: Option<Txid>, // Next tx in chain
+}
+
+impl MonitoredTx {
+    pub fn to_utxos(&self) -> Option<Vec<UTXO>> {
+        let confirmations = match self.status {
+            TxStatus::Pending { .. } => 0,
+            TxStatus::Confirmed { confirmations, .. }
+            | TxStatus::Finalized { confirmations, .. } => confirmations,
+            _ => return None,
+        };
+
+        let tx_id = self.tx.compute_txid();
+        Some(
+            self.tx
+                .output
+                .iter()
+                .enumerate()
+                .map(|(vout, output)| UTXO {
+                    tx_id,
+                    vout: vout as u32,
+                    address: self.address.clone(),
+                    script_pubkey: output.script_pubkey.to_hex_string(),
+                    amount: output.value.to_sat(),
+                    confirmations: confirmations as u32,
+                    spendable: true,
+                    solvable: true,
+                })
+                .collect(),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -159,7 +192,7 @@ impl MonitoringService {
             .await?;
 
         unspent.sort_unstable_by_key(|utxo| {
-            utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64
+            utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64 - utxo.vout as i64
         });
 
         let txids = unspent.into_iter().map(|utxo| utxo.txid).collect();
@@ -199,7 +232,7 @@ impl MonitoringService {
             return Err(MonitorError::OddNumberOfTxs);
         }
 
-        let mut last_tx = *self.last_tx.lock().await;
+        let mut last_tx = self.last_tx.lock().await.clone();
 
         let mut txids_iter = txids.into_iter();
         while let (Some(commit_txid), Some(reveal_txid)) = (txids_iter.next(), txids_iter.next()) {
@@ -211,8 +244,6 @@ impl MonitoringService {
 
             last_tx = Some(reveal_txid)
         }
-
-        *self.last_tx.lock().await = last_tx;
 
         Ok(())
     }
@@ -243,6 +274,10 @@ impl MonitoringService {
         let status = self.determine_tx_status(&tx_result).await?;
         let monitored_tx = MonitoredTx {
             tx,
+            address: tx_result
+                .details
+                .get(0)
+                .and_then(|detail| detail.address.clone()),
             initial_broadcast: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -255,6 +290,9 @@ impl MonitoringService {
         };
 
         self.monitored_txs.write().await.insert(txid, monitored_tx);
+
+        *self.last_tx.lock().await = Some(txid);
+        debug!("[monitor_transaction_chain] setting last_tx : {:?}", txid);
 
         Ok(())
     }
