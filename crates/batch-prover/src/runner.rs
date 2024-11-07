@@ -395,6 +395,7 @@ where
             &self.state_root,
             pre_state,
             Default::default(),
+            Default::default(),
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
             &mut soft_confirmation.clone().into(),
@@ -411,9 +412,13 @@ where
         // Save state diff to ledger DB
         self.ledger_db
             .set_l2_state_diff(BatchNumber(l2_height), soft_confirmation_result.state_diff)?;
-        // Save witness data to ledger db
-        self.ledger_db
-            .set_l2_witness(l2_height, &soft_confirmation_result.witness)?;
+
+        // Save witnesses data to ledger db
+        self.ledger_db.set_l2_witness(
+            l2_height,
+            &soft_confirmation_result.witness,
+            &soft_confirmation_result.offchain_witness,
+        )?;
 
         self.storage_manager
             .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;

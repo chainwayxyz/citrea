@@ -266,8 +266,8 @@ define_table_with_default_codec!(
 );
 
 define_table_with_default_codec!(
-    /// The primary source of witness by L2 height
-    (L2Witness) BatchNumber => Vec<u8>
+    /// The primary source of state & offchain witnesses by L2 height
+    (L2Witness) BatchNumber => (Vec<u8>, Vec<u8>)
 );
 
 define_table_with_default_codec!(

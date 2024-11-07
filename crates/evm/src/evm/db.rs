@@ -1,7 +1,7 @@
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
-use reth_primitives::{Address, B256};
+use reth_primitives::{keccak256, Address, B256};
 use revm::primitives::{AccountInfo as ReVmAccountInfo, Bytecode, U256};
 use revm::Database;
 use sov_modules_api::{StateMapAccessor, WorkingSet};
@@ -11,11 +11,17 @@ use super::{AccountInfo, DbAccount};
 
 // infallible
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum DBError {}
+pub enum DBError {
+    CodeHashMismatch,
+}
 
 impl std::fmt::Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EVM Infallible DBError")
+        match self {
+            Self::CodeHashMismatch => {
+                write!(f, "Code does not match provided hash")
+            }
+        }
     }
 }
 
@@ -28,7 +34,7 @@ impl std::error::Error for DBError {
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
-    pub(crate) code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
+    pub(crate) code: sov_modules_api::OffchainStateMap<B256, Bytecode, BcsCodec>,
     pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
     pub(crate) working_set: &'a mut WorkingSet<C>,
 }
@@ -36,7 +42,7 @@ pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn new(
         accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
-        code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
+        code: sov_modules_api::OffchainStateMap<B256, Bytecode, BcsCodec>,
         last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
         working_set: &'a mut WorkingSet<C>,
     ) -> Self {
@@ -86,10 +92,17 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         // TODO move to new_raw_with_hash for better performance
-        Ok(self
+        let code = self
             .code
-            .get(&code_hash, self.working_set)
-            .unwrap_or_default())
+            .get(&code_hash, &mut self.working_set.offchain_state());
+        if let Some(code) = code {
+            if code_hash != keccak256(code.original_bytes()) {
+                return Err(DBError::CodeHashMismatch);
+            }
+            Ok(code)
+        } else {
+            Ok(Default::default())
+        }
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {

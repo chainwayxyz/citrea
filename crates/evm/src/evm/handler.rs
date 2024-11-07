@@ -401,7 +401,8 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        let diff_size = calc_diff_size(context).map_err(EVMError::Database)? as u64;
+        let diff_size =
+            calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)? as u64;
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee =
             U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
@@ -427,7 +428,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
 
 /// Calculates the diff of the modified state.
 #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
-fn calc_diff_size<EXT, DB: Database>(
+fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<usize, <DB as Database>::Error> {
     let InnerEvmContext {
@@ -559,7 +560,8 @@ fn calc_diff_size<EXT, DB: Database>(
             if let Some(code) = account.info.code.as_ref() {
                 // Don't charge for account code if it is already in DB.
                 let db_code = db.code_by_hash(account.info.code_hash)?;
-                if db_code.is_empty() {
+                // This would only add code's size to the diff size in case CANCUN is NOT activated.
+                if db_code.is_empty() && !SPEC::enabled(SpecId::CANCUN) {
                     // if code is eoa code
                     diff_size += CODE_KEY_SIZE;
                     diff_size += code.len();

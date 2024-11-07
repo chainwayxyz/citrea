@@ -90,6 +90,22 @@ where
         val
     }
 
+    fn get_offchain(
+        &self,
+        key: &StorageKey,
+        version: Option<Version>,
+        witness: &mut Self::Witness,
+    ) -> Option<StorageValue> {
+        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
+        let val = self
+            .native_db
+            .get_value_option(key.as_ref(), version_to_use)
+            .unwrap()
+            .map(Into::into);
+        witness.add_hint(val.clone());
+        val
+    }
+
     #[cfg(feature = "native")]
     fn get_accessory(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
         let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
@@ -178,7 +194,12 @@ where
         Ok((new_root, state_update, diff))
     }
 
-    fn commit(&self, state_update: &Self::StateUpdate, accessory_writes: &OrderedReadsAndWrites) {
+    fn commit(
+        &self,
+        state_update: &Self::StateUpdate,
+        accessory_writes: &OrderedReadsAndWrites,
+        offchain_writes: &OrderedReadsAndWrites,
+    ) {
         let latest_version = self.db.get_next_version() - 1;
         self.db
             .put_preimages(
@@ -192,6 +213,16 @@ where
         self.native_db
             .set_values(
                 accessory_writes
+                    .ordered_writes
+                    .iter()
+                    .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),
+                latest_version,
+            )
+            .expect("native db write must succeed");
+
+        self.native_db
+            .set_values(
+                offchain_writes
                     .ordered_writes
                     .iter()
                     .map(|(k, v_opt)| (k.key.to_vec(), v_opt.as_ref().map(|v| v.value.to_vec()))),

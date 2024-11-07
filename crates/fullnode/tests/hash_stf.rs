@@ -54,7 +54,11 @@ impl<Cond> HashStf<Cond> {
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
-        storage.commit(&state_update, &OrderedReadsAndWrites::default());
+        storage.commit(
+            &state_update,
+            &OrderedReadsAndWrites::default(),
+            &OrderedReadsAndWrites::default(),
+        );
 
         let mut root_hash = [0u8; 32];
 
@@ -73,7 +77,8 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
         &mut self,
         _sequencer_public_key: &[u8],
         _pre_state: Self::PreState,
-        _witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
+        _state_witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
+        _offchain_witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (
@@ -214,7 +219,8 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _sequencer_public_key: &[u8],
         _pre_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
-        _witness: Self::Witness,
+        _state_witness: Self::Witness,
+        _offchain_witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
@@ -240,7 +246,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _pre_state: Self::PreState,
         _da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         _sequencer_commitments_range: (u32, u32),
-        _witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
+        _witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmations: std::collections::VecDeque<

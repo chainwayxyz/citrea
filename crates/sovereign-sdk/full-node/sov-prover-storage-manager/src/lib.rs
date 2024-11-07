@@ -237,7 +237,7 @@ where
         let snapshot_id = state_snapshot.get_id();
         if snapshot_id != native_snapshot.get_id() {
             anyhow::bail!(
-                "State id={} and Native id={} snapshots have different are not matching",
+                "State id={} and Native id={} snapshots are not matching",
                 snapshot_id,
                 native_snapshot.get_id()
             );
@@ -918,11 +918,12 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
+            let offchain_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(30, 40));
             let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_a.commit(&state_update, &native_operations);
+            storage_a.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_a, storage_a)
@@ -933,11 +934,12 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 4));
             let mut native_operations = OrderedReadsAndWrites::default();
+            let offchain_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(50, 60));
             let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_b.commit(&state_update, &native_operations);
+            storage_b.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_b, storage_b)
@@ -1106,11 +1108,12 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 4));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 40));
+            let offchain_operations = OrderedReadsAndWrites::default();
 
             let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_a.commit(&state_update, &native_operations);
+            storage_a.commit(&state_update, &native_operations, &offchain_operations);
         }
 
         storage_manager
@@ -1123,10 +1126,11 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 50));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_b.commit(&state_update, &native_operations);
+            storage_b.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_b, storage_b)
@@ -1139,10 +1143,11 @@ mod tests {
             state_operations.ordered_writes.push(write_op(4, 5));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(1, 60));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_c
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_c.commit(&state_update, &native_operations);
+            storage_c.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_c, storage_c)
@@ -1155,7 +1160,11 @@ mod tests {
             let (_, state_update, _) = storage_d
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_d.commit(&state_update, &OrderedReadsAndWrites::default());
+            storage_d.commit(
+                &state_update,
+                &OrderedReadsAndWrites::default(),
+                &OrderedReadsAndWrites::default(),
+            );
         }
         storage_manager
             .save_change_set(&block_d, storage_d)
@@ -1169,10 +1178,11 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(delete_op(1));
             native_operations.ordered_writes.push(write_op(3, 70));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_f
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_f.commit(&state_update, &native_operations);
+            storage_f.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_f, storage_f)
@@ -1184,10 +1194,11 @@ mod tests {
             state_operations.ordered_writes.push(write_op(1, 8));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(2, 9));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_g
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_g.commit(&state_update, &native_operations);
+            storage_g.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_g, storage_g)
@@ -1200,7 +1211,11 @@ mod tests {
             let (_, state_update, _) = storage_l
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_l.commit(&state_update, &OrderedReadsAndWrites::default());
+            storage_l.commit(
+                &state_update,
+                &OrderedReadsAndWrites::default(),
+                &OrderedReadsAndWrites::default(),
+            );
         }
         storage_manager
             .save_change_set(&block_l, storage_l)

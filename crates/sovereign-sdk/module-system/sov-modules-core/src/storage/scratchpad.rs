@@ -7,6 +7,7 @@ use core::{fmt, mem};
 pub use kernel_state::{KernelWorkingSet, VersionedWorkingSet};
 use sov_rollup_interface::stf::Event;
 
+use self::archival_state::ArchivalOffchainWorkingSet;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
 use crate::module::{Context, Spec};
@@ -211,7 +212,6 @@ struct RevertableWrites {
 struct AccessoryDelta<S: Storage> {
     // This inner storage is never accessed inside the zkVM because reads are
     // not allowed, so it can result as dead code.
-    #[allow(dead_code)]
     storage: S,
     writes: RevertableWrites,
 }
@@ -266,6 +266,78 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
     }
 }
 
+struct OffchainDelta<S: Storage> {
+    // This inner storage is never accessed inside the zkVM because reads are
+    // not allowed, so it can result as dead code.
+    storage: S,
+    witness: S::Witness,
+    writes: RevertableWrites,
+}
+
+impl<S: Storage> OffchainDelta<S> {
+    fn new(storage: S, version: Option<u64>) -> Self {
+        Self::with_witness(storage, Default::default(), version)
+    }
+
+    fn with_witness(storage: S, witness: S::Witness, version: Option<u64>) -> Self {
+        let writes = match version {
+            None => Default::default(),
+            Some(v) => RevertableWrites {
+                cache: Default::default(),
+                version: Some(v),
+            },
+        };
+        Self {
+            storage,
+            writes,
+            witness,
+        }
+    }
+
+    fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
+        let writes = mem::take(&mut self.writes);
+        let ordered_writes = writes
+            .cache
+            .into_iter()
+            .map(|write| (write.0, write.1))
+            .collect();
+
+        let witness = mem::take(&mut self.witness);
+
+        (
+            OrderedReadsAndWrites {
+                ordered_writes,
+                ..Default::default()
+            },
+            witness,
+        )
+    }
+}
+
+impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        let cache_key = key.to_cache_key_version(self.writes.version);
+        if let Some(value) = self.writes.cache.get(&cache_key) {
+            return value.clone().map(Into::into);
+        }
+        self.storage
+            .get_offchain(key, self.writes.version, &mut self.witness)
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        self.writes.cache.insert(
+            key.to_cache_key_version(self.writes.version),
+            Some(value.into_cache_value()),
+        );
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        self.writes
+            .cache
+            .insert(key.to_cache_key_version(self.writes.version), None);
+    }
+}
+
 /// This structure is responsible for storing the `read-write` set.
 ///
 /// A [`StateCheckpoint`] can be obtained from a [`WorkingSet`] in two ways:
@@ -274,6 +346,7 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
 pub struct StateCheckpoint<C: Context> {
     delta: Delta<C::Storage>,
     accessory_delta: AccessoryDelta<C::Storage>,
+    offchain_delta: OffchainDelta<C::Storage>,
 }
 
 impl<C: Context> StateCheckpoint<C> {
@@ -282,7 +355,8 @@ impl<C: Context> StateCheckpoint<C> {
     pub fn new(inner: <C as Spec>::Storage) -> Self {
         Self {
             delta: Delta::new(inner.clone(), None),
-            accessory_delta: AccessoryDelta::new(inner, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::new(inner, None),
         }
     }
 
@@ -290,11 +364,13 @@ impl<C: Context> StateCheckpoint<C> {
     /// by the given [`Storage`] and witness.
     pub fn with_witness(
         inner: <C as Spec>::Storage,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
+        state_witness: <<C as Spec>::Storage as Storage>::Witness,
+        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
     ) -> Self {
         Self {
-            delta: Delta::with_witness(inner.clone(), witness, None),
-            accessory_delta: AccessoryDelta::new(inner, None),
+            delta: Delta::with_witness(inner.clone(), state_witness, None),
+            accessory_delta: AccessoryDelta::new(inner.clone(), None),
+            offchain_delta: OffchainDelta::with_witness(inner, offchain_witness, None),
         }
     }
 
@@ -302,10 +378,12 @@ impl<C: Context> StateCheckpoint<C> {
     pub fn to_revertable(self) -> WorkingSet<C> {
         WorkingSet {
             delta: RevertableWriter::new(self.delta, None),
+            offchain_delta: RevertableWriter::new(self.offchain_delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
             events: Default::default(),
             archival_working_set: None,
             archival_accessory_working_set: None,
+            archival_offchain_working_set: None,
         }
     }
 
@@ -332,6 +410,21 @@ impl<C: Context> StateCheckpoint<C> {
     pub fn freeze_non_provable(&mut self) -> OrderedReadsAndWrites {
         self.accessory_delta.freeze()
     }
+
+    /// Extracts ordered reads and writes of offchain state from this
+    /// [`StateCheckpoint`].
+    ///
+    /// You can then use these to call
+    /// [`Storage::validate_and_commit_with_accessory_update`], together with
+    /// the data extracted with [`StateCheckpoint::freeze`].
+    pub fn freeze_offchain(
+        &mut self,
+    ) -> (
+        OrderedReadsAndWrites,
+        <<C as Spec>::Storage as Storage>::Witness,
+    ) {
+        self.offchain_delta.freeze()
+    }
 }
 
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
@@ -341,8 +434,10 @@ impl<C: Context> StateCheckpoint<C> {
 pub struct WorkingSet<C: Context> {
     delta: RevertableWriter<Delta<C::Storage>>,
     accessory_delta: RevertableWriter<AccessoryDelta<C::Storage>>,
+    offchain_delta: RevertableWriter<OffchainDelta<C::Storage>>,
     events: Vec<Event>,
     archival_working_set: Option<ArchivalJmtWorkingSet<C>>,
+    archival_offchain_working_set: Option<ArchivalOffchainWorkingSet<C>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<C>>,
 }
 
@@ -361,6 +456,14 @@ impl<C: Context> WorkingSet<C> {
     /// state containers, like AccessoryStateMap.
     pub fn accessory_state(&mut self) -> AccessoryWorkingSet<C> {
         AccessoryWorkingSet { ws: self }
+    }
+
+    /// Returns a handler for the offchain state (non-JMT state).
+    ///
+    /// You can use this method when calling getters and setters on offchain
+    /// state containers, like OffchainStateMap.
+    pub fn offchain_state(&mut self) -> OffchainWorkingSet<C> {
+        OffchainWorkingSet { ws: self }
     }
 
     /// Returns a handler for the archival state (JMT state).
@@ -411,9 +514,10 @@ impl<C: Context> WorkingSet<C> {
     /// and a custom witness value.
     pub fn with_witness(
         inner: <C as Spec>::Storage,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
+        state_witness: <<C as Spec>::Storage as Storage>::Witness,
+        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
     ) -> Self {
-        StateCheckpoint::with_witness(inner, witness).to_revertable()
+        StateCheckpoint::with_witness(inner, state_witness, offchain_witness).to_revertable()
     }
 
     /// Turns this [`WorkingSet`] into a [`StateCheckpoint`], in preparation for
@@ -423,6 +527,7 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.commit(),
             accessory_delta: self.accessory_delta.commit(),
+            offchain_delta: self.offchain_delta.commit(),
         }
     }
 
@@ -432,6 +537,7 @@ impl<C: Context> WorkingSet<C> {
         StateCheckpoint {
             delta: self.delta.revert(),
             accessory_delta: self.accessory_delta.revert(),
+            offchain_delta: self.offchain_delta.revert(),
         }
     }
 
@@ -520,6 +626,35 @@ impl<'a, C: Context> StateReaderAndWriter for AccessoryWorkingSet<'a, C> {
     }
 }
 
+/// A wrapper over [`WorkingSet`] that only allows access to the accessory
+/// state (non-JMT state).
+pub struct OffchainWorkingSet<'a, C: Context> {
+    ws: &'a mut WorkingSet<C>,
+}
+
+impl<'a, C: Context> StateReaderAndWriter for OffchainWorkingSet<'a, C> {
+    fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.get(key),
+            Some(ref mut archival_working_set) => archival_working_set.get(key),
+        }
+    }
+
+    fn set(&mut self, key: &StorageKey, value: StorageValue) {
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.set(key, value),
+            Some(ref mut archival_working_set) => archival_working_set.set(key, value),
+        }
+    }
+
+    fn delete(&mut self, key: &StorageKey) {
+        match &mut self.ws.archival_offchain_working_set {
+            None => self.ws.offchain_delta.delete(key),
+            Some(ref mut archival_working_set) => archival_working_set.delete(key),
+        }
+    }
+}
+
 /// Module for archival state
 pub mod archival_state {
     use super::*;
@@ -573,6 +708,41 @@ pub mod archival_state {
     }
 
     impl<C: Context> StateReaderAndWriter for ArchivalAccessoryWorkingSet<C> {
+        fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
+            if !cfg!(feature = "native") {
+                None
+            } else {
+                self.delta.get(key)
+            }
+        }
+
+        fn set(&mut self, key: &StorageKey, value: StorageValue) {
+            self.delta.set(key, value)
+        }
+
+        fn delete(&mut self, key: &StorageKey) {
+            self.delta.delete(key)
+        }
+    }
+
+    /// Archival Offchain
+    pub struct ArchivalOffchainWorkingSet<C: Context> {
+        delta: RevertableWriter<OffchainDelta<C::Storage>>,
+    }
+
+    impl<C: Context> ArchivalOffchainWorkingSet<C> {
+        /// create a new instance of ArchivalOffchainWorkingSet
+        pub fn new(inner: &<C as Spec>::Storage, version: Version) -> Self {
+            Self {
+                delta: RevertableWriter::new(
+                    OffchainDelta::new(inner.clone(), Some(version)),
+                    Some(version),
+                ),
+            }
+        }
+    }
+
+    impl<C: Context> StateReaderAndWriter for ArchivalOffchainWorkingSet<C> {
         fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
             if !cfg!(feature = "native") {
                 None

@@ -114,7 +114,11 @@ fn setup_storage(
         let (_, state_update, _) = storage
             .compute_state_update(state_operations, &mut witness)
             .unwrap();
-        storage.commit(&state_update, &OrderedReadsAndWrites::default());
+        storage.commit(
+            &state_update,
+            &OrderedReadsAndWrites::default(),
+            &OrderedReadsAndWrites::default(),
+        );
 
         storage_manager
             .save_change_set(&block_header, storage)

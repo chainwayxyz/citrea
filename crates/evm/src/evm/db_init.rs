@@ -20,7 +20,8 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytecode) {
-        self.code.set(&code_hash, &code, self.working_set)
+        self.code
+            .set(&code_hash, &code, &mut self.working_set.offchain_state())
     }
 
     fn insert_storage(&mut self, address: Address, index: U256, value: U256) {

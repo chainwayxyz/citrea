@@ -270,6 +270,7 @@ where
                 pub_key,
                 prestate.clone(),
                 Default::default(),
+                Default::default(),
                 &da_block_header,
                 &soft_confirmation_info,
             ) {
@@ -432,6 +433,7 @@ where
         match self.stf.begin_soft_confirmation(
             &pub_key,
             prestate.clone(),
+            Default::default(),
             Default::default(),
             da_block.header(),
             &soft_confirmation_info,

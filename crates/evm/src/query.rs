@@ -352,7 +352,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let account = self.accounts.get(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
-            self.code.get(&code_hash, working_set).unwrap_or_default()
+            self.code
+                .get(&code_hash, &mut working_set.offchain_state())
+                .unwrap_or_default()
         } else {
             Default::default()
         };

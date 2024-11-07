@@ -23,10 +23,10 @@ type C = DefaultContext;
 
 lazy_static! {
     pub(crate) static ref GENESIS_HASH: B256 = B256::from(hex!(
-        "600287474db03ec020caf020ad58fe9c7918bd9b078ddfdba31642daae8bdffe"
+        "95c19b7b244abc3d6baa9a56f4b159b80477e9a882b87e7beafe79b332b0e4c4"
     ));
     pub(crate) static ref GENESIS_STATE_ROOT: B256 = B256::from(hex!(
-        "6945eecef532f6de29cc417e3b9c2a948ab9b0af8c167392c3955a090f1cbb16"
+        "a92caa3cc93a5294538d1fa497b849a284163a4c431e3d00f5a8f6b485c811f1"
     ));
 }
 
@@ -105,10 +105,11 @@ pub(crate) fn commit(
         .expect("jellyfish merkle tree update must succeed");
 
     let working_set = checkpoint.to_revertable();
+    let mut checkpoint = working_set.checkpoint();
+    let accessory_log = checkpoint.freeze_non_provable();
+    let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
 
-    let accessory_log = working_set.checkpoint().freeze_non_provable();
-
-    storage.commit(&authenticated_node_batch, &accessory_log);
+    storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 
     root.0
 }

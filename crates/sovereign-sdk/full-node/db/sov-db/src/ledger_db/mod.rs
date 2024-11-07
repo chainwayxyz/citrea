@@ -534,11 +534,12 @@ impl BatchProverLedgerOps for LedgerDB {
     fn get_l2_witness<Witness: DeserializeOwned>(
         &self,
         l2_height: u64,
-    ) -> anyhow::Result<Option<Witness>> {
+    ) -> anyhow::Result<Option<(Witness, Witness)>> {
         let buf = self.db.get::<L2Witness>(&BatchNumber(l2_height))?;
-        if let Some(buf) = buf {
-            let witness = bincode::deserialize(&buf)?;
-            Ok(Some(witness))
+        if let Some((state_buf, offchain_buf)) = buf {
+            let state_witness = bincode::deserialize(&state_buf)?;
+            let offchain_witness = bincode::deserialize(&offchain_buf)?;
+            Ok(Some((state_witness, offchain_witness)))
         } else {
             Ok(None)
         }
@@ -584,11 +585,13 @@ impl BatchProverLedgerOps for LedgerDB {
     fn set_l2_witness<Witness: Serialize>(
         &self,
         l2_height: u64,
-        witness: &Witness,
+        state_witness: &Witness,
+        offchain_witness: &Witness,
     ) -> anyhow::Result<()> {
-        let buf = bincode::serialize(witness)?;
+        let state_buf = bincode::serialize(state_witness)?;
+        let offchain_buf = bincode::serialize(offchain_witness)?;
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &(state_buf, offchain_buf))?;
 
         self.db.write_schemas(schema_batch)?;
 
