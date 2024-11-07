@@ -3,12 +3,13 @@ use std::collections::BTreeSet;
 use bitcoin::hashes::Hash;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::compression::decompress_blob;
+use crypto_bigint::{Encoding, U256};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlockHeaderTrait, CountedBufReader, DaNamespace, DaSpec, DaVerifier,
+    BlockHeaderTrait, CountedBufReader, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
 };
 use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::zk::ValidityCondition;
+use sov_rollup_interface::zk::{LightClientCircuitOutput, ValidityCondition};
 use thiserror::Error;
 
 use crate::helpers::parsers::{
@@ -20,6 +21,17 @@ use crate::spec::blob::{BlobBuf, BlobWithSender};
 use crate::spec::BitcoinSpec;
 
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
+
+/// The maximum target value, which corresponds to the minimum difficulty
+const MAX_TARGET: U256 =
+    U256::from_be_hex("00000000FFFF0000000000000000000000000000000000000000000000000000");
+
+/// An epoch should be two weeks (represented as number of seconds)
+/// seconds/minute * minutes/hour * hours/day * 14 days
+const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
+
+/// Number of blocks per epoch
+const BLOCKS_PER_EPOCH: u64 = 2016;
 
 pub struct BitcoinVerifier {
     to_batch_proof_prefix: Vec<u8>,
@@ -42,6 +54,12 @@ pub enum ValidationError {
     IncorrectInclusionProof,
     FailedToCalculateMerkleRoot,
     RelevantTxNotFoundInBlock,
+    InvalidBlockHash,
+    NonConsecutiveBlockHeight,
+    InvalidPrevBlockHash,
+    InvalidBlockBits,
+    InvalidTargetHash,
+    InvalidTimestamp,
 }
 
 #[derive(
@@ -74,35 +92,6 @@ impl ValidityCondition for ChainValidityCondition {
             return Err(ValidityConditionError::BlocksNotConsecutive);
         }
         Ok(rhs)
-    }
-}
-
-// Get associated blob content only if signatures, hashes and public keys match
-fn verified_blob_content(
-    tx: &dyn VerifyParsed,
-    blobs_iter: &mut dyn Iterator<Item = &BlobWithSender>,
-) -> Result<Option<CountedBufReader<BlobBuf>>, ValidationError> {
-    if let Some(blob_hash) = tx.get_sig_verified_hash() {
-        let blob = blobs_iter.next();
-
-        let Some(blob) = blob else {
-            return Err(ValidationError::ValidBlobNotFoundInBlobs);
-        };
-
-        if blob.hash != blob_hash {
-            return Err(ValidationError::BlobWasTamperedWith);
-        }
-
-        if tx.public_key() != blob.sender.0 {
-            return Err(ValidationError::IncorrectSenderInBlob);
-        }
-
-        // read the supplied blob from txs
-        let mut blob_content = blob.blob.clone();
-        blob_content.advance(blob_content.total_len());
-        Ok(Some(blob_content))
-    } else {
-        Ok(None)
     }
 }
 
@@ -299,6 +288,221 @@ impl DaVerifier for BitcoinVerifier {
             block_hash: block_header.block_hash().to_byte_array(),
         })
     }
+
+    fn verify_header_chain(
+        &self,
+        previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
+        block_header: &<Self::Spec as DaSpec>::BlockHeader,
+    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
+        // Check 1: Verify block hash
+        if !block_header.verify_hash() {
+            return Err(ValidationError::InvalidBlockHash);
+        }
+
+        let target = bits_to_target(block_header.bits());
+        let work_add = target_to_work(&target);
+
+        // TODO: this is first light client proof, hardcode the first da block and verify accordingly
+        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
+            return Ok(UpdatedDaState {
+                hash: block_header.hash(),
+                height: block_header.height(),
+                // TODO: total work should be the hardcoded initial block's total_work + work_add
+                total_work: work_add.to_be_bytes(),
+                epoch_start_time: block_header.time().secs() as u32,
+                // TODO: this is temporary fix for ci to pass until we hardcode the first da block
+                prev_11_timestamps: [0; 11],
+                current_target_bits: block_header.bits(),
+            });
+        };
+
+        // Check 2: block heights are consecutive
+        if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
+            return Err(ValidationError::NonConsecutiveBlockHeight);
+        }
+        // Check 3: prev hash matches with prev light client proof hash
+        if block_header.prev_hash() != previous_light_client_proof_output.da_block_hash {
+            return Err(ValidationError::InvalidPrevBlockHash);
+        }
+        // Check 4: valid bits
+        if block_header.bits() != previous_light_client_proof_output.da_current_target_bits {
+            return Err(ValidationError::InvalidBlockBits);
+        }
+        // Check 5: proof of work
+        if !verify_target_hash(block_header.hash().into(), target) {
+            return Err(ValidationError::InvalidTargetHash);
+        }
+        // Check 6: valid timestamp
+        if !verify_timestamp(
+            block_header.time().secs() as u32,
+            previous_light_client_proof_output.da_prev_11_timestamps,
+        ) {
+            return Err(ValidationError::InvalidTimestamp);
+        }
+
+        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
+        // Check if this is epoch block, and update time accordingly
+        let mut epoch_start_time = previous_light_client_proof_output.da_epoch_start_time;
+        if epoch_block == 0 {
+            epoch_start_time = block_header.time().secs() as u32;
+        }
+
+        // Update previous timestamps
+        let mut prev_11_timestamps = previous_light_client_proof_output.da_prev_11_timestamps;
+        prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
+
+        // If the next block is epoch start block, calculate the next epoch's difficulty target
+        let mut current_target_bits = block_header.bits();
+        if epoch_block == BLOCKS_PER_EPOCH - 1 {
+            let next_target = calculate_new_difficulty(
+                epoch_start_time,
+                block_header.time().secs() as u32,
+                block_header.bits(),
+            );
+            current_target_bits = target_to_bits(&next_target);
+        }
+
+        let total_work = U256::from_be_bytes(previous_light_client_proof_output.da_total_work)
+            .saturating_add(&work_add)
+            .to_be_bytes();
+
+        Ok(UpdatedDaState {
+            hash: block_header.hash(),
+            height: block_header.height(),
+            total_work,
+            epoch_start_time,
+            prev_11_timestamps,
+            current_target_bits,
+        })
+    }
+}
+
+// Get associated blob content only if signatures, hashes and public keys match
+fn verified_blob_content(
+    tx: &dyn VerifyParsed,
+    blobs_iter: &mut dyn Iterator<Item = &BlobWithSender>,
+) -> Result<Option<CountedBufReader<BlobBuf>>, ValidationError> {
+    if let Some(blob_hash) = tx.get_sig_verified_hash() {
+        let blob = blobs_iter.next();
+
+        let Some(blob) = blob else {
+            return Err(ValidationError::ValidBlobNotFoundInBlobs);
+        };
+
+        if blob.hash != blob_hash {
+            return Err(ValidationError::BlobWasTamperedWith);
+        }
+
+        if tx.public_key() != blob.sender.0 {
+            return Err(ValidationError::IncorrectSenderInBlob);
+        }
+
+        // read the supplied blob from txs
+        let mut blob_content = blob.blob.clone();
+        blob_content.advance(blob_content.total_len());
+        Ok(Some(blob_content))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Verifies the block time against the median of the previous 11 blocks' timestamps
+fn verify_timestamp(block_time: u32, mut prev_11_timestamps: [u32; 11]) -> bool {
+    prev_11_timestamps.sort_unstable();
+    let median_time = prev_11_timestamps[5];
+    block_time > median_time
+}
+
+/// Checks the validity of a block hash by comparing it to the target byte by byte.
+/// Here, the hash is considered valid if it is less than the target.
+/// `target_bytes` is the target in big-endian byte order.
+/// `hash` is the hash in little-endian byte order.
+fn verify_target_hash(hash: [u8; 32], target_bytes: [u8; 32]) -> bool {
+    for i in 0..32 {
+        match hash[31 - i].cmp(&target_bytes[i]) {
+            std::cmp::Ordering::Less => return true,     // Hash is valid
+            std::cmp::Ordering::Greater => return false, // Hash is invalid
+            std::cmp::Ordering::Equal => continue,       // Continue to the next byte if equal
+        }
+    }
+    true
+}
+
+/// Converts the little-endian `bits` field of a block header to a big-endian target
+/// value. For example, the bits `0x1d00ffff` is converted to the target
+/// `0x00000000FFFF0000000000000000000000000000000000000000000000000000`.
+/// Here, `"0x1d0ffff".from_be_bytes::<u32>() = 486604799` is the value you would see
+/// when working with the RPC interface of a Bitcoin node. But when computing the block hash,
+/// it will be serialized and used as `486604799.to_le_bytes()`.
+/// Example use:
+/// `bits: u32 = 486604799;
+/// `,
+/// See https://learnmeabitcoin.com/technical/block/#bits.
+fn bits_to_target(bits: u32) -> [u8; 32] {
+    let size = (bits >> 24) as usize;
+    let mantissa = bits & 0x00ffffff;
+
+    // Prepare U256 target
+    let target =
+    // If the size is less than or equal to 3, we need to shift the word to the right,
+    // but this scenario is not likely in real life
+    if size <= 3 {
+        U256::from(mantissa >> (8 * (3 - size)))
+    }
+    // If the size is greater than 3, we need to shift the mantissa to the left
+    else {
+        U256::from(mantissa) << (8 * (size - 3))
+    };
+
+    target.to_be_bytes()
+}
+
+/// Converts the big-endian target value to the little-endian `bits` field of a block header.
+fn target_to_bits(target: &[u8; 32]) -> u32 {
+    let target_u256 = U256::from_be_slice(target);
+    let target_bits = target_u256.bits();
+    let size = (263 - target_bits) / 8;
+    let mut compact_target = [0u8; 4];
+    compact_target[0] = 33 - size as u8;
+    compact_target[1] = target[size - 1_usize];
+    compact_target[2] = target[size];
+    compact_target[3] = target[size + 1_usize];
+    u32::from_be_bytes(compact_target)
+}
+
+/// Calculates the work done for a block hash that satisfies a given.
+/// Should use the `bits` field of the block header to calculate the target.
+fn target_to_work(target: &[u8; 32]) -> U256 {
+    let target = U256::from_be_slice(target);
+    let target_plus_one = target.saturating_add(&U256::ONE);
+
+    U256::MAX.wrapping_div(&target_plus_one)
+}
+
+/// Calculates the new difficulty target for the next epoch.
+fn calculate_new_difficulty(
+    epoch_start_time: u32,
+    last_timestamp: u32,
+    current_target: u32,
+) -> [u8; 32] {
+    // Step 1: Calculate the actual timespan of the epoch
+    let mut actual_timespan = last_timestamp - epoch_start_time;
+    if actual_timespan < EXPECTED_EPOCH_TIMESPAN / 4 {
+        actual_timespan = EXPECTED_EPOCH_TIMESPAN / 4;
+    } else if actual_timespan > EXPECTED_EPOCH_TIMESPAN * 4 {
+        actual_timespan = EXPECTED_EPOCH_TIMESPAN * 4;
+    }
+    // Step 2: Calculate the new target
+    let new_target_bytes = bits_to_target(current_target);
+    let mut new_target = U256::from_be_bytes(new_target_bytes)
+        .wrapping_mul(&U256::from(actual_timespan))
+        .wrapping_div(&U256::from(EXPECTED_EPOCH_TIMESPAN));
+    // Step 3: Clamp the new target to the maximum target
+    if new_target > MAX_TARGET {
+        new_target = MAX_TARGET;
+    }
+
+    new_target.to_be_bytes()
 }
 
 #[cfg(test)]

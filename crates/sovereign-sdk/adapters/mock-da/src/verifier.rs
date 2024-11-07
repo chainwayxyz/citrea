@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState};
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, MockValidityCond};
 
@@ -63,5 +63,22 @@ impl DaVerifier for MockDaVerifier {
         _namespace: DaNamespace,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
         Ok(Default::default())
+    }
+
+    fn verify_header_chain(
+        &self,
+        _previous_light_client_proof_output: &Option<
+            sov_rollup_interface::zk::LightClientCircuitOutput<Self::Spec>,
+        >,
+        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
+        Ok(UpdatedDaState {
+            hash: MockHash([0; 32]),
+            height: 0,
+            total_work: [0; 32],
+            epoch_start_time: 0,
+            prev_11_timestamps: [0; 11],
+            current_target_bits: 0,
+        })
     }
 }

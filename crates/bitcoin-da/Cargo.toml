@@ -21,6 +21,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true, optional = true }
 borsh = { workspace = true }
+crypto-bigint = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }

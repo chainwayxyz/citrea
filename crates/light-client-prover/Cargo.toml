@@ -24,7 +24,6 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional 
 anyhow = { workspace = true, optional = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
-crypto-bigint = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }

@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::zk::{Proof, ValidityCondition};
+use crate::zk::{LightClientCircuitOutput, Proof, ValidityCondition};
 use crate::BasicAddress;
 
 /// Commitments made to the DA layer from the sequencer.
@@ -32,6 +32,24 @@ impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.l2_start_block_number.cmp(&other.l2_start_block_number)
     }
+}
+
+/// UpdatedDaState is the state after verifying and applying a block
+/// on top of the existing DA state.
+#[derive(Debug, Clone, Default)]
+pub struct UpdatedDaState<Spec: DaSpec> {
+    /// DA block hash
+    pub hash: Spec::SlotHash,
+    /// DA block height
+    pub height: u64,
+    /// DA block latest total work
+    pub total_work: [u8; 32],
+    /// DA block epoch start time
+    pub epoch_start_time: u32,
+    /// DA block's previous 11 timestamps
+    pub prev_11_timestamps: [u32; 11],
+    /// DA block target bits
+    pub current_target_bits: u32,
 }
 
 // TODO: rename to da service request smth smth
@@ -145,6 +163,13 @@ pub trait DaVerifier: Send + Sync {
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
     ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
+
+    /// Verify that the block header is valid for the given previous light client proof output
+    fn verify_header_chain(
+        &self,
+        previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
+        block_header: &<Self::Spec as DaSpec>::BlockHeader,
+    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error>;
 }
 
 #[cfg(feature = "std")]
