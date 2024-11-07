@@ -137,7 +137,8 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
         &mut self,
         sequencer_public_key: &[u8],
         pre_state: Self::PreState,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
+        state_witness: <<C as Spec>::Storage as Storage>::Witness,
+        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>);
@@ -192,13 +193,14 @@ where
         &mut self,
         sequencer_public_key: &[u8],
         pre_state: <C>::Storage,
-        witness: <<C as Spec>::Storage as Storage>::Witness,
+        state_witness: <<C as Spec>::Storage as Storage>::Witness,
+        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
         native_debug!("Applying soft confirmation in STF Blueprint");
 
-        let checkpoint = StateCheckpoint::with_witness(pre_state, witness);
+        let checkpoint = StateCheckpoint::with_witness(pre_state, state_witness, offchain_witness);
         let batch_workspace = checkpoint.to_revertable();
 
         // check if soft confirmation is coming from our sequencer
@@ -346,7 +348,7 @@ where
             );
         }
 
-        let (state_root, witness, storage, state_diff) = {
+        let (state_root, witness, offchain_witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
@@ -364,16 +366,18 @@ where
 
             let mut checkpoint = working_set.checkpoint();
             let accessory_log = checkpoint.freeze_non_provable();
+            let (offchain_log, offchain_witness) = checkpoint.freeze_offchain();
 
-            pre_state.commit(&state_update, &accessory_log);
+            pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
-            (root_hash, witness, pre_state, state_diff)
+            (root_hash, witness, offchain_witness, pre_state, state_diff)
         };
 
         SoftConfirmationResult {
             state_root,
             change_set: storage,
             witness,
+            offchain_witness,
             state_diff,
             soft_confirmation_receipt: sc_receipt,
         }
@@ -425,11 +429,13 @@ where
         self.runtime
             .finalize_hook(&genesis_hash, &mut working_set.accessory_state());
 
-        let accessory_log = working_set.checkpoint().freeze_non_provable();
+        let mut checkpoint = working_set.checkpoint();
+        let accessory_log = checkpoint.freeze_non_provable();
+        let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
 
         // TODO: Commit here for now, but probably this can be done outside of STF
         // TODO: Commit is fine
-        pre_state.commit(&state_update, &accessory_log);
+        pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
         (genesis_hash, pre_state)
     }
@@ -462,7 +468,8 @@ where
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
-        witness: Self::Witness,
+        state_witness: Self::Witness,
+        offchain_witness: Self::Witness,
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
@@ -487,7 +494,8 @@ where
         match self.begin_soft_confirmation(
             sequencer_public_key,
             pre_state.clone(),
-            witness,
+            state_witness,
+            offchain_witness,
             slot_header,
             &soft_confirmation_info,
         ) {
@@ -542,7 +550,7 @@ where
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
-        witnesses: std::collections::VecDeque<Vec<Self::Witness>>,
+        witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
@@ -774,7 +782,8 @@ where
 
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
-            for (mut soft_confirmation, witness) in soft_confirmations.into_iter().zip_eq(witnesses)
+            for (mut soft_confirmation, (state_witness, offchain_witness)) in
+                soft_confirmations.into_iter().zip_eq(witnesses)
             {
                 if soft_confirmation.da_slot_height() != da_block_header.height() {
                     da_block_header = da_block_headers_iter.next().unwrap();
@@ -792,7 +801,8 @@ where
                         sequencer_public_key,
                         &current_state_root,
                         pre_state.clone(),
-                        witness,
+                        state_witness,
+                        offchain_witness,
                         &da_block_header,
                         validity_condition,
                         &mut soft_confirmation,

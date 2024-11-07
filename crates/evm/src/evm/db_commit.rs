@@ -51,13 +51,13 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
 
             if let Some(ref code) = account_info.code {
                 if !code.is_empty() {
+                    let offchain_state = &mut self.working_set.offchain_state();
                     let exists_in_db = self
                         .code
-                        .get(&account_info.code_hash, self.working_set)
+                        .get(&account_info.code_hash, offchain_state)
                         .is_some();
                     if !exists_in_db {
-                        self.code
-                            .set(&account_info.code_hash, code, self.working_set);
+                        self.code.set(&account_info.code_hash, code, offchain_state);
                     }
                 }
             }

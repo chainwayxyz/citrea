@@ -203,7 +203,7 @@ pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec> {
     /// The soft confirmations that are inside the sequencer commitments.
     pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
     /// Corresponding witness for the soft confirmations.
-    pub state_transition_witnesses: VecDeque<Vec<Witness>>,
+    pub state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
     /// DA block headers the soft confirmations was constructed on.
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
     /// Sequencer soft confirmation public key.

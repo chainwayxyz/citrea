@@ -162,6 +162,8 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
     pub change_set: Cs,
     /// Witness after applying the whole block
     pub witness: W,
+    /// Witness after applying the whole block
+    pub offchain_witness: W,
     /// State diff after applying the whole block
     pub state_diff: StateDiff,
     /// soft confirmation receipt
@@ -280,7 +282,8 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
-        witness: Self::Witness,
+        state_witness: Self::Witness,
+        offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmation,
@@ -309,7 +312,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
-        witnesses: VecDeque<Vec<Self::Witness>>,
+        witnesses: VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,

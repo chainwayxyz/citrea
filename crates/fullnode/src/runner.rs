@@ -255,6 +255,7 @@ where
             &self.state_root,
             pre_state,
             Default::default(),
+            Default::default(),
             current_l1_block.header(),
             &current_l1_block.validity_condition(),
             &mut soft_confirmation.clone().into(),
