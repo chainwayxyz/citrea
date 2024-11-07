@@ -99,6 +99,13 @@ impl SequencerClient {
             )
             .await
     }
+
+    #[instrument(level = "trace", skip(self), ret)]
+    pub async fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, Error> {
+        self.client
+            .request("ledger_getL2GenesisStateRoot", rpc_params![])
+            .await
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use citrea_primitives::forks::FORKS;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Zkvm, ZkvmGuest};
 
 /// Verifies a state transition
@@ -67,7 +67,11 @@ where
             .hash();
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
-        let (final_state_root, state_diff, last_active_spec_id) = self
+        let ApplySequencerCommitmentsOutput {
+            final_state_root,
+            state_diff,
+            last_l2_height,
+        } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
                 data.sequencer_public_key.as_ref(),
@@ -104,7 +108,7 @@ where
             sequencer_da_public_key: data.sequencer_da_public_key,
             sequencer_commitments_range: data.sequencer_commitments_range,
             preproven_commitments: data.preproven_commitments,
-            last_active_spec_id,
+            last_l2_height,
         };
 
         zkvm.commit(&out);

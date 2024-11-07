@@ -11,9 +11,10 @@ use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    SlotResult, SoftConfirmationReceipt, SoftConfirmationResult, StateTransitionFunction,
+    ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationReceipt, SoftConfirmationResult,
+    StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Prefix, ProverStorage, Storage};
 pub type Q = SnapshotManager;
@@ -254,7 +255,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
         _preproven_commitment_indicies: Vec<usize>,
         _forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
+    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         todo!()
     }
 }

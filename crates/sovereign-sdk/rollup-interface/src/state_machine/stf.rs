@@ -82,6 +82,16 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub phantom_data: PhantomData<BatchReceiptContents>,
 }
 
+/// The output of the function that applies sequencer commitments to the state in the verifier
+pub struct ApplySequencerCommitmentsOutput<StateRoot> {
+    /// Final state root after all sequencer commitments were applied
+    pub final_state_root: StateRoot,
+    /// State diff generated after applying
+    pub state_diff: CumulativeStateDiff,
+    /// Last processed L2 block height
+    pub last_l2_height: u64,
+}
+
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoftConfirmationReceipt<T, DS: DaSpec> {
@@ -303,7 +313,7 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);
+    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
 }
 
 #[derive(Debug)]

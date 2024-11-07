@@ -5,9 +5,10 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    BatchReceipt, SlotResult, SoftConfirmationResult, StateTransitionFunction,
+    ApplySequencerCommitmentsOutput, BatchReceipt, SlotResult, SoftConfirmationResult,
+    StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
 /// A mock implementation of the [`StateTransitionFunction`]
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -110,7 +111,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         >,
         _preproven_commitment_indicies: Vec<usize>,
         _forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId) {
+    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         todo!()
     }
 }

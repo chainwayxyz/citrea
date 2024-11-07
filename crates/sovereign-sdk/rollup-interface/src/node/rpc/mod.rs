@@ -430,6 +430,9 @@ pub trait LedgerRpcProvider {
         soft_confirmation_receipt: u64,
     ) -> Result<SoftConfirmationStatus, anyhow::Error>;
 
+    /// Returns the L2 genesis state root
+    fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error>;
+
     /// Returns the last scanned L1 height (for sequencer commitments)
     fn get_last_scanned_l1_height(&self) -> Result<u64, anyhow::Error>;
 
