@@ -1,5 +1,3 @@
-use core::panic;
-
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
@@ -86,20 +84,28 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let unchained_outputs;
-
-    let mut last_state_root;
-    let mut last_l2_height;
-    let l2_genesis_state_root;
+    let (mut last_state_root, mut last_l2_height, l2_genesis_state_root) =
+        deserialized_previous_light_client_proof_journal
+            .as_ref()
+            .map_or_else(
+                || {
+                    let r = input
+                        .l2_genesis_state_root
+                        .expect("if no preious proof, genesis must exist");
+                    (r, 0, r)
+                },
+                |prev_journal| {
+                    (
+                        prev_journal.state_root,
+                        prev_journal.last_l2_height,
+                        prev_journal.l2_genesis_state_root,
+                    )
+                },
+            );
 
     // If we have a previous light client proof, check they can be chained
     // If not, skip for now
-    // TODO: Once we have a manually planted light client proof use that and assume prev light client proof always exists
-    // So there will be no need for all these if lets
     if let Some(previous_output) = &deserialized_previous_light_client_proof_journal {
-        l2_genesis_state_root = previous_output.l2_genesis_state_root;
-        last_l2_height = previous_output.last_l2_height;
-        last_state_root = previous_output.state_root;
         for unchained_info in previous_output.unchained_batch_proofs_info.iter() {
             // Add them directly as they are the ones that could not be matched
             initial_to_final.insert(
@@ -110,74 +116,38 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 ),
             );
         }
+    }
 
-        for output in deserialized_outputs.iter() {
-            // Do not add if last l2 height is smaller or equal to previous output
-            // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-            if output.last_l2_height <= previous_output.last_l2_height {
-                continue;
-            }
-            recursive_match_state_roots(
-                &mut initial_to_final,
-                &BatchProofInfo::new(
-                    output.initial_state_root,
-                    output.final_state_root,
-                    output.last_l2_height,
-                ),
-            );
+    for output in deserialized_outputs.iter() {
+        // Do not add if last l2 height is smaller or equal to previous output
+        // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
+        if output.last_l2_height <= last_l2_height {
+            continue;
         }
-
-        // Do recursive matching for previous state root
         recursive_match_state_roots(
             &mut initial_to_final,
             &BatchProofInfo::new(
-                previous_output.state_root,
-                previous_output.state_root,
-                previous_output.last_l2_height,
+                output.initial_state_root,
+                output.final_state_root,
+                output.last_l2_height,
             ),
         );
-        // Now only thing left is the state update if exists and others are unchained
-        if let Some((final_root, last_l2)) = initial_to_final.remove(&previous_output.state_root) {
-            last_l2_height = last_l2;
-            last_state_root = final_root;
-        }
-
-        // Collect unchained outputs
-        unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
     }
-    // First light client proof
-    else if let Some(genesis_state_root) = input.l2_genesis_state_root {
-        l2_genesis_state_root = genesis_state_root;
-        last_l2_height = 0;
-        last_state_root = genesis_state_root;
 
-        for output in deserialized_outputs.iter() {
-            recursive_match_state_roots(
-                &mut initial_to_final,
-                &BatchProofInfo::new(
-                    output.initial_state_root,
-                    output.final_state_root,
-                    output.last_l2_height,
-                ),
-            );
-        }
+    // Do recursive matching for previous state root
+    recursive_match_state_roots(
+        &mut initial_to_final,
+        &BatchProofInfo::new(last_state_root, last_state_root, last_l2_height),
+    );
 
-        // Do recursive matching for previous/genesis state root
-        recursive_match_state_roots(
-            &mut initial_to_final,
-            &BatchProofInfo::new(genesis_state_root, genesis_state_root, 0),
-        );
-        // Now only thing left is the state update if exists and others are unchained
-        if let Some((final_root, last_l2)) = initial_to_final.remove(&genesis_state_root) {
-            last_l2_height = last_l2;
-            last_state_root = final_root;
-        }
-
-        // Collect unchained outputs
-        unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
-    } else {
-        panic!("Should have either a previous light client proof or a genesis state root");
+    // Now only thing left is the state update if exists and others are unchained
+    if let Some((final_root, last_l2)) = initial_to_final.remove(&last_state_root) {
+        last_l2_height = last_l2;
+        last_state_root = final_root;
     }
+
+    // Collect unchained outputs
+    let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
     Ok(LightClientCircuitOutput {
         state_root: last_state_root,
