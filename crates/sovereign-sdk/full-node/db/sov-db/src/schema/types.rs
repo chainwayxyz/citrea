@@ -10,7 +10,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::EventKey;
-use sov_rollup_interface::zk::{CumulativeStateDiff, Proof};
+use sov_rollup_interface::zk::{BatchProofInfo, CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -93,6 +93,13 @@ pub struct StoredLightClientProofOutput {
     pub da_epoch_start_time: u32,
     /// The UNIX timestamps in seconds of the previous 11 blocks
     pub da_prev_11_timestamps: [u32; 11],
+    /// Unchained batch proofs are proofs that are not consecutive,
+    /// hence can not be proven yet kproofs.
+    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    /// Last l2 height after proof.
+    pub last_l2_height: u64,
+    /// L2 genesis state root.
+    pub l2_genesis_state_root: [u8; 32],
 }
 /// The on-disk format for a light client proof
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
