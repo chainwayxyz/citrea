@@ -255,6 +255,8 @@ pub struct LightClientCircuitOutput {
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
+    /// Genesis state root of Citrea
+    pub l2_genesis_state_root: [u8; 32],
 }
 
 /// The input of light client proof

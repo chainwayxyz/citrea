@@ -88,12 +88,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     let mut last_state_root;
     let mut last_l2_height;
+    let l2_genesis_state_root;
 
     // If we have a previous light client proof, check they can be chained
     // If not, skip for now
     // TODO: Once we have a manually planted light client proof use that and assume prev light client proof always exists
     // So there will be no need for all these if lets
     if let Some(previous_output) = &deserialized_previous_light_client_proof_journal {
+        l2_genesis_state_root = previous_output.l2_genesis_state_root;
         last_l2_height = previous_output.last_l2_height;
         last_state_root = previous_output.state_root;
         for unchained_info in previous_output.unchained_batch_proofs_info.iter() {
@@ -143,6 +145,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
     // First light client proof
     else if let Some(genesis_state_root) = input.l2_genesis_state_root {
+        l2_genesis_state_root = genesis_state_root;
         last_l2_height = 0;
         last_state_root = genesis_state_root;
 
@@ -179,6 +182,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         light_client_proof_method_id: input.light_client_proof_method_id,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
+        l2_genesis_state_root,
     })
 }
 
