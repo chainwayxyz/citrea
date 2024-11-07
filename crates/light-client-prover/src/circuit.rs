@@ -120,14 +120,13 @@ fn verify_da_block<Spec: DaSpec>(
 
     // TODO: this is first light client proof, hardcode the first da block and verify accordingly
     let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
-        // First light client proof must start from the first epoch block
         return BlockUpdates {
             hash: da_block_header.hash(),
             height: da_block_header.height(),
             // TODO: total work should be the hardcoded initial block's total_work + work_add
             total_work: work_add.to_be_bytes(),
             epoch_start_time: da_block_header.time().secs() as u32,
-            // TODO: what are we gonna do idk yet
+            // TODO: this is temporary fix for ci to pass until we hardcode the first da block
             prev_11_timestamps: [0; 11],
             current_target_bits: da_block_header.bits(),
         };
@@ -197,7 +196,7 @@ fn verify_da_block<Spec: DaSpec>(
 fn verify_timestamp(block_time: u32, mut prev_11_timestamps: [u32; 11]) -> bool {
     prev_11_timestamps.sort_unstable();
     let median_time = prev_11_timestamps[5];
-    block_time <= median_time
+    block_time > median_time
 }
 
 /// Checks the validity of a block hash by comparing it to the target byte by byte.
