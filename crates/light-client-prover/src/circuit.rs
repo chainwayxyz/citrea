@@ -50,35 +50,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         )
         .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
 
-    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
-    // https://github.com/chainwayxyz/citrea/issues/1401
-    let batch_proof_method_id = input.batch_proof_method_id;
-    let mut batch_proof_outputs = vec![];
-    // Parse the batch proof da data
-    // TODO: We are currently assuming batch proofs are ordered. Erce's pr will handle that so I am currently ignoring that case.
-    for blob in input.da_data {
-        if blob.sender().as_ref() == input.batch_prover_da_pub_key {
-            let data = DaDataLightClient::try_from_slice(blob.verified_data());
-
-            if let Ok(data) = data {
-                match data {
-                    DaDataLightClient::Complete(proof) => {
-                        let journal =
-                            G::extract_raw_output(&proof).expect("DaData proofs must be valid");
-                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
-                            G::verify_and_extract_output(&journal, &batch_proof_method_id.into())
-                                .expect("Batch proof could not be verified");
-
-                        batch_proof_outputs.push(batch_proof_output);
-                        // TODO: do necessary validations
-                    }
-                    DaDataLightClient::Aggregate(_) => todo!(),
-                    DaDataLightClient::Chunk(_) => todo!(),
-                }
-            }
-        }
-    }
-
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
@@ -113,21 +84,44 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             );
         }
     }
+    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
+    // https://github.com/chainwayxyz/citrea/issues/1401
+    let batch_proof_method_id = input.batch_proof_method_id;
+    // Parse the batch proof da data
+    // TODO: We are currently assuming batch proofs are ordered. Erce's pr will handle that so I am currently ignoring that case.
+    for blob in input.da_data {
+        if blob.sender().as_ref() == input.batch_prover_da_pub_key {
+            let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
-    for output in batch_proof_outputs.iter() {
-        // Do not add if last l2 height is smaller or equal to previous output
-        // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-        if output.last_l2_height <= last_l2_height {
-            continue;
+            if let Ok(data) = data {
+                match data {
+                    DaDataLightClient::Complete(proof) => {
+                        let journal =
+                            G::extract_raw_output(&proof).expect("DaData proofs must be valid");
+                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
+                            G::verify_and_extract_output(&journal, &batch_proof_method_id.into())
+                                .expect("Batch proof could not be verified");
+
+                        // Do not add if last l2 height is smaller or equal to previous output
+                        // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
+                        if batch_proof_output.last_l2_height <= last_l2_height {
+                            continue;
+                        }
+
+                        recursive_match_state_roots(
+                            &mut initial_to_final,
+                            &BatchProofInfo::new(
+                                batch_proof_output.initial_state_root,
+                                batch_proof_output.final_state_root,
+                                batch_proof_output.last_l2_height,
+                            ),
+                        );
+                    }
+                    DaDataLightClient::Aggregate(_) => todo!(),
+                    DaDataLightClient::Chunk(_) => todo!(),
+                }
+            }
         }
-        recursive_match_state_roots(
-            &mut initial_to_final,
-            &BatchProofInfo::new(
-                output.initial_state_root,
-                output.final_state_root,
-                output.last_l2_height,
-            ),
-        );
     }
 
     // Do recursive matching for previous state root
