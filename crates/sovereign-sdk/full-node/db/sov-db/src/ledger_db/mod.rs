@@ -23,8 +23,8 @@ use crate::schema::tables::{
     SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
-    StoredBatchProofOutput, StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
+    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredBatchProofOutput,
+    StoredLightClientProof, StoredSlot, StoredSoftConfirmation, StoredTransaction,
     StoredVerifiedProof,
 };
 
@@ -189,7 +189,7 @@ impl SharedLedgerOps for LedgerDB {
         &self,
         state_root: &[u8],
         soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
-        include_tx_body: bool,
+        tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
@@ -202,19 +202,24 @@ impl SharedLedgerOps for LedgerDB {
 
         let mut schema_batch = SchemaBatch::new();
 
-        let mut txs = Vec::with_capacity(soft_confirmation_receipt.tx_receipts.len());
-        // Insert transactions and events from each soft confirmation before inserting the soft confirmation
-        for tx in soft_confirmation_receipt.tx_receipts.into_iter() {
-            let (mut tx_to_store, _events) = split_tx_for_storage(tx);
+        let tx_bodies = if let Some(tx_bodies) = tx_bodies {
+            tx_bodies.into_iter().map(Some).collect()
+        } else {
+            vec![None; soft_confirmation_receipt.tx_receipts.len()]
+        };
 
-            // Rollup full nodes don't need to store the tx body as they already store evm body
-            // Sequencer full nodes need to store the tx body as they are the only ones that have it
-            if !include_tx_body {
-                tx_to_store.body = None;
-            }
+        let tx_hashes = soft_confirmation_receipt
+            .tx_receipts
+            .into_iter()
+            .map(|tx| tx.tx_hash);
 
-            txs.push(tx_to_store);
-        }
+        let txs = tx_hashes
+            .zip(tx_bodies)
+            .map(|(tx_hash, tx_body)| StoredTransaction {
+                hash: tx_hash,
+                body: tx_body,
+            })
+            .collect();
 
         // Insert soft confirmation
         let soft_confirmation_to_store = StoredSoftConfirmation {

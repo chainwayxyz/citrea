@@ -9,7 +9,7 @@ use sov_rollup_interface::rpc::{
     TxResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
-use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
+use sov_rollup_interface::stf::EventKey;
 use sov_rollup_interface::zk::{CumulativeStateDiff, LightClientCircuitOutput, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
@@ -278,17 +278,6 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
             phantom_data: PhantomData,
         })
     }
-}
-
-/// Split a `TransactionReceipt` into a `StoredTransaction` and a list of `Event`s for storage in the database.
-pub fn split_tx_for_storage<R: Serialize>(
-    tx: TransactionReceipt<R>,
-) -> (StoredTransaction, Vec<Event>) {
-    let tx_for_storage = StoredTransaction {
-        hash: tx.tx_hash,
-        body: tx.body_to_save,
-    };
-    (tx_for_storage, tx.events)
 }
 
 /// An identifier that specifies a single event

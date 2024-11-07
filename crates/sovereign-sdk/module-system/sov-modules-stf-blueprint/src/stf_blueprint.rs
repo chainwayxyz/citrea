@@ -107,7 +107,6 @@ where
                     native_error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
                     let receipt = TransactionReceipt {
                         tx_hash: raw_tx_hash,
-                        body_to_save: None,
                         events: sc_workspace.take_events(),
                         receipt: TxEffect::Reverted,
                     };
@@ -140,9 +139,6 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                // TODO: instead of re-serializing, we should just save the raw tx before decoding
-                // https://github.com/chainwayxyz/citrea/issues/1045
-                body_to_save: Some(borsh::to_vec(&tx).unwrap()),
                 events,
                 receipt: tx_effect,
             };

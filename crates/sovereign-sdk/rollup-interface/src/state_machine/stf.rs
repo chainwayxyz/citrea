@@ -58,9 +58,6 @@ mod sealed {
 pub struct TransactionReceipt<R> {
     /// The canonical hash of this transaction
     pub tx_hash: [u8; 32],
-    /// The canonically serialized body of the transaction, if it should be persisted
-    /// in the database
-    pub body_to_save: Option<Vec<u8>>,
     /// The events output by this transaction
     pub events: Vec<Event>,
     /// Any additional structured data to be saved in the database and served over RPC
