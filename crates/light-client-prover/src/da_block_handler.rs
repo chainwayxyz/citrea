@@ -230,6 +230,11 @@ where
             state_root: circuit_output.state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
             da_block_hash: circuit_output.da_block_hash.clone().into(),
+            da_block_height: circuit_output.da_block_height,
+            da_total_work: circuit_output.da_total_work,
+            da_current_target_bits: circuit_output.da_current_target_bits,
+            da_epoch_start_time: circuit_output.da_epoch_start_time,
+            da_prev_11_timestamps: circuit_output.da_prev_11_timestamps,
         };
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(

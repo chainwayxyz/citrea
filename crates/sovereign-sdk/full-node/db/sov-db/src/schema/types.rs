@@ -83,6 +83,16 @@ pub struct StoredLightClientProofOutput {
     /// Proved DA block's header hash
     /// This is used to compare the previous DA block hash with first batch proof's DA block hash
     pub da_block_hash: [u8; 32],
+    /// Height of the blockchain
+    pub da_block_height: u64,
+    /// Total work done in the DA blockchain
+    pub da_total_work: [u8; 32],
+    /// Current target bits of DA
+    pub da_current_target_bits: u32,
+    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
+    pub da_epoch_start_time: u32,
+    /// The UNIX timestamps in seconds of the previous 11 blocks
+    pub da_prev_11_timestamps: [u32; 11],
 }
 /// The on-disk format for a light client proof
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
