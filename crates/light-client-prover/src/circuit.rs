@@ -203,24 +203,6 @@ fn recursive_match_state_roots(
     }
 }
 
-// fn collect_unchained_outputs(
-//     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
-//     // This should not get anything less than the last l2 height
-//     state_root_l2_height: u64,
-// ) -> Vec<BatchProofInfo> {
-//     initial_to_final
-//         .iter_mut()
-//         .filter(|(_, (_, last_l2_height))| *last_l2_height > state_root_l2_height)
-//         .map(
-//             |(initial_state_root, (final_state_root, last_l2_height))| BatchProofInfo {
-//                 initial_state_root: *initial_state_root,
-//                 final_state_root: *final_state_root,
-//                 last_l2_height: *last_l2_height,
-//             },
-//         )
-//         .collect::<Vec<_>>()
-// }
-
 fn collect_unchained_outputs(
     initial_to_final: &std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
     // This should not get anything less than the last l2 height
