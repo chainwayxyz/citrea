@@ -141,7 +141,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
 
         // Collect unchained outputs
-        unchained_outputs = collect_unchained_outputs(&mut initial_to_final, last_l2_height);
+        unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
     }
     // First light client proof
     else if let Some(genesis_state_root) = input.l2_genesis_state_root {
@@ -172,7 +172,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
 
         // Collect unchained outputs
-        unchained_outputs = collect_unchained_outputs(&mut initial_to_final, last_l2_height);
+        unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
     } else {
         panic!("Should have either a previous light client proof or a genesis state root");
     }
@@ -326,7 +326,7 @@ fn test_recursive_match_state_roots_with_unchainable_elements() {
     assert_eq!(last_l2_height, 2);
     assert_eq!(last_state_root, [2u8; 32]);
 
-    let unchained_outputs = collect_unchained_outputs(&mut initial_to_final, last_l2_height);
+    let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
     assert_eq!(unchained_outputs.len(), 3);
     assert_eq!(unchained_outputs[0].initial_state_root, [3u8; 32]);
     assert_eq!(unchained_outputs[1].initial_state_root, [6u8; 32]);
@@ -453,7 +453,7 @@ fn test_recursive_match_state_roots_with_genesis_state_root() {
     assert_eq!(elem.0, [5u8; 32]);
 
     // This will throw
-    let res = collect_unchained_outputs(&mut initial_to_final, 5);
+    let res = collect_unchained_outputs(&initial_to_final, 5);
     assert_eq!(res.len(), 3);
     assert_eq!(res[0].initial_state_root, [6u8; 32]);
     assert_eq!(res[1].initial_state_root, [7u8; 32]);
