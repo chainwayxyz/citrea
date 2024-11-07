@@ -70,7 +70,6 @@ where
         let ApplySequencerCommitmentsOutput {
             final_state_root,
             state_diff,
-            last_active_spec_id,
             last_l2_height,
         } = self
             .app
@@ -109,7 +108,6 @@ where
             sequencer_da_public_key: data.sequencer_da_public_key,
             sequencer_commitments_range: data.sequencer_commitments_range,
             preproven_commitments: data.preproven_commitments,
-            last_active_spec_id,
             last_l2_height,
         };
 

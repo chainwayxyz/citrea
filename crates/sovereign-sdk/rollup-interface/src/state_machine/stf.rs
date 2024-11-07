@@ -91,8 +91,6 @@ pub struct ApplySequencerCommitmentsOutput<StateRoot> {
     pub final_state_root: StateRoot,
     /// State diff generated after applying
     pub state_diff: CumulativeStateDiff,
-    /// The spec id of the last active spec
-    pub last_active_spec_id: SpecId,
     /// Last processed L2 block height
     pub last_l2_height: u64,
 }

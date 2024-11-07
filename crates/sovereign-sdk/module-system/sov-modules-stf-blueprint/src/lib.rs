@@ -828,7 +828,6 @@ where
         ApplySequencerCommitmentsOutput {
             final_state_root: current_state_root,
             state_diff,
-            last_active_spec_id: fork_manager.active_fork().spec_id,
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
         }
