@@ -229,7 +229,7 @@ where
         let stored_proof_output = StoredLightClientProofOutput {
             state_root: circuit_output.state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
-            da_block_hash: circuit_output.da_block_hash.clone().into(),
+            da_block_hash: circuit_output.da_block_hash.into(),
             da_block_height: circuit_output.da_block_height,
             da_total_work: circuit_output.da_total_work,
             da_current_target_bits: circuit_output.da_current_target_bits,
