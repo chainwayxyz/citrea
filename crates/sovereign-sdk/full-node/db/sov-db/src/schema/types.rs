@@ -169,10 +169,6 @@ pub struct StoredBatchProofOutput {
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
-    /// An additional validity condition for the state transition which needs
-    /// to be checked outside of the zkVM circuit. This typically corresponds to
-    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
-    pub validity_condition: Vec<u8>,
 }
 
 impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
@@ -184,7 +180,6 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             da_slot_hash: value.da_slot_hash,
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
-            validity_condition: value.validity_condition,
             sequencer_commitments_range: value.sequencer_commitments_range,
             preproven_commitments: value.preproven_commitments,
         }

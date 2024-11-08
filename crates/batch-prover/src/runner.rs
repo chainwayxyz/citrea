@@ -44,8 +44,7 @@ where
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Vm, Da::Spec> + StfBlueprintTrait<C, Da::Spec, Vm>,
 
     Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
@@ -81,7 +80,6 @@ where
     Stf: StateTransitionFunction<
             Vm,
             Da::Spec,
-            Condition = <Da::Spec as DaSpec>::ValidityCondition,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
@@ -398,7 +396,6 @@ where
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &current_l1_block.validity_condition(),
             &mut signed_soft_confirmation,
         )?;
         let txs_bodies = signed_soft_confirmation.txs().to_owned();

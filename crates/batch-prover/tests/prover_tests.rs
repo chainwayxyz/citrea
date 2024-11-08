@@ -4,9 +4,7 @@ use std::sync::Arc;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_mock_da::{
-    MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash, MockValidityCond,
-};
+use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::BatchProofCircuitInput;
@@ -75,13 +73,12 @@ async fn test_parallel_proving_and_submit() {
 }
 
 struct TestProver {
-    prover_service:
-        ParallelProverService<MockDaService, MockZkvm<MockValidityCond>, MockStf<MockValidityCond>>,
-    vm: MockZkvm<MockValidityCond>,
+    prover_service: ParallelProverService<MockDaService, MockZkvm, MockStf>,
+    vm: MockZkvm,
 }
 
 fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> TestProver {
-    let vm = MockZkvm::new(MockValidityCond::default());
+    let vm = MockZkvm::new();
     let proof_mode = ProofGenMode::Execute;
 
     let tmpdir = tempfile::tempdir().unwrap();

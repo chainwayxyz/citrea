@@ -1,16 +1,12 @@
 use std::collections::BTreeSet;
 
 use bitcoin::hashes::Hash;
-use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
-use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     BlockHeaderTrait, CountedBufReader, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
 };
-use sov_rollup_interface::digest::Digest;
-use sov_rollup_interface::zk::{LightClientCircuitOutput, ValidityCondition};
-use thiserror::Error;
+use sov_rollup_interface::zk::LightClientCircuitOutput;
 
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
@@ -62,39 +58,6 @@ pub enum ValidationError {
     InvalidTimestamp,
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Hash,
-    BorshDeserialize,
-    BorshSerialize,
-)]
-/// A validity condition expressing that a chain of DA layer blocks is contiguous and canonical
-pub struct ChainValidityCondition {
-    pub prev_hash: [u8; 32],
-    pub block_hash: [u8; 32],
-}
-#[derive(Error, Debug)]
-pub enum ValidityConditionError {
-    #[error("conditions for validity can only be combined if the blocks are consecutive")]
-    BlocksNotConsecutive,
-}
-
-impl ValidityCondition for ChainValidityCondition {
-    type Error = ValidityConditionError;
-    fn combine<H: Digest>(&self, rhs: Self) -> Result<Self, Self::Error> {
-        if self.block_hash != rhs.prev_hash {
-            return Err(ValidityConditionError::BlocksNotConsecutive);
-        }
-        Ok(rhs)
-    }
-}
-
 impl DaVerifier for BitcoinVerifier {
     type Spec = BitcoinSpec;
 
@@ -115,7 +78,7 @@ impl DaVerifier for BitcoinVerifier {
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
+    ) -> Result<(), Self::Error> {
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
@@ -283,10 +246,7 @@ impl DaVerifier for BitcoinVerifier {
             return Err(ValidationError::IncorrectInclusionProof);
         }
 
-        Ok(ChainValidityCondition {
-            prev_hash: block_header.prev_hash().to_byte_array(),
-            block_hash: block_header.block_hash().to_byte_array(),
-        })
+        Ok(())
     }
 
     fn verify_header_chain(
@@ -530,7 +490,7 @@ mod tests {
     use crate::spec::proof::InclusionMultiProof;
     use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
-    use crate::verifier::{ChainValidityCondition, ValidationError, WITNESS_COMMITMENT_PREFIX};
+    use crate::verifier::{ValidationError, WITNESS_COMMITMENT_PREFIX};
 
     #[test]
     fn correct() {
@@ -626,10 +586,7 @@ mod tests {
                 completeness_proof,
                 DaNamespace::ToBatchProver,
             ),
-            Ok(ChainValidityCondition {
-                prev_hash: _,
-                block_hash: _
-            })
+            Ok(()),
         ));
     }
 

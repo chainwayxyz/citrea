@@ -8,7 +8,6 @@ use self::block_hash::BlockHashWrapper;
 use self::header::HeaderWrapper;
 use self::proof::InclusionMultiProof;
 use self::transaction::TransactionWrapper;
-use crate::verifier::ChainValidityCondition;
 
 pub mod address;
 pub mod blob;
@@ -43,6 +42,4 @@ impl DaSpec for BitcoinSpec {
     type InclusionMultiProof = InclusionMultiProof;
 
     type CompletenessProof = Vec<TransactionWrapper>;
-
-    type ValidityCondition = ChainValidityCondition;
 }

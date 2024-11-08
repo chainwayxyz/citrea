@@ -40,7 +40,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         .expect("Failed to verify DA header chain");
 
     // Verify data from da
-    let _validity_condition = da_verifier
+    da_verifier
         .verify_transactions(
             &input.da_block_header,
             input.da_data.as_slice(),

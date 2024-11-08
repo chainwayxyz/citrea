@@ -329,7 +329,6 @@ where
             sequencer_public_key: batch_proof_output.sequencer_public_key,
             sequencer_da_public_key: batch_proof_output.sequencer_da_public_key,
             preproven_commitments: batch_proof_output.preproven_commitments.clone(),
-            validity_condition: borsh::to_vec(&batch_proof_output.validity_condition).unwrap(),
         };
 
         let l1_hash = batch_proof_output.da_slot_hash.into();

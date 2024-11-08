@@ -3,7 +3,7 @@ use std::path::Path;
 use rusqlite::{params, Connection};
 use tracing::debug;
 
-use crate::{MockBlock, MockBlockHeader, MockHash, MockValidityCond};
+use crate::{MockBlock, MockBlockHeader, MockHash};
 
 pub(crate) struct DbConnector {
     // thread-safe sqlite connection
@@ -50,7 +50,7 @@ impl DbConnector {
                     block.header.height,
                     serde_json::to_string(&block.header.time)
                         .expect("DbConnector: Failed to serialize time"),
-                    block.validity_cond.is_valid,
+                    block.is_valid,
                     serde_json::to_string(&block.blobs)
                         .expect("DbConnector: Failed to serialize blobs"),
                 ],
@@ -134,9 +134,7 @@ impl DbConnector {
                 time: serde_json::from_str(row.get::<_, String>(4).unwrap().as_str()).unwrap(),
                 bits: 0,
             },
-            validity_cond: MockValidityCond {
-                is_valid: row.get(5).unwrap(),
-            },
+            is_valid: row.get(5).unwrap(),
             blobs: serde_json::from_str(row.get::<_, String>(6).unwrap().as_str()).unwrap(),
         }
     }
@@ -145,12 +143,12 @@ impl DbConnector {
 #[cfg(test)]
 mod tests {
     use crate::db_connector::DbConnector;
-    use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockValidityCond};
+    use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader};
 
     fn get_test_block(at_height: u64) -> MockBlock {
         MockBlock {
             header: MockBlockHeader::from_height(at_height),
-            validity_cond: MockValidityCond { is_valid: true },
+            is_valid: true,
             blobs: vec![
                 MockBlob::new(vec![2; 44], MockAddress::new([1; 32]), [2; 32]),
                 MockBlob::new(vec![3; 12], MockAddress::new([2; 32]), [5; 32]),

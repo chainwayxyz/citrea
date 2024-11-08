@@ -8,17 +8,13 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, BatchReceipt, SlotResult, SoftConfirmationResult,
     StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::Zkvm;
 
 /// A mock implementation of the [`StateTransitionFunction`]
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
-pub struct MockStf<Cond> {
-    phantom_data: PhantomData<Cond>,
-}
+pub struct MockStf;
 
-impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, Da>
-    for MockStf<Cond>
-{
+impl<Vm: Zkvm, Da: DaSpec> StateTransitionFunction<Vm, Da> for MockStf {
     type StateRoot = [u8; 0];
     type GenesisParams = ();
     type PreState = ();
@@ -26,7 +22,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     type TxReceiptContents = ();
     type BatchReceiptContents = ();
     type Witness = ();
-    type Condition = Cond;
 
     // Perform one-time initialization for the genesis block.
     fn init_chain(
@@ -44,7 +39,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         _blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
@@ -79,7 +73,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _state_witness: Self::Witness,
         _offchain_witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
@@ -105,7 +98,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _sequencer_commitments_range: (u32, u32),
         _witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmation>,
         >,

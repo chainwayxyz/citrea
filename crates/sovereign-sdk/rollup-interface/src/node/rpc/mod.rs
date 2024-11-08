@@ -272,11 +272,6 @@ pub struct BatchProofOutputRpcResponse {
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
-    /// An additional validity condition for the state transition which needs
-    /// to be checked outside of the zkVM circuit. This typically corresponds to
-    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
-    #[serde(with = "hex::serde")]
-    pub validity_condition: Vec<u8>,
 }
 
 /// Custom serialization for BTreeMap

@@ -43,8 +43,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Vm, Da::Spec> + StfBlueprintTrait<C, Da::Spec, Vm>,
     C: Context,
     DB: NodeLedgerOps + Clone,
 {
@@ -80,7 +79,6 @@ where
     Stf: StateTransitionFunction<
             Vm,
             Da::Spec,
-            Condition = <Da::Spec as DaSpec>::ValidityCondition,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
@@ -258,7 +256,6 @@ where
             Default::default(),
             Default::default(),
             current_l1_block.header(),
-            &current_l1_block.validity_condition(),
             &mut signed_soft_confirmation,
         )?;
 
