@@ -125,16 +125,10 @@ impl<'a, C: sov_modules_api::Context> Database for EvmDb<'a, C> {
         let code = self.code.get(&code_hash, &mut self.working_set);
         if let Some(code) = code {
             // Gradually migrate contract codes into the offchain code state map.
-            if self
-                .offchain_code
-                .get(&code_hash, &mut self.working_set.offchain_state())
-                .is_none()
-                && self.current_spec.is_enabled_in(CANCUN)
-            {
+            if self.current_spec.is_enabled_in(CANCUN) {
                 self.offchain_code
                     .set(&code_hash, &code, &mut self.working_set.offchain_state());
             }
-            self.check_against_code_hash(&code, &code_hash)?;
             Ok(code)
         } else {
             Ok(Default::default())

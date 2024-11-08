@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{Address, U256};
+use revm::primitives::SpecId::CANCUN;
 use revm::primitives::{Account, AccountInfo, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
@@ -55,9 +56,18 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                         .code
                         .get(&account_info.code_hash, &mut self.working_set)
                         .is_some();
+
                     if !exists_in_db {
-                        self.code
-                            .set(&account_info.code_hash, code, &mut self.working_set);
+                        if self.current_spec.is_enabled_in(CANCUN) {
+                            self.offchain_code.set(
+                                &account_info.code_hash,
+                                code,
+                                &mut self.working_set.offchain_state(),
+                            );
+                        } else {
+                            self.code
+                                .set(&account_info.code_hash, code, &mut self.working_set);
+                        }
                     }
                 }
             }
