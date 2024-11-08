@@ -13,7 +13,7 @@ pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
 
-    let stf: StfBlueprint<ZkDefaultContext, _, _, Runtime<_, _>> = StfBlueprint::new();
+    let stf: StfBlueprint<ZkDefaultContext, _, Runtime<_, _>> = StfBlueprint::new();
 
     let mut stf_verifier = StfVerifier::new(stf, MockDaVerifier {});
 

@@ -20,7 +20,7 @@ use crate::da::DaSpec;
 use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
-use crate::zk::{CumulativeStateDiff, Zkvm};
+use crate::zk::CumulativeStateDiff;
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
 pub mod fuzzing;
@@ -173,7 +173,7 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
 ///  - block: DA layer block
 ///  - batch: Set of transactions grouped together, or block on L2
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
-pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
+pub trait StateTransitionFunction<Da: DaSpec> {
     /// Root hash of state merkle tree
     type StateRoot: BorshDeserialize
         + BorshSerialize

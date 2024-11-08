@@ -35,7 +35,7 @@ use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
@@ -43,7 +43,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<Vm, Da::Spec> + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     C: Context,
     DB: NodeLedgerOps + Clone,
 {
@@ -52,7 +52,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     sequencer_client: SequencerClient,
@@ -77,11 +77,10 @@ where
     <Vm as Zkvm>::CodeCommitment: Send,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
-            Vm,
             Da::Spec,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+        > + StfBlueprintTrait<C, Da::Spec>,
     C: Context + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
 {
@@ -99,7 +98,7 @@ where
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,

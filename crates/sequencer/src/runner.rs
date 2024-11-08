@@ -40,7 +40,6 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::InitVariant;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc};
@@ -57,19 +56,18 @@ use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 /// Represents information about the current DA state.
 ///
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
+pub struct CitreaSequencer<C, Da, Sm, Stf, DB>
 where
     C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm, Da::Spec> + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
     da_service: Arc<Da>,
@@ -84,7 +82,7 @@ where
     stf: Stf,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -99,18 +97,16 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<C, Da, Sm, Vm, Stf, DB> CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
+impl<C, Da, Sm, Stf, DB> CitreaSequencer<C, Da, Sm, Stf, DB>
 where
     C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Vm: ZkvmHost,
     Stf: StateTransitionFunction<
-            Vm,
             Da::Spec,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+        > + StfBlueprintTrait<C, Da::Spec>,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
@@ -120,7 +116,7 @@ where
         config: SequencerConfig,
         stf: Stf,
         mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         rpc_config: RpcConfig,

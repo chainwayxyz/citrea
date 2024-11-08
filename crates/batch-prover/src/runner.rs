@@ -36,7 +36,7 @@ use tracing::{debug, error, info, instrument};
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc::{create_rpc_module, RpcContext};
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 
 pub struct CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
@@ -44,7 +44,7 @@ where
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm, Da::Spec> + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
 
     Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
@@ -54,7 +54,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     prover_service: Arc<Ps>,
@@ -78,11 +78,10 @@ where
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost + 'static,
     Stf: StateTransitionFunction<
-            Vm,
             Da::Spec,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+        > + StfBlueprintTrait<C, Da::Spec>,
     Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: BatchProverLedgerOps + Clone + 'static,
 {
@@ -100,7 +99,7 @@ where
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, Da::Spec>,
         prover_service: Arc<Ps>,
         prover_config: BatchProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
