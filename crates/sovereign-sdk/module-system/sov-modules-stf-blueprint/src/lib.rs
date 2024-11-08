@@ -549,7 +549,7 @@ where
         witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
-        mut preproven_commitment_indicies: Vec<usize>,
+        mut preproven_commitment_indices: Vec<usize>,
         forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
@@ -595,14 +595,14 @@ where
         sequencer_commitments.sort();
 
         // TODO: filter in a better looking way maybe?
-        // The preproven indicies are sorted by the prover when originally passed.
+        // The preproven indices are sorted by the prover when originally passed.
         // Therefore, we pass the commitments sequentially to make sure that the current
-        // commitment index is not at the beginning of the list of preproven indicies.
+        // commitment index is not at the beginning of the list of preproven indices.
         let mut filtered = vec![];
         for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
-            if let Some(exclude_index) = preproven_commitment_indicies.first() {
+            if let Some(exclude_index) = preproven_commitment_indices.first() {
                 if index == *exclude_index {
-                    preproven_commitment_indicies.remove(0);
+                    preproven_commitment_indices.remove(0);
                     continue;
                 }
             }
