@@ -97,6 +97,22 @@ fn test_tx_request_fields_gas() {
             .unwrap()
     );
 
+    let tx_req_no_gas = TransactionRequest {
+        gas: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let contract_diff_size = evm.eth_estimate_diff_size(
+        tx_req_no_gas.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        contract_diff_size.unwrap(),
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x60"}])
+            .unwrap()
+    );
+
     let tx_req_no_sender = TransactionRequest {
         from: None,
         nonce: None,
