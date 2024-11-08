@@ -638,7 +638,7 @@ where
                     sequencer_commitment.l2_start_block_number,
                     "Sequencer commitments must be sequential"
                 );
-            } 
+            }
             last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
 
             // we must verify given DA headers match the commitments
