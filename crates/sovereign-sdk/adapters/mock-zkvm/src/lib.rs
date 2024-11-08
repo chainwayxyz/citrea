@@ -187,7 +187,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
     }
 
     fn simulate_with_hints(&mut self) -> Self::Guest {
-        MockZkGuest {}
+        MockZkGuest { input: vec![] }
     }
 
     fn run(&mut self, _with_proof: bool) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
@@ -209,7 +209,18 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
 }
 
 /// A mock implementing the Guest.
-pub struct MockZkGuest {}
+#[derive(Default)]
+pub struct MockZkGuest {
+    /// Input of the circuit
+    pub input: Vec<u8>,
+}
+
+impl MockZkGuest {
+    /// Constructs a new MockZk Guest
+    pub fn new(input: Vec<u8>) -> MockZkGuest {
+        MockZkGuest { input }
+    }
+}
 
 impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     type CodeCommitment = MockCodeCommitment;
@@ -228,16 +239,17 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     }
 
     fn verify_and_extract_output<T: BorshDeserialize>(
-        _serialized_proof: &[u8],
-        _code_commitment: &Self::CodeCommitment,
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
-        unimplemented!()
+        let output = Self::verify(serialized_proof, code_commitment)?;
+        Ok(T::deserialize(&mut &*output)?)
     }
 }
 
 impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
     fn read_from_host<T: BorshDeserialize>(&self) -> T {
-        unimplemented!()
+        T::try_from_slice(self.input.as_slice()).expect("Failed to deserialize input from host")
     }
 
     fn commit<T: BorshSerialize>(&self, _item: &T) {
