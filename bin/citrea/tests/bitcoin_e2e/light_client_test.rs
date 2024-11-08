@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use super::get_citrea_path;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
@@ -9,8 +10,7 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-
-use super::get_citrea_path;
+use sov_ledger_rpc::client::RpcClient;
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 
@@ -82,7 +82,8 @@ impl TestCase for LightClientProvingTest {
         // Assert that commitment is queryable
         let commitments = batch_prover
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
             .await
             .unwrap()
             .unwrap();
