@@ -549,7 +549,7 @@ where
         witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
-        mut preproven_commitment_indicies: Vec<usize>,
+        preproven_commitment_indices: Vec<usize>,
         forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
@@ -594,21 +594,23 @@ where
         // rollup state transitions.
         sequencer_commitments.sort();
 
-        // TODO: filter in a better looking way maybe?
-        // The preproven indicies are sorted by the prover when originally passed.
-        // Therefore, we pass the commitments sequentially to make sure that the current
-        // commitment index is not at the beginning of the list of preproven indicies.
-        let mut filtered = vec![];
-        for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
-            if let Some(exclude_index) = preproven_commitment_indicies.first() {
-                if index == *exclude_index {
-                    preproven_commitment_indicies.remove(0);
-                    continue;
+        // The preproven indices are sorted by the prover when originally passed.
+        // Therefore, we can iterate of sequencer commitments and filter out
+        // matching preproven indices.
+        let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
+        let sequencer_commitments_iter = sequencer_commitments
+            .into_iter()
+            .enumerate()
+            .filter(|(idx, _)| {
+                if let Some(preproven_idx) = preproven_commitments_iter.peek() {
+                    if preproven_idx == idx {
+                        preproven_commitments_iter.next();
+                        return false;
+                    }
                 }
-            }
-            filtered.push(sequencer_commitment);
-        }
-        sequencer_commitments = filtered;
+                true
+            })
+            .map(|(_, commitment)| commitment);
 
         // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();
@@ -619,8 +621,7 @@ where
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
-            sequencer_commitments
-                .into_iter()
+            sequencer_commitments_iter
                 .skip(sequencer_commitments_range.0 as usize)
                 .take(
                     sequencer_commitments_range.1 as usize - sequencer_commitments_range.0 as usize
@@ -637,11 +638,8 @@ where
                     sequencer_commitment.l2_start_block_number,
                     "Sequencer commitments must be sequential"
                 );
-
-                last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
-            } else {
-                last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
             }
+            last_commitment_end_height = Some(sequencer_commitment.l2_end_block_number);
 
             // we must verify given DA headers match the commitments
             let mut index_headers = 0;
@@ -752,15 +750,12 @@ where
                 "Invalid DA block header hash"
             );
 
+            // collect the soft confirmation hashes
+            let soft_confirmation_hashes = soft_confirmations
+                .iter()
+                .map(|soft_confirmation| soft_confirmation.hash())
+                .collect::<Vec<_>>();
             // now verify the claimed merkle root of soft confirmation hashes
-            let mut soft_confirmation_hashes = vec![];
-
-            for soft_confirmation in soft_confirmations.iter() {
-                // given hashes will be checked inside apply_soft_confirmation.
-                // so use the claimed hash for now.
-                soft_confirmation_hashes.push(soft_confirmation.hash());
-            }
-
             let calculated_root =
                 MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
 
@@ -770,7 +765,7 @@ where
                 "Invalid merkle root"
             );
 
-            let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
+            let mut da_block_headers_iter = da_block_headers.into_iter();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
             let mut l2_height = sequencer_commitment.l2_start_block_number;
