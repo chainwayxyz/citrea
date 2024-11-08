@@ -9,6 +9,7 @@ use citrea_e2e::config::{
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
+use sov_ledger_rpc::client::RpcClient;
 
 use super::get_citrea_path;
 
@@ -82,7 +83,8 @@ impl TestCase for LightClientProvingTest {
         // Assert that commitment is queryable
         let commitments = batch_prover
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
             .await
             .unwrap()
             .unwrap();

@@ -1,3 +1,6 @@
+use std::time::{Duration, Instant};
+
+use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoin_da::service::{get_relevant_blobs_from_txs, FINALITY_DEPTH};
@@ -6,15 +9,46 @@ use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::full_node::FullNode;
 use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::TO_BATCH_PROOF_PREFIX;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
+use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{BlobReaderTrait, DaData};
+use sov_rollup_interface::rpc::SequencerCommitmentResponse;
+use tokio::time::sleep;
 
 use super::get_citrea_path;
+
+pub async fn wait_for_sequencer_commitments(
+    full_node: &FullNode,
+    height: u64,
+    timeout: Option<Duration>,
+) -> Result<Vec<SequencerCommitmentResponse>> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30));
+
+    loop {
+        if start.elapsed() >= timeout {
+            bail!("FullNode failed to get sequencer commitments within the specified timeout");
+        }
+
+        match full_node
+            .client
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_number(height)
+            .await
+        {
+            Ok(Some(commitments)) => return Ok(commitments),
+            Ok(None) => sleep(Duration::from_millis(500)).await,
+            Err(e) => bail!("Error fetching sequencer commitments: {}", e),
+        }
+    }
+}
+
 struct LedgerGetCommitmentsProverTest;
 
 #[async_trait]
@@ -58,7 +92,8 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 
         let commitments = prover
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_number(finalized_height)
             .await
             .unwrap()
             .unwrap();
@@ -74,7 +109,8 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 
         let commitments_hash = prover
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
             .await
             .unwrap()
             .unwrap();
@@ -130,9 +166,7 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         let finalized_height = da.get_finalized_height().await?;
 
-        let commitments = full_node
-            .wait_for_sequencer_commitments(finalized_height, None)
-            .await?;
+        let commitments = wait_for_sequencer_commitments(full_node, finalized_height, None).await?;
 
         assert_eq!(commitments.len(), 1);
 
@@ -145,7 +179,8 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         let commitments_node = full_node
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
             .await
             .unwrap()
             .unwrap();
@@ -291,7 +326,8 @@ impl SequencerSendCommitmentsToDaTest {
             soft_confirmations.push(
                 sequencer
                     .client
-                    .ledger_get_soft_confirmation_by_number(i)
+                    .http_client()
+                    .get_soft_confirmation_by_number(i)
                     .await?
                     .unwrap(),
             );
