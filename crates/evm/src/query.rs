@@ -20,6 +20,7 @@ use reth_rpc_types::{
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
+use revm::primitives::SpecId::CANCUN;
 use revm::primitives::{
     CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo,
 };
@@ -348,11 +349,23 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        let (_, current_spec) = cfg.spec.last().expect("Spec should be set");
+
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let account = self.accounts.get(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
-            self.code.get(&code_hash, working_set).unwrap_or_default()
+            if current_spec.is_enabled_in(CANCUN) {
+                self.offchain_code
+                    .get(&code_hash, &mut working_set.offchain_state())
+                    .unwrap_or_default()
+            } else {
+                self.code.get(&code_hash, working_set).unwrap_or_default()
+            }
         } else {
             Default::default()
         };
