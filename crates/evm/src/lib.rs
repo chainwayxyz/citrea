@@ -80,7 +80,14 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]
-    pub(crate) code: sov_modules_api::OffchainStateMap<
+    pub(crate) code:
+        sov_modules_api::StateMap<reth_primitives::B256, revm::primitives::Bytecode, BcsCodec>,
+
+    /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
+    /// This is the new offchain version which is not counted in the state diff.
+    /// Activated after FORK1
+    #[state(rename = "occ")]
+    pub(crate) offchain_code: sov_modules_api::OffchainStateMap<
         reth_primitives::B256,
         revm::primitives::Bytecode,
         BcsCodec,
@@ -189,12 +196,18 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
-    pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<C>) -> EvmDb<'a, C> {
+    pub(crate) fn get_db<'a>(
+        &self,
+        working_set: &'a mut WorkingSet<C>,
+        current_spec: SpecId,
+    ) -> EvmDb<'a, C> {
         EvmDb::new(
             self.accounts.clone(),
             self.code.clone(),
+            self.offchain_code.clone(),
             self.latest_block_hashes.clone(),
             working_set,
+            current_spec,
         )
     }
 
