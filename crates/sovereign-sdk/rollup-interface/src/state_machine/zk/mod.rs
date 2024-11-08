@@ -147,11 +147,46 @@ pub trait Matches<T> {
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
 /// Data required to verify a state transition.
-pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec> {
+pub struct BatchProofCircuitInputV1<'txs, StateRoot, Witness, Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StateRoot,
     /// The state root after the state transition
     pub final_state_root: StateRoot,
+    /// The hash before the state transition
+    pub prev_soft_confirmation_hash: [u8; 32],
+    /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
+    pub da_data: Vec<Da::BlobTransaction>,
+    /// DA block header that the sequencer commitments were found in.
+    pub da_block_header_of_commitments: Da::BlockHeader,
+    /// The inclusion proof for all DA data.
+    pub inclusion_proof: Da::InclusionMultiProof,
+    /// The completeness proof for all DA data.
+    pub completeness_proof: Da::CompletenessProof,
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
+    /// The soft confirmations that are inside the sequencer commitments.
+    pub soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
+    /// Corresponding witness for the soft confirmations.
+    pub state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>>,
+    /// DA block headers the soft confirmations was constructed on.
+    pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
+    /// Sequencer soft confirmation public key.
+    pub sequencer_public_key: Vec<u8>,
+    /// Sequencer DA public_key: Vec<u8>,
+    pub sequencer_da_public_key: Vec<u8>,
+    /// The range of sequencer commitments that are being processed.
+    /// The range is inclusive.
+    pub sequencer_commitments_range: (u32, u32),
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+// Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
+// StateTransitionFunction, DA, and Zkvm traits.
+#[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
+/// Data required to verify a state transition.
+pub struct BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da: DaSpec> {
+    /// The state root before the state transition
+    pub initial_state_root: StateRoot,
     /// The hash before the state transition
     pub prev_soft_confirmation_hash: [u8; 32],
     /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
