@@ -750,15 +750,12 @@ where
                 "Invalid DA block header hash"
             );
 
+            // collect the soft confirmation hashes
+            let soft_confirmation_hashes = soft_confirmations
+                .iter()
+                .map(|soft_confirmation| soft_confirmation.hash())
+                .collect::<Vec<_>>();
             // now verify the claimed merkle root of soft confirmation hashes
-            let mut soft_confirmation_hashes = vec![];
-
-            for soft_confirmation in soft_confirmations.iter() {
-                // given hashes will be checked inside apply_soft_confirmation.
-                // so use the claimed hash for now.
-                soft_confirmation_hashes.push(soft_confirmation.hash());
-            }
-
             let calculated_root =
                 MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
 
