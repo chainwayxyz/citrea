@@ -1,5 +1,7 @@
+use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
+use borsh::BorshDeserialize;
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::{ClientT, Error};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -134,9 +136,22 @@ pub struct GetSoftConfirmationResponse {
     pub timestamp: u64,
 }
 
-impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation<'static> {
-    fn from(val: GetSoftConfirmationResponse) -> Self {
-        SignedSoftConfirmation::new(
+impl<'txs, Tx> TryFrom<GetSoftConfirmationResponse> for SignedSoftConfirmation<'txs, Tx>
+where
+    Tx: Clone + BorshDeserialize,
+{
+    type Error = borsh::io::Error;
+    fn try_from(val: GetSoftConfirmationResponse) -> Result<Self, Self::Error> {
+        let parsed_txs = val
+            .txs
+            .iter()
+            .flatten()
+            .map(|tx| {
+                let body = &tx.tx;
+                borsh::from_slice::<Tx>(body)
+            })
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let res = SignedSoftConfirmation::new(
             val.l2_height,
             val.hash,
             val.prev_hash,
@@ -149,10 +164,12 @@ impl From<GetSoftConfirmationResponse> for SignedSoftConfirmation<'static> {
                 .into_iter()
                 .map(|tx| tx.tx)
                 .collect(),
+            parsed_txs.into(),
             val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
             val.soft_confirmation_signature,
             val.pub_key,
             val.timestamp,
-        )
+        );
+        Ok(res)
     }
 }

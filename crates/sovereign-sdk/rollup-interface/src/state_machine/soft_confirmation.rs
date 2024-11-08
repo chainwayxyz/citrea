@@ -13,18 +13,19 @@ use serde::{Deserialize, Serialize};
 
 /// Contains raw transactions and information about the soft confirmation block
 #[derive(Debug, PartialEq, BorshSerialize)]
-pub struct UnsignedSoftConfirmation<'txs> {
+pub struct UnsignedSoftConfirmation<'txs, Tx> {
     l2_height: u64,
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
     txs: &'txs [Vec<u8>],
+    txs_new: &'txs [Tx],
     deposit_data: Vec<Vec<u8>>,
     l1_fee_rate: u128,
     timestamp: u64,
 }
 
-impl<'txs> UnsignedSoftConfirmation<'txs> {
+impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
     pub fn new(
@@ -33,6 +34,7 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
         txs: &'txs [Vec<u8>],
+        txs_new: &'txs [Tx],
         deposit_data: Vec<Vec<u8>>,
         l1_fee_rate: u128,
         timestamp: u64,
@@ -43,6 +45,7 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
             da_slot_hash,
             da_slot_txs_commitment,
             txs,
+            txs_new,
             deposit_data,
             l1_fee_rate,
             timestamp,
@@ -67,6 +70,10 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
     /// Raw transactions.
     pub fn txs(&self) -> &[Vec<u8>] {
         self.txs
+    }
+    /// Raw transactions.
+    pub fn txs_new(&self) -> &[Tx] {
+        self.txs_new
     }
     /// Deposit data from L1 chain
     pub fn deposit_data(&self) -> Vec<Vec<u8>> {
@@ -109,8 +116,8 @@ impl<'txs> UnsignedSoftConfirmation<'txs> {
 
 /// Signed version of the `UnsignedSoftConfirmation`
 /// Contains the signature and public key of the sequencer
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Eq)]
-pub struct SignedSoftConfirmation<'txs> {
+#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct SignedSoftConfirmation<'txs, Tx: Clone> {
     l2_height: u64,
     hash: [u8; 32],
     prev_hash: [u8; 32],
@@ -119,13 +126,14 @@ pub struct SignedSoftConfirmation<'txs> {
     da_slot_txs_commitment: [u8; 32],
     l1_fee_rate: u128,
     txs: Cow<'txs, [Vec<u8>]>,
+    txs_new: Cow<'txs, [Tx]>,
     signature: Vec<u8>,
     deposit_data: Vec<Vec<u8>>,
     pub_key: Vec<u8>,
     timestamp: u64,
 }
 
-impl<'txs> SignedSoftConfirmation<'txs> {
+impl<'txs, Tx: Clone> SignedSoftConfirmation<'txs, Tx> {
     /// Creates a signed soft confirmation batch
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -137,11 +145,12 @@ impl<'txs> SignedSoftConfirmation<'txs> {
         da_slot_txs_commitment: [u8; 32],
         l1_fee_rate: u128,
         txs: Cow<'txs, [Vec<u8>]>,
+        txs_new: Cow<'txs, [Tx]>,
         deposit_data: Vec<Vec<u8>>,
         signature: Vec<u8>,
         pub_key: Vec<u8>,
         timestamp: u64,
-    ) -> SignedSoftConfirmation {
+    ) -> Self {
         Self {
             l2_height,
             hash,
@@ -151,6 +160,7 @@ impl<'txs> SignedSoftConfirmation<'txs> {
             da_slot_txs_commitment,
             l1_fee_rate,
             txs,
+            txs_new,
             deposit_data,
             signature,
             pub_key,
@@ -196,6 +206,11 @@ impl<'txs> SignedSoftConfirmation<'txs> {
     /// Txs of signed batch
     pub fn txs(&self) -> &[Vec<u8>] {
         &self.txs
+    }
+
+    /// Txs of signed batch
+    pub fn txs_new(&self) -> &[Tx] {
+        &self.txs_new
     }
 
     /// Deposit data

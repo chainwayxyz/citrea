@@ -6941,6 +6941,7 @@ name = "sequencer-client"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
+ "borsh",
  "citrea-primitives",
  "hex",
  "jsonrpsee",
@@ -7367,6 +7368,7 @@ dependencies = [
  "borsh",
  "clap",
  "derive_more",
+ "digest 0.10.7",
  "ed25519-dalek",
  "hex",
  "jmt",

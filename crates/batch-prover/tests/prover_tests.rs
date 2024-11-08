@@ -99,7 +99,7 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
 
 fn make_transition_data(
     header_hash: MockHash,
-) -> BatchProofCircuitInputV2<'static, [u8; 0], Vec<u8>, MockDaSpec> {
+) -> BatchProofCircuitInputV2<'static, [u8; 0], Vec<u8>, MockDaSpec, ()> {
     BatchProofCircuitInputV2 {
         initial_state_root: [],
         inclusion_proof: [0; 32],
