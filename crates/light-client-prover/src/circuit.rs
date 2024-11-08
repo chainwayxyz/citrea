@@ -100,9 +100,19 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
                         let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
-                            G::verify_and_extract_output(&journal, &batch_proof_method_id.into())
-                                // TODO: Continue here do not panic
-                                .expect("Batch proof could not be verified");
+                            match G::verify_and_extract_output(
+                                &journal,
+                                &batch_proof_method_id.into(),
+                            ) {
+                                Ok(output) => output,
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Batch proof could not be verified with hash: {:?}",
+                                        e
+                                    );
+                                    continue;
+                                }
+                            };
 
                         // Do not add if last l2 height is smaller or equal to previous output
                         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
