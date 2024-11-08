@@ -549,7 +549,7 @@ where
         witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
-        mut preproven_commitment_indices: Vec<usize>,
+        preproven_commitment_indices: Vec<usize>,
         forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
@@ -594,21 +594,23 @@ where
         // rollup state transitions.
         sequencer_commitments.sort();
 
-        // TODO: filter in a better looking way maybe?
         // The preproven indices are sorted by the prover when originally passed.
-        // Therefore, we pass the commitments sequentially to make sure that the current
-        // commitment index is not at the beginning of the list of preproven indices.
-        let mut filtered = vec![];
-        for (index, sequencer_commitment) in sequencer_commitments.into_iter().enumerate() {
-            if let Some(exclude_index) = preproven_commitment_indices.first() {
-                if index == *exclude_index {
-                    preproven_commitment_indices.remove(0);
-                    continue;
+        // Therefore, we can iterate of sequencer commitments and filter out
+        // matching preproven indices.
+        let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
+        let sequencer_commitments_iter = sequencer_commitments
+            .into_iter()
+            .enumerate()
+            .filter(|(idx, _)| {
+                if let Some(preproven_idx) = preproven_commitments_iter.peek() {
+                    if preproven_idx == idx {
+                        preproven_commitments_iter.next();
+                        return false;
+                    }
                 }
-            }
-            filtered.push(sequencer_commitment);
-        }
-        sequencer_commitments = filtered;
+                true
+            })
+            .map(|(_, commitment)| commitment);
 
         // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();
@@ -619,8 +621,7 @@ where
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
-            sequencer_commitments
-                .into_iter()
+            sequencer_commitments_iter
                 .skip(sequencer_commitments_range.0 as usize)
                 .take(
                     sequencer_commitments_range.1 as usize - sequencer_commitments_range.0 as usize
