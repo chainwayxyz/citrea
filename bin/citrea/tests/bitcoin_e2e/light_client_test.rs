@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use super::get_citrea_path;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
@@ -11,6 +10,8 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use sov_ledger_rpc::client::RpcClient;
+
+use super::get_citrea_path;
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
 

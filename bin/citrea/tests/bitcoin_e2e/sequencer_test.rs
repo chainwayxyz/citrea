@@ -1,4 +1,3 @@
-use super::get_citrea_path;
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoincore_rpc::RpcApi;
@@ -8,6 +7,8 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use sov_ledger_rpc::client::RpcClient;
+
+use super::get_citrea_path;
 
 struct BasicSequencerTest;
 
