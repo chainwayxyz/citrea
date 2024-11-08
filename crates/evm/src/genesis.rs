@@ -162,7 +162,29 @@ impl<C: sov_modules_api::Context> Evm<C> {
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
     ) -> Result<()> {
-        let mut evm_db = self.get_db(working_set);
+        let mut spec = config
+            .spec
+            .iter()
+            .map(|(k, v)| {
+                // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
+                if *v == SpecId::CANCUN {
+                    panic!("Cancun is not supported");
+                }
+
+                (*k, *v)
+            })
+            .collect::<Vec<_>>();
+
+        spec.sort_by(|a, b| a.0.cmp(&b.0));
+
+        if spec.is_empty() {
+            spec.push((0, SpecId::SHANGHAI));
+        } else if spec[0].0 != 0u64 {
+            panic!("EVM spec must start from block 0");
+        }
+
+        let (_, current_spec) = spec.last().expect("Spec should be set");
+        let mut evm_db = self.get_db(working_set, *current_spec);
 
         for acc in &config.data {
             let code = Bytecode::new_raw(acc.code.clone());
@@ -188,27 +210,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     evm_db.insert_storage(acc.address, *k, *v);
                 }
             }
-        }
-
-        let mut spec = config
-            .spec
-            .iter()
-            .map(|(k, v)| {
-                // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-                if *v == SpecId::CANCUN {
-                    panic!("Cancun is not supported");
-                }
-
-                (*k, *v)
-            })
-            .collect::<Vec<_>>();
-
-        spec.sort_by(|a, b| a.0.cmp(&b.0));
-
-        if spec.is_empty() {
-            spec.push((0, SpecId::SHANGHAI));
-        } else if spec[0].0 != 0u64 {
-            panic!("EVM spec must start from block 0");
         }
 
         let chain_cfg = EvmChainConfig {

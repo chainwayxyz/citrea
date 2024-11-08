@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use reth_primitives::{Address, TxKind};
+use revm::primitives::SpecId::SHANGHAI;
 use revm::primitives::{CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
@@ -27,7 +28,7 @@ fn simple_contract_execution_sov_state() {
         WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<C>::default();
-    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set);
+    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set, SHANGHAI);
 
     simple_contract_execution(evm_db);
 }

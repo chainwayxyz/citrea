@@ -64,7 +64,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .map(|info| info.nonce)
             .unwrap_or(0);
 
-        let db: EvmDb<'_, C> = self.get_db(working_set);
+        let db: EvmDb<'_, C> = self.get_db(working_set, cfg_env.handler_cfg.spec_id);
         let system_txs = create_system_transactions(system_events, system_nonce, cfg_env.chain_id);
 
         let mut citrea_handler_ext = CitreaExternal::new(l1_fee_rate);
@@ -154,7 +154,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             log_index_start = tx.receipt.log_index_start + tx.receipt.receipt.logs.len() as u64;
         }
 
-        let evm_db: EvmDb<'_, C> = self.get_db(working_set);
+        let evm_db: EvmDb<'_, C> = self.get_db(working_set, cfg_env.handler_cfg.spec_id);
 
         let results = executor::execute_multiple_tx(
             evm_db,

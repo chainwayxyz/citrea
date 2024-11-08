@@ -20,7 +20,7 @@ use crate::da::DaSpec;
 use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
-use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
+use crate::zk::{CumulativeStateDiff, Zkvm};
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
 pub mod fuzzing;
@@ -212,9 +212,6 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         + Sync
         + 'static;
 
-    /// The validity condition that must be verified outside of the Vm
-    type Condition: ValidityCondition;
-
     /// Perform one-time initialization for the genesis block and
     /// returns the resulting root hash and changeset.
     /// If the init chain fails we panic.
@@ -246,7 +243,6 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
@@ -280,7 +276,6 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
@@ -309,7 +304,6 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         sequencer_commitments_range: (u32, u32),
         witnesses: VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,

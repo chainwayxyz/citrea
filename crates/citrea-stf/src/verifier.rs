@@ -45,7 +45,7 @@ where
             panic!("Invalid hash of DA block header of commitments");
         }
 
-        let validity_condition = self.da_verifier.verify_transactions(
+        self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
             &data.da_data,
             data.inclusion_proof,
@@ -83,7 +83,6 @@ where
                 data.sequencer_commitments_range,
                 data.state_transition_witnesses,
                 data.da_block_headers_of_soft_confirmations,
-                &validity_condition,
                 data.soft_confirmations,
                 data.preproven_commitments.clone(),
                 FORKS.to_vec(),
@@ -101,7 +100,6 @@ where
             final_state_root,
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             final_soft_confirmation_hash,
-            validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
             sequencer_public_key: data.sequencer_public_key,

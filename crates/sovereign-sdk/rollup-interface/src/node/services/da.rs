@@ -12,7 +12,6 @@ use crate::da::BlockHeaderTrait;
 use crate::da::{DaData, DaNamespace, DaSpec, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
 use crate::zk::Proof;
-use crate::zk::ValidityCondition;
 
 /// This type represents a queued request to send_transaction
 #[cfg(feature = "native")]
@@ -38,10 +37,7 @@ pub trait DaService: Send + Sync + 'static {
     type Verifier: DaVerifier<Spec = Self::Spec>;
 
     /// A DA layer block, possibly excluding some irrelevant information.
-    type FilteredBlock: SlotData<
-        BlockHeader = <Self::Spec as DaSpec>::BlockHeader,
-        Cond = <Self::Spec as DaSpec>::ValidityCondition,
-    >;
+    type FilteredBlock: SlotData<BlockHeader = <Self::Spec as DaSpec>::BlockHeader>;
 
     /// Type that allow to consume [`futures::Stream`] of BlockHeaders.
     type HeaderStream: futures::Stream<
@@ -147,13 +143,8 @@ pub trait SlotData:
     /// fields like `data_root` are stored in decoded form in the `CelestiaHeader` struct.
     type BlockHeader: BlockHeaderTrait;
 
-    /// The validity condition associated with the slot data.
-    type Cond: ValidityCondition;
-
     /// The canonical hash of the DA layer block.
     fn hash(&self) -> [u8; 32];
     /// The header of the DA layer block.
     fn header(&self) -> &Self::BlockHeader;
-    /// Get the validity condition set associated with the slot
-    fn validity_condition(&self) -> Self::Cond;
 }

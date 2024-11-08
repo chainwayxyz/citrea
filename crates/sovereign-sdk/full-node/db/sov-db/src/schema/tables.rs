@@ -36,8 +36,8 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, JmtValue, L2HeightRange, SlotNumber,
-    StateKey, StoredBatch, StoredBatchProof, StoredLightClientProof, StoredSlot,
-    StoredSoftConfirmation, StoredVerifiedProof,
+    StateKey, StoredBatch, StoredBatchProof, StoredBatchProofV1, StoredLightClientProof,
+    StoredSlot, StoredSoftConfirmation, StoredVerifiedProof,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -68,6 +68,7 @@ pub const LEDGER_TABLES: &[&str] = &[
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
+    ProofsBySlotNumberV2::table_name(),
     VerifiedBatchProofsBySlotNumber::table_name(),
     MempoolTxs::table_name(),
     PendingProvingSessions::table_name(),
@@ -314,8 +315,13 @@ define_table_with_default_codec!(
 );
 
 define_table_with_default_codec!(
+    /// Old version of ProofsBySlotNumber
+    (ProofsBySlotNumber) SlotNumber => Vec<StoredBatchProofV1>
+);
+
+define_table_with_default_codec!(
     /// Proof data on L1 slot
-    (ProofsBySlotNumber) SlotNumber => Vec<StoredBatchProof>
+    (ProofsBySlotNumberV2) SlotNumber => Vec<StoredBatchProof>
 );
 
 define_table_with_default_codec!(

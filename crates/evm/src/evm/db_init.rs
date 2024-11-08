@@ -1,6 +1,7 @@
 use reth_primitives::U256;
 #[cfg(test)]
 use revm::db::{CacheDB, EmptyDB};
+use revm::primitives::SpecId::CANCUN;
 use revm::primitives::{Address, Bytecode, B256};
 use sov_modules_api::StateMapAccessor;
 
@@ -20,8 +21,12 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytecode) {
-        self.code
-            .set(&code_hash, &code, &mut self.working_set.offchain_state())
+        if self.current_spec.is_enabled_in(CANCUN) {
+            self.offchain_code
+                .set(&code_hash, &code, &mut self.working_set.offchain_state())
+        } else {
+            self.code.set(&code_hash, &code, self.working_set)
+        }
     }
 
     fn insert_storage(&mut self, address: Address, index: U256, value: U256) {

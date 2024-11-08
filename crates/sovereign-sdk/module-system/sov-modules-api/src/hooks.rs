@@ -181,7 +181,6 @@ pub trait SlotHooks<Da: DaSpec> {
     fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         working_set: &mut WorkingSet<Self::Context>,
     );

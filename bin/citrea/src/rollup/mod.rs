@@ -379,6 +379,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator = LedgerDBMigrator::new(
+            rollup_config.storage.path.as_path(),
+            citrea_light_client_prover::db_migrations::migrations(),
+        );
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+
         let da_service = self.create_da_service(&rollup_config, true).await?;
 
         let rocksdb_config = RocksdbConfig::new(

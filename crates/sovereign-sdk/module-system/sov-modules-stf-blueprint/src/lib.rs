@@ -404,8 +404,6 @@ where
 
     type Witness = <<C as Spec>::Storage as Storage>::Witness;
 
-    type Condition = Da::ValidityCondition;
-
     fn init_chain(
         &self,
         pre_state: Self::PreState,
@@ -447,7 +445,6 @@ where
         _pre_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         _blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
@@ -473,7 +470,6 @@ where
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
-        _validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
@@ -552,7 +548,6 @@ where
         sequencer_commitments_range: (u32, u32),
         witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        validity_condition: &<Da as DaSpec>::ValidityCondition,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
         mut preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
@@ -804,7 +799,6 @@ where
                         state_witness,
                         offchain_witness,
                         &da_block_header,
-                        validity_condition,
                         &mut soft_confirmation,
                     )
                     // TODO: this can be just ignoring the failing seq. com.

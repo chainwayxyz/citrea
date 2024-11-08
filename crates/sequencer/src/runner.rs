@@ -69,8 +69,7 @@ where
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Vm, Da::Spec> + StfBlueprintTrait<C, Da::Spec, Vm>,
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
     da_service: Arc<Da>,
@@ -109,7 +108,6 @@ where
     Stf: StateTransitionFunction<
             Vm,
             Da::Spec,
-            Condition = <Da::Spec as DaSpec>::ValidityCondition,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
         > + StfBlueprintTrait<C, Da::Spec, Vm>,
