@@ -765,7 +765,7 @@ where
                 "Invalid merkle root"
             );
 
-            let mut da_block_headers_iter = da_block_headers.into_iter().peekable();
+            let mut da_block_headers_iter = da_block_headers.into_iter();
             let mut da_block_header = da_block_headers_iter.next().unwrap();
 
             let mut l2_height = sequencer_commitment.l2_start_block_number;
