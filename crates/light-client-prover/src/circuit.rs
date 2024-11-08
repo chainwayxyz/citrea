@@ -11,6 +11,7 @@ use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 #[derive(Debug)]
 pub enum LightClientVerificationError {
     DaTxsCouldntBeVerified,
+    HeaderChainVerificationFailed,
 }
 
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
@@ -37,7 +38,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     let block_updates = da_verifier
         .verify_header_chain(&previous_light_client_proof_output, &input.da_block_header)
-        .expect("Failed to verify DA header chain");
+        .map_err(|_| LightClientVerificationError::HeaderChainVerificationFailed)?;
 
     // Verify data from da
     let _validity_condition = da_verifier
@@ -100,6 +101,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
                         let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
                             G::verify_and_extract_output(&journal, &batch_proof_method_id.into())
+                                // TODO: Continue here do not panic
                                 .expect("Batch proof could not be verified");
 
                         // Do not add if last l2 height is smaller or equal to previous output
