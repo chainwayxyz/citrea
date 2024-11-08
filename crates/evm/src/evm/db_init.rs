@@ -25,7 +25,7 @@ impl<'a, C: sov_modules_api::Context> InitEvmDb for EvmDb<'a, C> {
             self.offchain_code
                 .set(&code_hash, &code, &mut self.working_set.offchain_state())
         } else {
-            self.code.set(&code_hash, &code, &mut self.working_set)
+            self.code.set(&code_hash, &code, self.working_set)
         }
     }
 

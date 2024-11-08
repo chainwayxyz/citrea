@@ -54,7 +54,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 if !code.is_empty() {
                     let exists_in_db = self
                         .code
-                        .get(&account_info.code_hash, &mut self.working_set)
+                        .get(&account_info.code_hash, self.working_set)
                         .is_some();
 
                     if !exists_in_db {
@@ -66,7 +66,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                             );
                         } else {
                             self.code
-                                .set(&account_info.code_hash, code, &mut self.working_set);
+                                .set(&account_info.code_hash, code, self.working_set);
                         }
                     }
                 }
