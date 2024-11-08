@@ -758,9 +758,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedDiffSize> {
-        if request.gas.is_none() {
-            return Err(EthApiError::InvalidParams("gas must be set".into()))?;
-        }
         let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
 
         Ok(EstimatedDiffSize {
