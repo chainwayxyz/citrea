@@ -98,7 +98,7 @@ impl DaVerifier for MockDaVerifier {
         // Skip hash, bits, pow and timestamp checks for now
 
         Ok(UpdatedDaState {
-            hash: block_header.hash.into(),
+            hash: block_header.hash,
             height: block_header.height,
             total_work: [0; 32],
             epoch_start_time: 0,

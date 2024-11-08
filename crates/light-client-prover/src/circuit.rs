@@ -105,13 +105,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 &batch_proof_method_id.into(),
                             ) {
                                 Ok(output) => output,
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "Batch proof could not be verified with hash: {:?}",
-                                        e
-                                    );
-                                    continue;
-                                }
+                                Err(_) => continue,
                             };
 
                         // Do not add if last l2 height is smaller or equal to previous output

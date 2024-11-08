@@ -4,11 +4,8 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
 };
 use sov_mock_zkvm::{MockCodeCommitment, MockProof, MockZkGuest};
-use sov_rollup_interface::da::{
-    BlobReaderTrait, DaData, DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec,
-    SequencerCommitment, Time,
-};
-use sov_rollup_interface::zk::{BatchProofCircuitOutput, LightClientCircuitInput, Zkvm, ZkvmGuest};
+use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient};
+use sov_rollup_interface::zk::{BatchProofCircuitOutput, LightClientCircuitInput};
 
 use crate::circuit::{run_circuit, LightClientVerificationError};
 

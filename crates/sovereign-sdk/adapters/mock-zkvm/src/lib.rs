@@ -3,8 +3,7 @@
 
 use std::collections::VecDeque;
 use std::io::Write;
-use std::sync::RwLock;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
