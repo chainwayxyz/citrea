@@ -85,6 +85,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     /// This is the new offchain version which is not counted in the state diff.
+    /// Activated after FORK1
     #[state(rename = "occ")]
     pub(crate) offchain_code: sov_modules_api::OffchainStateMap<
         reth_primitives::B256,

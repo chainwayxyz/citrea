@@ -353,6 +353,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .cfg
             .get(working_set)
             .expect("EVM chain config should be set");
+        // TODO: Fix this in #1436
         let (_, current_spec) = cfg.spec.last().expect("Spec should be set");
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
@@ -362,7 +363,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             if current_spec.is_enabled_in(CANCUN) {
                 self.offchain_code
                     .get(&code_hash, &mut working_set.offchain_state())
-                    .unwrap_or_default()
+                    .unwrap_or_else(|| self.code.get(&code_hash, working_set).unwrap_or_default())
             } else {
                 self.code.get(&code_hash, working_set).unwrap_or_default()
             }
