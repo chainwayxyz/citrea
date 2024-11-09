@@ -284,6 +284,7 @@ impl<T: Clone + Eq + Hash> FilterSet<T> {
     ///   - If the filter is empty, it returns None
     ///   - If the filter has only 1 value, it returns the single value
     ///   - Otherwise it returns an array of values
+    ///
     /// This should be useful for serialization
     pub fn to_value_or_array(&self) -> Option<ValueOrArray<T>> {
         let mut values = self.0.iter().cloned().collect::<Vec<T>>();

@@ -72,7 +72,6 @@ where
         witness.get_hint()
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
@@ -127,7 +126,6 @@ where
         Ok((jmt::RootHash(new_root), (), diff))
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn commit(
         &self,
         _node_batch: &Self::StateUpdate,
