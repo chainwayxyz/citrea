@@ -16,6 +16,7 @@ citrea-primitives = { path = "../primitives" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 tokio = { workspace = true, features = ["full"], optional = true }
+tokio-util = { workspace = true, optional = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -43,6 +44,7 @@ default = []
 native = [
   "dep:backoff",
   "dep:tokio",
+  "dep:tokio-util",
   "dep:pin-project",
   "dep:tracing",
   "sov-rollup-interface/native",

@@ -9,9 +9,11 @@ use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::select;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{error, info, instrument};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, info, instrument};
 
 use crate::service::FINALITY_DEPTH;
 
@@ -123,7 +125,7 @@ impl MonitoringService {
         }
     }
 
-    async fn init(&self) -> Result<()> {
+    pub async fn restore(&self) -> Result<()> {
         self.initialize_chainstate().await?;
         self.restore_from_mempool().await
     }
@@ -165,24 +167,27 @@ impl MonitoringService {
         self.monitor_transaction_chain(txids).await
     }
 
-    /// Spawn a tokio task to keep track of TX status and chain re-orgs
-    pub async fn spawn(self: Arc<Self>) -> Result<()> {
-        self.init().await?;
-
-        tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(self.config.check_interval));
-            loop {
-                interval.tick().await;
-                if let Err(e) = self.check_chain_state().await {
-                    error!("Error checking chain state: {}", e);
+    /// Run monitoring to keep track of TX status and chain re-orgs
+    pub async fn run(self: Arc<Self>, token: CancellationToken) {
+        let mut interval = interval(Duration::from_secs(self.config.check_interval));
+        loop {
+            select! {
+                biased;
+                _ = token.cancelled() => {
+                    debug!("Monitoring service received shutdown signal");
+                    break;
                 }
-                if let Err(e) = self.check_transactions().await {
-                    error!("Error checking transactions: {}", e);
+                _ = interval.tick() => {
+                    if let Err(e) = self.check_chain_state().await {
+                        error!("Error checking chain state: {}", e);
+                    }
+                    if let Err(e) = self.check_transactions().await {
+                        error!("Error checking transactions: {}", e);
+                    }
+                    self.prune_old_transactions().await;
                 }
-                self.prune_old_transactions().await;
             }
-        });
-        Ok(())
+        }
     }
 
     /// Monitor a chain of transactions (commit/reveal pairs and any intermediate chunks)

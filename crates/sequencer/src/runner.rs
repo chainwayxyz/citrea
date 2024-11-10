@@ -128,6 +128,7 @@ where
         rpc_config: RpcConfig,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
+        task_manager: TaskManager<()>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -159,8 +160,6 @@ where
         let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
-
-        let task_manager = TaskManager::default();
 
         Ok(Self {
             da_service,

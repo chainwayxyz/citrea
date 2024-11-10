@@ -1239,6 +1239,7 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -1757,6 +1758,7 @@ dependencies = [
  "sp1-helper",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]

@@ -7,6 +7,7 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
@@ -45,7 +46,6 @@ impl RollupBlueprint for BitcoinRollup {
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
     type Vm = Risc0BonsaiHost<'static>;
-
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
 
@@ -136,8 +136,9 @@ impl RollupBlueprint for BitcoinRollup {
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
         require_wallet_check: bool,
+        task_manager: &mut TaskManager<()>,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<Option<SenderWithNotifier<TxidWrapper>>>();
+        let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
 
         let bitcoin_service = if require_wallet_check {
             BitcoinService::new_with_wallet_check(
@@ -165,9 +166,12 @@ impl RollupBlueprint for BitcoinRollup {
         // require_wallet_check is set false for full nodes.
         if require_wallet_check {
             // run only for sequencer and prover
-            Arc::clone(&service).spawn_da_queue(rx);
-            service.monitoring.clone().spawn().await?;
+            service.monitoring.restore().await?;
+
+            task_manager.spawn(|tk| Arc::clone(&service).run_da_queue(rx, tk));
+            task_manager.spawn(|tk| Arc::clone(&service.monitoring).run(tk));
         }
+
         Ok(service)
     }
 

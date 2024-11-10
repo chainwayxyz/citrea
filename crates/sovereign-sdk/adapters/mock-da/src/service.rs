@@ -497,11 +497,11 @@ impl DaService for MockDaService {
 
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<Option<SenderWithNotifier<Self::TransactionId>>> {
-        let (tx, mut rx) = unbounded_channel::<Option<SenderWithNotifier<Self::TransactionId>>>();
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
+        let (tx, mut rx) = unbounded_channel::<SenderWithNotifier<Self::TransactionId>>();
         let this = self.clone();
         tokio::spawn(async move {
-            while let Some(Some(req)) = rx.recv().await {
+            while let Some(req) = rx.recv().await {
                 let res = this.send_transaction(req.da_data).await;
                 let _ = req.notify.send(res);
             }

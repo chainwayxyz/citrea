@@ -3,9 +3,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper, FINALITY_DEPTH};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, ProverGuestRunConfig, SequencerConfig, TestCaseConfig, TestCaseEnv,
 };
@@ -18,8 +19,6 @@ use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
-use sov_rollup_interface::services::da::SenderWithNotifier;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -151,7 +150,7 @@ async fn basic_prover_test() -> Result<()> {
 
 #[derive(Default)]
 struct SkipPreprovenCommitmentsTest {
-    tx: Option<UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>>,
+    task_manager: TaskManager<()>,
 }
 
 #[async_trait]
@@ -210,8 +209,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             monitoring: Default::default(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        // Keep sender for cleanup
-        self.tx = Some(tx.clone());
 
         let bitcoin_da_service = Arc::new(
             BitcoinService::new_with_wallet_check(
@@ -220,12 +217,14 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                     to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
                     to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
-                tx.clone(),
+                tx,
             )
             .await
             .unwrap(),
         );
-        bitcoin_da_service.clone().spawn_da_queue(rx);
+
+        self.task_manager
+            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
         // Generate 1 FINALIZED DA block.
         da.generate(1 + FINALITY_DEPTH, None).await?;
@@ -343,10 +342,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     }
 
     async fn cleanup(&self) -> Result<()> {
-        // Send shutdown message to da queue
-        if let Some(tx) = &self.tx {
-            tx.send(None).unwrap();
-        }
+        self.task_manager.abort().await;
         Ok(())
     }
 }

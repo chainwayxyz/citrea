@@ -94,6 +94,7 @@ where
         prover_config: LightClientProverConfig,
         batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_commitment: Vm::CodeCommitment,
+        task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
         let sequencer_client_url = runner_config.sequencer_client_url.clone();
         Ok(Self {
@@ -105,7 +106,7 @@ where
             sequencer_client: SequencerClient::new(sequencer_client_url),
             prover_service,
             prover_config,
-            task_manager: TaskManager::default(),
+            task_manager,
             batch_proof_commitments_by_spec,
             light_client_proof_commitment,
         })
