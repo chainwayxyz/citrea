@@ -6,7 +6,7 @@ use citrea_common::{FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, S
 use citrea_fullnode::CitreaFullnode;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockValidityCond};
+use sov_mock_da::{MockAddress, MockDaConfig, MockDaService, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::fork::{Fork, ForkManager};
@@ -17,8 +17,7 @@ mod hash_stf;
 use hash_stf::HashStf;
 use tokio::sync::broadcast;
 
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkvm<MockValidityCond>, MockDaSpec>;
+type MockInitVariant = InitVariant<HashStf, MockDaSpec>;
 
 type StorageManager = ProverStorageManager<MockDaSpec>;
 
@@ -47,10 +46,10 @@ fn initialize_runner(
     storage_path: &std::path::Path,
     init_variant: MockInitVariant,
 ) -> CitreaFullnode<
-    HashStf<MockValidityCond>,
+    HashStf,
     StorageManager,
     MockDaService,
-    MockZkvm<MockValidityCond>,
+    MockZkvm,
     sov_modules_api::default_context::DefaultContext,
     LedgerDB,
 > {
@@ -103,7 +102,7 @@ fn initialize_runner(
     let ledger_db =
         LedgerDB::with_config(&RocksdbConfig::new(rollup_storage_path.as_path(), None)).unwrap();
 
-    let stf = HashStf::<MockValidityCond>::new();
+    let stf = HashStf::new();
 
     let storage_config = sov_state::config::Config {
         path: rollup_storage_path.to_path_buf(),

@@ -10,7 +10,7 @@ pub enum ProofGenMode<Da, Vm, Stf>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec>,
+    Stf: StateTransitionFunction<Da::Spec>,
 {
     /// Skips proving.
     Skip,

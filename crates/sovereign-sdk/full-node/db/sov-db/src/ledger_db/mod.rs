@@ -18,8 +18,8 @@ use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height,
     L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
-    PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
-    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
+    PendingSequencerCommitmentL2Range, ProofsBySlotNumberV2, ProverLastScannedSlot,
+    ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
     SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
@@ -564,16 +564,18 @@ impl BatchProverLedgerOps for LedgerDB {
             proof,
             proof_output,
         };
-        let proofs = self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))?;
+        let proofs = self
+            .db
+            .get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))?;
         match proofs {
             Some(mut proofs) => {
                 proofs.push(data_to_store);
                 self.db
-                    .put::<ProofsBySlotNumber>(&SlotNumber(l1_height), &proofs)
+                    .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &proofs)
             }
             None => self
                 .db
-                .put::<ProofsBySlotNumber>(&SlotNumber(l1_height), &vec![data_to_store]),
+                .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &vec![data_to_store]),
         }
     }
 
@@ -582,7 +584,7 @@ impl BatchProverLedgerOps for LedgerDB {
         &self,
         l1_height: u64,
     ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
-        self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))
+        self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))
     }
 
     /// Set the witness by L2 height

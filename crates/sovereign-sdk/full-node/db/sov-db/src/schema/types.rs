@@ -110,6 +110,40 @@ pub struct StoredLightClientProof {
     pub light_client_proof_output: StoredLightClientProofOutput,
 }
 
+/// Old version of StoredBatchProofOutput
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
+pub struct StoredBatchProofOutputV1 {
+    /// The state of the rollup before the transition
+    pub initial_state_root: Vec<u8>,
+    /// The state of the rollup after the transition
+    pub final_state_root: Vec<u8>,
+    /// State diff of L2 blocks in the processed sequencer commitments.
+    pub state_diff: CumulativeStateDiff,
+    /// The DA slot hash that the sequencer commitments causing this state transition were found in.
+    pub da_slot_hash: [u8; 32],
+    /// The range of sequencer commitments in the DA slot that were processed.
+    /// The range is inclusive.
+    pub sequencer_commitments_range: (u32, u32),
+    /// Sequencer public key.
+    pub sequencer_public_key: Vec<u8>,
+    /// Sequencer DA public key.
+    pub sequencer_da_public_key: Vec<u8>,
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
+    /// Validity condition. Removed in the newer version.
+    pub validity_condition: Vec<u8>,
+}
+/// Old version of StoredBatchProof
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredBatchProofV1 {
+    /// Tx id
+    pub l1_tx_id: [u8; 32],
+    /// Proof
+    pub proof: Proof,
+    /// Output
+    pub proof_output: StoredBatchProofOutputV1,
+}
+
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredBatchProof {
@@ -169,10 +203,6 @@ pub struct StoredBatchProofOutput {
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
-    /// An additional validity condition for the state transition which needs
-    /// to be checked outside of the zkVM circuit. This typically corresponds to
-    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
-    pub validity_condition: Vec<u8>,
 }
 
 impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
@@ -184,7 +214,6 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             da_slot_hash: value.da_slot_hash,
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
-            validity_condition: value.validity_condition,
             sequencer_commitments_range: value.sequencer_commitments_range,
             preproven_commitments: value.preproven_commitments,
         }

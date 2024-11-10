@@ -1,8 +1,5 @@
 use sha2::Digest;
-use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond,
-};
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -14,21 +11,16 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationReceipt, SoftConfirmationResult,
     StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Prefix, ProverStorage, Storage};
 pub type Q = SnapshotManager;
 
 #[derive(Default, Clone)]
-pub struct HashStf<Cond> {
-    phantom_data: std::marker::PhantomData<Cond>,
-}
+pub struct HashStf;
 
-impl<Cond> HashStf<Cond> {
+impl HashStf {
     pub fn new() -> Self {
-        Self {
-            phantom_data: std::marker::PhantomData,
-        }
+        Self {}
     }
 
     fn hash_key() -> StorageKey {
@@ -43,7 +35,7 @@ impl<Cond> HashStf<Cond> {
     ) -> ([u8; 32], ProverStorage<Q>) {
         let result = hasher.finalize();
 
-        let hash_key = HashStf::<Cond>::hash_key();
+        let hash_key = HashStf::hash_key();
         let hash_value = StorageValue::from(result.as_slice().to_vec());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
@@ -71,9 +63,7 @@ impl<Cond> HashStf<Cond> {
     }
 }
 
-impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrait<C, Da, Vm>
-    for HashStf<Cond>
-{
+impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     fn begin_soft_confirmation(
         &mut self,
         _sequencer_public_key: &[u8],
@@ -139,9 +129,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm, Cond: ValidityCondition> StfBlueprintTrai
     }
 }
 
-impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, Da>
-    for HashStf<Cond>
-{
+impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<Q>;
@@ -149,7 +137,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
     type TxReceiptContents = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
-    type Condition = Cond;
 
     fn init_chain(
         &self,
@@ -159,7 +146,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         let mut hasher = sha2::Sha256::new();
         hasher.update(params);
 
-        HashStf::<Cond>::save_from_hasher(hasher, genesis_state, &mut ArrayWitness::default())
+        HashStf::save_from_hasher(hasher, genesis_state, &mut ArrayWitness::default())
     }
 
     fn apply_slot<'a, I>(
@@ -169,7 +156,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         storage: Self::PreState,
         mut witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
@@ -187,7 +173,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         );
         let mut hasher = sha2::Sha256::new();
 
-        let hash_key = HashStf::<Cond>::hash_key();
+        let hash_key = HashStf::hash_key();
         let existing_cache = storage.get(&hash_key, None, &mut witness).unwrap();
         tracing::debug!(
             "HashStf provided_state_root={:?}, saved={:?}",
@@ -201,8 +187,7 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
             hasher.update(data);
         }
 
-        let (state_root, storage) =
-            HashStf::<Cond>::save_from_hasher(hasher, storage, &mut witness);
+        let (state_root, storage) = HashStf::save_from_hasher(hasher, storage, &mut witness);
 
         SlotResult {
             state_root,
@@ -223,7 +208,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _state_witness: Self::Witness,
         _offchain_witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
@@ -249,7 +233,6 @@ impl<Vm: Zkvm, Cond: ValidityCondition, Da: DaSpec> StateTransitionFunction<Vm, 
         _sequencer_commitments_range: (u32, u32),
         _witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        _validity_condition: &<Da as DaSpec>::ValidityCondition,
         _soft_confirmations: std::collections::VecDeque<
             Vec<sov_modules_api::SignedSoftConfirmation>,
         >,
@@ -290,7 +273,7 @@ fn compare_output() {
 
         let block = MockBlock {
             header: MockBlockHeader::from_height((idx + 1) as u64),
-            validity_cond: MockValidityCond::default(),
+            is_valid: true,
             blobs,
         };
         blocks.push(block);
@@ -317,13 +300,14 @@ pub fn get_result_from_blocks(
 
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
 
-    let stf = HashStf::<MockValidityCond>::new();
+    let stf = HashStf::new();
 
     let (genesis_state_root, mut storage) =
-        <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkvm<MockValidityCond>,
-            MockDaSpec,
-        >>::init_chain(&stf, storage, genesis_params.to_vec());
+        <HashStf as StateTransitionFunction<MockDaSpec>>::init_chain(
+            &stf,
+            storage,
+            genesis_params.to_vec(),
+        );
 
     let mut state_root = genesis_state_root;
 
@@ -332,19 +316,16 @@ pub fn get_result_from_blocks(
     for block in blocks {
         let mut blobs = block.blobs.clone();
 
-        let result = <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkvm<MockValidityCond>,
-            MockDaSpec,
-        >>::apply_slot::<&mut Vec<MockBlob>>(
-            &stf,
-            SpecId::Genesis,
-            &state_root,
-            storage,
-            ArrayWitness::default(),
-            &block.header,
-            &block.validity_cond,
-            &mut blobs,
-        );
+        let result =
+            <HashStf as StateTransitionFunction<MockDaSpec>>::apply_slot::<&mut Vec<MockBlob>>(
+                &stf,
+                SpecId::Genesis,
+                &state_root,
+                storage,
+                ArrayWitness::default(),
+                &block.header,
+                &mut blobs,
+            );
 
         state_root = result.state_root;
         storage = result.change_set;

@@ -19,19 +19,18 @@ use crate::{Runtime, RuntimeTxHook, TxEffect};
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<C: Context, Da: DaSpec, Vm, RT: Runtime<C, Da>> {
+pub struct StfBlueprint<C: Context, Da: DaSpec, RT: Runtime<C, Da>> {
     /// State storage used by the rollup.
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
     phantom_context: PhantomData<C>,
-    phantom_vm: PhantomData<Vm>,
     phantom_da: PhantomData<Da>,
 }
 
 type ApplySoftConfirmationResult<Da> =
     Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>;
 
-impl<C, Vm, Da, RT> Default for StfBlueprint<C, Da, Vm, RT>
+impl<C, Da, RT> Default for StfBlueprint<C, Da, RT>
 where
     C: Context,
     Da: DaSpec,
@@ -42,7 +41,7 @@ where
     }
 }
 
-impl<C, Vm, Da, RT> StfBlueprint<C, Da, Vm, RT>
+impl<C, Da, RT> StfBlueprint<C, Da, RT>
 where
     C: Context,
     Da: DaSpec,
@@ -53,7 +52,6 @@ where
         Self {
             runtime: RT::default(),
             phantom_context: PhantomData,
-            phantom_vm: PhantomData,
             phantom_da: PhantomData,
         }
     }

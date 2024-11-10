@@ -234,7 +234,7 @@ impl MockDaService {
         };
         let block = MockBlock {
             header,
-            validity_cond: Default::default(),
+            is_valid: true,
             blobs: vec![blob],
         };
 

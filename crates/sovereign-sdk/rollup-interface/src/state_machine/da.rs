@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::zk::{LightClientCircuitOutput, Proof, ValidityCondition};
+use crate::zk::{LightClientCircuitOutput, Proof};
 use crate::BasicAddress;
 
 /// Commitments made to the DA layer from the sequencer.
@@ -108,9 +108,6 @@ pub trait DaSpec:
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress + Send + Sync;
 
-    /// Any conditions imposed by the DA layer which need to be checked outside of the SNARK
-    type ValidityCondition: ValidityCondition + Send + Sync;
-
     /// A proof that each tx in a set of blob transactions is included in a given block.
     type InclusionMultiProof: BorshDeserialize
         + BorshSerialize
@@ -162,7 +159,7 @@ pub trait DaVerifier: Send + Sync {
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
+    ) -> Result<(), Self::Error>;
 
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(

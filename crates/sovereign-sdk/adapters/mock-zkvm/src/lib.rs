@@ -8,7 +8,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use anyhow::ensure;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{Matches, Proof, ValidityCondition};
+use sov_rollup_interface::zk::{Matches, Proof};
 
 /// A mock commitment to a particular zkVM program.
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -113,19 +113,25 @@ impl Notifier {
 
 /// A mock implementing the zkVM trait.
 #[derive(Clone)]
-pub struct MockZkvm<ValidityCond> {
+pub struct MockZkvm {
     worker_thread_notifier: Notifier,
     committed_data: VecDeque<Vec<u8>>,
-    validity_condition: ValidityCond,
+    is_valid: bool,
 }
 
-impl<ValidityCond> MockZkvm<ValidityCond> {
+impl Default for MockZkvm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MockZkvm {
     /// Creates a new MockZkvm
-    pub fn new(validity_condition: ValidityCond) -> Self {
+    pub fn new() -> Self {
         Self {
             worker_thread_notifier: Default::default(),
             committed_data: Default::default(),
-            validity_condition,
+            is_valid: Default::default(),
         }
     }
 
@@ -136,7 +142,7 @@ impl<ValidityCond> MockZkvm<ValidityCond> {
     }
 }
 
-impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkvm<ValidityCond> {
+impl sov_rollup_interface::zk::Zkvm for MockZkvm {
     type CodeCommitment = MockCodeCommitment;
 
     type Error = anyhow::Error;
@@ -167,15 +173,13 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::Zkvm for MockZkv
     }
 }
 
-impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
-    for MockZkvm<ValidityCond>
-{
+impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
     type Guest = MockZkGuest;
 
     fn add_hint(&mut self, item: Vec<u8>) {
         let proof_info = ProofInfo {
             hint: item,
-            validity_condition: self.validity_condition,
+            is_valid: self.is_valid,
         };
 
         let data = borsh::to_vec(&proof_info).unwrap();
@@ -198,7 +202,7 @@ impl<ValidityCond: ValidityCondition> sov_rollup_interface::zk::ZkvmHost
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<T, Self::Error> {
-        let data: ProofInfo<Da::ValidityCondition> = bincode::deserialize(proof)?;
+        let data: ProofInfo = bincode::deserialize(proof)?;
 
         T::try_from_slice(&data.hint).map_err(Into::into)
     }
@@ -246,9 +250,9 @@ impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
 }
 
 #[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-struct ProofInfo<ValidityCond> {
+struct ProofInfo {
     hint: Vec<u8>,
-    validity_condition: ValidityCond,
+    is_valid: bool,
 }
 
 #[test]

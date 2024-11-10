@@ -22,7 +22,7 @@ pub struct ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
     Vm: ZkvmHost + 'static,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync + 'static,
+    Stf: StateTransitionFunction<Da::Spec> + Send + Sync + 'static,
     Stf::PreState: Clone + Send + Sync + 'static,
 {
     thread_pool: rayon::ThreadPool,
@@ -41,7 +41,7 @@ impl<Da, Vm, Stf> ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf: StateTransitionFunction<Da::Spec> + Send + Sync,
     Stf::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
@@ -178,7 +178,7 @@ impl<Da, Vm, Stf> ProverService for ParallelProverService<Da, Vm, Stf>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf: StateTransitionFunction<Da::Spec> + Send + Sync,
     Stf::PreState: Clone + Send + Sync,
 {
     type DaService = Da;
@@ -238,7 +238,7 @@ fn make_proof<Da, Vm, Stf>(
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm::Guest, Da::Spec> + Send + Sync,
+    Stf: StateTransitionFunction<Da::Spec> + Send + Sync,
     Stf::PreState: Send + Sync,
 {
     let mut proof_mode = proof_mode.blocking_lock();

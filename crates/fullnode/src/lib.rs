@@ -16,7 +16,7 @@ pub struct FullNode<S: RollupBlueprint> {
     /// The State Transition Runner.
     #[allow(clippy::type_complexity)]
     pub runner: CitreaFullnode<
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::NativeRuntime>,
         S::StorageManager,
         S::DaService,
         S::Vm,
