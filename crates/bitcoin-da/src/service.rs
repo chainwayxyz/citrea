@@ -233,61 +233,61 @@ impl BitcoinService {
 
         loop {
             select! {
-            biased;
-            _ = token.cancelled() => {
-                debug!("DA queue service received shutdown signal");
-                break;
-            }
-            request_opt = rx.recv() => {
-                if let Some(request) = request_opt {
-                            trace!("A new request is received");
-                            let prev = prev_utxo.take();
-                            loop {
-                                // Build and send tx with retries:
-                                let fee_sat_per_vbyte = match self.get_fee_rate().await {
-                                    Ok(rate) => rate,
-                                    Err(e) => {
-                                        error!(?e, "Failed to call get_fee_rate. Retrying...");
-                                        tokio::time::sleep(Duration::from_secs(1)).await;
-                                        continue;
-                                    }
-                                };
-                                match self
-                                    .send_transaction_with_fee_rate(
-                                        prev.clone(),
-                                        request.da_data.clone(),
-                                        fee_sat_per_vbyte,
-                                    )
-                                    .await
-                                {
-                                    Ok((txids, tx)) => {
-                                        let tx_id = TxidWrapper(tx.id);
-                                        info!(%tx.id, "Sent tx to BitcoinDA");
-                                        prev_utxo = Some(UTXO {
-                                            tx_id: tx.id,
-                                            vout: 0,
-                                            script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-                                            address: None,
-                                            amount: tx.tx.output[0].value.to_sat(),
-                                            confirmations: 0,
-                                            spendable: true,
-                                            solvable: true,
-                                        });
-                                        let _ = request.notify.send(Ok(tx_id));
-
-                                        if let Err(e) = self.monitoring.monitor_transaction_chain(txids).await {
-                                            error!(?e, "Failed to monitor tx chain");
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!(?e, "Failed to send transaction to DA layer");
-                                        tokio::time::sleep(Duration::from_secs(1)).await;
-                                        continue;
-                                    }
+                biased;
+                _ = token.cancelled() => {
+                    debug!("DA queue service received shutdown signal");
+                    break;
+                }
+                request_opt = rx.recv() => {
+                    if let Some(request) = request_opt {
+                        trace!("A new request is received");
+                        let prev = prev_utxo.take();
+                        loop {
+                            // Build and send tx with retries:
+                            let fee_sat_per_vbyte = match self.get_fee_rate().await {
+                                Ok(rate) => rate,
+                                Err(e) => {
+                                    error!(?e, "Failed to call get_fee_rate. Retrying...");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    continue;
                                 }
-                                break;
+                            };
+                            match self
+                                .send_transaction_with_fee_rate(
+                                    prev.clone(),
+                                    request.da_data.clone(),
+                                    fee_sat_per_vbyte,
+                                )
+                                .await
+                            {
+                            Ok((txids, tx)) => {
+                                let tx_id = TxidWrapper(tx.id);
+                                info!(%tx.id, "Sent tx to BitcoinDA");
+                                prev_utxo = Some(UTXO {
+                                    tx_id: tx.id,
+                                    vout: 0,
+                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
+                                    address: None,
+                                    amount: tx.tx.output[0].value.to_sat(),
+                                    confirmations: 0,
+                                    spendable: true,
+                                    solvable: true,
+                                });
+                                let _ = request.notify.send(Ok(tx_id));
+
+                                if let Err(e) = self.monitoring.monitor_transaction_chain(txids).await {
+                                    error!(?e, "Failed to monitor tx chain");
+                                }
                             }
+                            Err(e) => {
+                                error!(?e, "Failed to send transaction to DA layer");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
+                                }
+                            }
+                            break;
                         }
+                    }
                 }
             }
         }
