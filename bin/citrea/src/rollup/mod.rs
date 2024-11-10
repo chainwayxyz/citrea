@@ -3,10 +3,8 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_batch_prover::{BatchProver, CitreaBatchProver};
-use citrea_common::{
-    tasks::manager::TaskManager, BatchProverConfig, FullNodeConfig, LightClientProverConfig,
-    SequencerConfig,
-};
+use citrea_common::tasks::manager::TaskManager;
+use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_light_client_prover::runner::{CitreaLightClientProver, LightClientProver};
 use citrea_primitives::forks::FORKS;
