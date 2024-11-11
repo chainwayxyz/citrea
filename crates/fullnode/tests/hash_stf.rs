@@ -43,7 +43,7 @@ impl HashStf {
             ordered_writes: vec![(hash_key.to_cache_key(), Some(hash_value.into_cache_value()))],
         };
 
-        let (jmt_root_hash, state_update, _) = storage
+        let ((_, jmt_root_hash), state_update, _) = storage
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 

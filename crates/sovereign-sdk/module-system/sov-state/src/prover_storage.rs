@@ -119,7 +119,7 @@ where
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
+    ) -> Result<((Self::Root, Self::Root), Self::StateUpdate, StateDiff), anyhow::Error> {
         let latest_version = self.db.get_next_version() - 1;
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
@@ -191,7 +191,7 @@ where
         // We need the state diff to be calculated only inside zk context.
         // The diff then can be used by special nodes to construct the state of the rollup by verifying the zk proof.
         // And constructing the tree from the diff.
-        Ok((new_root, state_update, diff))
+        Ok(((prev_root, new_root), state_update, diff))
     }
 
     fn commit(

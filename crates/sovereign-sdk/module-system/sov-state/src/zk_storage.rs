@@ -76,7 +76,7 @@ where
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
+    ) -> Result<((Self::Root, Self::Root), Self::StateUpdate, StateDiff), anyhow::Error> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided smt proof
@@ -123,7 +123,11 @@ where
             )
             .expect("Updates must be valid");
 
-        Ok((jmt::RootHash(new_root), (), diff))
+        Ok((
+            (jmt::RootHash(prev_state_root), jmt::RootHash(new_root)),
+            (),
+            diff,
+        ))
     }
 
     fn commit(

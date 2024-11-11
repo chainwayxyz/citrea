@@ -151,8 +151,10 @@ pub struct SlotResult<S, Cs, B, T, W> {
 /// - W - generic for witness
 /// - Da - generic for DA layer
 pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
+    /// Initial state root read from the hints
+    pub init_state_root: S,
     /// Finals state root after all soft confirmation txs are applied
-    pub state_root: S,
+    pub final_state_root: S,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block

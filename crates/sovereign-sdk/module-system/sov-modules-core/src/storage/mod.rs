@@ -245,7 +245,7 @@ pub trait Storage: Clone {
         witness: &mut Self::Witness,
     ) -> Result<
         (
-            Self::Root,
+            (Self::Root, Self::Root),
             Self::StateUpdate,
             StateDiff, // computed in Zk mode
         ),
@@ -268,7 +268,7 @@ pub trait Storage: Clone {
         accessory_update: &OrderedReadsAndWrites,
         offchain_update: &OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
-        let (root_hash, node_batch, _) = self.compute_state_update(state_accesses, witness)?;
+        let ((_, root_hash), node_batch, _) = self.compute_state_update(state_accesses, witness)?;
         self.commit(&node_batch, accessory_update, offchain_update);
 
         Ok(root_hash)

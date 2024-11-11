@@ -100,7 +100,7 @@ pub(crate) fn commit(
 
     let (cache_log, mut witness) = checkpoint.freeze();
 
-    let (root, authenticated_node_batch, _) = storage
+    let ((_, root), authenticated_node_batch, _) = storage
         .compute_state_update(cache_log, &mut witness)
         .expect("jellyfish merkle tree update must succeed");
 
