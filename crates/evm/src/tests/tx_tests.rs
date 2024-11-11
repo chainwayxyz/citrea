@@ -9,11 +9,12 @@ use reth_primitives::{
     Address, Bytes, TransactionSigned, TransactionSignedEcRecovered, TxKind, U256,
 };
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use revm::primitives::{TransactTo, TxEnv};
+use revm::primitives::{BlockEnv, TransactTo, TxEnv};
 
+use crate::conversions::sealed_block_to_block_env;
 use crate::evm::call::create_txn_env;
 use crate::evm::primitive_types::TransactionSignedAndRecovered;
-use crate::primitive_types::{Block, BlockEnv};
+use crate::primitive_types::Block;
 use crate::tests::DEFAULT_CHAIN_ID;
 
 #[test]
@@ -151,15 +152,18 @@ fn prepare_call_block_env() {
 
     let sealed_block = &block.clone().seal();
 
-    let block_env = BlockEnv::from(sealed_block);
+    let block_env = sealed_block_to_block_env(&sealed_block.header);
 
-    assert_eq!(block_env.number, block.header.number);
+    assert_eq!(block_env.number, U256::from(block.header.number));
     assert_eq!(block_env.coinbase, block.header.beneficiary);
-    assert_eq!(block_env.timestamp, block.header.timestamp);
+    assert_eq!(block_env.timestamp, U256::from(block.header.timestamp));
     assert_eq!(
         block_env.basefee,
-        block.header.base_fee_per_gas.unwrap_or_default()
+        U256::from(block.header.base_fee_per_gas.unwrap_or_default())
     );
-    assert_eq!(block_env.gas_limit, block.header.gas_limit);
-    assert_eq!(block_env.prevrandao, block.header.mix_hash);
+    assert_eq!(block_env.gas_limit, U256::from(block.header.gas_limit));
+    assert_eq!(
+        block_env.prevrandao.unwrap_or_default(),
+        block.header.mix_hash
+    );
 }

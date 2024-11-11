@@ -6,7 +6,7 @@ mod log_tests;
 use std::str::FromStr;
 
 use reth_primitives::{address, Address, Bytes};
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
@@ -47,7 +47,6 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, Storage, TestSigner, u64) {
         }],
         // SHANGAI instead of LATEST
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
     };
     config_push_contracts(&mut config, None);
@@ -234,7 +233,6 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
                 storage: Default::default(),
             },
         ],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
     };
     config_push_contracts(&mut config, None);
@@ -306,7 +304,6 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner, u6
             nonce: 0,
             storage: Default::default(),
         }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         ..Default::default()
     };
     config_push_contracts(&mut config, None);

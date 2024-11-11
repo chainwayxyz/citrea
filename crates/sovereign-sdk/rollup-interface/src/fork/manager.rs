@@ -15,6 +15,7 @@ impl ForkManager {
         // Make sure the list of specs is sorted by the block number at which they activate.
         forks.sort_by_key(|fork| fork.activation_height);
 
+        // TODO: binary search here and assume forks is always sorted
         let mut active_fork_idx = 0;
         for (idx, fork) in forks.iter().enumerate() {
             if current_l2_height >= fork.activation_height {

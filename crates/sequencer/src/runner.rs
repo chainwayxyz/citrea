@@ -750,10 +750,11 @@ where
         let base_fee = calculate_next_block_base_fee(
             latest_header.gas_used as u128,
             latest_header.gas_limit as u128,
-            latest_header.base_fee_per_gas,
+            latest_header
+                .base_fee_per_gas
+                .expect("Base fee always set in Citrea"),
             cfg.base_fee_params,
-        )
-        .ok_or(anyhow!("Failed to get next block base fee"))?;
+        ) as u64;
 
         let best_txs_with_base_fee = self
             .mempool

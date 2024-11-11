@@ -1,6 +1,7 @@
+use alloy_eips::eip4844::MAX_DATA_GAS_PER_BLOCK;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
-    CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
+    BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
 use sov_modules_api::{native_error, native_trace};
@@ -9,7 +10,6 @@ use tracing::trace_span;
 
 use super::conversions::create_tx_env;
 use super::handler::{citrea_handler, CitreaExternalExt};
-use super::primitive_types::BlockEnv;
 use crate::db::DBError;
 use crate::SYSTEM_SIGNER;
 
@@ -24,7 +24,7 @@ where
 {
     /// Creates a new Citrea EVM with the given parameters.
     pub fn new(db: DB, block_env: BlockEnv, config_env: CfgEnvWithHandlerCfg, ext: EXT) -> Self {
-        let evm_env = Env::boxed(config_env.cfg_env, block_env.into(), Default::default());
+        let evm_env = Env::boxed(config_env.cfg_env, block_env, Default::default());
         let evm_context = EvmContext::new_with_env(db, evm_env);
         let context = Context::new(evm_context, ext);
         let handler = citrea_handler(config_env.handler_cfg);
@@ -41,7 +41,7 @@ where
         DB: DatabaseCommit,
     {
         self.evm.context.external.set_current_tx_hash(tx.hash());
-        *self.evm.tx_mut() = create_tx_env(tx);
+        *self.evm.tx_mut() = create_tx_env(tx, self.evm.spec_id());
         self.evm.transact_commit()
     }
 
@@ -52,7 +52,7 @@ where
         tx: &TransactionSignedEcRecovered,
     ) -> Result<ResultAndState, EVMError<DB::Error>> {
         self.evm.context.external.set_current_tx_hash(tx.hash());
-        *self.evm.tx_mut() = create_tx_env(tx);
+        *self.evm.tx_mut() = create_tx_env(tx, self.evm.spec_id());
         self.evm.transact()
     }
 
@@ -87,12 +87,13 @@ pub(crate) fn execute_multiple_tx<
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
+    blob_gas_used: &mut u64,
 ) -> Vec<Result<ExecutionResult, EVMError<DBError>>> {
     if txs.is_empty() {
         return vec![];
     }
 
-    let block_gas_limit = block_env.gas_limit;
+    let block_gas_limit: u64 = block_env.gas_limit.saturating_to();
 
     let mut cumulative_gas_used = prev_gas_used;
 
@@ -104,6 +105,19 @@ pub(crate) fn execute_multiple_tx<
         let _span =
             trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
                 .entered();
+
+        if tx.is_eip4844()
+            // can unwrap because we checked if it's EIP-4844
+            && *blob_gas_used + tx.blob_gas_used().unwrap() > MAX_DATA_GAS_PER_BLOCK
+        {
+            native_error!("Blob gas used exceeds block gas limit");
+            tx_results.push(Err(EVMError::Custom(format!(
+                "Blob gas used exceeds block gas limit {:?}",
+                block_gas_limit
+            ))));
+            continue;
+        }
+
         let result_and_state = match evm.transact(tx) {
             Ok(result_and_state) => result_and_state,
             Err(e) => {
@@ -129,6 +143,11 @@ pub(crate) fn execute_multiple_tx<
             native_trace!("Commiting tx to DB");
             evm.commit(result_and_state.state);
             cumulative_gas_used += result_and_state.result.gas_used();
+
+            if tx.is_eip4844() {
+                *blob_gas_used += tx.blob_gas_used().unwrap();
+            }
+
             Ok(result_and_state.result)
         };
         tx_results.push(result);

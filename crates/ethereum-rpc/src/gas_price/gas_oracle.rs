@@ -217,15 +217,12 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             }
         }
         let last_entry = fee_entries.last().expect("is not empty");
-        base_fee_per_gas.push(
-            calculate_next_block_base_fee(
-                last_entry.gas_used as u128,
-                last_entry.gas_limit as u128,
-                Some(last_entry.base_fee_per_gas),
-                self.provider.get_chain_config(working_set).base_fee_params,
-            )
-            .unwrap() as u128,
-        );
+        base_fee_per_gas.push(calculate_next_block_base_fee(
+            last_entry.gas_used as u128,
+            last_entry.gas_limit as u128,
+            last_entry.base_fee_per_gas,
+            self.provider.get_chain_config(working_set).base_fee_params,
+        ));
 
         Ok(FeeHistory {
             base_fee_per_gas,

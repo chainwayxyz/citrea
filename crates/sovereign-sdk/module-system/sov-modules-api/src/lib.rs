@@ -8,6 +8,7 @@ pub mod default_signature;
 pub mod hooks;
 mod pub_key_hex;
 
+pub use sov_rollup_interface::fork;
 pub use sov_rollup_interface::spec::SpecId;
 
 #[cfg(feature = "macros")]

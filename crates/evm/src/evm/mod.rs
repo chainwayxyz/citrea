@@ -97,6 +97,8 @@ pub struct EvmChainConfig {
     /// By default it is 0x6000 (~25kb).
     pub limit_contract_code_size: Option<usize>,
 
+    /// DO NOT USE THIS FIELD ever again
+    ///
     /// List of EVM hardforks by block number
     pub spec: Vec<(u64, SpecId)>,
 

@@ -117,7 +117,8 @@ pub struct EvmConfig {
     /// Limits size of contract code size.
     pub limit_contract_code_size: Option<usize>,
     /// List of EVM hardforks by block number
-    pub spec: HashMap<u64, SpecId>,
+    /// Deactivated because we now handle forks and specs somewhere else
+    // pub spec: HashMap<u64, SpecId>,
     /// Coinbase where all the fees go
     pub coinbase: Address,
     /// Starting base fee.
@@ -143,7 +144,7 @@ impl Default for EvmConfig {
             data: vec![],
             chain_id: DEFAULT_CHAIN_ID,
             limit_contract_code_size: None,
-            spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
+            // spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             coinbase: Address::ZERO,
             starting_base_fee: reth_primitives::constants::EIP1559_INITIAL_BASE_FEE,
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
@@ -162,29 +163,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
     ) -> Result<()> {
-        let mut spec = config
-            .spec
-            .iter()
-            .map(|(k, v)| {
-                // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-                if *v == SpecId::CANCUN {
-                    panic!("Cancun is not supported");
-                }
-
-                (*k, *v)
-            })
-            .collect::<Vec<_>>();
-
-        spec.sort_by(|a, b| a.0.cmp(&b.0));
-
-        if spec.is_empty() {
-            spec.push((0, SpecId::SHANGHAI));
-        } else if spec[0].0 != 0u64 {
-            panic!("EVM spec must start from block 0");
-        }
-
-        let (_, current_spec) = spec.last().expect("Spec should be set");
-        let mut evm_db = self.get_db(working_set, *current_spec);
+        let mut evm_db = self.get_db(working_set, SpecId::SHANGHAI);
 
         for acc in &config.data {
             let code = Bytecode::new_raw(acc.code.clone());
@@ -215,12 +194,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let chain_cfg = EvmChainConfig {
             chain_id: config.chain_id,
             limit_contract_code_size: config.limit_contract_code_size,
-            spec,
+            // spec,
             coinbase: config.coinbase,
             block_gas_limit: config.block_gas_limit,
             base_fee_params: config.base_fee_params,
+            // We initialized testnet like this
+            // Even though we won't use it anymore
+            // we still need to initialize chain like this
+            // so we get the same genesis state root.
+            spec: vec![(0, SpecId::SHANGHAI)],
         };
 
+        println!("Chain config: {:?}", chain_cfg);
         self.cfg.set(&chain_cfg, working_set);
 
         let header = reth_primitives::Header {
@@ -276,7 +261,6 @@ mod tests {
     use std::str::FromStr;
 
     use reth_primitives::{hex, keccak256, Address, Bytes};
-    use revm::primitives::SpecId;
 
     use super::U256;
     use crate::{AccountData, EvmConfig};
@@ -295,7 +279,6 @@ mod tests {
             }],
             chain_id: 1,
             limit_contract_code_size: None,
-            spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             timestamp: 0,
             nonce: 0,
             difficulty: U256::ZERO,
@@ -355,7 +338,6 @@ mod tests {
             }],
             chain_id: 1,
             limit_contract_code_size: None,
-            spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
             ..Default::default()
         };
 
