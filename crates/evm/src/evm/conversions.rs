@@ -1,3 +1,4 @@
+use citrea_primitives::forks::FORKS;
 use reth_primitives::{
     Bytes as RethBytes, SealedHeader, TransactionSigned, TransactionSignedEcRecovered,
     TransactionSignedNoHash, KECCAK_EMPTY,
@@ -6,9 +7,11 @@ use revm::primitives::{
     AccountInfo as ReVmAccountInfo, BlobExcessGasAndPrice, BlockEnv, SpecId, TransactTo, TxEnv,
     U256,
 };
+use sov_modules_api::fork::fork_from_block_number;
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
+use crate::citrea_spec_id_to_evm_spec_id;
 
 impl From<AccountInfo> for ReVmAccountInfo {
     fn from(info: AccountInfo) -> Self {
@@ -129,7 +132,7 @@ impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
     }
 }
 
-pub(crate) fn sealed_block_to_block_env(sealed_header: &SealedHeader, spec_id: SpecId) -> BlockEnv {
+pub(crate) fn sealed_block_to_block_env(sealed_header: &SealedHeader) -> BlockEnv {
     BlockEnv {
         number: U256::from(sealed_header.number),
         coinbase: sealed_header.beneficiary,
@@ -138,13 +141,18 @@ pub(crate) fn sealed_block_to_block_env(sealed_header: &SealedHeader, spec_id: S
         basefee: U256::from(sealed_header.base_fee_per_gas.unwrap_or_default()),
         gas_limit: U256::from(sealed_header.gas_limit),
         difficulty: U256::from(0),
-        blob_excess_gas_and_price: if spec_id >= SpecId::CANCUN {
-            Some(BlobExcessGasAndPrice {
-                excess_blob_gas: 0,
-                blob_gasprice: 0,
+        blob_excess_gas_and_price: sealed_header
+            .excess_blob_gas
+            .or_else(|| {
+                if citrea_spec_id_to_evm_spec_id(
+                    fork_from_block_number(FORKS.to_vec(), sealed_header.number).spec_id,
+                ) >= SpecId::CANCUN
+                {
+                    Some(0)
+                } else {
+                    None
+                }
             })
-        } else {
-            None
-        },
+            .map(BlobExcessGasAndPrice::new),
     }
 }

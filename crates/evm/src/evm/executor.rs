@@ -121,7 +121,6 @@ pub(crate) fn execute_multiple_tx<
         let result_and_state = match evm.transact(tx) {
             Ok(result_and_state) => result_and_state,
             Err(e) => {
-                println!("Error: {:?}", e);
                 native_error!(error = %e, "Transaction failed");
                 tx_results.push(Err(e));
                 continue;

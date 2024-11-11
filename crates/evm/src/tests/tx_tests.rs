@@ -9,7 +9,7 @@ use reth_primitives::{
     Address, Bytes, TransactionSigned, TransactionSignedEcRecovered, TxKind, U256,
 };
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use revm::primitives::{BlockEnv, SpecId, TransactTo, TxEnv};
+use revm::primitives::{BlockEnv, TransactTo, TxEnv};
 
 use crate::conversions::sealed_block_to_block_env;
 use crate::evm::call::create_txn_env;
@@ -152,7 +152,7 @@ fn prepare_call_block_env() {
 
     let sealed_block = &block.clone().seal();
 
-    let block_env = sealed_block_to_block_env(&sealed_block.header, SpecId::SHANGHAI);
+    let block_env = sealed_block_to_block_env(&sealed_block.header);
 
     assert_eq!(block_env.number, U256::from(block.header.number));
     assert_eq!(block_env.coinbase, block.header.beneficiary);

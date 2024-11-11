@@ -1644,6 +1644,7 @@ fn test_call_with_block_overrides() {
     assert_eq!(call_result, expected_hash);
 }
 
+// TODO: test is not doing anything significant at the moment
 #[test]
 fn test_blob_tx() {
     let (config, dev_signer, _contract_addr) =
@@ -1695,12 +1696,10 @@ fn test_blob_tx() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    let last_block = evm
+    let _last_block = evm
         .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
         .unwrap()
         .unwrap();
-
-    println!("{:?}", last_block);
 
     let receipt = evm
         .get_block_receipts(
@@ -1710,5 +1709,5 @@ fn test_blob_tx() {
         .unwrap()
         .unwrap();
 
-    println!("receipt: {:?}", receipt);
+    assert_eq!(receipt.len(), 2);
 }
