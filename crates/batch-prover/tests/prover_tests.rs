@@ -102,7 +102,6 @@ fn make_transition_data(
 ) -> BatchProofCircuitInputV2<'static, [u8; 0], Vec<u8>, MockDaSpec> {
     BatchProofCircuitInputV2 {
         initial_state_root: [],
-        prev_soft_confirmation_hash: [0; 32],
         inclusion_proof: [0; 32],
         completeness_proof: (),
         da_data: vec![],

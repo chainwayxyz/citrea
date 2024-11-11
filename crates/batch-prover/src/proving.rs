@@ -12,14 +12,12 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
-use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
+use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{
-    BatchProofCircuitInputV2, BatchProofCircuitOutput, Proof, ZkvmHost,
-};
+use sov_rollup_interface::zk::{BatchProofCircuitInputV2, Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -144,21 +142,10 @@ where
                 L1ProcessingError::Other(format!("Error getting initial state root: {:?}", e))
             })?
             .expect("There should be a state root");
-        let initial_batch_hash = ledger
-            .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))
-            .map_err(|e| {
-                L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
-            })?
-            .ok_or(L1ProcessingError::Other(format!(
-                "Could not find soft batch at height {}",
-                first_l2_height_of_l1
-            )))?
-            .prev_hash;
 
         let input: BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec> =
             BatchProofCircuitInputV2 {
                 initial_state_root,
-                prev_soft_confirmation_hash: initial_batch_hash,
                 da_data: da_data.clone(),
                 da_block_header_of_commitments: da_block_header_of_commitments.clone(),
                 inclusion_proof: inclusion_proof.clone(),
@@ -286,9 +273,10 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
+        // TODO: select output version based on spec
         let circuit_output = Vm::extract_output::<
             <Da as DaService>::Spec,
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         .expect("Proof should be deserializable");
 

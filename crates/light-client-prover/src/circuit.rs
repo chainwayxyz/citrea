@@ -2,7 +2,7 @@ use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
-    BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
+    BatchProofCircuitOutputV2, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     ZkvmGuest,
 };
 
@@ -101,7 +101,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     DaDataLightClient::Complete(proof) => {
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
-                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
+                        // TODO: select output version based on the spec
+                        let batch_proof_output: BatchProofCircuitOutputV2<DaV::Spec, [u8; 32]> =
                             match G::verify_and_extract_output(
                                 &journal,
                                 &batch_proof_method_id.into(),

@@ -547,7 +547,6 @@ where
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
-        initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
@@ -623,7 +622,7 @@ where
 
         // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();
-        let mut previous_batch_hash = initial_batch_hash;
+        let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
         let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
@@ -660,6 +659,7 @@ where
                 previous_batch_hash,
                 "Soft confirmation previous hash must match the hash of the block before"
             );
+            previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
 
             assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_hash(),
@@ -673,7 +673,6 @@ where
                 "Soft confirmation DA slot height must match DA block header height"
             );
 
-            previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
             index_soft_confirmation += 1;
 
             while index_soft_confirmation < soft_confirmations.len() {

@@ -4,7 +4,7 @@ use citrea_primitives::forks::FORKS;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{
-    BatchProofCircuitInputV2, BatchProofCircuitOutput, Zkvm, ZkvmGuest,
+    BatchProofCircuitInputV2, BatchProofCircuitOutputV2, Zkvm, ZkvmGuest,
 };
 
 /// Verifies a state transition
@@ -79,7 +79,6 @@ where
                 data.sequencer_public_key.as_ref(),
                 data.sequencer_da_public_key.as_ref(),
                 &data.initial_state_root,
-                data.prev_soft_confirmation_hash,
                 pre_state,
                 data.da_data,
                 data.sequencer_commitments_range,
@@ -92,10 +91,9 @@ where
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
 
-        let out: BatchProofCircuitOutput<Da::Spec, _> = BatchProofCircuitOutput {
+        let out: BatchProofCircuitOutputV2<Da::Spec, _> = BatchProofCircuitOutputV2 {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             final_soft_confirmation_hash,
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
