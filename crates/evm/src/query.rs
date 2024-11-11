@@ -354,12 +354,22 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
-        let cfg = self
-            .cfg
-            .get(working_set)
-            .expect("EVM chain config should be set");
-        // TODO: Fix this in #1436
-        let (_, current_spec) = cfg.spec.last().expect("Spec should be set");
+        let block_number = match block_id {
+            Some(BlockId::Number(block_num)) => block_num,
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = self
+                    .get_block_number_by_block_hash(block_hash.block_hash, working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+                BlockNumberOrTag::Number(block_number)
+            }
+            None => BlockNumberOrTag::Latest,
+        };
+
+        let block_number = self.block_number_for_id(&block_number, working_set)?;
+
+        let current_spec = citrea_spec_id_to_evm_spec_id(
+            fork_from_block_number(FORKS.to_vec(), block_number).spec_id,
+        );
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
