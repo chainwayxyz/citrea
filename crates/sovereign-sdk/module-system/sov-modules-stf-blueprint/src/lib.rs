@@ -12,7 +12,7 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
-    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet, Zkvm,
+    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::{DaDataBatchProof, SequencerCommitment};
 use sov_rollup_interface::fork::{Fork, ForkManager};
@@ -128,9 +128,7 @@ pub enum SlashingReason {
 }
 
 /// Trait for soft confirmation handling
-pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
-    StateTransitionFunction<Vm, Da>
-{
+pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da> {
     /// Begin a soft confirmation
     #[allow(clippy::too_many_arguments)]
     fn begin_soft_confirmation(
@@ -182,10 +180,9 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec, Vm: Zkvm>:
     >;
 }
 
-impl<C, RT, Vm, Da> StfBlueprintTrait<C, Da, Vm> for StfBlueprint<C, Da, Vm, RT>
+impl<C, RT, Da> StfBlueprintTrait<C, Da> for StfBlueprint<C, Da, RT>
 where
     C: Context,
-    Vm: Zkvm,
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
@@ -384,11 +381,10 @@ where
     }
 }
 
-impl<C, RT, Vm, Da> StateTransitionFunction<Vm, Da> for StfBlueprint<C, Da, Vm, RT>
+impl<C, RT, Da> StateTransitionFunction<Da> for StfBlueprint<C, Da, RT>
 where
     C: Context,
     Da: DaSpec,
-    Vm: Zkvm,
     RT: Runtime<C, Da>,
 {
     type StateRoot = <C::Storage as Storage>::Root;

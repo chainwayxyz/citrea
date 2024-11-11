@@ -12,7 +12,7 @@ pub struct StateTransitionVerifier<ST, Da, Zk>
 where
     Da: DaVerifier,
     Zk: Zkvm,
-    ST: StateTransitionFunction<Zk, Da::Spec>,
+    ST: StateTransitionFunction<Da::Spec>,
 {
     app: ST,
     da_verifier: Da,
@@ -23,7 +23,7 @@ impl<Stf, Da, Zk> StateTransitionVerifier<Stf, Da, Zk>
 where
     Da: DaVerifier,
     Zk: ZkvmGuest,
-    Stf: StateTransitionFunction<Zk, Da::Spec>,
+    Stf: StateTransitionFunction<Da::Spec>,
 {
     /// Create a [`StateTransitionVerifier`]
     pub fn new(app: Stf, da_verifier: Da) -> Self {

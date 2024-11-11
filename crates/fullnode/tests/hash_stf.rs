@@ -1,6 +1,5 @@
 use sha2::Digest;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
-use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -12,7 +11,6 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationReceipt, SoftConfirmationResult,
     StateTransitionFunction,
 };
-use sov_rollup_interface::zk::Zkvm;
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Prefix, ProverStorage, Storage};
 pub type Q = SnapshotManager;
@@ -65,7 +63,7 @@ impl HashStf {
     }
 }
 
-impl<C: Context, Da: DaSpec, Vm: Zkvm> StfBlueprintTrait<C, Da, Vm> for HashStf {
+impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     fn begin_soft_confirmation(
         &mut self,
         _sequencer_public_key: &[u8],
@@ -131,7 +129,7 @@ impl<C: Context, Da: DaSpec, Vm: Zkvm> StfBlueprintTrait<C, Da, Vm> for HashStf 
     }
 }
 
-impl<Vm: Zkvm, Da: DaSpec> StateTransitionFunction<Vm, Da> for HashStf {
+impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<Q>;
@@ -304,12 +302,12 @@ pub fn get_result_from_blocks(
 
     let stf = HashStf::new();
 
-    let (genesis_state_root, mut storage) = <HashStf as StateTransitionFunction<
-        MockZkvm,
-        MockDaSpec,
-    >>::init_chain(
-        &stf, storage, genesis_params.to_vec()
-    );
+    let (genesis_state_root, mut storage) =
+        <HashStf as StateTransitionFunction<MockDaSpec>>::init_chain(
+            &stf,
+            storage,
+            genesis_params.to_vec(),
+        );
 
     let mut state_root = genesis_state_root;
 
@@ -318,17 +316,16 @@ pub fn get_result_from_blocks(
     for block in blocks {
         let mut blobs = block.blobs.clone();
 
-        let result = <HashStf as StateTransitionFunction<MockZkvm, MockDaSpec>>::apply_slot::<
-            &mut Vec<MockBlob>,
-        >(
-            &stf,
-            SpecId::Genesis,
-            &state_root,
-            storage,
-            ArrayWitness::default(),
-            &block.header,
-            &mut blobs,
-        );
+        let result =
+            <HashStf as StateTransitionFunction<MockDaSpec>>::apply_slot::<&mut Vec<MockBlob>>(
+                &stf,
+                SpecId::Genesis,
+                &state_root,
+                storage,
+                ArrayWitness::default(),
+                &block.header,
+                &mut blobs,
+            );
 
         state_root = result.state_root;
         storage = result.change_set;

@@ -19,7 +19,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::Zkvm;
 use sov_state::ZkStorage;
 use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
@@ -49,7 +49,7 @@ impl RollupBlueprint for MockDemoRollup {
     type ProverService = ParallelProverService<
         Self::DaService,
         Self::Vm,
-        StfBlueprint<Self::ZkContext, Self::DaSpec, <Self::Vm as ZkvmHost>::Guest, Self::ZkRuntime>,
+        StfBlueprint<Self::ZkContext, Self::DaSpec, Self::ZkRuntime>,
     >;
 
     fn new() -> Self {

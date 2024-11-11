@@ -300,7 +300,7 @@ fn build_witness(
     witness.clear();
     witness.push(signature.as_ref());
     witness.push(reveal_script);
-    witness.push(&control_block.serialize());
+    witness.push(control_block.serialize());
 }
 
 fn update_witness(
@@ -355,7 +355,7 @@ fn get_size_commit(inputs: &[TxIn], outputs: &[TxOut]) -> usize {
 
     // TODO: adjust size of sig. for different types of addresses
     for i in 0..tx.input.len() {
-        tx.input[i].witness.push(&vec![0; SCHNORR_SIGNATURE_SIZE]);
+        tx.input[i].witness.push([0; SCHNORR_SIGNATURE_SIZE]);
     }
 
     tx.vsize()

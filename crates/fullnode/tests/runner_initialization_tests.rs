@@ -16,7 +16,7 @@ mod hash_stf;
 use hash_stf::HashStf;
 use tokio::sync::broadcast;
 
-type MockInitVariant = InitVariant<HashStf, MockZkvm, MockDaSpec>;
+type MockInitVariant = InitVariant<HashStf, MockDaSpec>;
 
 type StorageManager = ProverStorageManager<MockDaSpec>;
 

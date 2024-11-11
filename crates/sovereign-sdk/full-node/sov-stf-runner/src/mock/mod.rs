@@ -8,13 +8,12 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, BatchReceipt, SlotResult, SoftConfirmationResult,
     StateTransitionFunction,
 };
-use sov_rollup_interface::zk::Zkvm;
 
 /// A mock implementation of the [`StateTransitionFunction`]
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub struct MockStf;
 
-impl<Vm: Zkvm, Da: DaSpec> StateTransitionFunction<Vm, Da> for MockStf {
+impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
     type StateRoot = [u8; 0];
     type GenesisParams = ();
     type PreState = ();

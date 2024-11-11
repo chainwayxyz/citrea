@@ -23,7 +23,7 @@ pub struct BatchProver<S: RollupBlueprint> {
         S::DaService,
         S::StorageManager,
         S::Vm,
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::NativeRuntime>,
         S::ProverService,
         LedgerDB,
     >,
