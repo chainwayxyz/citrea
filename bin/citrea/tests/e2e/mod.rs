@@ -581,7 +581,7 @@ async fn execute_blocks(
 /// through RPC to make sure that the actual code is fetched properly pre and post fork.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_offchain_contract_storage() {
-    citrea::initialize_logging(tracing::Level::DEBUG);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
     let da_db_dir = storage_dir.path().join("DA").to_path_buf();
@@ -669,12 +669,6 @@ async fn test_offchain_contract_storage() {
         .unwrap();
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
-    let code = sequencer_client
-        .eth_get_code(contract_address, None)
-        .await
-        .unwrap();
-    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
-
     // Execute transaction on the contract living in `offchain_code`
     {
         let set_value_req = sequencer_client
@@ -683,6 +677,12 @@ async fn test_offchain_contract_storage() {
         sequencer_client.send_publish_batch_request().await;
         set_value_req.watch().await.unwrap();
     }
+
+    let code = sequencer_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // Deploy a contract post-fork
     let (contract_address, contract) = {
