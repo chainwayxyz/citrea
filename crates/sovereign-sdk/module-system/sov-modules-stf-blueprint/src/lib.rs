@@ -594,11 +594,13 @@ where
         // rollup state transitions.
         sequencer_commitments.sort_unstable();
 
+        // The preproven indices are sorted by the prover when originally passed.
+         // Therefore, we can iterate of sequencer commitments and filter out
+         // matching preproven indices.
         let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
         let sequencer_commitments_iter = sequencer_commitments
             .into_iter()
             .enumerate()
-            // Filter out preproven commitments. Preproven indices are sorted outside of zk.
             .filter(|(idx, _)| {
                 if let Some(preproven_idx) = preproven_commitments_iter.peek() {
                     if preproven_idx == idx {
