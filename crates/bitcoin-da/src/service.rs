@@ -4,6 +4,7 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -11,18 +12,14 @@ use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoff;
-use bitcoin::absolute::LockTime;
 use bitcoin::block::Header;
-use bitcoin::blockdata::script;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::transaction::Version;
-use bitcoin::{
-    Amount, BlockHash, CompactTarget, OutPoint, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
-    Wtxid,
+use bitcoin::{Amount, BlockHash, CompactTarget, Sequence, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::json::{
+    CreateRawTransactionInput, TestMempoolAcceptResult, WalletCreateFundedPsbtOptions,
 };
-use bitcoincore_rpc::json::TestMempoolAcceptResult;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -612,89 +609,65 @@ impl BitcoinService {
             .await
             .context("Parent tx not found")?;
 
-        let TxStatus::Pending {
-            base_fee: parent_fee,
-            ..
-        } = monitored_tx.status
-        else {
+        let TxStatus::Pending { .. } = monitored_tx.status else {
             bail!(
                 "Cannot bump fee for TX with status: {:?}. Transaction must be in mempool",
                 monitored_tx.status
             )
         };
-        debug!("Creating cpfp TX for {parent_txid}");
+        debug!("Creating CPFP TX for {parent_txid}");
+
+        let Some(utxo) = self.get_prev_utxo().await? else {
+            bail!("Cannot bump fee for TX without prev_utxo available")
+        };
 
         let parent_tx = &monitored_tx.tx;
-        let output_index = 0;
-        let output_value = parent_tx.output[output_index].value;
+        let change_address = utxo
+            .address
+            .clone()
+            .context("Missing address")?
+            .require_network(self.network)
+            .context("Invalid network for address")?;
 
-        let create_tx_input = |outpoint: OutPoint| TxIn {
-            previous_output: outpoint,
-            script_sig: script::Builder::new().into_script(),
-            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-            witness: Witness::new(),
+        let mut outputs = HashMap::new();
+        outputs.insert(change_address.to_string(), parent_tx.output[0].value);
+        let options = WalletCreateFundedPsbtOptions {
+            add_inputs: Some(true),
+            fee_rate: Some(Amount::from_btc(fee_rate / 100_000.0)?), // sat/vB to BTC/kB
+            replaceable: Some(true),
+            ..Default::default()
         };
 
-        let mut child_tx = Transaction {
-            version: Version(2),
-            lock_time: LockTime::ZERO,
-            input: vec![create_tx_input(OutPoint {
-                txid: parent_txid,
-                vout: output_index as u32,
-            })],
-            output: vec![TxOut {
-                value: output_value,
-                script_pubkey: parent_tx.output[output_index].script_pubkey.clone(),
-            }],
-        };
-
-        let parent_vsize = parent_tx.vsize() as f64;
-        let calculate_child_fee = |tx: &Transaction| -> Amount {
-            let child_vsize = tx.vsize() as f64;
-            let total_vsize = parent_vsize + child_vsize;
-            let total_required_fee = (fee_rate * total_vsize).ceil() as u64;
-            Amount::from_sat(total_required_fee.saturating_sub(parent_fee))
-        };
-
-        let mut required_fee = calculate_child_fee(&child_tx);
-        let mut total_input = output_value;
-        if total_input <= required_fee {
-            let unspent = self
-                .client
-                .list_unspent(None, None, None, None, None)
-                .await?;
-
-            for utxo in unspent {
-                child_tx.input.push(create_tx_input(OutPoint {
-                    txid: utxo.txid,
-                    vout: utxo.vout,
-                }));
-
-                total_input += utxo.amount;
-                required_fee = calculate_child_fee(&child_tx);
-
-                if total_input > required_fee + output_value {
-                    break;
-                }
-            }
-
-            if total_input <= required_fee {
-                bail!("Insufficient funds to cover fee bump");
-            }
-        }
-
-        child_tx.output[0].value = total_input - required_fee;
-
-        let signed_tx = self
+        let psbt = self
             .client
-            .sign_raw_transaction_with_wallet(&child_tx, None, None)
+            .wallet_create_funded_psbt(
+                &[CreateRawTransactionInput {
+                    txid: utxo.tx_id,
+                    vout: utxo.vout,
+                    sequence: Some(Sequence::ENABLE_RBF_NO_LOCKTIME.to_consensus_u32()),
+                }],
+                &outputs,
+                None,
+                Some(options),
+                None,
+            )
+            .await?;
+        let processed = self
+            .client
+            .wallet_process_psbt(&psbt.psbt, Some(true), None, None)
             .await?;
 
-        if let Err(e) = self.client.test_mempool_accept(&[&signed_tx.hex]).await {
+        let processed = self.client.finalize_psbt(&processed.psbt, None).await?;
+
+        let Some(raw_hex) = processed.hex else {
+            bail!("Couldn't finalize psbt")
+        };
+
+        if let Err(e) = self.client.test_mempool_accept(&[&raw_hex]).await {
             bail!("Tx not accepted in mempool : {e}");
         }
 
-        let child_txid = self.client.send_raw_transaction(&signed_tx.hex).await?;
+        let child_txid = self.client.send_raw_transaction(&raw_hex).await?;
 
         self.monitoring
             .monitor_transaction(child_txid, Some(parent_txid), None)

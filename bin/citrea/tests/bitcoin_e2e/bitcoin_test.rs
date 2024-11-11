@@ -2,10 +2,12 @@ use std::time::Duration;
 
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin::Txid;
 use bitcoin_da::monitoring::TxStatus;
 use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
+use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -288,15 +290,8 @@ impl TestCase for CpfpFeeBumpingTest {
         // Wait for child transaction
         da.wait_mempool_len(3, None).await?;
 
-        let cpfp_entry = da.get_mempool_entry(&cpfp_txid).await?;
-        let cpfp_fee_rate = cpfp_entry.fees.base.to_sat() as f64 / cpfp_entry.vsize as f64;
-
-        // Verify the child tx has higher fee rate to accomodate for child + parent
-        assert!(cpfp_fee_rate >= target_fee_rate);
-
-        // Verify that child spends from reveal tx and keeps a correct chain of utxo spending
-        let cpfp_tx = da.get_raw_transaction(&cpfp_txid, None).await?;
-        assert_eq!(cpfp_tx.input[0].previous_output.txid, *parent_txid);
+        self.check_cpfp_fee(da, &cpfp_txid, parent_txid, target_fee_rate)
+            .await?;
 
         da.generate(1, None).await?;
         let hash = da.get_best_block_hash().await?;
@@ -340,8 +335,31 @@ impl TestCase for CpfpFeeBumpingTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        // Wait for seqcommitments txs to hit mempool
         da.wait_mempool_len(2, None).await?;
+        let reveal_tx = sequencer
+            .client
+            .http_client()
+            .da_get_last_monitored_tx()
+            .await?
+            .unwrap();
+        let parent_txid = &reveal_tx.txid;
+        let parent_base_fee = reveal_tx.base_fee.unwrap();
+        let parent_fee_rate = parent_base_fee as f64 / reveal_tx.vsize as f64;
+
+        // Try with high fee rate and force child TX to include multiple input to validate input selection
+        let target_fee_rate = parent_fee_rate * 100.0;
+        let new_cpfp_txid = sequencer
+            .client
+            .http_client()
+            .da_bump_transaction_fee_cpfp(Some(*parent_txid), target_fee_rate)
+            .await?;
+
+        // Wait for seqcommitments txs to hit mempool + cpfp tx
+        da.wait_mempool_len(3, None).await?;
+
+        self.check_cpfp_fee(da, &new_cpfp_txid, parent_txid, target_fee_rate)
+            .await?;
+
         da.generate(1, None).await?;
         let hash = da.get_best_block_hash().await?;
         let block = da.get_block(&hash).await?;
@@ -349,12 +367,53 @@ impl TestCase for CpfpFeeBumpingTest {
         // Assert that commit tx spend from cpfp output
         let commit_tx = &block.txdata[1];
         let reveal_tx = &block.txdata[2];
+        let cpfp_tx = &block.txdata[3];
 
         assert_eq!(commit_tx.input[0].previous_output.txid, cpfp_txid);
         assert_eq!(
             reveal_tx.input[0].previous_output.txid,
             commit_tx.compute_txid()
         );
+        assert!(cpfp_tx.input.len() > 1);
+
+        Ok(())
+    }
+}
+
+impl CpfpFeeBumpingTest {
+    async fn check_cpfp_fee(
+        &self,
+        da: &BitcoinNode,
+        cpfp_txid: &Txid,
+        parent_txid: &Txid,
+        target_fee_rate: f64,
+    ) -> Result<()> {
+        let cpfp_entry = da.get_mempool_entry(cpfp_txid).await?;
+        let cpfp_fee_rate = cpfp_entry.fees.base.to_sat() as f64 / cpfp_entry.vsize as f64;
+
+        // Verify the child tx has higher fee rate to accomodate for child + parent
+        assert!(cpfp_fee_rate >= target_fee_rate);
+
+        // Verify that child spends from reveal tx and keeps a correct tx chain
+        let cpfp_tx = da.get_raw_transaction(cpfp_txid, None).await?;
+        assert_eq!(cpfp_tx.input[0].previous_output.txid, *parent_txid);
+
+        // Assert fee calculation
+        let parent_entry = da.get_mempool_entry(parent_txid).await?;
+        let cpfp_entry = da.get_mempool_entry(cpfp_txid).await?;
+
+        let parent_fee_rate = parent_entry.fees.base.to_sat() as f64 / parent_entry.vsize as f64;
+        let cpfp_fee_rate = cpfp_entry.fees.base.to_sat() as f64 / cpfp_entry.vsize as f64;
+
+        assert!(cpfp_fee_rate > parent_fee_rate);
+
+        // Calculate the parent + child package fee rate
+        let package_fees = parent_entry.fees.base.to_sat() + cpfp_entry.fees.base.to_sat();
+        let package_vsize = parent_entry.vsize + cpfp_entry.vsize;
+        let package_fee_rate = package_fees as f64 / package_vsize as f64;
+
+        // Assert the parent + child package meets the target fee rate
+        assert!(package_fee_rate >= target_fee_rate);
 
         Ok(())
     }
