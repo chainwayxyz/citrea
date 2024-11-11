@@ -21,7 +21,6 @@ use reth_rpc_types::{
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
-use revm::primitives::SpecId::CANCUN;
 use revm::primitives::{
     BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason,
     InvalidTransaction, SpecId, TransactTo,
@@ -375,7 +374,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let account = self.accounts.get(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
-            if current_spec.is_enabled_in(CANCUN) {
+            if current_spec.is_enabled_in(SpecId::CANCUN) {
                 self.offchain_code
                     .get(&code_hash, &mut working_set.offchain_state())
                     .unwrap_or_else(|| self.code.get(&code_hash, working_set).unwrap_or_default())
