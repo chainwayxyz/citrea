@@ -253,7 +253,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         journal: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
-        let mock_journal = MockJournal::try_from_slice(&journal).unwrap();
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
         match mock_journal {
             MockJournal::Verifiable(journal) => Ok(T::try_from_slice(&journal)?),
             MockJournal::Unverifiable(_) => Err(anyhow::anyhow!("Journal is unverifiable")),

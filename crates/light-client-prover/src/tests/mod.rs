@@ -1,8 +1,7 @@
 mod test_utils;
 
-use sov_mock_da::{MockBlob, MockBlockHeader, MockDaSpec, MockDaVerifier, MockHash};
-use sov_mock_zkvm::{MockJournal, MockProof, MockZkGuest};
-use sov_rollup_interface::da::DaDataLightClient;
+use sov_mock_da::{MockBlockHeader, MockDaSpec, MockDaVerifier};
+use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::zk::LightClientCircuitInput;
 use test_utils::{create_mock_blob, create_prev_lcp_serialized};
 
@@ -154,7 +153,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     );
 
     // On the next l1 block, give 1-2 transition
-    let mut blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
+    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
