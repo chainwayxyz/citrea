@@ -143,6 +143,14 @@ pub struct SlotResult<S, Cs, B, T, W> {
     pub state_diff: StateDiff,
 }
 
+/// Helper struct which contains initial and final state roots.
+pub struct StateRootTransition<Root> {
+    /// Initial state root
+    pub init_root: Root,
+    /// Final state root
+    pub final_root: Root,
+}
+
 /// Result of applying a soft confirmation to current state
 /// Where:
 /// - S - generic for state root
@@ -151,10 +159,8 @@ pub struct SlotResult<S, Cs, B, T, W> {
 /// - W - generic for witness
 /// - Da - generic for DA layer
 pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
-    /// Initial state root read from the hints
-    pub init_state_root: S,
-    /// Finals state root after all soft confirmation txs are applied
-    pub final_state_root: S,
+    /// Contains state root before and after applying txs
+    pub state_root_transition: StateRootTransition<S>,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block

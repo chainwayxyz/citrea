@@ -345,21 +345,23 @@ where
             );
         }
 
-        let (init_state_root, final_state_root, witness, offchain_witness, storage, state_diff) = {
+        let (state_root_transition, witness, offchain_witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
             let (cache_log, mut witness) = checkpoint.freeze();
 
-            let ((init_root_hash, final_root_hash), state_update, state_diff) = pre_state
+            let (state_root_transition, state_update, state_diff) = pre_state
                 .compute_state_update(cache_log, &mut witness)
                 .expect("jellyfish merkle tree update must succeed");
 
             let mut working_set = checkpoint.to_revertable();
 
-            self.runtime
-                .finalize_hook(&final_root_hash, &mut working_set.accessory_state());
+            self.runtime.finalize_hook(
+                &state_root_transition.final_root,
+                &mut working_set.accessory_state(),
+            );
 
             let mut checkpoint = working_set.checkpoint();
             let accessory_log = checkpoint.freeze_non_provable();
@@ -368,8 +370,7 @@ where
             pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
             (
-                init_root_hash,
-                final_root_hash,
+                state_root_transition,
                 witness,
                 offchain_witness,
                 pre_state,
@@ -378,8 +379,7 @@ where
         };
 
         SoftConfirmationResult {
-            init_state_root,
-            final_state_root,
+            state_root_transition,
             change_set: storage,
             witness,
             offchain_witness,
@@ -422,9 +422,10 @@ where
         let mut checkpoint = working_set.checkpoint();
         let (log, mut witness) = checkpoint.freeze();
 
-        let ((_, genesis_hash), state_update, _) = pre_state
+        let (init_and_final_roots, state_update, _) = pre_state
             .compute_state_update(log, &mut witness)
             .expect("Storage update must succeed");
+        let genesis_hash = init_and_final_roots.final_root;
 
         let mut working_set = checkpoint.to_revertable();
 
@@ -809,8 +810,8 @@ where
                     // for now we don't allow "broken" seq. com.s
                     .expect("Soft confirmation must succeed");
 
-                assert_eq!(current_state_root, result.init_state_root);
-                current_state_root = result.final_state_root;
+                assert_eq!(current_state_root, result.state_root_transition.init_root);
+                current_state_root = result.state_root_transition.final_root;
                 state_diff.extend(result.state_diff);
 
                 // Notify fork manager about the block so that the next spec / fork

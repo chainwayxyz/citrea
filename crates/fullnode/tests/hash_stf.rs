@@ -43,7 +43,7 @@ impl HashStf {
             ordered_writes: vec![(hash_key.to_cache_key(), Some(hash_value.into_cache_value()))],
         };
 
-        let ((_, jmt_root_hash), state_update, _) = storage
+        let (state_root_transition, state_update, _) = storage
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
@@ -55,7 +55,13 @@ impl HashStf {
 
         let mut root_hash = [0u8; 32];
 
-        for (i, &byte) in jmt_root_hash.as_ref().iter().enumerate().take(32) {
+        for (i, &byte) in state_root_transition
+            .final_root
+            .as_ref()
+            .iter()
+            .enumerate()
+            .take(32)
+        {
             root_hash[i] = byte;
         }
 
