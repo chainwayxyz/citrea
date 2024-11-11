@@ -37,8 +37,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let output_1 = run_circuit(da_verifier.clone(), &guest).unwrap();
 
-    println!("after here");
-
     // Check that the state transition actually happened
     assert_eq!(output_1.state_root, [3; 32]);
     assert!(output_1.unchained_batch_proofs_info.is_empty());
@@ -244,4 +242,99 @@ fn test_header_chain_proof_height_and_hash() {
         res,
         Err(LightClientVerificationError::HeaderChainVerificationFailed)
     ));
+}
+
+#[test]
+fn test_unverifiable_batch_proofs() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+    let batch_proof_method_id = [2u32; 8];
+
+    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, false);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput::<MockDaSpec> {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        l2_genesis_state_root: Some([1u8; 32]),
+        batch_proof_method_id,
+        batch_prover_da_pub_key: [9; 32].to_vec(),
+    };
+
+    let serialized_input = borsh::to_vec(&input).expect("should serialize");
+
+    let guest = MockZkGuest::new(serialized_input);
+
+    let output_1 = run_circuit(da_verifier.clone(), &guest).unwrap();
+
+    // Check that the state transition actually happened but only for verified batch proof
+    // and assert the unverified is ignored, so it is not even in the unchained outputs
+    assert_eq!(output_1.state_root, [2; 32]);
+    assert!(output_1.unchained_batch_proofs_info.is_empty());
+    assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.unchained_batch_proofs_info.len(), 0);
+}
+
+#[test]
+#[should_panic(expected = "Journal is unverifiable")]
+fn test_unverifiable_prev_light_client_proof() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+    let batch_proof_method_id = [2u32; 8];
+
+    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, false);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput::<MockDaSpec> {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        l2_genesis_state_root: Some([1u8; 32]),
+        batch_proof_method_id,
+        batch_prover_da_pub_key: [9; 32].to_vec(),
+    };
+
+    let serialized_input = borsh::to_vec(&input).expect("should serialize");
+
+    let mut guest = MockZkGuest::new(serialized_input);
+
+    let output_1 = run_circuit(da_verifier.clone(), &guest).unwrap();
+
+    // Check that the state transition actually happened but only for verified batch proof
+    // and assert the unverified is ignored, so it is not even in the unchained outputs
+    assert_eq!(output_1.state_root, [2; 32]);
+    assert!(output_1.unchained_batch_proofs_info.is_empty());
+    assert_eq!(output_1.last_l2_height, 2);
+    assert_eq!(output_1.unchained_batch_proofs_info.len(), 0);
+
+    let block_header_2 = MockBlockHeader::from_height(2);
+
+    let prev_lcp_out = create_prev_lcp_serialized(output_1, false);
+
+    let input_2 = LightClientCircuitInput::<MockDaSpec> {
+        previous_light_client_proof_journal: Some(prev_lcp_out),
+        da_block_header: block_header_2,
+        da_data: vec![],
+        light_client_proof_method_id,
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        l2_genesis_state_root: None,
+        batch_proof_method_id: light_client_proof_method_id,
+        batch_prover_da_pub_key: [9; 32].to_vec(),
+    };
+
+    guest.input = borsh::to_vec(&input_2).unwrap();
+
+    let _ = run_circuit(da_verifier, &guest).unwrap();
 }
