@@ -59,7 +59,7 @@ where
 #[rpc(client, server)]
 pub trait ProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    #[method(name = "prover_generateInput")]
+    #[method(name = "batchProver_generateInput")]
     async fn generate_input(
         &self,
         l1_height: u64,
@@ -67,7 +67,7 @@ pub trait ProverRpc {
     ) -> RpcResult<Vec<ProverInputResponse>>;
 
     /// Manually invoke proving.
-    #[method(name = "prover_prove")]
+    #[method(name = "batchProver_prove")]
     async fn prove(&self, l1_height: u64, group_commitments: Option<bool>) -> RpcResult<()>;
 }
 
