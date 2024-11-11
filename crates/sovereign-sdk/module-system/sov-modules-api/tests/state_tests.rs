@@ -188,7 +188,7 @@ fn test_witness_round_trip() {
     {
         let storage = ZkStorage::<DefaultWitness, DefaultHasher>::new();
         let mut working_set: WorkingSet<ZkDefaultContext> =
-            WorkingSet::with_witness(storage.clone(), witness);
+            WorkingSet::with_witness(storage.clone(), witness, Default::default());
         state_value.set(&11, &mut working_set);
         let _ = state_value.get(&mut working_set);
         state_value.set(&22, &mut working_set);

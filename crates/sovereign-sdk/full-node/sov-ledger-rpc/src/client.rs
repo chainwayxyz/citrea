@@ -48,6 +48,10 @@ pub trait Rpc {
         soft_confirmation_receipt: u64,
     ) -> RpcResult<SoftConfirmationStatus>;
 
+    /// Gets the L2 genesis state root.
+    #[method(name = "getL2GenesisStateRoot")]
+    async fn get_l2_state_root(&self) -> RpcResult<HexHash>;
+
     /// Gets the commitments in the DA slot with the given height.
     #[method(name = "getSequencerCommitmentsOnSlotByNumber")]
     async fn get_sequencer_commitments_on_slot_by_number(

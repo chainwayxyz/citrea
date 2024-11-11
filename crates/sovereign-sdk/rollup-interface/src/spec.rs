@@ -15,6 +15,7 @@ mod spec {
         Copy,
         Eq,
         PartialEq,
+        PartialOrd,
         Default,
         BorshDeserialize,
         BorshSerialize,
@@ -28,7 +29,10 @@ mod spec {
         /// Genesis spec
         #[default]
         Genesis = 0,
-        /// First fork activates the light client proof and EVM cancun upgrade (with no kzg precompile)
+        /// First fork activates:
+        /// 1. the light client proof
+        /// 2. EVM cancun upgrade (with no kzg precompile)
+        /// 3. Don't use borsh when signing SoftConfirmation's
         Fork1 = 1,
     }
 }
@@ -43,6 +47,7 @@ mod spec {
         Copy,
         Eq,
         PartialEq,
+        PartialOrd,
         Default,
         BorshDeserialize,
         BorshSerialize,
@@ -60,5 +65,7 @@ mod spec {
         Fork1 = 1,
         /// Second fork
         Fork2 = 2,
+        /// Third fork
+        Fork3 = 3,
     }
 }

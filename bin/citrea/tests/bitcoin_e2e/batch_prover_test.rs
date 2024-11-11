@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::bail;
 use async_trait::async_trait;
@@ -10,15 +10,44 @@ use citrea_e2e::config::{
     BatchProverConfig, ProverGuestRunConfig, SequencerConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::full_node::FullNode;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::time::sleep;
 
 use super::get_citrea_path;
+
+pub async fn wait_for_zkproofs(
+    full_node: &FullNode,
+    height: u64,
+    timeout: Option<Duration>,
+) -> Result<Vec<VerifiedBatchProofResponse>> {
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(30));
+
+    loop {
+        if start.elapsed() >= timeout {
+            bail!("FullNode failed to get zkproofs within the specified timeout");
+        }
+
+        match full_node
+            .client
+            .http_client()
+            .get_verified_batch_proofs_by_slot_height(height)
+            .await?
+        {
+            Some(proofs) => return Ok(proofs),
+            None => sleep(Duration::from_millis(500)).await,
+        }
+    }
+}
 
 /// This is a basic prover test showcasing spawning a bitcoin node as DA, a sequencer and a prover.
 /// It generates soft confirmations and wait until it reaches the first commitment.
@@ -83,13 +112,13 @@ impl TestCase for BasicProverTest {
             .await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
-        let proofs = full_node
-            .wait_for_zkproofs(
-                finalized_height + FINALITY_DEPTH,
-                Some(Duration::from_secs(120)),
-            )
-            .await
-            .unwrap();
+        let proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height + FINALITY_DEPTH,
+            Some(Duration::from_secs(120)),
+        )
+        .await
+        .unwrap();
 
         {
             // print some debug info about state diff
@@ -220,13 +249,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
-        let proofs = full_node
-            .wait_for_zkproofs(
-                finalized_height + FINALITY_DEPTH,
-                Some(Duration::from_secs(120)),
-            )
-            .await
-            .unwrap();
+        let proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height + FINALITY_DEPTH,
+            Some(Duration::from_secs(120)),
+        )
+        .await
+        .unwrap();
 
         assert!(proofs
             .first()
@@ -241,7 +270,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Fetch the commitment created from the previous L1 range
         let commitments: Vec<SequencerCommitment> = full_node
             .client
-            .ledger_get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .http_client()
+            .get_sequencer_commitments_on_slot_by_number(finalized_height)
             .await
             .unwrap_or_else(|_| {
                 panic!(
@@ -290,13 +320,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         da.generate(FINALITY_DEPTH, None).await?;
 
-        let proofs = full_node
-            .wait_for_zkproofs(
-                finalized_height + FINALITY_DEPTH,
-                Some(Duration::from_secs(120)),
-            )
-            .await
-            .unwrap();
+        let proofs = wait_for_zkproofs(
+            full_node,
+            finalized_height + FINALITY_DEPTH,
+            Some(Duration::from_secs(120)),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             proofs
@@ -402,10 +432,10 @@ impl TestCase for LocalProvingTest {
 
         let finalized_height = da.get_finalized_height().await?;
         // Wait for full node to see zkproofs
-        let proofs = full_node
-            .wait_for_zkproofs(finalized_height, Some(Duration::from_secs(7200)))
-            .await
-            .unwrap();
+        let proofs =
+            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
+                .await
+                .unwrap();
 
         assert_eq!(proofs.len(), 1);
 

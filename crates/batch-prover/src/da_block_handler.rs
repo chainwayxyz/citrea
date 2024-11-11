@@ -34,7 +34,7 @@ use crate::errors::L1ProcessingError;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1};
 
 type CommitmentStateTransitionData<'txs, Witness, Da> = (
-    VecDeque<Vec<Witness>>,
+    VecDeque<Vec<(Witness, Witness)>>,
     VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
@@ -342,7 +342,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
 ) -> Result<CommitmentStateTransitionData<'static, Witness, Da>, anyhow::Error> {
-    let mut state_transition_witnesses: VecDeque<Vec<Witness>> = VecDeque::new();
+    let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> = VecDeque::new();
     let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
     let mut da_block_headers_of_soft_confirmations: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
@@ -397,12 +397,14 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         for l2_height in
             sequencer_commitment.l2_start_block_number..=sequencer_commitment.l2_end_block_number
         {
-            let witness = match ledger_db.get_l2_witness::<Witness>(l2_height) {
-                Ok(witness) => witness,
+            let (state_witness, offchain_witness) = match ledger_db
+                .get_l2_witness::<Witness>(l2_height)
+            {
+                Ok(inner) => inner.expect("Witnesses must be present"),
                 Err(e) => return Err(anyhow!("Failed to get witness from the ledger db: {}", e)),
             };
 
-            witnesses.push(witness.expect("A witness must be present"));
+            witnesses.push((state_witness, offchain_witness));
         }
         state_transition_witnesses.push_back(witnesses);
     }

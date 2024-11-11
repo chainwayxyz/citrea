@@ -20,7 +20,7 @@ use crate::da::DaSpec;
 use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
-use crate::zk::{CumulativeStateDiff, ValidityCondition, Zkvm};
+use crate::zk::CumulativeStateDiff;
 
 #[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
 pub mod fuzzing;
@@ -58,9 +58,6 @@ mod sealed {
 pub struct TransactionReceipt<R> {
     /// The canonical hash of this transaction
     pub tx_hash: [u8; 32],
-    /// The canonically serialized body of the transaction, if it should be persisted
-    /// in the database
-    pub body_to_save: Option<Vec<u8>>,
     /// The events output by this transaction
     pub events: Vec<Event>,
     /// Any additional structured data to be saved in the database and served over RPC
@@ -83,6 +80,16 @@ pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
     pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub phantom_data: PhantomData<BatchReceiptContents>,
+}
+
+/// The output of the function that applies sequencer commitments to the state in the verifier
+pub struct ApplySequencerCommitmentsOutput<StateRoot> {
+    /// Final state root after all sequencer commitments were applied
+    pub final_state_root: StateRoot,
+    /// State diff generated after applying
+    pub state_diff: CumulativeStateDiff,
+    /// Last processed L2 block height
+    pub last_l2_height: u64,
 }
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
@@ -150,6 +157,8 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
     pub change_set: Cs,
     /// Witness after applying the whole block
     pub witness: W,
+    /// Witness after applying the whole block
+    pub offchain_witness: W,
     /// State diff after applying the whole block
     pub state_diff: StateDiff,
     /// soft confirmation receipt
@@ -164,7 +173,7 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
 ///  - block: DA layer block
 ///  - batch: Set of transactions grouped together, or block on L2
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
-pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
+pub trait StateTransitionFunction<Da: DaSpec> {
     /// Root hash of state merkle tree
     type StateRoot: BorshDeserialize
         + BorshSerialize
@@ -203,9 +212,6 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         + Sync
         + 'static;
 
-    /// The validity condition that must be verified outside of the Vm
-    type Condition: ValidityCondition;
-
     /// Perform one-time initialization for the genesis block and
     /// returns the resulting root hash and changeset.
     /// If the init chain fails we panic.
@@ -237,7 +243,6 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         blobs: I,
     ) -> SlotResult<
         Self::StateRoot,
@@ -268,9 +273,9 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         sequencer_public_key: &[u8],
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
-        witness: Self::Witness,
+        state_witness: Self::Witness,
+        offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         soft_confirmation: &mut SignedSoftConfirmation,
     ) -> Result<
         SoftConfirmationResult<
@@ -297,13 +302,12 @@ pub trait StateTransitionFunction<Vm: Zkvm, Da: DaSpec> {
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
-        witnesses: VecDeque<Vec<Self::Witness>>,
+        witnesses: VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        validity_condition: &Da::ValidityCondition,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: Vec<Fork>,
-    ) -> (Self::StateRoot, CumulativeStateDiff, SpecId);
+    ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
 }
 
 #[derive(Debug)]

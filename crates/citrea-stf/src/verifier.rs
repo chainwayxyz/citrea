@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use citrea_primitives::forks::FORKS;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Zkvm, ZkvmGuest};
 
 /// Verifies a state transition
@@ -10,7 +10,7 @@ pub struct StateTransitionVerifier<ST, Da, Zk>
 where
     Da: DaVerifier,
     Zk: Zkvm,
-    ST: StateTransitionFunction<Zk, Da::Spec>,
+    ST: StateTransitionFunction<Da::Spec>,
 {
     app: ST,
     da_verifier: Da,
@@ -21,7 +21,7 @@ impl<Stf, Da, Zk> StateTransitionVerifier<Stf, Da, Zk>
 where
     Da: DaVerifier,
     Zk: ZkvmGuest,
-    Stf: StateTransitionFunction<Zk, Da::Spec>,
+    Stf: StateTransitionFunction<Da::Spec>,
 {
     /// Create a [`StateTransitionVerifier`]
     pub fn new(app: Stf, da_verifier: Da) -> Self {
@@ -45,7 +45,7 @@ where
             panic!("Invalid hash of DA block header of commitments");
         }
 
-        let validity_condition = self.da_verifier.verify_transactions(
+        self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
             &data.da_data,
             data.inclusion_proof,
@@ -67,7 +67,11 @@ where
             .hash();
 
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
-        let (final_state_root, state_diff, last_active_spec_id) = self
+        let ApplySequencerCommitmentsOutput {
+            final_state_root,
+            state_diff,
+            last_l2_height,
+        } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
                 data.sequencer_public_key.as_ref(),
@@ -79,7 +83,6 @@ where
                 data.sequencer_commitments_range,
                 data.state_transition_witnesses,
                 data.da_block_headers_of_soft_confirmations,
-                &validity_condition,
                 data.soft_confirmations,
                 data.preproven_commitments.clone(),
                 FORKS.to_vec(),
@@ -97,14 +100,13 @@ where
             final_state_root,
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             final_soft_confirmation_hash,
-            validity_condition, // TODO: not sure about what to do with this yet
             state_diff,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
             sequencer_public_key: data.sequencer_public_key,
             sequencer_da_public_key: data.sequencer_da_public_key,
             sequencer_commitments_range: data.sequencer_commitments_range,
             preproven_commitments: data.preproven_commitments,
-            last_active_spec_id,
+            last_l2_height,
         };
 
         zkvm.commit(&out);

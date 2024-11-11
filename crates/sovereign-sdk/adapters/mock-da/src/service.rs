@@ -31,6 +31,7 @@ const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     height: 0,
     // 2023-01-01T00:00:00Z
     time: Time::from_secs(1672531200),
+    bits: 0,
 };
 
 /// Definition of a fork that will be executed in `MockDaService` at specified height
@@ -229,10 +230,11 @@ impl MockDaService {
             txs_commitment: block_hash,
             height,
             time: Time::from_secs(10000000000), // TODO: had to mock this for now, causes different state roots
+            bits: 0,
         };
         let block = MockBlock {
             header,
-            validity_cond: Default::default(),
+            is_valid: true,
             blobs: vec![blob],
         };
 

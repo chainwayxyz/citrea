@@ -19,7 +19,7 @@ use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::storage::HierarchicalStorageManager;
-use sov_modules_api::{Context, SlotData};
+use sov_modules_api::{Context, SignedSoftConfirmation, SlotData};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -36,7 +36,7 @@ use tracing::{debug, error, info, instrument};
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc::{create_rpc_module, RpcContext};
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 
 pub struct CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
@@ -44,8 +44,7 @@ where
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
 
     Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
@@ -55,7 +54,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     prover_service: Arc<Ps>,
@@ -79,12 +78,10 @@ where
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost + 'static,
     Stf: StateTransitionFunction<
-            Vm,
             Da::Spec,
-            Condition = <Da::Spec as DaSpec>::ValidityCondition,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+        > + StfBlueprintTrait<C, Da::Spec>,
     Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: BatchProverLedgerOps + Clone + 'static,
 {
@@ -102,7 +99,7 @@ where
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, Da::Spec>,
         prover_service: Arc<Ps>,
         prover_config: BatchProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -388,6 +385,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
+        let mut signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
@@ -395,10 +393,11 @@ where
             &self.state_root,
             pre_state,
             Default::default(),
+            Default::default(),
             current_l1_block.header(),
-            &current_l1_block.validity_condition(),
-            &mut soft_confirmation.clone().into(),
+            &mut signed_soft_confirmation,
         )?;
+        let txs_bodies = signed_soft_confirmation.txs().to_owned();
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
@@ -411,17 +410,24 @@ where
         // Save state diff to ledger DB
         self.ledger_db
             .set_l2_state_diff(BatchNumber(l2_height), soft_confirmation_result.state_diff)?;
-        // Save witness data to ledger db
-        self.ledger_db
-            .set_l2_witness(l2_height, &soft_confirmation_result.witness)?;
+
+        // Save witnesses data to ledger db
+        self.ledger_db.set_l2_witness(
+            l2_height,
+            &soft_confirmation_result.witness,
+            &soft_confirmation_result.offchain_witness,
+        )?;
 
         self.storage_manager
             .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
 
         self.storage_manager.finalize_l2(l2_height)?;
 
-        self.ledger_db
-            .commit_soft_confirmation(next_state_root.as_ref(), receipt, true)?;
+        self.ledger_db.commit_soft_confirmation(
+            next_state_root.as_ref(),
+            receipt,
+            Some(txs_bodies),
+        )?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),

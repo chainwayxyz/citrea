@@ -1,8 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState};
 
-use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, MockValidityCond};
+use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash};
 
 impl BlobReaderTrait for MockBlob {
     type Address = MockAddress;
@@ -39,7 +39,6 @@ impl DaSpec for MockDaSpec {
     type BlockHeader = MockBlockHeader;
     type BlobTransaction = MockBlob;
     type Address = MockAddress;
-    type ValidityCondition = MockValidityCond;
     type InclusionMultiProof = [u8; 32];
     type CompletenessProof = ();
     type ChainParams = ();
@@ -61,7 +60,24 @@ impl DaVerifier for MockDaVerifier {
         _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         _namespace: DaNamespace,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        Ok(Default::default())
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn verify_header_chain(
+        &self,
+        _previous_light_client_proof_output: &Option<
+            sov_rollup_interface::zk::LightClientCircuitOutput<Self::Spec>,
+        >,
+        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
+        Ok(UpdatedDaState {
+            hash: MockHash([0; 32]),
+            height: 0,
+            total_work: [0; 32],
+            epoch_start_time: 0,
+            prev_11_timestamps: [0; 11],
+            current_target_bits: 0,
+        })
     }
 }

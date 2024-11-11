@@ -6,8 +6,8 @@ use sov_rollup_interface::rpc::{
 };
 
 use crate::schema::tables::{
-    CommitmentsByNumber, ProofsBySlotNumber, SlotByHash, SoftConfirmationByHash,
-    SoftConfirmationByNumber, SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
+    CommitmentsByNumber, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
+    SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
 };
 use crate::schema::types::{BatchNumber, SlotNumber};
 
@@ -16,7 +16,7 @@ const MAX_BATCHES_PER_REQUEST: u64 = 20;
 /// The maximum number of soft confirmations that can be requested in a single RPC range query
 const MAX_SOFT_CONFIRMATIONS_PER_REQUEST: u64 = 20;
 
-use super::{LedgerDB, SharedLedgerOps};
+use super::{L2GenesisStateRoot, LedgerDB, ProofsBySlotNumberV2, SharedLedgerOps};
 
 impl LedgerRpcProvider for LedgerDB {
     fn get_soft_confirmation(
@@ -115,6 +115,11 @@ impl LedgerRpcProvider for LedgerDB {
             None => Ok(sov_rollup_interface::rpc::SoftConfirmationStatus::Trusted),
         }
     }
+
+    fn get_l2_genesis_state_root(&self) -> Result<Option<Vec<u8>>, anyhow::Error> {
+        self.db.get::<L2GenesisStateRoot>(&())
+    }
+
     fn get_slot_number_by_hash(&self, hash: [u8; 32]) -> Result<Option<u64>, anyhow::Error> {
         self.db.get::<SlotByHash>(&hash).map(|v| v.map(|a| a.0))
     }
@@ -145,7 +150,7 @@ impl LedgerRpcProvider for LedgerDB {
         &self,
         height: u64,
     ) -> Result<Option<Vec<BatchProofResponse>>, anyhow::Error> {
-        match self.db.get::<ProofsBySlotNumber>(&SlotNumber(height))? {
+        match self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(height))? {
             Some(stored_proofs) => Ok(Some(
                 stored_proofs
                     .into_iter()

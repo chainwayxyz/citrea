@@ -26,7 +26,7 @@ fn simple_contract_execution_sov_state() {
         WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<C>::default();
-    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set);
+    let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set, SpecId::SHANGHAI);
 
     simple_contract_execution(evm_db);
 }

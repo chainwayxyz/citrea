@@ -1226,6 +1226,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "crypto-bigint",
  "futures",
  "hex",
  "pin-project",
@@ -1234,7 +1235,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "thiserror",
  "tokio",
  "tracing",
@@ -1743,13 +1744,13 @@ dependencies = [
  "sha2",
  "soft-confirmation-rule-enforcer",
  "sov-db",
- "sov-ledger-rpc 0.5.0-rc.1",
+ "sov-ledger-rpc",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
  "sp1-helper",
@@ -1789,7 +1790,7 @@ dependencies = [
  "sov-modules-core",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-stf-runner",
  "tempfile",
  "tokio",
@@ -1816,7 +1817,7 @@ dependencies = [
  "serde_json",
  "sov-db",
  "sov-mock-da",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-stf-runner",
  "tempfile",
  "tokio",
@@ -1829,7 +1830,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=faf3414#faf3414d9f6088788b1baa03454022f28470be51"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=5b3e127#5b3e127cd0ceae4b11a4ac92e9782013abcddd01"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1842,8 +1843,6 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "sov-ledger-rpc 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=42693cc)",
- "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=42693cc)",
  "tempfile",
  "tokio",
  "toml",
@@ -1890,7 +1889,7 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
  "tempfile",
@@ -1926,7 +1925,7 @@ dependencies = [
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
  "tempfile",
@@ -1950,7 +1949,7 @@ dependencies = [
  "sov-db",
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-stf-runner",
  "tokio",
  "tokio-util",
@@ -1967,7 +1966,7 @@ dependencies = [
  "brotli",
  "reth-primitives",
  "serde",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
 ]
@@ -2001,7 +2000,7 @@ dependencies = [
  "risc0-zkvm",
  "serde",
  "sov-db",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tracing",
 ]
 
@@ -2047,7 +2046,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
  "tempfile",
@@ -2077,7 +2076,7 @@ dependencies = [
  "sov-accounts",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
  "tracing",
@@ -2832,7 +2831,7 @@ dependencies = [
  "serde_json",
  "sov-db",
  "sov-modules-api",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
 ]
@@ -3658,7 +3657,7 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
  "tempfile",
@@ -5007,7 +5006,7 @@ dependencies = [
  "sha2",
  "sov-db",
  "sov-modules-api",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-stf-runner",
  "tempfile",
  "tokio",
@@ -6946,7 +6945,7 @@ dependencies = [
  "reth-rpc-types",
  "serde",
  "serde_json",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
 ]
@@ -7214,7 +7213,7 @@ dependencies = [
  "sov-mock-da",
  "sov-modules-api",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
  "tracing",
@@ -7296,7 +7295,7 @@ dependencies = [
  "rocksdb",
  "serde",
  "sha2",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-schema-db",
  "tempfile",
  "tokio",
@@ -7314,19 +7313,9 @@ dependencies = [
  "serde_json",
  "sov-db",
  "sov-modules-api",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tempfile",
  "tokio",
-]
-
-[[package]]
-name = "sov-ledger-rpc"
-version = "0.5.0-rc.1"
-source = "git+https://github.com/chainwayxyz/citrea?rev=42693cc#42693ccf14925734bd3882550138440f6c7e47fd"
-dependencies = [
- "jsonrpsee",
- "serde",
- "sov-rollup-interface 0.5.0-rc.1 (git+https://github.com/chainwayxyz/citrea?rev=42693cc)",
 ]
 
 [[package]]
@@ -7345,7 +7334,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -7361,7 +7350,7 @@ dependencies = [
  "bincode",
  "borsh",
  "serde",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
 ]
 
 [[package]]
@@ -7392,7 +7381,7 @@ dependencies = [
  "sov-modules-core",
  "sov-modules-macros",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
  "thiserror",
@@ -7420,7 +7409,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-core",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
  "thiserror",
@@ -7440,7 +7429,7 @@ dependencies = [
  "serde_json",
  "sov-modules-api",
  "sov-modules-core",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "syn 1.0.109",
  "trybuild",
@@ -7455,10 +7444,10 @@ dependencies = [
  "citrea-common",
  "jsonrpsee",
  "sov-db",
- "sov-ledger-rpc 0.5.0-rc.1",
+ "sov-ledger-rpc",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-stf-runner",
  "tokio",
  "tracing",
@@ -7477,7 +7466,7 @@ dependencies = [
  "rs_merkle",
  "serde",
  "sov-modules-api",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "tracing",
 ]
@@ -7492,7 +7481,7 @@ dependencies = [
  "sha2",
  "sov-db",
  "sov-mock-da",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-schema-db",
  "sov-state",
  "tempfile",
@@ -7515,26 +7504,6 @@ dependencies = [
  "proptest-derive",
  "serde",
  "serde_json",
- "sha2",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "sov-rollup-interface"
-version = "0.5.0-rc.1"
-source = "git+https://github.com/chainwayxyz/citrea?rev=42693cc#42693ccf14925734bd3882550138440f6c7e47fd"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "bytes",
- "digest 0.10.7",
- "futures",
- "hex",
- "proptest",
- "serde",
  "sha2",
  "thiserror",
  "tokio",
@@ -7574,7 +7543,7 @@ dependencies = [
  "sha2",
  "sov-db",
  "sov-modules-core",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "tempfile",
 ]
 
@@ -7596,7 +7565,7 @@ dependencies = [
  "sov-db",
  "sov-modules-api",
  "sov-prover-storage-manager",
- "sov-rollup-interface 0.5.0-rc.1",
+ "sov-rollup-interface",
  "sov-state",
  "tempfile",
  "thiserror",

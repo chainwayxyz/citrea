@@ -21,6 +21,7 @@ use reth_rpc_types::{
     TransactionReceipt,
 };
 use reth_rpc_types_compat::block::from_primitive_with_hash;
+use revm::primitives::SpecId::CANCUN;
 use revm::primitives::{
     BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, HaltReason,
     InvalidTransaction, SpecId, TransactTo,
@@ -353,11 +354,24 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<reth_primitives::Bytes> {
+        let cfg = self
+            .cfg
+            .get(working_set)
+            .expect("EVM chain config should be set");
+        // TODO: Fix this in #1436
+        let (_, current_spec) = cfg.spec.last().expect("Spec should be set");
+
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
         let account = self.accounts.get(&address, working_set).unwrap_or_default();
         let code = if let Some(code_hash) = account.code_hash {
-            self.code.get(&code_hash, working_set).unwrap_or_default()
+            if current_spec.is_enabled_in(CANCUN) {
+                self.offchain_code
+                    .get(&code_hash, &mut working_set.offchain_state())
+                    .unwrap_or_else(|| self.code.get(&code_hash, working_set).unwrap_or_default())
+            } else {
+                self.code.get(&code_hash, working_set).unwrap_or_default()
+            }
         } else {
             Default::default()
         };
@@ -548,7 +562,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
             (block_env, cfg_env)
         };
 
-        let mut evm_db = self.get_db(working_set);
+        let current_spec = cfg_env.handler_cfg.spec_id;
+        let mut evm_db = self.get_db(working_set, current_spec);
 
         if let Some(mut block_overrides) = block_overrides {
             apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
@@ -651,7 +666,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // <https://github.com/ethereum/go-ethereum/blob/8990c92aea01ca07801597b00c0d83d4e2d9b811/internal/ethapi/api.go#L1476-L1476>
         cfg_env.disable_base_fee = true;
 
-        let mut evm_db = self.get_db(working_set);
+        let current_spec = cfg_env.handler_cfg.spec_id;
+        let mut evm_db = self.get_db(working_set, current_spec);
 
         let from = request.from.unwrap_or_default();
         let account = evm_db
@@ -787,9 +803,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number: Option<BlockNumberOrTag>,
         working_set: &mut WorkingSet<C>,
     ) -> RpcResult<EstimatedDiffSize> {
-        if request.gas.is_none() {
-            return Err(EthApiError::InvalidParams("gas must be set".into()))?;
-        }
         let estimated = self.estimate_tx_expenses(request, block_number, working_set)?;
 
         Ok(EstimatedDiffSize {
@@ -847,6 +860,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // <https://github.com/ethereum/go-ethereum/blob/ee8e83fa5f6cb261dad2ed0a7bbcde4930c41e6c/internal/ethapi/api.go#L985>
         cfg_env.disable_base_fee = true;
 
+        let current_spec = cfg_env.handler_cfg.spec_id;
+
         // set nonce to None so that the correct nonce is chosen by the EVM
         request.nonce = None;
 
@@ -879,7 +894,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     tx_env.gas_limit = MIN_TRANSACTION_GAS;
 
                     let res = inspect_no_tracing(
-                        self.get_db(working_set),
+                        self.get_db(working_set, current_spec),
                         cfg_env.clone(),
                         block_env.clone(),
                         tx_env.clone(),
@@ -924,7 +939,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // if the provided gas limit is less than computed cap, use that
         tx_env.gas_limit = std::cmp::min(tx_env.gas_limit, highest_gas_limit as u64); // highest_gas_limit is capped to u64::MAX
 
-        let evm_db = self.get_db(working_set);
+        let evm_db = self.get_db(working_set, current_spec);
 
         // execute the call without writing to db
         let result = inspect_no_tracing(
@@ -942,7 +957,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             // if price or limit was included in the request then we can execute the request
             // again with the block's gas limit to check if revert is gas related or not
             if request_gas_limit.is_some() || request_gas_price.is_some() {
-                let evm_db = self.get_db(working_set);
+                let evm_db = self.get_db(working_set, current_spec);
                 return Err(map_out_of_gas_err(
                     block_env.clone(),
                     tx_env.clone(),
@@ -966,7 +981,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     // if price or limit was included in the request then we can execute the request
                     // again with the block's gas limit to check if revert is gas related or not
                     return if request_gas_limit.is_some() || request_gas_price.is_some() {
-                        let evm_db = self.get_db(working_set);
+                        let evm_db = self.get_db(working_set, current_spec);
                         Err(map_out_of_gas_err(
                             block_env.clone(),
                             tx_env.clone(),
@@ -1007,7 +1022,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             tx_env.gas_limit = optimistic_gas_limit;
             // (result, env) = executor::transact(&mut db, env)?;
             let curr_result = inspect_no_tracing(
-                self.get_db(working_set),
+                self.get_db(working_set, current_spec),
                 cfg_env.clone(),
                 block_env.clone(),
                 tx_env.clone(),
@@ -1047,7 +1062,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let mut tx_env = tx_env.clone();
             tx_env.gas_limit = mid_gas_limit;
 
-            let evm_db = self.get_db(working_set);
+            let evm_db = self.get_db(working_set, current_spec);
             let result = inspect_no_tracing(
                 evm_db,
                 cfg_env.clone(),
@@ -1184,10 +1199,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let cfg_env = get_cfg_env(cfg, evm_spec_id);
         let l1_fee_rate = sealed_block.l1_fee_rate;
+        let current_spec = cfg_env.handler_cfg.spec_id;
 
         // EvmDB is the replacement of revm::CacheDB because cachedb requires immutable state
         // TODO: Move to CacheDB once immutable state is implemented
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, current_spec);
 
         // TODO: Convert below steps to blocking task like in reth after implementing the semaphores
         let mut traces = Vec::new();

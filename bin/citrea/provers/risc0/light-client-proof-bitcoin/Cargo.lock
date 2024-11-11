@@ -539,6 +539,7 @@ dependencies = [
  "bitcoin",
  "borsh",
  "citrea-primitives",
+ "crypto-bigint",
  "futures",
  "hex",
  "rand",

@@ -26,8 +26,7 @@ pub struct Sequencer<S: RollupBlueprint> {
         S::NativeContext,
         S::DaService,
         S::StorageManager,
-        S::Vm,
-        StfBlueprint<S::NativeContext, S::DaSpec, S::Vm, S::NativeRuntime>,
+        StfBlueprint<S::NativeContext, S::DaSpec, S::NativeRuntime>,
         LedgerDB,
     >,
     /// Rpc methods for the rollup.

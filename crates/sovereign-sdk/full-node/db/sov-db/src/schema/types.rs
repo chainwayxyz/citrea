@@ -9,8 +9,8 @@ use sov_rollup_interface::rpc::{
     TxResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
-use sov_rollup_interface::stf::{Event, EventKey, TransactionReceipt};
-use sov_rollup_interface::zk::{CumulativeStateDiff, LightClientCircuitOutput, Proof};
+use sov_rollup_interface::stf::EventKey;
+use sov_rollup_interface::zk::{BatchProofInfo, CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -72,13 +72,76 @@ pub struct StoredSlot {
     /// The range of batches which occurred in this slot.
     pub batches: std::ops::Range<BatchNumber>,
 }
+/// The on-disk format for a light client proof output
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredLightClientProofOutput {
+    /// State root of the node after the light client proof
+    pub state_root: [u8; 32],
+    /// The method id of the light client proof
+    /// This is used to compare the previous light client proof method id with the input (current) method id
+    pub light_client_proof_method_id: [u32; 8],
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    pub da_block_hash: [u8; 32],
+    /// Height of the blockchain
+    pub da_block_height: u64,
+    /// Total work done in the DA blockchain
+    pub da_total_work: [u8; 32],
+    /// Current target bits of DA
+    pub da_current_target_bits: u32,
+    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
+    pub da_epoch_start_time: u32,
+    /// The UNIX timestamps in seconds of the previous 11 blocks
+    pub da_prev_11_timestamps: [u32; 11],
+    /// Unchained batch proofs are proofs that are not consecutive,
+    /// hence can not be proven yet kproofs.
+    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    /// Last l2 height after proof.
+    pub last_l2_height: u64,
+    /// L2 genesis state root.
+    pub l2_genesis_state_root: [u8; 32],
+}
 /// The on-disk format for a light client proof
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProof {
     /// The proof
     pub proof: Proof,
-    /// The light client circuit output
-    pub light_client_circuit_output: LightClientCircuitOutput,
+    /// The light client circuit proof output
+    pub light_client_proof_output: StoredLightClientProofOutput,
+}
+
+/// Old version of StoredBatchProofOutput
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize, Clone)]
+pub struct StoredBatchProofOutputV1 {
+    /// The state of the rollup before the transition
+    pub initial_state_root: Vec<u8>,
+    /// The state of the rollup after the transition
+    pub final_state_root: Vec<u8>,
+    /// State diff of L2 blocks in the processed sequencer commitments.
+    pub state_diff: CumulativeStateDiff,
+    /// The DA slot hash that the sequencer commitments causing this state transition were found in.
+    pub da_slot_hash: [u8; 32],
+    /// The range of sequencer commitments in the DA slot that were processed.
+    /// The range is inclusive.
+    pub sequencer_commitments_range: (u32, u32),
+    /// Sequencer public key.
+    pub sequencer_public_key: Vec<u8>,
+    /// Sequencer DA public key.
+    pub sequencer_da_public_key: Vec<u8>,
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
+    /// Validity condition. Removed in the newer version.
+    pub validity_condition: Vec<u8>,
+}
+/// Old version of StoredBatchProof
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredBatchProofV1 {
+    /// Tx id
+    pub l1_tx_id: [u8; 32],
+    /// Proof
+    pub proof: Proof,
+    /// Output
+    pub proof_output: StoredBatchProofOutputV1,
 }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
@@ -140,10 +203,6 @@ pub struct StoredBatchProofOutput {
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
-    /// An additional validity condition for the state transition which needs
-    /// to be checked outside of the zkVM circuit. This typically corresponds to
-    /// some claim about the DA layer history, such as (X) is a valid block on the DA layer
-    pub validity_condition: Vec<u8>,
 }
 
 impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
@@ -155,7 +214,6 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             da_slot_hash: value.da_slot_hash,
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
-            validity_condition: value.validity_condition,
             sequencer_commitments_range: value.sequencer_commitments_range,
             preproven_commitments: value.preproven_commitments,
         }
@@ -278,17 +336,6 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
             phantom_data: PhantomData,
         })
     }
-}
-
-/// Split a `TransactionReceipt` into a `StoredTransaction` and a list of `Event`s for storage in the database.
-pub fn split_tx_for_storage<R: Serialize>(
-    tx: TransactionReceipt<R>,
-) -> (StoredTransaction, Vec<Event>) {
-    let tx_for_storage = StoredTransaction {
-        hash: tx.tx_hash,
-        body: tx.body_to_save,
-    };
-    (tx_for_storage, tx.events)
 }
 
 /// An identifier that specifies a single event

@@ -13,7 +13,6 @@ use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
-use digest::Digest;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
@@ -41,7 +40,6 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::InitVariant;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc};
@@ -58,20 +56,18 @@ use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 /// Represents information about the current DA state.
 ///
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
+pub struct CitreaSequencer<C, Da, Sm, Stf, DB>
 where
     C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
     da_service: Arc<Da>,
@@ -86,7 +82,7 @@ where
     stf: Stf,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: Sm,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -101,19 +97,16 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<C, Da, Sm, Vm, Stf, DB> CitreaSequencer<C, Da, Sm, Vm, Stf, DB>
+impl<C, Da, Sm, Stf, DB> CitreaSequencer<C, Da, Sm, Stf, DB>
 where
     C: Context,
     Da: DaService,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Vm: ZkvmHost,
     Stf: StateTransitionFunction<
-            Vm,
             Da::Spec,
-            Condition = <Da::Spec as DaSpec>::ValidityCondition,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+        > + StfBlueprintTrait<C, Da::Spec>,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
@@ -123,7 +116,7 @@ where
         config: SequencerConfig,
         stf: Stf,
         mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         rpc_config: RpcConfig,
@@ -270,6 +263,7 @@ where
             match self.stf.begin_soft_confirmation(
                 pub_key,
                 prestate.clone(),
+                Default::default(),
                 Default::default(),
                 &da_block_header,
                 &soft_confirmation_info,
@@ -434,6 +428,7 @@ where
             &pub_key,
             prestate.clone(),
             Default::default(),
+            Default::default(),
             da_block.header(),
             &soft_confirmation_info,
         ) {
@@ -470,8 +465,13 @@ where
                     timestamp,
                 );
 
-                let mut signed_soft_confirmation =
-                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?;
+                let mut signed_soft_confirmation = if active_fork_spec
+                    >= sov_modules_api::SpecId::Fork1
+                {
+                    self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                } else {
+                    self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
+                };
 
                 let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
                     active_fork_spec,
@@ -515,8 +515,12 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                self.ledger_db
-                    .commit_soft_confirmation(next_state_root.as_ref(), receipt, true)?;
+                let tx_bodies = signed_soft_confirmation.txs().to_owned();
+                self.ledger_db.commit_soft_confirmation(
+                    next_state_root.as_ref(),
+                    receipt,
+                    Some(tx_bodies),
+                )?;
 
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
@@ -783,8 +787,38 @@ where
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
-        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
+        let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
+        let hash = Into::<[u8; 32]>::into(digest);
 
+        let signature = self.sov_tx_signer_priv_key.sign(&hash);
+        let pub_key = self.sov_tx_signer_priv_key.pub_key();
+        Ok(SignedSoftConfirmation::new(
+            soft_confirmation.l2_height(),
+            hash,
+            prev_soft_confirmation_hash,
+            soft_confirmation.da_slot_height(),
+            soft_confirmation.da_slot_hash(),
+            soft_confirmation.da_slot_txs_commitment(),
+            soft_confirmation.l1_fee_rate(),
+            soft_confirmation.txs().into(),
+            soft_confirmation.deposit_data(),
+            borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
+            borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,
+            soft_confirmation.timestamp(),
+        ))
+    }
+
+    /// Old version of sign_soft_confirmation_batch
+    /// TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
+    ///   when removing this fn
+    /// FIXME: ^
+    fn pre_fork1_sign_soft_confirmation_batch<'txs>(
+        &mut self,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
+        prev_soft_confirmation_hash: [u8; 32],
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
+        use digest::Digest;
+        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);

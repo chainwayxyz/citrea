@@ -11,8 +11,6 @@ use sov_rollup_interface::da::{BlockHashTrait, BlockHeaderTrait, CountedBufReade
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
 
-use crate::validity_condition::MockValidityCond;
-
 /// A mock hash digest.
 #[derive(
     Clone,
@@ -80,6 +78,8 @@ pub struct MockBlockHeader {
     pub height: u64,
     /// The time at which this block was created
     pub time: Time,
+    /// The bits of the block
+    pub bits: u32,
 }
 
 impl MockBlockHeader {
@@ -89,12 +89,14 @@ impl MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
         let txs_commitment = u64_to_bytes(height + 1);
+        let bits = 0;
         MockBlockHeader {
             prev_hash: MockHash(prev_hash),
             hash: MockHash(hash),
             txs_commitment: MockHash(txs_commitment),
             height,
             time: Time::now(),
+            bits,
         }
     }
 }
@@ -142,6 +144,10 @@ impl BlockHeaderTrait for MockBlockHeader {
 
     fn verify_hash(&self) -> bool {
         true
+    }
+
+    fn bits(&self) -> u32 {
+        self.bits
     }
 }
 
@@ -209,15 +215,14 @@ impl MockBlob {
 pub struct MockBlock {
     /// The header of this block.
     pub header: MockBlockHeader,
-    /// Validity condition
-    pub validity_cond: MockValidityCond,
+    /// Whether the MockBlock is considered valid
+    pub is_valid: bool,
     /// Blobs
     pub blobs: Vec<MockBlob>,
 }
 
 impl SlotData for MockBlock {
     type BlockHeader = MockBlockHeader;
-    type Cond = MockValidityCond;
 
     fn hash(&self) -> [u8; 32] {
         self.header.hash.0
@@ -225,10 +230,6 @@ impl SlotData for MockBlock {
 
     fn header(&self) -> &Self::BlockHeader {
         &self.header
-    }
-
-    fn validity_condition(&self) -> MockValidityCond {
-        self.validity_cond
     }
 }
 

@@ -41,7 +41,6 @@ pub trait KernelSlotHooks<C: Context, Da: DaSpec>: Kernel<C, Da> {
     fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         working_set: &mut WorkingSet<Self::Context>,
     );
@@ -57,6 +56,7 @@ pub trait BlobSelector<Da: DaSpec> {
     /// It takes two arguments.
     /// 1. `current_blobs` - blobs that were received from the network for the current slot.
     /// 2. `working_set` - the working to access storage.
+    ///
     /// It returns a vector containing a mix of borrowed and owned blobs.
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,

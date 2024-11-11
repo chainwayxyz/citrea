@@ -24,7 +24,7 @@ use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_rollup_interface::zk::Zkvm;
 use sov_state::ZkStorage;
 use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
@@ -56,7 +56,7 @@ impl RollupBlueprint for BitcoinRollup {
     type ProverService = ParallelProverService<
         Self::DaService,
         Self::Vm,
-        StfBlueprint<Self::ZkContext, Self::DaSpec, <Self::Vm as ZkvmHost>::Guest, Self::ZkRuntime>,
+        StfBlueprint<Self::ZkContext, Self::DaSpec, Self::ZkRuntime>,
     >;
 
     fn new() -> Self {

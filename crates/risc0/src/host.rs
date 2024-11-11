@@ -221,6 +221,11 @@ impl<'host> Zkvm for Risc0BonsaiHost<'host> {
         Ok(receipt.journal.bytes)
     }
 
+    fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        Ok(receipt.journal.bytes)
+    }
+
     fn verify_and_extract_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,

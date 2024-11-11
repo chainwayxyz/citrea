@@ -13,4 +13,4 @@ use verifier::StateTransitionVerifier;
 
 /// Alias for StateTransitionVerifier.
 pub type StfVerifier<DA, Vm, ZkContext, RT> =
-    StateTransitionVerifier<StfBlueprint<ZkContext, <DA as DaVerifier>::Spec, Vm, RT>, DA, Vm>;
+    StateTransitionVerifier<StfBlueprint<ZkContext, <DA as DaVerifier>::Spec, RT>, DA, Vm>;

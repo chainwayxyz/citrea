@@ -237,7 +237,7 @@ where
         let snapshot_id = state_snapshot.get_id();
         if snapshot_id != native_snapshot.get_id() {
             anyhow::bail!(
-                "State id={} and Native id={} snapshots have different are not matching",
+                "State id={} and Native id={} snapshots are not matching",
                 snapshot_id,
                 native_snapshot.get_id()
             );
@@ -538,6 +538,7 @@ mod tests {
             txs_commitment: MockHash::from([3; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let _storage = storage_manager.create_storage_on(&block_header).unwrap();
@@ -577,6 +578,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let storage_1 = storage_manager.create_storage_on(&block_header).unwrap();
@@ -619,6 +621,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         storage_manager.create_storage_on(&block_header).unwrap();
@@ -643,6 +646,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -650,6 +654,7 @@ mod tests {
             txs_commitment: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
 
         let _storage_a = storage_manager.create_storage_on(&block_a).unwrap();
@@ -678,6 +683,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         assert!(storage_manager.is_empty());
@@ -704,6 +710,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let snapshot_1 = {
@@ -741,6 +748,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
 
         let block_b = MockBlockHeader {
@@ -749,6 +757,7 @@ mod tests {
             txs_commitment: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
 
         let (snapshot_alien_1, snapshot_alien_2) = {
@@ -818,6 +827,7 @@ mod tests {
             txs_commitment: MockHash::from([i + 1; 32]),
             height: i as u64 + 1,
             time: Time::now(),
+            bits: 0,
         };
 
         for i in 0u8..4 {
@@ -866,6 +876,7 @@ mod tests {
                 txs_commitment: MockHash::from([42; 32]),
                 height: height as u64,
                 time: Time::now(),
+                bits: 0,
             };
             let storage = storage_manager.create_storage_on(&block).unwrap();
             storage_manager.save_change_set(&block, storage).unwrap();
@@ -878,6 +889,7 @@ mod tests {
                 txs_commitment: MockHash::from([42; 32]),
                 height: prev_hash as u64 + 1,
                 time: Time::now(),
+                bits: 0,
             };
             storage_manager.finalize(&block).unwrap();
             validate_internal_consistency(&storage_manager);
@@ -906,11 +918,12 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(1, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
+            let offchain_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(30, 40));
             let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_a.commit(&state_update, &native_operations);
+            storage_a.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_a, storage_a)
@@ -921,11 +934,12 @@ mod tests {
             let mut state_operations = OrderedReadsAndWrites::default();
             state_operations.ordered_writes.push(write_op(3, 4));
             let mut native_operations = OrderedReadsAndWrites::default();
+            let offchain_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(50, 60));
             let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_b.commit(&state_update, &native_operations);
+            storage_b.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_b, storage_b)
@@ -983,6 +997,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 1,
             time: Time::now(),
+            bits: 0,
         };
         let block_b = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
@@ -990,6 +1005,7 @@ mod tests {
             txs_commitment: MockHash::from([43; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
         let block_c = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -997,6 +1013,7 @@ mod tests {
             txs_commitment: MockHash::from([44; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_d = MockBlockHeader {
             prev_hash: MockHash::from([3; 32]),
@@ -1004,6 +1021,7 @@ mod tests {
             txs_commitment: MockHash::from([45; 32]),
             height: 4,
             time: Time::now(),
+            bits: 0,
         };
         let block_e = MockBlockHeader {
             prev_hash: MockHash::from([4; 32]),
@@ -1011,6 +1029,7 @@ mod tests {
             txs_commitment: MockHash::from([46; 32]),
             height: 5,
             time: Time::now(),
+            bits: 0,
         };
         let block_f = MockBlockHeader {
             prev_hash: MockHash::from([1; 32]),
@@ -1018,6 +1037,7 @@ mod tests {
             txs_commitment: MockHash::from([47; 32]),
             height: 2,
             time: Time::now(),
+            bits: 0,
         };
         let block_g = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -1025,6 +1045,7 @@ mod tests {
             txs_commitment: MockHash::from([48; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_h = MockBlockHeader {
             prev_hash: MockHash::from([23; 32]),
@@ -1032,6 +1053,7 @@ mod tests {
             txs_commitment: MockHash::from([49; 32]),
             height: 4,
             time: Time::now(),
+            bits: 0,
         };
         let block_k = MockBlockHeader {
             prev_hash: MockHash::from([32; 32]),
@@ -1039,6 +1061,7 @@ mod tests {
             txs_commitment: MockHash::from([50; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_l = MockBlockHeader {
             prev_hash: MockHash::from([2; 32]),
@@ -1046,6 +1069,7 @@ mod tests {
             txs_commitment: MockHash::from([51; 32]),
             height: 3,
             time: Time::now(),
+            bits: 0,
         };
         let block_m = MockBlockHeader {
             prev_hash: MockHash::from([13; 32]),
@@ -1053,6 +1077,7 @@ mod tests {
             txs_commitment: MockHash::from([52; 32]),
             height: 4,
             time: Time::now(),
+            bits: 0,
         };
 
         // Data
@@ -1083,11 +1108,12 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 4));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 40));
+            let offchain_operations = OrderedReadsAndWrites::default();
 
             let (_, state_update, _) = storage_a
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_a.commit(&state_update, &native_operations);
+            storage_a.commit(&state_update, &native_operations, &offchain_operations);
         }
 
         storage_manager
@@ -1100,10 +1126,11 @@ mod tests {
             state_operations.ordered_writes.push(write_op(3, 2));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(3, 50));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_b
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_b.commit(&state_update, &native_operations);
+            storage_b.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_b, storage_b)
@@ -1116,10 +1143,11 @@ mod tests {
             state_operations.ordered_writes.push(write_op(4, 5));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(1, 60));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_c
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_c.commit(&state_update, &native_operations);
+            storage_c.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_c, storage_c)
@@ -1132,7 +1160,11 @@ mod tests {
             let (_, state_update, _) = storage_d
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_d.commit(&state_update, &OrderedReadsAndWrites::default());
+            storage_d.commit(
+                &state_update,
+                &OrderedReadsAndWrites::default(),
+                &OrderedReadsAndWrites::default(),
+            );
         }
         storage_manager
             .save_change_set(&block_d, storage_d)
@@ -1146,10 +1178,11 @@ mod tests {
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(delete_op(1));
             native_operations.ordered_writes.push(write_op(3, 70));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_f
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_f.commit(&state_update, &native_operations);
+            storage_f.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_f, storage_f)
@@ -1161,10 +1194,11 @@ mod tests {
             state_operations.ordered_writes.push(write_op(1, 8));
             let mut native_operations = OrderedReadsAndWrites::default();
             native_operations.ordered_writes.push(write_op(2, 9));
+            let offchain_operations = OrderedReadsAndWrites::default();
             let (_, state_update, _) = storage_g
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_g.commit(&state_update, &native_operations);
+            storage_g.commit(&state_update, &native_operations, &offchain_operations);
         }
         storage_manager
             .save_change_set(&block_g, storage_g)
@@ -1177,7 +1211,11 @@ mod tests {
             let (_, state_update, _) = storage_l
                 .compute_state_update(state_operations, &mut witness)
                 .unwrap();
-            storage_l.commit(&state_update, &OrderedReadsAndWrites::default());
+            storage_l.commit(
+                &state_update,
+                &OrderedReadsAndWrites::default(),
+                &OrderedReadsAndWrites::default(),
+            );
         }
         storage_manager
             .save_change_set(&block_l, storage_l)
@@ -1332,6 +1370,7 @@ mod tests {
             txs_commitment: MockHash::from([42; 32]),
             height: 6,
             time: Time::now(),
+            bits: 0,
         };
         let storage_last = storage_manager
             .create_storage_on(&new_block_after_e)

@@ -6,6 +6,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use sov_ledger_rpc::client::RpcClient;
 
 use super::get_citrea_path;
 
@@ -26,7 +27,8 @@ impl TestCase for BasicSequencerTest {
 
         let head_batch0 = sequencer
             .client
-            .ledger_get_head_soft_confirmation()
+            .http_client()
+            .get_head_soft_confirmation()
             .await?
             .unwrap();
         assert_eq!(head_batch0.l2_height, 1);
@@ -38,7 +40,8 @@ impl TestCase for BasicSequencerTest {
         sequencer.client.wait_for_l2_block(1, None).await?;
         let head_batch1 = sequencer
             .client
-            .ledger_get_head_soft_confirmation()
+            .http_client()
+            .get_head_soft_confirmation()
             .await?
             .unwrap();
         assert_eq!(head_batch1.l2_height, 2);
@@ -110,7 +113,8 @@ impl TestCase for SequencerMissedDaBlocksTest {
         for i in 1..=head_soft_confirmation_height {
             let soft_confirmation = sequencer
                 .client
-                .ledger_get_soft_confirmation_by_number(i)
+                .http_client()
+                .get_soft_confirmation_by_number(i)
                 .await?
                 .unwrap();
 

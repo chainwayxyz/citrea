@@ -5,13 +5,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::{LightClientCircuitOutput, Proof};
+use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
 use super::ItemNumbers;
 use crate::schema::types::{
     BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredBatchProofOutput,
-    StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
+    StoredLightClientProof, StoredLightClientProofOutput, StoredSlot, StoredSoftConfirmation,
 };
 
 /// Shared ledger operations
@@ -32,7 +32,7 @@ pub trait SharedLedgerOps {
         &self,
         state_root: &[u8],
         sc_receipt: SoftConfirmationReceipt<T, DS>,
-        include_tx_body: bool,
+        tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<()>;
 
     /// Records the L2 height that was created as a soft confirmaiton of an L1 height
@@ -158,7 +158,10 @@ pub trait NodeLedgerOps: SharedLedgerOps {
 /// Prover ledger operations
 pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     /// Get the witness by L2 height
-    fn get_l2_witness<Witness: DeserializeOwned>(&self, l2_height: u64) -> Result<Option<Witness>>;
+    fn get_l2_witness<Witness: DeserializeOwned>(
+        &self,
+        l2_height: u64,
+    ) -> Result<Option<(Witness, Witness)>>;
 
     /// Stores proof related data on disk, accessible via l1 slot height
     /// Inserts proofs of state transitions of multiple ranges of sequencer commitments found in an l1 block
@@ -174,7 +177,12 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     fn get_proofs_by_l1_height(&self, l1_height: u64) -> Result<Option<Vec<StoredBatchProof>>>;
 
     /// Set the witness by L2 height
-    fn set_l2_witness<Witness: Serialize>(&self, l2_height: u64, witness: &Witness) -> Result<()>;
+    fn set_l2_witness<Witness: Serialize>(
+        &self,
+        l2_height: u64,
+        state_witness: &Witness,
+        offchain_witness: &Witness,
+    ) -> Result<()>;
 
     /// Save a specific L2 range state diff
     fn set_l2_state_diff(&self, l2_height: BatchNumber, state_diff: StateDiff) -> Result<()>;
@@ -193,7 +201,7 @@ pub trait LightClientProverLedgerOps: SharedLedgerOps + Send + Sync {
         &self,
         l1_height: u64,
         proof: Proof,
-        light_client_proof_output: LightClientCircuitOutput,
+        light_client_proof_output: StoredLightClientProofOutput,
     ) -> Result<()>;
 
     /// Gets light client proof data by L1 height

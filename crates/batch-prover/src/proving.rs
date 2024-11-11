@@ -7,12 +7,14 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::extract_sequencer_commitments;
 use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
+use citrea_primitives::forks::FORKS;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
 use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
+use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Proof, ZkvmHost};
@@ -290,9 +292,9 @@ where
     for (tx_id, proof) in txs_and_proofs {
         let tx_id_u8 = tx_id.into();
 
-        // l1_height => (tx_id, proof, transition_data)
+        // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
-        let transition_data = Vm::extract_output::<
+        let circuit_output = Vm::extract_output::<
             <Da as DaService>::Spec,
             BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
@@ -300,26 +302,27 @@ where
 
         info!("Verifying proof!");
 
+        let last_active_spec_id =
+            fork_from_block_number(FORKS.to_vec(), circuit_output.last_l2_height).spec_id;
         let code_commitment = code_commitments_by_spec
-            .get(&transition_data.last_active_spec_id)
+            .get(&last_active_spec_id)
             .expect("Proof public input must contain valid spec id");
         Vm::verify(proof.as_slice(), code_commitment)
             .map_err(|err| anyhow!("Failed to verify proof: {:?}. Skipping it...", err))?;
 
-        debug!("transition data: {:?}", transition_data);
+        debug!("circuit output: {:?}", circuit_output);
 
-        let slot_hash = transition_data.da_slot_hash.into();
+        let slot_hash = circuit_output.da_slot_hash.into();
 
         let stored_batch_proof_output = StoredBatchProofOutput {
-            initial_state_root: transition_data.initial_state_root.as_ref().to_vec(),
-            final_state_root: transition_data.final_state_root.as_ref().to_vec(),
-            state_diff: transition_data.state_diff,
+            initial_state_root: circuit_output.initial_state_root.as_ref().to_vec(),
+            final_state_root: circuit_output.final_state_root.as_ref().to_vec(),
+            state_diff: circuit_output.state_diff,
             da_slot_hash: slot_hash,
-            sequencer_commitments_range: transition_data.sequencer_commitments_range,
-            sequencer_public_key: transition_data.sequencer_public_key,
-            sequencer_da_public_key: transition_data.sequencer_da_public_key,
-            preproven_commitments: transition_data.preproven_commitments,
-            validity_condition: borsh::to_vec(&transition_data.validity_condition).unwrap(),
+            sequencer_commitments_range: circuit_output.sequencer_commitments_range,
+            sequencer_public_key: circuit_output.sequencer_public_key,
+            sequencer_da_public_key: circuit_output.sequencer_da_public_key,
+            preproven_commitments: circuit_output.preproven_commitments,
         };
         let l1_height = ledger_db
             .get_l1_height_of_l1_hash(slot_hash)?

@@ -63,7 +63,15 @@ where
         witness.get_hint()
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    fn get_offchain(
+        &self,
+        _key: &StorageKey,
+        _version: Option<jmt::Version>,
+        witness: &mut Self::Witness,
+    ) -> Option<StorageValue> {
+        witness.get_hint()
+    }
+
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
@@ -118,8 +126,13 @@ where
         Ok((jmt::RootHash(new_root), (), diff))
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn commit(&self, _node_batch: &Self::StateUpdate, _accessory_writes: &OrderedReadsAndWrites) {}
+    fn commit(
+        &self,
+        _node_batch: &Self::StateUpdate,
+        _accessory_writes: &OrderedReadsAndWrites,
+        _offchain_writes: &OrderedReadsAndWrites,
+    ) {
+    }
 
     fn open_proof(
         state_root: Self::Root,

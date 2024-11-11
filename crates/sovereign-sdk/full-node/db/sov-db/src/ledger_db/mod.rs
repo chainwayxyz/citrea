@@ -18,14 +18,14 @@ use crate::schema::tables::{
     BatchByNumber, CommitmentsByNumber, ExecutedMigrations, L2GenesisStateRoot, L2RangeByL1Height,
     L2Witness, LastPrunedBlock, LastSequencerCommitmentSent, LastStateDiff,
     LightClientProofBySlotNumber, MempoolTxs, PendingProvingSessions,
-    PendingSequencerCommitmentL2Range, ProofsBySlotNumber, ProverLastScannedSlot, ProverStateDiffs,
-    SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
+    PendingSequencerCommitmentL2Range, ProofsBySlotNumberV2, ProverLastScannedSlot,
+    ProverStateDiffs, SlotByHash, SlotByNumber, SoftConfirmationByHash, SoftConfirmationByNumber,
     SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
-    split_tx_for_storage, BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof,
-    StoredBatchProofOutput, StoredLightClientProof, StoredSlot, StoredSoftConfirmation,
-    StoredVerifiedProof,
+    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredBatchProofOutput,
+    StoredLightClientProof, StoredLightClientProofOutput, StoredSlot, StoredSoftConfirmation,
+    StoredTransaction, StoredVerifiedProof,
 };
 
 /// Implementation of database migrator
@@ -189,7 +189,7 @@ impl SharedLedgerOps for LedgerDB {
         &self,
         state_root: &[u8],
         soft_confirmation_receipt: SoftConfirmationReceipt<T, DS>,
-        include_tx_body: bool,
+        tx_bodies: Option<Vec<Vec<u8>>>,
     ) -> Result<(), anyhow::Error> {
         // Create a scope to ensure that the lock is released before we commit to the db
         let mut current_item_numbers = {
@@ -202,19 +202,24 @@ impl SharedLedgerOps for LedgerDB {
 
         let mut schema_batch = SchemaBatch::new();
 
-        let mut txs = Vec::with_capacity(soft_confirmation_receipt.tx_receipts.len());
-        // Insert transactions and events from each soft confirmation before inserting the soft confirmation
-        for tx in soft_confirmation_receipt.tx_receipts.into_iter() {
-            let (mut tx_to_store, _events) = split_tx_for_storage(tx);
+        let tx_bodies = if let Some(tx_bodies) = tx_bodies {
+            tx_bodies.into_iter().map(Some).collect()
+        } else {
+            vec![None; soft_confirmation_receipt.tx_receipts.len()]
+        };
 
-            // Rollup full nodes don't need to store the tx body as they already store evm body
-            // Sequencer full nodes need to store the tx body as they are the only ones that have it
-            if !include_tx_body {
-                tx_to_store.body = None;
-            }
+        let tx_hashes = soft_confirmation_receipt
+            .tx_receipts
+            .into_iter()
+            .map(|tx| tx.tx_hash);
 
-            txs.push(tx_to_store);
-        }
+        let txs = tx_hashes
+            .zip(tx_bodies)
+            .map(|(tx_hash, tx_body)| StoredTransaction {
+                hash: tx_hash,
+                body: tx_body,
+            })
+            .collect();
 
         // Insert soft confirmation
         let soft_confirmation_to_store = StoredSoftConfirmation {
@@ -508,11 +513,11 @@ impl LightClientProverLedgerOps for LedgerDB {
         &self,
         l1_height: u64,
         proof: Proof,
-        light_client_circuit_output: sov_rollup_interface::zk::LightClientCircuitOutput,
+        light_client_proof_output: StoredLightClientProofOutput,
     ) -> anyhow::Result<()> {
         let data_to_store = StoredLightClientProof {
             proof,
-            light_client_circuit_output,
+            light_client_proof_output,
         };
 
         self.db
@@ -534,11 +539,12 @@ impl BatchProverLedgerOps for LedgerDB {
     fn get_l2_witness<Witness: DeserializeOwned>(
         &self,
         l2_height: u64,
-    ) -> anyhow::Result<Option<Witness>> {
+    ) -> anyhow::Result<Option<(Witness, Witness)>> {
         let buf = self.db.get::<L2Witness>(&BatchNumber(l2_height))?;
-        if let Some(buf) = buf {
-            let witness = bincode::deserialize(&buf)?;
-            Ok(Some(witness))
+        if let Some((state_buf, offchain_buf)) = buf {
+            let state_witness = bincode::deserialize(&state_buf)?;
+            let offchain_witness = bincode::deserialize(&offchain_buf)?;
+            Ok(Some((state_witness, offchain_witness)))
         } else {
             Ok(None)
         }
@@ -558,16 +564,18 @@ impl BatchProverLedgerOps for LedgerDB {
             proof,
             proof_output,
         };
-        let proofs = self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))?;
+        let proofs = self
+            .db
+            .get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))?;
         match proofs {
             Some(mut proofs) => {
                 proofs.push(data_to_store);
                 self.db
-                    .put::<ProofsBySlotNumber>(&SlotNumber(l1_height), &proofs)
+                    .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &proofs)
             }
             None => self
                 .db
-                .put::<ProofsBySlotNumber>(&SlotNumber(l1_height), &vec![data_to_store]),
+                .put::<ProofsBySlotNumberV2>(&SlotNumber(l1_height), &vec![data_to_store]),
         }
     }
 
@@ -576,7 +584,7 @@ impl BatchProverLedgerOps for LedgerDB {
         &self,
         l1_height: u64,
     ) -> anyhow::Result<Option<Vec<StoredBatchProof>>> {
-        self.db.get::<ProofsBySlotNumber>(&SlotNumber(l1_height))
+        self.db.get::<ProofsBySlotNumberV2>(&SlotNumber(l1_height))
     }
 
     /// Set the witness by L2 height
@@ -584,11 +592,13 @@ impl BatchProverLedgerOps for LedgerDB {
     fn set_l2_witness<Witness: Serialize>(
         &self,
         l2_height: u64,
-        witness: &Witness,
+        state_witness: &Witness,
+        offchain_witness: &Witness,
     ) -> anyhow::Result<()> {
-        let buf = bincode::serialize(witness)?;
+        let state_buf = bincode::serialize(state_witness)?;
+        let offchain_buf = bincode::serialize(offchain_witness)?;
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &buf)?;
+        schema_batch.put::<L2Witness>(&BatchNumber(l2_height), &(state_buf, offchain_buf))?;
 
         self.db.write_schemas(schema_batch)?;
 

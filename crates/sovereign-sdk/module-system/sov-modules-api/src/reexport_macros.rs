@@ -56,7 +56,7 @@ pub use sov_modules_macros::ModuleCallJsonSchema;
 /// The underlying type must respect the following conditions, or compilation
 /// will fail:
 /// - It must be a named `struct`. Tuple `struct`s, `enum`s, and others are
-/// not supported.
+///   not supported.
 /// - It must have *exactly one* field with the `#[address]` attribute. This field
 ///   represents the **module address**.
 /// - All other fields must have either the `#[state]` or `#[module]` attribute.

@@ -105,10 +105,11 @@ pub(crate) fn commit(
         .expect("jellyfish merkle tree update must succeed");
 
     let working_set = checkpoint.to_revertable();
+    let mut checkpoint = working_set.checkpoint();
+    let accessory_log = checkpoint.freeze_non_provable();
+    let (offchain_log, _offchain_witness) = checkpoint.freeze_offchain();
 
-    let accessory_log = working_set.checkpoint().freeze_non_provable();
-
-    storage.commit(&authenticated_node_batch, &accessory_log);
+    storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 
     root.0
 }

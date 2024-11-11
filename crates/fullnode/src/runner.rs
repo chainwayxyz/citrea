@@ -17,7 +17,7 @@ use jsonrpsee::RpcModule;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_modules_api::Context;
+use sov_modules_api::{Context, SignedSoftConfirmation};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -35,7 +35,7 @@ use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
 
-type StateRoot<ST, Vm, Da> = <ST as StateTransitionFunction<Vm, Da>>::StateRoot;
+type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
@@ -43,8 +43,7 @@ where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<Vm, Da::Spec, Condition = <Da::Spec as DaSpec>::ValidityCondition>
-        + StfBlueprintTrait<C, Da::Spec, Vm>,
+    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     C: Context,
     DB: NodeLedgerOps + Clone,
 {
@@ -53,7 +52,7 @@ where
     stf: Stf,
     storage_manager: Sm,
     ledger_db: DB,
-    state_root: StateRoot<Stf, Vm, Da::Spec>,
+    state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     sequencer_client: SequencerClient,
@@ -78,12 +77,10 @@ where
     <Vm as Zkvm>::CodeCommitment: Send,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
-            Vm,
             Da::Spec,
-            Condition = <Da::Spec as DaSpec>::ValidityCondition,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec, Vm>,
+        > + StfBlueprintTrait<C, Da::Spec>,
     C: Context + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
 {
@@ -101,7 +98,7 @@ where
         ledger_db: DB,
         stf: Stf,
         mut storage_manager: Sm,
-        init_variant: InitVariant<Stf, Vm, Da::Spec>,
+        init_variant: InitVariant<Stf, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
@@ -248,6 +245,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
+        let mut signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
@@ -255,9 +253,9 @@ where
             &self.state_root,
             pre_state,
             Default::default(),
+            Default::default(),
             current_l1_block.header(),
-            &current_l1_block.validity_condition(),
-            &mut soft_confirmation.clone().into(),
+            &mut signed_soft_confirmation,
         )?;
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
@@ -273,11 +271,14 @@ where
 
         self.storage_manager.finalize_l2(l2_height)?;
 
-        self.ledger_db.commit_soft_confirmation(
-            next_state_root.as_ref(),
-            receipt,
-            self.include_tx_body,
-        )?;
+        let tx_bodies = if self.include_tx_body {
+            Some(signed_soft_confirmation.txs().to_owned())
+        } else {
+            None
+        };
+
+        self.ledger_db
+            .commit_soft_confirmation(next_state_root.as_ref(), receipt, tx_bodies)?;
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),

@@ -228,6 +228,16 @@ pub trait Storage: Clone {
         None
     }
 
+    /// Returns the value corresponding to the key or None if key is absent.
+    fn get_offchain(
+        &self,
+        _key: &StorageKey,
+        _version: Option<Version>,
+        _witness: &mut Self::Witness,
+    ) -> Option<StorageValue> {
+        None
+    }
+
     /// Calculates new state root but does not commit any changes to the database.
     fn compute_state_update(
         &self,
@@ -243,7 +253,12 @@ pub trait Storage: Clone {
     >;
 
     /// Commits state changes to the underlying storage.
-    fn commit(&self, node_batch: &Self::StateUpdate, accessory_update: &OrderedReadsAndWrites);
+    fn commit(
+        &self,
+        node_batch: &Self::StateUpdate,
+        accessory_update: &OrderedReadsAndWrites,
+        offchain_update: &OrderedReadsAndWrites,
+    );
 
     /// A version of [`Storage::validate_and_commit`] that allows for "accessory" non-JMT updates.
     fn validate_and_commit_with_accessory_update(
@@ -251,9 +266,10 @@ pub trait Storage: Clone {
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
         accessory_update: &OrderedReadsAndWrites,
+        offchain_update: &OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
         let (root_hash, node_batch, _) = self.compute_state_update(state_accesses, witness)?;
-        self.commit(&node_batch, accessory_update);
+        self.commit(&node_batch, accessory_update, offchain_update);
 
         Ok(root_hash)
     }
@@ -271,6 +287,7 @@ pub trait Storage: Clone {
             self,
             state_accesses,
             witness,
+            &Default::default(),
             &Default::default(),
         )
     }

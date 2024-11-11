@@ -116,7 +116,6 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
     fn begin_slot_hook(
         &self,
         _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
         _working_set: &mut sov_modules_api::WorkingSet<C>,
     ) {

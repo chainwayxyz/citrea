@@ -83,6 +83,16 @@ pub struct Evm<C: sov_modules_api::Context> {
     pub(crate) code:
         sov_modules_api::StateMap<reth_primitives::B256, revm::primitives::Bytecode, BcsCodec>,
 
+    /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
+    /// This is the new offchain version which is not counted in the state diff.
+    /// Activated after FORK1
+    #[state(rename = "occ")]
+    pub(crate) offchain_code: sov_modules_api::OffchainStateMap<
+        reth_primitives::B256,
+        revm::primitives::Bytecode,
+        BcsCodec,
+    >,
+
     /// Chain configuration. This field is set in genesis.
     #[state]
     pub(crate) cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
@@ -132,6 +142,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.
+    ///
     /// Since this value is not authenticated, it can be modified in the `finalize_hook` with the correct `state_root`.
     #[cfg(feature = "native")]
     #[state]
@@ -190,12 +201,18 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
-    pub(crate) fn get_db<'a>(&self, working_set: &'a mut WorkingSet<C>) -> EvmDb<'a, C> {
+    pub(crate) fn get_db<'a>(
+        &self,
+        working_set: &'a mut WorkingSet<C>,
+        current_spec: EvmSpecId,
+    ) -> EvmDb<'a, C> {
         EvmDb::new(
             self.accounts.clone(),
             self.code.clone(),
+            self.offchain_code.clone(),
             self.latest_block_hashes.clone(),
             working_set,
+            current_spec,
         )
     }
 
