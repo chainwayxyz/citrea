@@ -275,7 +275,8 @@ impl MonitoringService {
         let monitored_tx = MonitoredTx {
             tx,
             address: tx_result
-                .details.first()
+                .details
+                .first()
                 .and_then(|detail| detail.address.clone()),
             initial_broadcast: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
