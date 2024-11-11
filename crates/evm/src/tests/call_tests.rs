@@ -1645,6 +1645,8 @@ fn test_call_with_block_overrides() {
 }
 
 // TODO: test is not doing anything significant at the moment
+// after the cancun upgrade related issues are solved come back
+// and invoke point eval precompile
 #[test]
 fn test_blob_tx() {
     let (config, dev_signer, _contract_addr) =
@@ -1667,7 +1669,6 @@ fn test_blob_tx() {
         timestamp: 0,
     };
 
-    // Deploy block hashes contract
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
