@@ -163,7 +163,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
     ) -> Result<()> {
-        let mut evm_db = self.get_db(working_set);
+        let mut evm_db = self.get_db(working_set, SpecId::SHANGHAI);
 
         for acc in &config.data {
             let code = Bytecode::new_raw(acc.code.clone());
