@@ -550,7 +550,6 @@ where
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
 
-        //
         // A breakdown of why we sort the sequencer commitments, and why we need fields
         // `StateTransitionData::preproven_commitments` and `StateTransitionData::sequencer_commitment_range`:
         //
