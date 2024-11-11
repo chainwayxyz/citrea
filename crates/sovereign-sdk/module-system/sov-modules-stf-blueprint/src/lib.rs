@@ -14,7 +14,7 @@ use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
     Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
 };
-use sov_rollup_interface::da::{DaDataBatchProof, SequencerCommitment};
+use sov_rollup_interface::da::DaDataBatchProof;
 use sov_rollup_interface::fork::{Fork, ForkManager};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
@@ -550,19 +550,7 @@ where
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
 
-        // First extract all sequencer commitments
-        // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
-        let mut sequencer_commitments: Vec<SequencerCommitment> = vec![];
-        for blob in da_data {
-            if blob.sender().as_ref() == sequencer_da_public_key {
-                let da_data = DaDataBatchProof::try_from_slice(blob.verified_data());
-
-                if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
-                    sequencer_commitments.push(commitment);
-                }
-            }
-        }
-
+        //
         // A breakdown of why we sort the sequencer commitments, and why we need fields
         // `StateTransitionData::preproven_commitments` and `StateTransitionData::sequencer_commitment_range`:
         //
@@ -588,15 +576,27 @@ where
         //
         // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
         // rollup state transitions.
-        sequencer_commitments.sort();
 
-        // The preproven indices are sorted by the prover when originally passed.
-        // Therefore, we can iterate of sequencer commitments and filter out
-        // matching preproven indices.
         let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
-        let sequencer_commitments_iter = sequencer_commitments
+        let sequencer_commitments_iter = da_data
             .into_iter()
+            // Extract all sequencer commitments.
+            // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
+            .filter_map(|blob| {
+                if blob.sender().as_ref() == sequencer_da_public_key {
+                    let da_data = DaDataBatchProof::try_from_slice(blob.verified_data());
+
+                    if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
+                        return Some(commitment);
+                    }
+                }
+
+                None
+            })
+            // Sort commitments by l2 height
+            .sorted_unstable()
             .enumerate()
+            // Filter out preproven commitments. Preproven indices are sorted outside of zk.
             .filter(|(idx, _)| {
                 if let Some(preproven_idx) = preproven_commitments_iter.peek() {
                     if preproven_idx == idx {
