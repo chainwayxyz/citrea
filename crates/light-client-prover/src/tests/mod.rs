@@ -281,7 +281,6 @@ fn test_unverifiable_batch_proofs() {
 }
 
 #[test]
-#[should_panic(expected = "Journal is unverifiable")]
 fn test_unverifiable_prev_light_client_proof() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
@@ -335,5 +334,9 @@ fn test_unverifiable_prev_light_client_proof() {
 
     guest.input = borsh::to_vec(&input_2).unwrap();
 
-    let _ = run_circuit(da_verifier, &guest).unwrap();
+    let res = run_circuit(da_verifier, &guest);
+    assert!(matches!(
+        res,
+        Err(LightClientVerificationError::InvalidPreviousLightClientProof)
+    ));
 }

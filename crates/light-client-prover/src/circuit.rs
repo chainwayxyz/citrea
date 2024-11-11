@@ -12,6 +12,7 @@ use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 pub enum LightClientVerificationError {
     DaTxsCouldntBeVerified,
     HeaderChainVerificationFailed,
+    InvalidPreviousLightClientProof,
 }
 
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
@@ -22,19 +23,21 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     // Extract previous light client proof output
     let previous_light_client_proof_output =
-        input.previous_light_client_proof_journal.map(|journal| {
+        if let Some(journal) = input.previous_light_client_proof_journal {
             let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput<DaV::Spec>>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )
-            .expect("Got invalid previous light client proof");
-            // Method ids match
+            .map_err(|_| LightClientVerificationError::InvalidPreviousLightClientProof)?;
+            // Ensure method IDs match
             assert_eq!(
                 input.light_client_proof_method_id,
                 prev_output.light_client_proof_method_id,
             );
-            prev_output
-        });
+            Some(prev_output)
+        } else {
+            None
+        };
 
     let block_updates = da_verifier
         .verify_header_chain(&previous_light_client_proof_output, &input.da_block_header)
@@ -89,7 +92,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // https://github.com/chainwayxyz/citrea/issues/1401
     let batch_proof_method_id = input.batch_proof_method_id;
     // Parse the batch proof da data
-    // TODO: We are currently assuming batch proofs are ordered. Erce's pr will handle that so I am currently ignoring that case.
     for blob in input.da_data {
         if blob.sender().as_ref() == input.batch_prover_da_pub_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
@@ -105,10 +107,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 &batch_proof_method_id.into(),
                             ) {
                                 Ok(output) => output,
-                                Err(e) => {
-                                    println!("error: {:?}", e);
-                                    continue;
-                                }
+                                Err(_) => continue,
                             };
 
                         // Do not add if last l2 height is smaller or equal to previous output
