@@ -422,10 +422,10 @@ where
         let mut checkpoint = working_set.checkpoint();
         let (log, mut witness) = checkpoint.freeze();
 
-        let (init_and_final_roots, state_update, _) = pre_state
+        let (state_root_transition, state_update, _) = pre_state
             .compute_state_update(log, &mut witness)
             .expect("Storage update must succeed");
-        let genesis_hash = init_and_final_roots.final_root;
+        let genesis_hash = state_root_transition.final_root;
 
         let mut working_set = checkpoint.to_revertable();
 
