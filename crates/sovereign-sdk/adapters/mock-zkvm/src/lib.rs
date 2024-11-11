@@ -287,8 +287,7 @@ fn test_mock_proof_round_trip() {
         log: vec![2; 50],
     };
 
-    let mut encoded = Vec::new();
-    proof.encode(&mut encoded);
+    let encoded = proof.encode_to_vec();
 
     let decoded = MockProof::decode(&encoded).unwrap();
     assert_eq!(proof, decoded);
