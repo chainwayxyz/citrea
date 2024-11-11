@@ -7,12 +7,11 @@ use reth_rpc_types::trace::geth::{
 };
 use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
-use revm::primitives::{Address, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
+use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
 use revm::{inspector_handle_register, Inspector};
 use revm_inspectors::tracing::{FourByteInspector, TracingInspector, TracingInspectorConfig};
 
 use crate::evm::db::EvmDb;
-use crate::evm::primitive_types::BlockEnv;
 use crate::handler::{
     citrea_handle_register, CitreaExternal, CitreaExternalExt, TracingCitreaExternal, TxInfo,
 };
@@ -138,7 +137,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
+        .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register(citrea_handle_register)
         .append_handler_register(inspector_handle_register)
@@ -165,7 +164,7 @@ where
         .with_db(db)
         .with_external_context(inspector)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
+        .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register(inspector_handle_register)
         .build();
@@ -191,7 +190,7 @@ where
         .with_db(db)
         .with_external_context(&mut ext)
         .with_cfg_env_with_handler_cfg(config_env)
-        .with_block_env(block_env.into())
+        .with_block_env(block_env)
         .with_tx_env(tx_env)
         .append_handler_register(citrea_handle_register)
         .build();

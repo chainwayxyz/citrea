@@ -24,7 +24,7 @@ use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{BatchProofCircuitOutput, Proof, ZkvmHost};
+use sov_rollup_interface::zk::{BatchProofCircuitOutputV2, Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -298,9 +298,10 @@ where
         );
         tracing::debug!("ZK proof: {:?}", proof);
 
+        // TODO: select output version based on spec
         let batch_proof_output = Vm::extract_output::<
             <Da as DaService>::Spec,
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         .expect("Proof should be deserializable");
         if batch_proof_output.sequencer_da_public_key != self.sequencer_da_pub_key

@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{address, Address, Bytes, TxKind, B256};
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
+use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, WorkingSet};
@@ -100,7 +100,7 @@ pub(crate) fn commit(
 
     let (cache_log, mut witness) = checkpoint.freeze();
 
-    let (root, authenticated_node_batch, _) = storage
+    let (state_root_transition, authenticated_node_batch, _) = storage
         .compute_state_update(cache_log, &mut witness)
         .expect("jellyfish merkle tree update must succeed");
 
@@ -111,7 +111,7 @@ pub(crate) fn commit(
 
     storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 
-    root.0
+    state_root_transition.final_root.0
 }
 
 /// Loads the genesis configuration from the given path and pushes the accounts to the evm config
@@ -210,7 +210,6 @@ pub(crate) fn get_evm_config(
             nonce: 0,
             storage: Default::default(),
         }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         ..Default::default()
     };
@@ -235,7 +234,6 @@ pub(crate) fn get_evm_config_starting_base_fee(
             nonce: 0,
             storage: Default::default(),
         }],
-        spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
         block_gas_limit: block_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         starting_base_fee,
         coinbase: PRIORITY_FEE_VAULT,
@@ -274,9 +272,6 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
             },
             nonce: 1
         }],
-        spec: vec![(0, SpecId::SHANGHAI)]
-            .into_iter()
-            .collect(),
         chain_id: 1000,
         block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
         coinbase: Address::from([3u8; 20]),

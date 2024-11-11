@@ -34,16 +34,16 @@ mod tests;
 
 use evm::db::EvmDb;
 use reth_primitives::{Address, TxHash, B256};
-pub use revm::primitives::SpecId;
-use revm::primitives::U256;
+pub use revm::primitives::SpecId as EvmSpecId;
+use revm::primitives::{BlockEnv, U256};
 #[cfg(feature = "native")]
 use sov_modules_api::{AccessoryWorkingSet, StateVecAccessor};
-use sov_modules_api::{Error, ModuleInfo, WorkingSet};
+use sov_modules_api::{Error, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 #[cfg(feature = "native")]
 use crate::evm::primitive_types::SealedBlock;
-use crate::evm::primitive_types::{Block, BlockEnv, Receipt, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{Block, Receipt, TransactionSignedAndRecovered};
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
@@ -100,6 +100,10 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
     #[memory]
     pub(crate) block_env: BlockEnv,
+
+    /// Field that keeps track of blob gas usage
+    #[memory]
+    pub(crate) blob_gas_used: u64,
 
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.
@@ -200,7 +204,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
         &self,
         working_set: &'a mut WorkingSet<C>,
-        current_spec: SpecId,
+        current_spec: EvmSpecId,
     ) -> EvmDb<'a, C> {
         EvmDb::new(
             self.accounts.clone(),
@@ -229,5 +233,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Option<PendingTransaction> {
         self.native_pending_transactions
             .last(&mut accessory_working_set.accessory_state())
+    }
+}
+
+const fn citrea_spec_id_to_evm_spec_id(spec_id: CitreaSpecId) -> EvmSpecId {
+    match spec_id {
+        CitreaSpecId::Genesis => EvmSpecId::SHANGHAI,
+        // Any other citrea spec id mapped to cancun
+        _ => EvmSpecId::CANCUN,
     }
 }

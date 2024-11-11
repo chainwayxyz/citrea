@@ -143,6 +143,14 @@ pub struct SlotResult<S, Cs, B, T, W> {
     pub state_diff: StateDiff,
 }
 
+/// Helper struct which contains initial and final state roots.
+pub struct StateRootTransition<Root> {
+    /// Initial state root
+    pub init_root: Root,
+    /// Final state root
+    pub final_root: Root,
+}
+
 /// Result of applying a soft confirmation to current state
 /// Where:
 /// - S - generic for state root
@@ -151,8 +159,8 @@ pub struct SlotResult<S, Cs, B, T, W> {
 /// - W - generic for witness
 /// - Da - generic for DA layer
 pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
-    /// Finals state root after all soft confirmation txs are applied
-    pub state_root: S,
+    /// Contains state root before and after applying txs
+    pub state_root_transition: StateRootTransition<S>,
     /// Container for all state alterations that happened during soft confirmation execution
     pub change_set: Cs,
     /// Witness after applying the whole block
@@ -298,7 +306,6 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
-        initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),

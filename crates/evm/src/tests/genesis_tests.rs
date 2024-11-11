@@ -11,7 +11,6 @@ use sov_modules_api::prelude::*;
 use crate::evm::primitive_types::SealedBlock;
 use crate::evm::{AccountInfo, EvmChainConfig};
 use crate::tests::utils::{get_evm, get_evm_test_config, GENESIS_HASH, GENESIS_STATE_ROOT};
-use crate::EvmConfig;
 
 lazy_static! {
     pub(crate) static ref GENESIS_DA_TXS_COMMITMENT: B256 = B256::from(hex!(
@@ -110,34 +109,6 @@ fn genesis_cfg() {
 }
 
 #[test]
-#[should_panic(expected = "EVM spec must start from block 0")]
-fn genesis_cfg_missing_specs() {
-    get_evm(&EvmConfig {
-        spec: vec![(5, SpecId::BERLIN)].into_iter().collect(),
-        ..Default::default()
-    });
-}
-
-#[test]
-fn genesis_empty_spec_defaults_to_shanghai() {
-    let mut config = get_evm_test_config();
-    config.spec.clear();
-    let (evm, mut working_set) = get_evm(&config);
-
-    let cfg = evm.cfg.get(&mut working_set).unwrap();
-    assert_eq!(cfg.spec, vec![(0, SpecId::SHANGHAI)]);
-}
-
-#[test]
-#[should_panic(expected = "Cancun is not supported")]
-fn genesis_cfg_cancun() {
-    get_evm(&EvmConfig {
-        spec: vec![(0, SpecId::CANCUN)].into_iter().collect(),
-        ..Default::default()
-    });
-}
-
-#[test]
 fn genesis_block() {
     let (evm, mut working_set) = get_evm(&get_evm_test_config());
 
@@ -195,7 +166,6 @@ fn genesis_block() {
 fn genesis_head() {
     let (evm, mut working_set) = get_evm(&get_evm_test_config());
     let head = evm.head.get(&mut working_set).unwrap();
-
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
     let genesis_block = evm
         .blocks

@@ -5,10 +5,9 @@ use std::cmp::min;
 use reth_primitives::{B256, U256};
 use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::TransactionRequest;
-use revm::primitives::{CfgEnvWithHandlerCfg, TxEnv};
+use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, TxEnv};
 
 use crate::caller_gas_allowance;
-use crate::primitive_types::BlockEnv;
 
 /// Helper type for representing the fees of a [TransactionRequest]
 pub(crate) struct CallFees {

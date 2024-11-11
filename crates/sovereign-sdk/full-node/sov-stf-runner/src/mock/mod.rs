@@ -91,7 +91,6 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
-        _initial_batch_hash: [u8; 32],
         _pre_state: Self::PreState,
         _da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         _sequencer_commitments_range: (u32, u32),

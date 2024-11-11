@@ -31,6 +31,11 @@ tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+[dev-dependencies]
+sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+tempfile = { workspace = true }
+
 [features]
 default = []
 native = [
