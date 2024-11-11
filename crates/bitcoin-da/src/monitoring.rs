@@ -232,7 +232,7 @@ impl MonitoringService {
             return Err(MonitorError::OddNumberOfTxs);
         }
 
-        let mut last_tx = self.last_tx.lock().await.clone();
+        let mut last_tx = *self.last_tx.lock().await;
 
         let mut txids_iter = txids.into_iter();
         while let (Some(commit_txid), Some(reveal_txid)) = (txids_iter.next(), txids_iter.next()) {
@@ -275,8 +275,7 @@ impl MonitoringService {
         let monitored_tx = MonitoredTx {
             tx,
             address: tx_result
-                .details
-                .get(0)
+                .details.first()
                 .and_then(|detail| detail.address.clone()),
             initial_broadcast: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
