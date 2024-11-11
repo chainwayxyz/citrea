@@ -550,6 +550,23 @@ where
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
 
+        // Extract all sequencer commitments.
+        // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
+        let mut sequencer_commitments = da_data
+            .into_iter()
+            .filter_map(|blob| {
+                if blob.sender().as_ref() == sequencer_da_public_key {
+                    let da_data = DaDataBatchProof::try_from_slice(blob.verified_data());
+
+                    if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
+                        return Some(commitment);
+                    }
+                }
+
+                None
+            })
+            .collect::<Vec<_>>();
+
         // A breakdown of why we sort the sequencer commitments, and why we need fields
         // `StateTransitionData::preproven_commitments` and `StateTransitionData::sequencer_commitment_range`:
         //
@@ -575,25 +592,11 @@ where
         //
         // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
         // rollup state transitions.
+        sequencer_commitments.sort_unstable();
 
         let mut preproven_commitments_iter = preproven_commitment_indices.into_iter().peekable();
-        let sequencer_commitments_iter = da_data
+        let sequencer_commitments_iter = sequencer_commitments
             .into_iter()
-            // Extract all sequencer commitments.
-            // Ignore broken DaData and zk proofs. Also ignore ForcedTransaction's (will be implemented in the future).
-            .filter_map(|blob| {
-                if blob.sender().as_ref() == sequencer_da_public_key {
-                    let da_data = DaDataBatchProof::try_from_slice(blob.verified_data());
-
-                    if let Ok(DaDataBatchProof::SequencerCommitment(commitment)) = da_data {
-                        return Some(commitment);
-                    }
-                }
-
-                None
-            })
-            // Sort commitments by l2 height
-            .sorted_unstable()
             .enumerate()
             // Filter out preproven commitments. Preproven indices are sorted outside of zk.
             .filter(|(idx, _)| {
