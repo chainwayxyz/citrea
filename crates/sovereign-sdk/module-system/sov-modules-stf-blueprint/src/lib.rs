@@ -592,7 +592,7 @@ where
         //
         // Again, since the zk circuit verify the state transition, the prover can not leave out any commitments or change the ordering of
         // rollup state transitions.
-        sequencer_commitments.sort_unstable();
+        sequencer_commitments.sort();
 
         // The preproven indices are sorted by the prover when originally passed.
         // Therefore, we can iterate of sequencer commitments and filter out
