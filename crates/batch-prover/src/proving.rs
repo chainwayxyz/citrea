@@ -12,12 +12,12 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
-use sov_modules_api::{BlobReaderTrait, SlotData, SpecId, Zkvm};
+use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Proof, ZkvmHost};
+use sov_rollup_interface::zk::{BatchProofCircuitInputV2, Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -38,7 +38,7 @@ pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInput<'static, StateRoot, Witness, Da::Spec>>,
+        Vec<BatchProofCircuitInputV2<'static, StateRoot, Witness, Da::Spec>>,
     ),
     L1ProcessingError,
 >
@@ -119,8 +119,6 @@ where
     for sequencer_commitments_range in ranges {
         let first_l2_height_of_l1 =
             sequencer_commitments[*sequencer_commitments_range.start()].l2_start_block_number;
-        let last_l2_height_of_l1 =
-            sequencer_commitments[*sequencer_commitments_range.end()].l2_end_block_number;
         let (
             state_transition_witnesses,
             soft_confirmations,
@@ -144,43 +142,25 @@ where
                 L1ProcessingError::Other(format!("Error getting initial state root: {:?}", e))
             })?
             .expect("There should be a state root");
-        let initial_batch_hash = ledger
-            .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))
-            .map_err(|e| {
-                L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
-            })?
-            .ok_or(L1ProcessingError::Other(format!(
-                "Could not find soft batch at height {}",
-                first_l2_height_of_l1
-            )))?
-            .prev_hash;
 
-        let final_state_root = ledger
-            .get_l2_state_root::<StateRoot>(last_l2_height_of_l1)
-            .map_err(|e| {
-                L1ProcessingError::Other(format!("Error getting final state root: {:?}", e))
-            })?
-            .expect("There should be a state root");
-
-        let input: BatchProofCircuitInput<StateRoot, Witness, Da::Spec> = BatchProofCircuitInput {
-            initial_state_root,
-            final_state_root,
-            prev_soft_confirmation_hash: initial_batch_hash,
-            da_data: da_data.clone(),
-            da_block_header_of_commitments: da_block_header_of_commitments.clone(),
-            inclusion_proof: inclusion_proof.clone(),
-            completeness_proof: completeness_proof.clone(),
-            soft_confirmations,
-            state_transition_witnesses,
-            da_block_headers_of_soft_confirmations,
-            preproven_commitments: preproven_commitments.to_vec(),
-            sequencer_commitments_range: (
-                *sequencer_commitments_range.start() as u32,
-                *sequencer_commitments_range.end() as u32,
-            ),
-            sequencer_public_key: sequencer_pub_key.clone(),
-            sequencer_da_public_key: sequencer_da_pub_key.clone(),
-        };
+        let input: BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec> =
+            BatchProofCircuitInputV2 {
+                initial_state_root,
+                da_data: da_data.clone(),
+                da_block_header_of_commitments: da_block_header_of_commitments.clone(),
+                inclusion_proof: inclusion_proof.clone(),
+                completeness_proof: completeness_proof.clone(),
+                soft_confirmations,
+                state_transition_witnesses,
+                da_block_headers_of_soft_confirmations,
+                preproven_commitments: preproven_commitments.to_vec(),
+                sequencer_commitments_range: (
+                    *sequencer_commitments_range.start() as u32,
+                    *sequencer_commitments_range.end() as u32,
+                ),
+                sequencer_public_key: sequencer_pub_key.clone(),
+                sequencer_da_public_key: sequencer_da_pub_key.clone(),
+            };
 
         batch_proof_circuit_inputs.push(input);
     }
@@ -194,7 +174,7 @@ pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block: Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInput<'_, StateRoot, Witness, Da::Spec>>,
+    inputs: Vec<BatchProofCircuitInputV2<'_, StateRoot, Witness, Da::Spec>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -247,7 +227,7 @@ where
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
-    input: &BatchProofCircuitInput<StateRoot, Witness, Da::Spec>,
+    input: &BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool
 where
@@ -263,7 +243,6 @@ where
 {
     for proof in proofs {
         if proof.proof_output.initial_state_root == input.initial_state_root.as_ref()
-            && proof.proof_output.final_state_root == input.final_state_root.as_ref()
             && proof.proof_output.sequencer_commitments_range == input.sequencer_commitments_range
         {
             return true;
@@ -294,9 +273,10 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
+        // TODO: select output version based on spec
         let circuit_output = Vm::extract_output::<
             <Da as DaService>::Spec,
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         .expect("Proof should be deserializable");
 

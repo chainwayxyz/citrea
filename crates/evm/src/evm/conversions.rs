@@ -1,17 +1,11 @@
-use citrea_primitives::forks::FORKS;
 use reth_primitives::{
-    Bytes as RethBytes, SealedHeader, TransactionSigned, TransactionSignedEcRecovered,
-    TransactionSignedNoHash, KECCAK_EMPTY,
+    Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
+    KECCAK_EMPTY,
 };
-use revm::primitives::{
-    AccountInfo as ReVmAccountInfo, BlobExcessGasAndPrice, BlockEnv, SpecId, TransactTo, TxEnv,
-    U256,
-};
-use sov_modules_api::fork::fork_from_block_number;
+use revm::primitives::{AccountInfo as ReVmAccountInfo, SpecId, TransactTo, TxEnv, U256};
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
-use crate::citrea_spec_id_to_evm_spec_id;
 
 impl From<AccountInfo> for ReVmAccountInfo {
     fn from(info: AccountInfo) -> Self {
@@ -132,8 +126,17 @@ impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
     }
 }
 
-pub(crate) fn sealed_block_to_block_env(sealed_header: &SealedHeader) -> BlockEnv {
-    BlockEnv {
+#[cfg(feature = "native")]
+pub(crate) fn sealed_block_to_block_env(
+    sealed_header: &reth_primitives::SealedHeader,
+) -> revm::primitives::BlockEnv {
+    use citrea_primitives::forks::FORKS;
+    use revm::primitives::BlobExcessGasAndPrice;
+    use sov_modules_api::fork::fork_from_block_number;
+
+    use crate::citrea_spec_id_to_evm_spec_id;
+
+    revm::primitives::BlockEnv {
         number: U256::from(sealed_header.number),
         coinbase: sealed_header.beneficiary,
         timestamp: U256::from(sealed_header.timestamp),

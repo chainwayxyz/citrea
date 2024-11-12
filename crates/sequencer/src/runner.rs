@@ -492,19 +492,20 @@ where
                     prestate,
                     &mut signed_soft_confirmation,
                 );
+                let state_root_transition = soft_confirmation_result.state_root_transition;
 
                 let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
-                if soft_confirmation_result.state_root.as_ref() == self.state_root.as_ref() {
+                if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
                     bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
                 }
 
                 trace!(
                     "State root after applying slot: {:?}",
-                    soft_confirmation_result.state_root
+                    state_root_transition.final_root,
                 );
 
-                let next_state_root = soft_confirmation_result.state_root;
+                let next_state_root = state_root_transition.final_root;
 
                 self.storage_manager
                     .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;

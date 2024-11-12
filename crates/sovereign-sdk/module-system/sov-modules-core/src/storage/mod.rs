@@ -6,7 +6,7 @@ use core::fmt;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::RefCount;
 
 use crate::common::{AlignedVec, Prefix, Version, Witness};
@@ -239,13 +239,14 @@ pub trait Storage: Clone {
     }
 
     /// Calculates new state root but does not commit any changes to the database.
+    #[allow(clippy::type_complexity)]
     fn compute_state_update(
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
     ) -> Result<
         (
-            Self::Root,
+            StateRootTransition<Self::Root>,
             Self::StateUpdate,
             StateDiff, // computed in Zk mode
         ),
@@ -268,10 +269,11 @@ pub trait Storage: Clone {
         accessory_update: &OrderedReadsAndWrites,
         offchain_update: &OrderedReadsAndWrites,
     ) -> Result<Self::Root, anyhow::Error> {
-        let (root_hash, node_batch, _) = self.compute_state_update(state_accesses, witness)?;
+        let (state_root_transition, node_batch, _) =
+            self.compute_state_update(state_accesses, witness)?;
         self.commit(&node_batch, accessory_update, offchain_update);
 
-        Ok(root_hash)
+        Ok(state_root_transition.final_root)
     }
 
     /// Validate all of the storage accesses in a particular cache log,

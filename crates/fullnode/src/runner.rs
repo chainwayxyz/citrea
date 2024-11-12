@@ -260,7 +260,7 @@ where
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
-        let next_state_root = soft_confirmation_result.state_root;
+        let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
         if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)

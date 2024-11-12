@@ -1,6 +1,9 @@
+use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState};
+use sov_rollup_interface::da::{
+    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
+};
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash};
 
@@ -66,14 +69,36 @@ impl DaVerifier for MockDaVerifier {
 
     fn verify_header_chain(
         &self,
-        _previous_light_client_proof_output: &Option<
+        previous_light_client_proof_output: &Option<
             sov_rollup_interface::zk::LightClientCircuitOutput<Self::Spec>,
         >,
-        _block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        block_header: &<Self::Spec as DaSpec>::BlockHeader,
     ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
+        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
+            return Ok(UpdatedDaState {
+                hash: block_header.hash,
+                height: block_header.height,
+                total_work: [0; 32],
+                epoch_start_time: block_header.time.secs() as u32,
+                prev_11_timestamps: [0; 11],
+                current_target_bits: block_header.bits(),
+            });
+        };
+        // Check block heights are consecutive
+        if block_header.height - 1 != previous_light_client_proof_output.da_block_height {
+            return Err(anyhow!("Block heights are not consecutive"));
+        }
+        // Check prev hash matches with prev light client proof hash
+        if block_header.prev_hash != previous_light_client_proof_output.da_block_hash {
+            return Err(anyhow!(
+                "Block prev hash does not match with prev light client proof hash"
+            ));
+        }
+        // Skip hash, bits, pow and timestamp checks for now
+
         Ok(UpdatedDaState {
-            hash: MockHash([0; 32]),
-            height: 0,
+            hash: block_header.hash,
+            height: block_header.height,
             total_work: [0; 32],
             epoch_start_time: 0,
             prev_11_timestamps: [0; 11],

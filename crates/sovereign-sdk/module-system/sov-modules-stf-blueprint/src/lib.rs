@@ -345,21 +345,23 @@ where
             );
         }
 
-        let (state_root, witness, offchain_witness, storage, state_diff) = {
+        let (state_root_transition, witness, offchain_witness, storage, state_diff) = {
             let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
             let (cache_log, mut witness) = checkpoint.freeze();
 
-            let (root_hash, state_update, state_diff) = pre_state
+            let (state_root_transition, state_update, state_diff) = pre_state
                 .compute_state_update(cache_log, &mut witness)
                 .expect("jellyfish merkle tree update must succeed");
 
             let mut working_set = checkpoint.to_revertable();
 
-            self.runtime
-                .finalize_hook(&root_hash, &mut working_set.accessory_state());
+            self.runtime.finalize_hook(
+                &state_root_transition.final_root,
+                &mut working_set.accessory_state(),
+            );
 
             let mut checkpoint = working_set.checkpoint();
             let accessory_log = checkpoint.freeze_non_provable();
@@ -367,11 +369,17 @@ where
 
             pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
-            (root_hash, witness, offchain_witness, pre_state, state_diff)
+            (
+                state_root_transition,
+                witness,
+                offchain_witness,
+                pre_state,
+                state_diff,
+            )
         };
 
         SoftConfirmationResult {
-            state_root,
+            state_root_transition,
             change_set: storage,
             witness,
             offchain_witness,
@@ -414,9 +422,10 @@ where
         let mut checkpoint = working_set.checkpoint();
         let (log, mut witness) = checkpoint.freeze();
 
-        let (genesis_hash, state_update, _) = pre_state
+        let (state_root_transition, state_update, _) = pre_state
             .compute_state_update(log, &mut witness)
             .expect("Storage update must succeed");
+        let genesis_hash = state_root_transition.final_root;
 
         let mut working_set = checkpoint.to_revertable();
 
@@ -538,7 +547,6 @@ where
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
-        initial_batch_hash: [u8; 32],
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
@@ -614,7 +622,7 @@ where
 
         // Then verify these soft confirmations.
         let mut current_state_root = initial_state_root.clone();
-        let mut previous_batch_hash = initial_batch_hash;
+        let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
         let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
@@ -651,6 +659,7 @@ where
                 previous_batch_hash,
                 "Soft confirmation previous hash must match the hash of the block before"
             );
+            previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
 
             assert_eq!(
                 soft_confirmations[index_soft_confirmation].da_slot_hash(),
@@ -664,7 +673,6 @@ where
                 "Soft confirmation DA slot height must match DA block header height"
             );
 
-            previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
             index_soft_confirmation += 1;
 
             while index_soft_confirmation < soft_confirmations.len() {
@@ -801,7 +809,8 @@ where
                     // for now we don't allow "broken" seq. com.s
                     .expect("Soft confirmation must succeed");
 
-                current_state_root = result.state_root;
+                assert_eq!(current_state_root, result.state_root_transition.init_root);
+                current_state_root = result.state_root_transition.final_root;
                 state_diff.extend(result.state_diff);
 
                 // Notify fork manager about the block so that the next spec / fork

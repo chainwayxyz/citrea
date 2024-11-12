@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
-use crate::zk::BatchProofCircuitOutput;
+use crate::zk::BatchProofCircuitOutputV2;
 
 /// A proof that the attester was bonded at the transition num `transition_num`.
 /// For rollups using the `jmt`, this will be a `jmt::SparseMerkleProof`
@@ -39,7 +39,7 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     /// The rollup address of the originator of this challenge
     pub challenger_address: Address,
     /// The state transition that was proven
-    pub state_transition: BatchProofCircuitOutput<Da, Root>,
+    pub state_transition: BatchProofCircuitOutputV2<Da, Root>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, Serialize, Deserialize)]
