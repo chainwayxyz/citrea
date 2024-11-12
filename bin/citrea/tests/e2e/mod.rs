@@ -16,10 +16,8 @@ use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::spec::SpecId;
 use tokio::task::JoinHandle;
 
 use crate::evm::{init_test_rollup, make_test_client};
@@ -600,16 +598,6 @@ async fn test_offchain_contract_storage() {
             None,
             rollup_config,
             Some(sequencer_config),
-            Some(vec![
-                Fork {
-                    spec_id: SpecId::Genesis,
-                    activation_height: 0,
-                },
-                Fork {
-                    spec_id: SpecId::Fork1,
-                    activation_height: 10,
-                },
-            ]),
         )
         .await;
     });
@@ -658,7 +646,7 @@ async fn test_offchain_contract_storage() {
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // reach the block at which the fork will be activated
-    for _ in 3..=10 {
+    for _ in 3..=20 {
         sequencer_client.send_publish_batch_request().await;
     }
 

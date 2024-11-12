@@ -205,7 +205,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             spec: vec![(0, SpecId::SHANGHAI)],
         };
 
-        println!("Chain config: {:?}", chain_cfg);
         self.cfg.set(&chain_cfg, working_set);
 
         let header = reth_primitives::Header {
