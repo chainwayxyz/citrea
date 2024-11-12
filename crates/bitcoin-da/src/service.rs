@@ -49,7 +49,7 @@ use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
     ParsedLightClientTransaction, VerifyParsed,
 };
-use crate::monitoring::{MonitoringConfig, MonitoringService, TxStatus};
+use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -550,7 +550,12 @@ impl BitcoinService {
 
     /// Bump TX fee via cpfp.
     /// If txid is None, resolves to the latest TX in chain
-    pub async fn bump_fee_cpfp(&self, txid: Option<Txid>, fee_rate: f64) -> Result<Txid> {
+    pub async fn bump_fee_cpfp(
+        &self,
+        txid: Option<Txid>,
+        fee_rate: f64,
+        force: Option<bool>,
+    ) -> Result<Txid> {
         // Look for input tx or resolve to monitored last_tx
         let parent_txid = match txid {
             None => {
@@ -575,7 +580,17 @@ impl BitcoinService {
                 monitored_tx.status
             )
         };
-        debug!("Creating CPFP TX for {parent_txid}");
+
+        let force = force.unwrap_or_default();
+        match (monitored_tx.kind, force) {
+            (MonitoredTxKind::Commit, false) => {
+                bail!("Trying to bump a commit TX.")
+            }
+            (MonitoredTxKind::Commit, true) => {
+                warn!("Force creating CPFP TX for commit TX {parent_txid}");
+            }
+            _ => debug!("Creating CPFP TX for {parent_txid}"),
+        }
 
         let Some(utxo) = self.get_prev_utxo().await else {
             bail!("Cannot bump fee for TX without prev_utxo available")
@@ -630,7 +645,7 @@ impl BitcoinService {
         let child_txid = self.client.send_raw_transaction(&raw_hex).await?;
 
         self.monitoring
-            .monitor_transaction(child_txid, Some(parent_txid), None)
+            .monitor_transaction(child_txid, Some(parent_txid), None, MonitoredTxKind::Cpfp)
             .await?;
         self.monitoring.set_next_tx(&parent_txid, child_txid).await;
 

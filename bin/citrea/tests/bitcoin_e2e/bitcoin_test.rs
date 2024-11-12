@@ -280,11 +280,19 @@ impl TestCase for CpfpFeeBumpingTest {
         let parent_base_fee = reveal_tx.base_fee.unwrap();
         let parent_fee_rate = parent_base_fee as f64 / reveal_tx.vsize as f64;
 
+        // Test commit tx bump warning
+        let reveal_cpfp = sequencer
+            .client
+            .http_client()
+            .da_bump_transaction_fee_cpfp(reveal_tx.prev_tx, parent_fee_rate * 2.0, None)
+            .await;
+        assert!(reveal_cpfp.is_err());
+
         let target_fee_rate = parent_fee_rate * 2.0;
         let cpfp_txid = sequencer
             .client
             .http_client()
-            .da_bump_transaction_fee_cpfp(Some(*parent_txid), target_fee_rate)
+            .da_bump_transaction_fee_cpfp(Some(*parent_txid), target_fee_rate, None)
             .await?;
 
         // Wait for child transaction
@@ -351,7 +359,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let new_cpfp_txid = sequencer
             .client
             .http_client()
-            .da_bump_transaction_fee_cpfp(Some(*parent_txid), target_fee_rate)
+            .da_bump_transaction_fee_cpfp(Some(*parent_txid), target_fee_rate, None)
             .await?;
 
         // Wait for seqcommitments txs to hit mempool + cpfp tx

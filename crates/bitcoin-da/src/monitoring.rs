@@ -50,15 +50,23 @@ pub enum TxStatus {
 }
 
 #[derive(Debug, Clone)]
+pub enum MonitoredTxKind {
+    Commit,
+    Reveal,
+    Cpfp,
+}
+
+#[derive(Debug, Clone)]
 pub struct MonitoredTx {
     pub tx: Transaction,
-    pub address: Option<Address<NetworkUnchecked>>,
+    address: Option<Address<NetworkUnchecked>>,
     pub initial_broadcast: u64,
     pub initial_height: BlockHeight,
-    pub last_checked: Instant,
+    last_checked: Instant,
     pub status: TxStatus,
     pub prev_tx: Option<Txid>, // Previous tx in chain
     pub next_tx: Option<Txid>, // Next tx in chain
+    pub kind: MonitoredTxKind,
 }
 
 impl MonitoredTx {
@@ -236,11 +244,21 @@ impl MonitoringService {
 
         let mut txids_iter = txids.into_iter();
         while let (Some(commit_txid), Some(reveal_txid)) = (txids_iter.next(), txids_iter.next()) {
-            self.monitor_transaction(commit_txid, last_tx, Some(reveal_txid))
-                .await?;
+            self.monitor_transaction(
+                commit_txid,
+                last_tx,
+                Some(reveal_txid),
+                MonitoredTxKind::Commit,
+            )
+            .await?;
 
-            self.monitor_transaction(reveal_txid, Some(commit_txid), None)
-                .await?;
+            self.monitor_transaction(
+                reveal_txid,
+                Some(commit_txid),
+                None,
+                MonitoredTxKind::Reveal,
+            )
+            .await?;
 
             last_tx = Some(reveal_txid)
         }
@@ -254,6 +272,7 @@ impl MonitoringService {
         txid: Txid,
         prev_tx: Option<Txid>,
         next_tx: Option<Txid>,
+        kind: MonitoredTxKind,
     ) -> Result<()> {
         if self.monitored_txs.read().await.contains_key(&txid) {
             return Err(MonitorError::AlreadyMonitored);
@@ -287,6 +306,7 @@ impl MonitoringService {
             status,
             prev_tx,
             next_tx,
+            kind,
         };
 
         self.monitored_txs.write().await.insert(txid, monitored_tx);
