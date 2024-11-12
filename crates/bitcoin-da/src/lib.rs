@@ -8,6 +8,9 @@ pub mod service;
 pub mod monitoring;
 
 #[cfg(feature = "native")]
+pub mod fee;
+
+#[cfg(feature = "native")]
 pub mod rpc;
 
 pub mod verifier;

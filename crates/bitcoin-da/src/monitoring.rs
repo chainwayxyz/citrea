@@ -49,7 +49,7 @@ pub enum TxStatus {
     Evicted,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum MonitoredTxKind {
     Commit,
     Reveal,
@@ -64,8 +64,8 @@ pub struct MonitoredTx {
     pub initial_height: BlockHeight,
     last_checked: Instant,
     pub status: TxStatus,
-    pub prev_tx: Option<Txid>, // Previous tx in chain
-    pub next_tx: Option<Txid>, // Next tx in chain
+    pub prev_txid: Option<Txid>, // Previous tx in chain
+    pub next_txid: Option<Txid>, // Next tx in chain
     pub kind: MonitoredTxKind,
 }
 
@@ -270,17 +270,20 @@ impl MonitoringService {
     pub async fn monitor_transaction(
         &self,
         txid: Txid,
-        prev_tx: Option<Txid>,
-        next_tx: Option<Txid>,
+        prev_txid: Option<Txid>,
+        next_txid: Option<Txid>,
         kind: MonitoredTxKind,
     ) -> Result<()> {
-        if self.monitored_txs.read().await.contains_key(&txid) {
-            return Err(MonitorError::AlreadyMonitored);
-        }
+        {
+            let monitored_txs = self.monitored_txs.read().await;
+            if monitored_txs.contains_key(&txid) {
+                return Err(MonitorError::AlreadyMonitored);
+            }
 
-        if let Some(prev_txid) = prev_tx {
-            if !self.monitored_txs.read().await.contains_key(&prev_txid) {
-                return Err(MonitorError::PrevTxNotMonitored(prev_txid));
+            if let Some(prev_tx_id) = prev_txid {
+                if !monitored_txs.contains_key(&prev_tx_id) {
+                    return Err(MonitorError::PrevTxNotMonitored(prev_tx_id));
+                }
             }
         }
 
@@ -304,15 +307,68 @@ impl MonitoringService {
             initial_height: current_height,
             last_checked: Instant::now(),
             status,
-            prev_tx,
-            next_tx,
+            prev_txid,
+            next_txid,
             kind,
         };
 
         self.monitored_txs.write().await.insert(txid, monitored_tx);
-
         *self.last_tx.lock().await = Some(txid);
         debug!("[monitor_transaction_chain] setting last_tx : {:?}", txid);
+
+        Ok(())
+    }
+
+    // Replace a TX with a new RBF tx
+    #[instrument(skip(self))]
+    pub async fn replace_txid(&self, prev_txid: Txid, new_txid: Txid) -> Result<()> {
+        let monitored_tx = self
+            .monitored_txs
+            .read()
+            .await
+            .get(&prev_txid)
+            .ok_or(MonitorError::PrevTxNotMonitored(prev_txid))?
+            .clone();
+
+        let current_height = self.client.get_block_count().await?;
+        let tx_result = self.client.get_transaction(&new_txid, None).await?;
+        let tx = tx_result.transaction()?;
+        self.total_size.fetch_add(tx.total_size(), Ordering::SeqCst);
+
+        let status = self.determine_tx_status(&tx_result).await?;
+
+        let new_tx = MonitoredTx {
+            tx,
+            address: tx_result
+                .details
+                .first()
+                .and_then(|detail| detail.address.clone()),
+            initial_broadcast: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            initial_height: current_height,
+            last_checked: Instant::now(),
+            status,
+            kind: monitored_tx.kind,
+            prev_txid: monitored_tx.prev_txid,
+            next_txid: monitored_tx.next_txid,
+        };
+
+        {
+            let mut monitored_txs = self.monitored_txs.write().await;
+            if let Some(prev_tx) = monitored_txs.get_mut(&prev_txid) {
+                prev_tx.status = TxStatus::Replaced { by_txid: new_txid };
+            }
+            monitored_txs.insert(new_txid, new_tx);
+        }
+
+        {
+            let mut last_tx = self.last_tx.lock().await;
+            if last_tx.as_ref() == Some(&prev_txid) {
+                *last_tx = Some(new_txid);
+            }
+        }
 
         Ok(())
     }
@@ -489,14 +545,8 @@ impl MonitoringService {
         self.monitored_txs.read().await.get(txid).cloned()
     }
 
-    pub async fn get_pending_transactions(&self) -> Vec<(Txid, MonitoredTx)> {
-        self.monitored_txs
-            .read()
-            .await
-            .iter()
-            .filter(|(_, tx)| matches!(tx.status, TxStatus::Pending { .. }))
-            .map(|(txid, tx)| (*txid, tx.clone()))
-            .collect()
+    pub async fn get_monitored_txs(&self) -> HashMap<Txid, MonitoredTx> {
+        self.monitored_txs.read().await.clone()
     }
 
     pub async fn get_last_tx(&self) -> Option<(Txid, MonitoredTx)> {
@@ -508,7 +558,7 @@ impl MonitoringService {
     pub async fn set_next_tx(&self, txid: &Txid, next_txid: Txid) {
         let mut monitored_txs = self.monitored_txs.write().await;
         if let Some(parent) = monitored_txs.get_mut(txid) {
-            parent.next_tx = Some(next_txid);
+            parent.next_txid = Some(next_txid);
         }
     }
 }
