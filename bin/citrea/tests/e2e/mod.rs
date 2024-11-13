@@ -646,7 +646,7 @@ async fn test_offchain_contract_storage() {
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // reach the block at which the fork will be activated
-    for _ in 3..=20 {
+    for _ in 3..=100 {
         sequencer_client.send_publish_batch_request().await;
     }
 

@@ -25,10 +25,10 @@ pub const FORKS: [Fork; 3] = [
     },
     Fork {
         spec_id: SpecId::Fork1,
-        activation_height: 20,
+        activation_height: 1000,
     },
     Fork {
         spec_id: SpecId::Fork2,
-        activation_height: 40,
+        activation_height: 2000,
     },
 ];
