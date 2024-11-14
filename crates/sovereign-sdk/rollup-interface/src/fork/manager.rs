@@ -12,17 +12,9 @@ pub struct ForkManager {
 
 impl ForkManager {
     pub fn new(forks: &'static [Fork], current_l2_height: u64) -> Self {
-        // Make sure the list of specs is sorted by the block number at which they activate.
-        #[cfg(debug_assertions)]
-        {
-            // FIXME replace it with is_sorted() when we move to rust 1.82.0
-            let mut forks_sorted = forks.to_owned();
-            forks_sorted.sort_by_key(|fork| fork.activation_height);
-            assert_eq!(forks, forks_sorted);
-        }
+        // FORKS from citrea-primitives are checked at compile time to be sorted.
 
         let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&current_l2_height));
-
         let active_fork_idx = match pos {
             Ok(idx) => idx,
             Err(idx) => idx.saturating_sub(1),
