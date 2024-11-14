@@ -439,7 +439,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     } = &mut context.evm.inner;
 
     // Get the last journal entry to calculate diff.
-    let journal = journaled_state.journal.last().cloned().unwrap_or(vec![]);
+    let journal = journaled_state.journal.last().into_iter().flatten();
     let state = &journaled_state.state;
 
     #[derive(Default)]
@@ -457,7 +457,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     let from = account_changes.entry(&env.tx.caller).or_default();
     from.account_info_changed = true;
 
-    for entry in &journal {
+    for entry in journal {
         match entry {
             JournalEntry::NonceChange { address } => {
                 let account = account_changes.entry(address).or_default();
