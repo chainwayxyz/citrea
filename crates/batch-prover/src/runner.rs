@@ -412,7 +412,7 @@ where
             current_l1_block.header(),
             &mut signed_soft_confirmation,
         )?;
-        let txs_bodies = signed_soft_confirmation.txs().to_owned();
+        let txs_bodies = signed_soft_confirmation.blobs().to_owned();
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
 

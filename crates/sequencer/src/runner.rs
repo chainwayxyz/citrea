@@ -526,7 +526,7 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                let tx_bodies = signed_soft_confirmation.txs().to_owned();
+                let tx_bodies = signed_soft_confirmation.blobs().to_owned();
                 self.ledger_db.commit_soft_confirmation(
                     next_state_root.as_ref(),
                     receipt,
@@ -827,8 +827,8 @@ where
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.l1_fee_rate(),
+            soft_confirmation.blobs().into(),
             soft_confirmation.txs().into(),
-            soft_confirmation.txs_new().into(),
             soft_confirmation.deposit_data(),
             borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
             borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,
@@ -859,8 +859,8 @@ where
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.l1_fee_rate(),
+            soft_confirmation.blobs().into(),
             soft_confirmation.txs().into(),
-            soft_confirmation.txs_new().into(),
             soft_confirmation.deposit_data(),
             borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
             borsh::to_vec(&pub_key).map_err(|e| anyhow!(e))?,

@@ -18,8 +18,8 @@ pub struct UnsignedSoftConfirmation<'txs, Tx> {
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
-    txs: &'txs [Vec<u8>],
-    txs_new: &'txs [Tx],
+    blobs: &'txs [Vec<u8>],
+    txs: &'txs [Tx],
     deposit_data: Vec<Vec<u8>>,
     l1_fee_rate: u128,
     timestamp: u64,
@@ -33,8 +33,8 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
         da_slot_height: u64,
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
-        txs: &'txs [Vec<u8>],
-        txs_new: &'txs [Tx],
+        blobs: &'txs [Vec<u8>],
+        txs: &'txs [Tx],
         deposit_data: Vec<Vec<u8>>,
         l1_fee_rate: u128,
         timestamp: u64,
@@ -44,8 +44,8 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
             da_slot_height,
             da_slot_hash,
             da_slot_txs_commitment,
+            blobs,
             txs,
-            txs_new,
             deposit_data,
             l1_fee_rate,
             timestamp,
@@ -67,13 +67,13 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
     pub fn da_slot_txs_commitment(&self) -> [u8; 32] {
         self.da_slot_txs_commitment
     }
-    /// Raw transactions.
-    pub fn txs(&self) -> &[Vec<u8>] {
-        self.txs
+    /// Raw blobs of transactions.
+    pub fn blobs(&self) -> &[Vec<u8>] {
+        self.blobs
     }
-    /// Raw transactions.
-    pub fn txs_new(&self) -> &[Tx] {
-        self.txs_new
+    /// Transactions.
+    pub fn txs(&self) -> &[Tx] {
+        self.txs
     }
     /// Deposit data from L1 chain
     pub fn deposit_data(&self) -> Vec<Vec<u8>> {
@@ -94,7 +94,7 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
         hasher.update(self.da_slot_height.to_be_bytes());
         hasher.update(self.da_slot_hash);
         hasher.update(self.da_slot_txs_commitment);
-        for tx in self.txs {
+        for tx in self.blobs {
             hasher.update(tx);
         }
         for deposit in &self.deposit_data {
@@ -125,8 +125,8 @@ pub struct SignedSoftConfirmation<'txs, Tx: Clone> {
     da_slot_hash: [u8; 32],
     da_slot_txs_commitment: [u8; 32],
     l1_fee_rate: u128,
-    txs: Cow<'txs, [Vec<u8>]>,
-    txs_new: Cow<'txs, [Tx]>,
+    blobs: Cow<'txs, [Vec<u8>]>,
+    txs: Cow<'txs, [Tx]>,
     signature: Vec<u8>,
     deposit_data: Vec<Vec<u8>>,
     pub_key: Vec<u8>,
@@ -144,8 +144,8 @@ impl<'txs, Tx: Clone> SignedSoftConfirmation<'txs, Tx> {
         da_slot_hash: [u8; 32],
         da_slot_txs_commitment: [u8; 32],
         l1_fee_rate: u128,
-        txs: Cow<'txs, [Vec<u8>]>,
-        txs_new: Cow<'txs, [Tx]>,
+        blobs: Cow<'txs, [Vec<u8>]>,
+        txs: Cow<'txs, [Tx]>,
         deposit_data: Vec<Vec<u8>>,
         signature: Vec<u8>,
         pub_key: Vec<u8>,
@@ -159,8 +159,8 @@ impl<'txs, Tx: Clone> SignedSoftConfirmation<'txs, Tx> {
             da_slot_hash,
             da_slot_txs_commitment,
             l1_fee_rate,
+            blobs,
             txs,
-            txs_new,
             deposit_data,
             signature,
             pub_key,
@@ -203,14 +203,14 @@ impl<'txs, Tx: Clone> SignedSoftConfirmation<'txs, Tx> {
         self.pub_key.as_ref()
     }
 
-    /// Txs of signed batch
-    pub fn txs(&self) -> &[Vec<u8>] {
-        &self.txs
+    /// Raw blob of txs of signed batch
+    pub fn blobs(&self) -> &[Vec<u8>] {
+        &self.blobs
     }
 
     /// Txs of signed batch
-    pub fn txs_new(&self) -> &[Tx] {
-        &self.txs_new
+    pub fn txs(&self) -> &[Tx] {
+        &self.txs
     }
 
     /// Deposit data
