@@ -4,7 +4,7 @@ use sov_rollup_interface::spec::SpecId;
 /// This defines the list of forks which will be activated
 /// at specific heights.
 #[cfg(not(feature = "testing"))]
-pub const FORKS: [Fork; 2] = [
+pub static FORKS: &[Fork] = &[
     Fork {
         spec_id: SpecId::Genesis,
         activation_height: 0,
@@ -18,7 +18,7 @@ pub const FORKS: [Fork; 2] = [
 ];
 
 #[cfg(feature = "testing")]
-pub const FORKS: [Fork; 3] = [
+pub static FORKS: &[Fork] = &[
     Fork {
         spec_id: SpecId::Genesis,
         activation_height: 0,

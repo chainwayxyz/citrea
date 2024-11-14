@@ -21,7 +21,7 @@ pub struct Fork {
 
 impl Fork {
     /// Creates new Fork instance
-    pub fn new(spec_id: SpecId, activation_height: u64) -> Self {
+    pub const fn new(spec_id: SpecId, activation_height: u64) -> Self {
         Self {
             spec_id,
             activation_height,

@@ -313,7 +313,7 @@ where
         }
 
         let last_active_spec_id =
-            fork_from_block_number(FORKS.to_vec(), batch_proof_output.last_l2_height).spec_id;
+            fork_from_block_number(FORKS, batch_proof_output.last_l2_height).spec_id;
         let code_commitment = self
             .code_commitments_by_spec
             .get(&last_active_spec_id)

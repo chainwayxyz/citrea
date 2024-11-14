@@ -5,7 +5,6 @@ use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationReceipt, SoftConfirmationResult,
@@ -242,7 +241,6 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
             Vec<sov_modules_api::SignedSoftConfirmation>,
         >,
         _preproven_commitment_indicies: Vec<usize>,
-        _forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         todo!()
     }

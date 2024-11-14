@@ -366,9 +366,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let block_number = self.block_number_for_id(&block_number, working_set)?;
 
-        let current_spec = citrea_spec_id_to_evm_spec_id(
-            fork_from_block_number(FORKS.to_vec(), block_number).spec_id,
-        );
+        let current_spec =
+            citrea_spec_id_to_evm_spec_id(fork_from_block_number(FORKS, block_number).spec_id);
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
@@ -563,7 +562,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(working_set)
                 .expect("EVM chain config should be set");
 
-            let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_num).spec_id;
+            let citrea_spec_id = fork_from_block_number(FORKS, block_num).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -658,7 +657,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(working_set)
                 .expect("EVM chain config should be set");
 
-            let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_num).spec_id;
+            let citrea_spec_id = fork_from_block_number(FORKS, block_num).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -770,7 +769,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .expect("EVM chain config should be set");
 
             let citrea_spec_id =
-                fork_from_block_number(FORKS.to_vec(), block_env.number.saturating_to()).spec_id;
+                fork_from_block_number(FORKS, block_env.number.saturating_to()).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -1197,7 +1196,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // set state to end of the previous block
         set_state_to_end_of_evm_block(block_number - 1, working_set);
 
-        let citrea_spec_id = fork_from_block_number(FORKS.to_vec(), block_number).spec_id;
+        let citrea_spec_id = fork_from_block_number(FORKS, block_number).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
         let block_env = sealed_block_to_block_env(&sealed_block.header);
@@ -1837,7 +1836,7 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         .next_block_excess_blob_gas()
         .or_else(|| {
             if citrea_spec_id_to_evm_spec_id(
-                fork_from_block_number(FORKS.to_vec(), block_env.number.saturating_to()).spec_id,
+                fork_from_block_number(FORKS, block_env.number.saturating_to()).spec_id,
             ) >= SpecId::CANCUN
             {
                 Some(0)

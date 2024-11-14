@@ -5,18 +5,18 @@ use alloc::vec::Vec;
 use super::{Fork, ForkMigration};
 
 pub struct ForkManager {
-    forks: Vec<Fork>,
+    forks: &'static [Fork],
     active_fork_idx: usize,
     migration_handlers: Vec<Box<dyn ForkMigration + Sync + Send>>,
 }
 
 impl ForkManager {
-    pub fn new(forks: Vec<Fork>, current_l2_height: u64) -> Self {
+    pub fn new(forks: &'static [Fork], current_l2_height: u64) -> Self {
         // Make sure the list of specs is sorted by the block number at which they activate.
         #[cfg(debug_assertions)]
         {
             // FIXME replace it with is_sorted() when we move to rust 1.82.0
-            let mut forks_sorted = forks.clone();
+            let mut forks_sorted = forks.to_owned();
             forks_sorted.sort_by_key(|fork| fork.activation_height);
             assert_eq!(forks, forks_sorted);
         }
@@ -74,6 +74,6 @@ impl ForkManager {
 
 /// Simple search for the fork to which a specific block number blongs.
 /// This assumes that the list of forks is sorted by block number in ascending fashion.
-pub fn fork_from_block_number(forks: Vec<Fork>, block_number: u64) -> Fork {
+pub fn fork_from_block_number(forks: &'static [Fork], block_number: u64) -> Fork {
     ForkManager::new(forks, block_number).active_fork()
 }
