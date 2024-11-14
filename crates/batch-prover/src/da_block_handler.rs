@@ -66,7 +66,7 @@ where
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
-    _tx: PhantomData<fn() -> Tx>,
+    _tx: PhantomData<Tx>,
 }
 
 impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx> L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
@@ -83,7 +83,7 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshDeserialize + BorshSerialize + 'static,
+    Tx: Clone + BorshDeserialize + BorshSerialize,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -393,7 +393,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 };
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
-            let signed_soft_confirmation: SignedSoftConfirmation<'txs, Tx> = soft_confirmation
+            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
                 .try_into()
                 .context("Failed to parse transactions")?;
             commitment_soft_confirmations.push(signed_soft_confirmation);

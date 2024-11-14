@@ -9,8 +9,8 @@ use sov_modules_api::{
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationReceipt, StateTransitionFunction, TransactionReceipt,
-    TransactionTrait,
+    SoftConfirmationError, SoftConfirmationReceipt, StateTransitionFunction, TransactionDigest,
+    TransactionReceipt,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;

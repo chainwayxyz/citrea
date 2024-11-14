@@ -175,7 +175,7 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
 }
 
 /// Transaction should provide its hash in order to put Receipt by hash.
-pub trait TransactionTrait {
+pub trait TransactionDigest {
     /// Compute digest for the whole Transaction struct
     fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D>;
 }
@@ -189,7 +189,7 @@ pub trait TransactionTrait {
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
 pub trait StateTransitionFunction<Da: DaSpec> {
     /// The type of rollup transaction
-    type Transaction: TransactionTrait
+    type Transaction: TransactionDigest
         + Clone
         + BorshDeserialize
         + BorshSerialize
