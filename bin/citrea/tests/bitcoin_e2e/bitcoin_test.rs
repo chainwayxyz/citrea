@@ -400,12 +400,11 @@ impl TestCase for CpfpFeeBumpingTest {
             .http_client()
             .da_get_tx_status(new_cpfp_txid)
             .await?;
-        assert!(matches!(
-            status,
-            Some(TxStatus::Replaced {
-                by_txid: new_cpfp_rbf_txid
-            })
-        ));
+
+        assert!(matches!(status, Some(TxStatus::Replaced { .. })));
+        if let Some(TxStatus::Replaced { by_txid }) = status {
+            assert_eq!(by_txid, new_cpfp_rbf_txid);
+        }
 
         da.generate(1, None).await?;
         let hash = da.get_best_block_hash().await?;
