@@ -5,7 +5,7 @@ use core::result::Result::Ok;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use bitcoin::{Amount, Network, Sequence, Txid};
 use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, WalletCreateFundedPsbtOptions,
@@ -168,7 +168,7 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
         .get("fastestFee")
         .and_then(|fee| fee.as_u64())
         .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
-        .ok_or(anyhow!("Failed to get fee rate from mempool space"))?;
+        .context("Failed to get fee rate from mempool space")?;
 
     Ok(Some(fee_rate))
 }
