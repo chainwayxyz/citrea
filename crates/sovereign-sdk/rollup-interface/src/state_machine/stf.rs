@@ -17,7 +17,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
-use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 use crate::zk::CumulativeStateDiff;
@@ -313,7 +312,6 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
         preproven_commitment_indicies: Vec<usize>,
-        forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
 }
 

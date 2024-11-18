@@ -2,6 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 use borsh::BorshDeserialize;
+use citrea_primitives::forks::FORKS;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -15,7 +16,7 @@ use sov_modules_api::{
     Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::DaDataBatchProof;
-use sov_rollup_interface::fork::{Fork, ForkManager};
+use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
@@ -554,7 +555,6 @@ where
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
         preproven_commitment_indices: Vec<usize>,
-        forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -625,7 +625,7 @@ where
         let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
-        let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
+        let mut fork_manager = ForkManager::new(FORKS, sequencer_commitments_range.0 as u64);
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
