@@ -100,7 +100,7 @@ pub(crate) fn commit(
 
     let (cache_log, mut witness) = checkpoint.freeze();
 
-    let (root, authenticated_node_batch, _) = storage
+    let (state_root_transition, authenticated_node_batch, _) = storage
         .compute_state_update(cache_log, &mut witness)
         .expect("jellyfish merkle tree update must succeed");
 
@@ -111,7 +111,7 @@ pub(crate) fn commit(
 
     storage.commit(&authenticated_node_batch, &accessory_log, &offchain_log);
 
-    root.0
+    state_root_transition.final_root.0
 }
 
 /// Loads the genesis configuration from the given path and pushes the accounts to the evm config

@@ -43,7 +43,7 @@ impl HashStf {
             ordered_writes: vec![(hash_key.to_cache_key(), Some(hash_value.into_cache_value()))],
         };
 
-        let (jmt_root_hash, state_update, _) = storage
+        let (state_root_transition, state_update, _) = storage
             .compute_state_update(ordered_reads_writes, witness)
             .unwrap();
 
@@ -55,7 +55,13 @@ impl HashStf {
 
         let mut root_hash = [0u8; 32];
 
-        for (i, &byte) in jmt_root_hash.as_ref().iter().enumerate().take(32) {
+        for (i, &byte) in state_root_transition
+            .final_root
+            .as_ref()
+            .iter()
+            .enumerate()
+            .take(32)
+        {
             root_hash[i] = byte;
         }
 
@@ -227,7 +233,6 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
-        _initial_batch_hash: [u8; 32],
         _pre_state: Self::PreState,
         _da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         _sequencer_commitments_range: (u32, u32),

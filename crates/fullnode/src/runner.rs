@@ -102,6 +102,7 @@ where
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
+        task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -148,7 +149,7 @@ where
             fork_manager,
             soft_confirmation_tx,
             pruning_config: runner_config.pruning_config,
-            task_manager: TaskManager::default(),
+            task_manager,
         })
     }
 
@@ -260,7 +261,7 @@ where
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
-        let next_state_root = soft_confirmation_result.state_root;
+        let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
         if next_state_root.as_ref().to_vec() != soft_confirmation.state_root {
             bail!("Post state root mismatch at height: {}", l2_height)

@@ -1229,6 +1229,7 @@ dependencies = [
  "crypto-bigint",
  "futures",
  "hex",
+ "jsonrpsee",
  "pin-project",
  "rand 0.8.5",
  "reqwest",
@@ -1238,6 +1239,7 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -1280,7 +1282,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=ede8097#ede8097e0f0fce5d69e9cab6f85fda39e788a97b"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=5ce1bed#5ce1beda710e6579e4eec3e12ffa02437cfa2fa4"
 dependencies = [
  "async-trait",
  "bitcoincore-rpc-json",
@@ -1295,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc-json"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=ede8097#ede8097e0f0fce5d69e9cab6f85fda39e788a97b"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=5ce1bed#5ce1beda710e6579e4eec3e12ffa02437cfa2fa4"
 dependencies = [
  "bitcoin",
  "serde",
@@ -1756,6 +1758,7 @@ dependencies = [
  "sp1-helper",
  "tempfile",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]
@@ -1830,7 +1833,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=5b3e127#5b3e127cd0ceae4b11a4ac92e9782013abcddd01"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=53cdf57#53cdf57f4eef60ab1bf2d49401f6fd8bb071783f"
 dependencies = [
  "anyhow",
  "async-trait",

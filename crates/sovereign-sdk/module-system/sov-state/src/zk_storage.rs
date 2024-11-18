@@ -6,7 +6,7 @@ use sha2::Digest;
 use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
-use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default)]
@@ -76,7 +76,14 @@ where
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &mut Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate, StateDiff), anyhow::Error> {
+    ) -> Result<
+        (
+            StateRootTransition<Self::Root>,
+            Self::StateUpdate,
+            StateDiff,
+        ),
+        anyhow::Error,
+    > {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided smt proof
@@ -123,7 +130,14 @@ where
             )
             .expect("Updates must be valid");
 
-        Ok((jmt::RootHash(new_root), (), diff))
+        Ok((
+            StateRootTransition {
+                init_root: jmt::RootHash(prev_state_root),
+                final_root: jmt::RootHash(new_root),
+            },
+            (),
+            diff,
+        ))
     }
 
     fn commit(

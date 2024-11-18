@@ -43,6 +43,7 @@ soft-confirmation-rule-enforcer = { path = "../soft-confirmation-rule-enforcer" 
 # sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = [
 #     "test-utils",
 # ] }
+citrea-primitives = { path = "../primitives", features = ["testing"] }
 
 [features]
 default = []

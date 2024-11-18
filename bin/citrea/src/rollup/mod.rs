@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_batch_prover::{BatchProver, CitreaBatchProver};
+use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::{CitreaFullnode, FullNode};
 use citrea_light_client_prover::runner::{CitreaLightClientProver, LightClientProver};
@@ -44,7 +45,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config, true).await?;
+        let mut task_manager = TaskManager::default();
+        let da_service = self
+            .create_da_service(&rollup_config, true, &mut task_manager)
+            .await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -129,6 +133,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.rpc,
             fork_manager,
             soft_confirmation_tx,
+            task_manager,
         )
         .unwrap();
 
@@ -151,7 +156,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config, false).await?;
+        let mut task_manager = TaskManager::default();
+        let da_service = self
+            .create_da_service(&rollup_config, false, &mut task_manager)
+            .await?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -239,6 +247,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             code_commitments_by_spec,
             fork_manager,
             soft_confirmation_tx,
+            task_manager,
         )?;
 
         Ok(FullNode {
@@ -261,7 +270,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let da_service = self.create_da_service(&rollup_config, true).await?;
+        let mut task_manager = TaskManager::default();
+        let da_service = self
+            .create_da_service(&rollup_config, true, &mut task_manager)
+            .await?;
 
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
@@ -361,6 +373,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             code_commitments_by_spec,
             fork_manager,
             soft_confirmation_tx,
+            task_manager,
         )?;
 
         Ok(BatchProver {
@@ -386,7 +399,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
         migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
-        let da_service = self.create_da_service(&rollup_config, true).await?;
+        let mut task_manager = TaskManager::default();
+        let da_service = self
+            .create_da_service(&rollup_config, true, &mut task_manager)
+            .await?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -443,6 +459,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             prover_config,
             batch_prover_code_commitments_by_spec,
             light_client_prover_code_commitment,
+            task_manager,
         )?;
 
         Ok(LightClientProver {

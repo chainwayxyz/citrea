@@ -30,3 +30,6 @@ native = [
   "dep:tracing",
   "sov-rollup-interface/native",
 ]
+testing = [
+  "native",
+]

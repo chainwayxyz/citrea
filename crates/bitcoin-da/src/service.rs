@@ -4,7 +4,7 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -16,8 +16,10 @@ use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::json::TestMempoolAcceptResult;
+use bitcoin::{Amount, BlockHash, CompactTarget, Sequence, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::json::{
+    CreateRawTransactionInput, TestMempoolAcceptResult, WalletCreateFundedPsbtOptions,
+};
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -28,9 +30,10 @@ use sov_rollup_interface::da::{
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
 use sov_rollup_interface::zk::Proof;
+use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::channel as oneshot_channel;
-use tokio::{select, signal};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::helpers::builders::batch_proof_namespace::{
@@ -46,6 +49,7 @@ use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
     ParsedLightClientTransaction, VerifyParsed,
 };
+use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
@@ -79,9 +83,12 @@ pub struct BitcoinServiceConfig {
 
     // absolute path to the directory where the txs will be written to
     pub tx_backup_dir: String,
+
+    pub monitoring: Option<MonitoringConfig>,
 }
+
 impl citrea_common::FromEnv for BitcoinServiceConfig {
-    fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> Result<Self> {
         Ok(Self {
             node_url: std::env::var("NODE_URL")?,
             node_username: std::env::var("NODE_USERNAME")?,
@@ -89,19 +96,26 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
             da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
             tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
+            monitoring: Some(MonitoringConfig {
+                check_interval: std::env::var("DA_MONITORING_CHECK_INTERVAL")?.parse()?,
+                history_limit: std::env::var("DA_MONITORING_HISTORY_LIMIT")?.parse()?,
+                max_history_size: std::env::var("DA_MONITORING_MAX_HISTORY_SIZE")?.parse()?,
+            }),
         })
     }
 }
+
 /// A service that provides data and data availability proofs for Bitcoin
 #[derive(Debug)]
 pub struct BitcoinService {
-    client: Client,
+    client: Arc<Client>,
     network: bitcoin::Network,
     da_private_key: Option<SecretKey>,
     to_light_client_prefix: Vec<u8>,
     to_batch_proof_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
+    inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     tx_backup_dir: PathBuf,
+    pub monitoring: Arc<MonitoringService>,
 }
 
 impl BitcoinService {
@@ -109,13 +123,15 @@ impl BitcoinService {
     pub async fn new_with_wallet_check(
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
-        let client = Client::new(
-            &config.node_url,
-            Auth::UserPass(config.node_username, config.node_password),
-        )
-        .await?;
+        let client = Arc::new(
+            Client::new(
+                &config.node_url,
+                Auth::UserPass(config.node_username, config.node_password),
+            )
+            .await?,
+        );
 
         let private_key = config
             .da_private_key
@@ -132,13 +148,14 @@ impl BitcoinService {
             tracing::warn!("No loaded wallet found!");
         }
 
-        // check if config.tx_backup_dir exists
         let tx_backup_dir = std::path::Path::new(&config.tx_backup_dir);
 
         if !tx_backup_dir.exists() {
             std::fs::create_dir_all(tx_backup_dir)
                 .context("Failed to create tx backup directory")?;
         }
+
+        let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
 
         Ok(Self {
             client,
@@ -148,19 +165,22 @@ impl BitcoinService {
             to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
+            monitoring,
         })
     }
 
     pub async fn new_without_wallet_check(
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>,
+        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
-        let client = Client::new(
-            &config.node_url,
-            Auth::UserPass(config.node_username, config.node_password),
-        )
-        .await?;
+        let client = Arc::new(
+            Client::new(
+                &config.node_url,
+                Auth::UserPass(config.node_username, config.node_password),
+            )
+            .await?,
+        );
 
         let da_private_key = config
             .da_private_key
@@ -175,6 +195,9 @@ impl BitcoinService {
             std::fs::create_dir_all(tx_backup_dir)
                 .context("Failed to create tx backup directory")?;
         }
+
+        let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
+
         Ok(Self {
             client,
             network: config.network,
@@ -183,128 +206,91 @@ impl BitcoinService {
             to_batch_proof_prefix: chain_params.to_batch_proof_prefix,
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
+            monitoring,
         })
     }
 
-    pub fn spawn_da_queue(
+    pub async fn run_da_queue(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<Option<SenderWithNotifier<TxidWrapper>>>,
+        mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
+        token: CancellationToken,
     ) {
-        tokio::spawn(async move {
-            let mut prev_utxo = match self.get_prev_utxo().await {
-                Ok(Some(prev_utxo)) => Some(prev_utxo),
-                Ok(None) => {
-                    info!("No pending transactions found");
-                    None
+        trace!("BitcoinDA queue is initialized. Waiting for the first request...");
+
+        loop {
+            select! {
+                biased;
+                _ = token.cancelled() => {
+                    debug!("DA queue service received shutdown signal");
+                    break;
                 }
-                Err(e) => {
-                    error!(?e, "Failed to get pending transactions");
-                    None
-                }
-            };
-
-            trace!("BitcoinDA queue is initialized. Waiting for the first request...");
-
-            loop {
-                select! {
-                    request_opt = rx.recv() => {
-                        if let Some(request_opt) = request_opt {
-                            match request_opt {
-                                Some(request) => {
-                                    trace!("A new request is received");
-                                    let prev = prev_utxo.take();
-                                    loop {
-                                        // Build and send tx with retries:
-                                        let fee_sat_per_vbyte = match self.get_fee_rate().await {
-                                            Ok(rate) => rate,
-                                            Err(e) => {
-                                                error!(?e, "Failed to call get_fee_rate. Retrying...");
-                                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                                continue;
-                                            }
-                                        };
-                                        match self
-                                            .send_transaction_with_fee_rate(
-                                                prev.clone(),
-                                                request.da_data.clone(),
-                                                fee_sat_per_vbyte,
-                                            )
-                                            .await
-                                        {
-                                            Ok(tx) => {
-                                                let tx_id = TxidWrapper(tx.id);
-                                                info!(%tx.id, "Sent tx to BitcoinDA");
-                                                prev_utxo = Some(UTXO {
-                                                    tx_id: tx.id,
-                                                    vout: 0,
-                                                    script_pubkey: tx.tx.output[0].script_pubkey.to_hex_string(),
-                                                    address: None,
-                                                    amount: tx.tx.output[0].value.to_sat(),
-                                                    confirmations: 0,
-                                                    spendable: true,
-                                                    solvable: true,
-                                                });
-
-                                                let _ = request.notify.send(Ok(tx_id));
-                                            }
-                                            Err(e) => {
-                                                error!(?e, "Failed to send transaction to DA layer");
-                                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                                continue;
-                                            }
-                                        }
-                                        break;
-                                    }
+                request_opt = rx.recv() => {
+                    if let Some(request) = request_opt {
+                        trace!("A new request is received");
+                        loop {
+                            // Build and send tx with retries:
+                            let fee_sat_per_vbyte = match self.get_fee_rate().await {
+                                Ok(rate) => rate,
+                                Err(e) => {
+                                    error!(?e, "Failed to call get_fee_rate. Retrying...");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    continue;
                                 }
+                            };
+                            match self
+                                .send_transaction_with_fee_rate(
+                                    request.da_data.clone(),
+                                    fee_sat_per_vbyte,
+                                )
+                                .await
+                            {
+                            Ok(txids) => {
+                                let txid = txids.last().unwrap();
+                                let tx_id = TxidWrapper(*txid);
+                                info!(%txid, "Sent tx to BitcoinDA");
+                                let _ = request.notify.send(Ok(tx_id));
 
-                                None => {
-                                    info!("Shutdown signal received. Stopping BitcoinDA queue.");
-                                    break;
+                                if let Err(e) = self.monitoring.monitor_transaction_chain(txids).await {
+                                    error!(?e, "Failed to monitor tx chain");
                                 }
                             }
+                            Err(e) => {
+                                error!(?e, "Failed to send transaction to DA layer");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
+                                }
+                            }
+                            break;
                         }
-                    },
-                    _ = signal::ctrl_c() => {
-                        return;
                     }
                 }
             }
-        });
+        }
     }
 
     /// Retrieves the most recent spendable UTXO from the transaction chain on startup.
-    /// `get_prev_utxo` is called on service startup in `spawn_da_queue`.
-    /// On very first startup, return any most recent UTXO.
-    /// Any subsequent startup would return latest reveal TX first output.
-    /// Sorts by (confirmations - ancestor_count), where lower values indicate more recent transactions.
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_prev_utxo(&self) -> Result<Option<UTXO>, anyhow::Error> {
-        let mut previous_utxos = self
-            .client
-            .list_unspent(Some(0), None, None, Some(true), None)
-            .await?;
+    async fn get_prev_utxo(&self) -> Option<UTXO> {
+        let (txid, tx) = self.monitoring.get_last_tx().await?;
 
-        // Make sure to retain only first utxo to keep utxo chaining logic in line with `spawn_da_queue` inner loop
-        previous_utxos.retain(|u| u.spendable && u.solvable && u.vout == 0);
+        let utxos = tx.to_utxos()?;
 
-        // Sort by (confirmations - ancestor_count)
-        // If any tx in mempool, confirmation would be 0 and ancestor count Some(_), giving us a negative value and prioritising in-mempool TXs
-        // If no tx in mempool, confirmation would be >= 0 and ancestor count None
-        previous_utxos.sort_unstable_by_key(|utxo| {
-            utxo.confirmations as i64 - (utxo.ancestor_count.unwrap_or(0) as i64)
-        });
+        // Check that tx out is still spendable
+        // If not found, utxo is already spent
+        self.client.get_tx_out(&txid, 0, Some(true)).await.ok()??;
 
-        Ok(previous_utxos.into_iter().next().map(|u| u.into()))
+        // Return first vout
+        utxos.into_iter().next()
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_utxos(&self) -> Result<Vec<UTXO>, anyhow::Error> {
+    async fn get_utxos(&self) -> Result<Vec<UTXO>> {
         let utxos = self
             .client
             .list_unspent(Some(0), None, None, None, None)
             .await?;
         if utxos.is_empty() {
-            return Err(anyhow::anyhow!("There are no UTXOs"));
+            bail!("There are no UTXOs");
         }
 
         let utxos: Vec<UTXO> = utxos
@@ -317,56 +303,35 @@ impl BitcoinService {
             .map(Into::into)
             .collect();
         if utxos.is_empty() {
-            return Err(anyhow::anyhow!("There are no spendable UTXOs"));
+            bail!("There are no spendable UTXOs");
         }
 
         Ok(utxos)
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, anyhow::Error> {
-        let mut pending_utxos = self
-            .client
-            .list_unspent(Some(0), Some(0), None, None, None)
-            .await?;
-        // Sorted by ancestor count, the tx with the most ancestors is the latest tx
-        pending_utxos.sort_unstable_by_key(|utxo| -(utxo.ancestor_count.unwrap_or(0) as i64));
-
-        let mut pending_transactions = Vec::new();
-        let mut scanned_txids = HashSet::new();
-
-        for utxo in pending_utxos.iter() {
-            let txid = utxo.txid;
-            // Check if tx is already in the pending transactions vector
-            if scanned_txids.contains(&txid) {
-                continue;
-            }
-
-            let tx = self
-                .client
-                .get_raw_transaction(&txid, None)
-                .await
-                .expect("Transaction should exist with existing utxo");
-            pending_transactions.push(tx);
-            scanned_txids.insert(txid);
-        }
-
-        Ok(pending_transactions)
+    async fn get_pending_transactions(&self) -> Vec<Transaction> {
+        self.monitoring
+            .get_pending_transactions()
+            .await
+            .into_iter()
+            .map(|(_, monitored_tx)| monitored_tx.tx)
+            .collect()
     }
 
     #[instrument(level = "trace", fields(prev_utxo), ret, err)]
     pub async fn send_transaction_with_fee_rate(
         &self,
-        prev_utxo: Option<UTXO>,
         da_data: DaData,
         fee_sat_per_vbyte: u64,
-    ) -> Result<TxWithId, anyhow::Error> {
+    ) -> Result<Vec<Txid>> {
         let network = self.network;
 
         let da_private_key = self.da_private_key.expect("No private key set");
 
         // get all available utxos
         let utxos = self.get_utxos().await?;
+        let prev_utxo = self.get_prev_utxo().await;
 
         // get address from a utxo
         let address = utxos[0]
@@ -456,7 +421,7 @@ impl BitcoinService {
         reveal_chunks: Vec<Transaction>,
         commit: Transaction,
         reveal: TxWithId,
-    ) -> Result<TxWithId> {
+    ) -> Result<Vec<Txid>> {
         debug!("Sending chunked transaction");
         let mut raw_txs = Vec::with_capacity(commit_chunks.len() * 2 + 2);
 
@@ -490,14 +455,14 @@ impl BitcoinService {
             info!("Blob chunk aggregate tx sent. Hash: {last_txid}");
         }
 
-        Ok(reveal)
+        Ok(txids)
     }
 
     pub async fn send_complete_transaction(
         &self,
         commit: Transaction,
         reveal: TxWithId,
-    ) -> Result<TxWithId> {
+    ) -> Result<Vec<Txid>> {
         let signed_raw_commit_tx = self
             .client
             .sign_raw_transaction_with_wallet(&commit, None, None)
@@ -509,7 +474,7 @@ impl BitcoinService {
 
         let txids = self.send_raw_transactions(&raw_txs).await?;
         info!("Blob inscribe tx sent. Hash: {}", txids[1]);
-        Ok(reveal)
+        Ok(txids)
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -552,7 +517,7 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate(&self) -> Result<u64, anyhow::Error> {
+    pub async fn get_fee_rate(&self) -> Result<u64> {
         match self.get_fee_rate_as_sat_vb().await {
             Ok(fee) => Ok(fee),
             Err(e) => {
@@ -568,7 +533,7 @@ impl BitcoinService {
     }
 
     #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64, anyhow::Error> {
+    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64> {
         // If network is regtest or signet, mempool space is not available
         let smart_fee = match get_fee_rate_from_mempool_space(self.network).await {
             Ok(fee_rate) => fee_rate,
@@ -581,6 +546,110 @@ impl BitcoinService {
 
         tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
         Ok(sat_vkb / 1000)
+    }
+
+    /// Bump TX fee via cpfp.
+    /// If txid is None, resolves to the latest TX in chain
+    pub async fn bump_fee_cpfp(
+        &self,
+        txid: Option<Txid>,
+        fee_rate: f64,
+        force: Option<bool>,
+    ) -> Result<Txid> {
+        // Look for input tx or resolve to monitored last_tx
+        let parent_txid = match txid {
+            None => {
+                self.monitoring
+                    .get_last_tx()
+                    .await
+                    .context("No monitored tx")?
+                    .0
+            }
+            Some(txid) => txid,
+        };
+
+        let monitored_tx = self
+            .monitoring
+            .get_monitored_tx(&parent_txid)
+            .await
+            .context("Parent tx not found")?;
+
+        let TxStatus::Pending { .. } = monitored_tx.status else {
+            bail!(
+                "Cannot bump fee for TX with status: {:?}. Transaction must be in mempool",
+                monitored_tx.status
+            )
+        };
+
+        let force = force.unwrap_or_default();
+        match (monitored_tx.kind, force) {
+            (MonitoredTxKind::Commit, false) => {
+                bail!("Trying to bump a commit TX.")
+            }
+            (MonitoredTxKind::Commit, true) => {
+                warn!("Force creating CPFP TX for commit TX {parent_txid}");
+            }
+            _ => debug!("Creating CPFP TX for {parent_txid}"),
+        }
+
+        let Some(utxo) = self.get_prev_utxo().await else {
+            bail!("Cannot bump fee for TX without prev_utxo available")
+        };
+
+        let parent_tx = &monitored_tx.tx;
+        let change_address = utxo
+            .address
+            .clone()
+            .context("Missing address")?
+            .require_network(self.network)
+            .context("Invalid network for address")?;
+
+        let mut outputs = HashMap::new();
+        outputs.insert(change_address.to_string(), parent_tx.output[0].value);
+        let options = WalletCreateFundedPsbtOptions {
+            add_inputs: Some(true),
+            fee_rate: Some(Amount::from_btc(fee_rate / 100_000.0)?), // sat/vB to BTC/kB
+            replaceable: Some(true),
+            ..Default::default()
+        };
+
+        let psbt = self
+            .client
+            .wallet_create_funded_psbt(
+                &[CreateRawTransactionInput {
+                    txid: utxo.tx_id,
+                    vout: utxo.vout,
+                    sequence: Some(Sequence::ENABLE_RBF_NO_LOCKTIME.to_consensus_u32()),
+                }],
+                &outputs,
+                None,
+                Some(options),
+                None,
+            )
+            .await?;
+        let processed = self
+            .client
+            .wallet_process_psbt(&psbt.psbt, Some(true), None, None)
+            .await?;
+
+        let processed = self.client.finalize_psbt(&processed.psbt, None).await?;
+
+        let Some(raw_hex) = processed.hex else {
+            bail!("Couldn't finalize psbt")
+        };
+
+        if let Err(e) = self.client.test_mempool_accept(&[&raw_hex]).await {
+            bail!("Tx not accepted in mempool : {e}");
+        }
+
+        let child_txid = self.client.send_raw_transaction(&raw_hex).await?;
+
+        self.monitoring
+            .monitor_transaction(child_txid, Some(parent_txid), None, MonitoredTxKind::Cpfp)
+            .await?;
+        self.monitoring.set_next_tx(&parent_txid, child_txid).await;
+
+        Ok(child_txid)
     }
 }
 
@@ -603,7 +672,7 @@ impl DaService for BitcoinService {
     // Make an RPC call to the node to get the block at the given height
     // If no such block exists, block until one does.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock> {
         debug!("Getting block at height {}", height);
 
         let block_hash;
@@ -619,10 +688,10 @@ impl DaService for BitcoinService {
                                 continue;
                             } else {
                                 // other error, return message
-                                return Err(anyhow::anyhow!(rpc_err.message));
+                                bail!(rpc_err.message);
                             }
                         }
-                        _ => return Err(anyhow::anyhow!(e)),
+                        _ => bail!(e),
                     }
                 }
             };
@@ -637,9 +706,7 @@ impl DaService for BitcoinService {
 
     // Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_last_finalized_block_header(
-        &self,
-    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+    async fn get_last_finalized_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
         let block_count = self.client.get_block_count().await?;
 
         let finalized_blockhash = self
@@ -654,9 +721,7 @@ impl DaService for BitcoinService {
 
     // Fetch the head block of DA.
     #[instrument(level = "trace", skip(self), err)]
-    async fn get_head_block_header(
-        &self,
-    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+    async fn get_head_block_header(&self) -> Result<<Self::Spec as DaSpec>::BlockHeader> {
         let best_blockhash = self.client.get_best_block_hash().await?;
 
         let head_block_header = self.get_block_by_hash(best_blockhash).await?;
@@ -668,7 +733,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         prover_da_pub_key: &[u8],
-    ) -> anyhow::Result<Vec<Proof>> {
+    ) -> Result<Vec<Proof>> {
         let mut completes = Vec::new();
         let mut aggregate_idxs = Vec::new();
 
@@ -691,11 +756,10 @@ impl DaService for BitcoinService {
                         {
                             // push only when signature is correct
                             let body = decompress_blob(&complete.body);
-                            let data = DaDataLightClient::try_from_slice(&body).map_err(|e| {
-                                anyhow::anyhow!("{}: Failed to parse complete: {e}", tx_id)
-                            })?;
+                            let data = DaDataLightClient::try_from_slice(&body)
+                                .map_err(|e| anyhow!("{}: Failed to parse complete: {e}", tx_id))?;
                             let DaDataLightClient::Complete(zk_proof) = data else {
-                                anyhow::bail!("{}: Complete: unexpected kind", tx_id);
+                                bail!("{}: Complete: unexpected kind", tx_id);
                             };
                             completes.push((i, zk_proof));
                         }
@@ -721,7 +785,7 @@ impl DaService for BitcoinService {
         'aggregate: for (i, tx_id, aggregate) in aggregate_idxs {
             let mut body = Vec::new();
             let data = DaDataLightClient::try_from_slice(&aggregate.body)
-                .map_err(|e| anyhow::anyhow!("{}: Failed to parse aggregate: {e}", tx_id))?;
+                .map_err(|e| anyhow!("{}: Failed to parse aggregate: {e}", tx_id))?;
             let DaDataLightClient::Aggregate(chunk_ids) = data else {
                 error!("{}: Aggregate: unexpected kind", tx_id);
                 continue;
@@ -765,11 +829,10 @@ impl DaService for BitcoinService {
                 };
                 match parsed {
                     ParsedLightClientTransaction::Chunk(part) => {
-                        let data = DaDataLightClient::try_from_slice(&part.body).map_err(|e| {
-                            anyhow::anyhow!("{}: Failed to parse chunk: {e}", tx_id)
-                        })?;
+                        let data = DaDataLightClient::try_from_slice(&part.body)
+                            .map_err(|e| anyhow!("{}: Failed to parse chunk: {e}", tx_id))?;
                         let DaDataLightClient::Chunk(chunk) = data else {
-                            anyhow::bail!("{}: Chunk: unexpected kind", tx_id);
+                            bail!("{}: Chunk: unexpected kind", tx_id);
                         };
                         body.extend(chunk);
                     }
@@ -780,9 +843,8 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let zk_proof: Proof = borsh::from_slice(&body).map_err(|e| {
-                anyhow::anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id)
-            })?;
+            let zk_proof: Proof = borsh::from_slice(&body)
+                .map_err(|e| anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id))?;
             aggregates.push((i, zk_proof));
         }
 
@@ -802,7 +864,7 @@ impl DaService for BitcoinService {
         &self,
         block: &Self::FilteredBlock,
         sequencer_da_pub_key: &[u8],
-    ) -> anyhow::Result<Vec<SequencerCommitment>> {
+    ) -> Result<Vec<SequencerCommitment>> {
         let mut sequencer_commitments = Vec::new();
 
         for tx in &block.txdata {
@@ -955,24 +1017,24 @@ impl DaService for BitcoinService {
     async fn send_transaction(
         &self,
         da_data: DaData,
-    ) -> Result<<Self as DaService>::TransactionId, Self::Error> {
+    ) -> Result<<Self as DaService>::TransactionId> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
-        queue.send(Some(SenderWithNotifier {
+        queue.send(SenderWithNotifier {
             da_data,
             notify: tx,
-        }))?;
+        })?;
         rx.await?
     }
 
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<Option<SenderWithNotifier<Self::TransactionId>>> {
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
         self.inscribes_queue.clone()
     }
 
     #[instrument(level = "trace", skip(self))]
-    async fn get_fee_rate(&self) -> Result<u128, Self::Error> {
+    async fn get_fee_rate(&self) -> Result<u128> {
         let sat_vb_ceil = self.get_fee_rate_as_sat_vb().await? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
@@ -981,10 +1043,7 @@ impl DaService for BitcoinService {
     }
 
     #[instrument(level = "trace", skip(self))]
-    async fn get_block_by_hash(
-        &self,
-        hash: Self::BlockHash,
-    ) -> Result<Self::FilteredBlock, Self::Error> {
+    async fn get_block_by_hash(&self, hash: Self::BlockHash) -> Result<Self::FilteredBlock> {
         debug!("Getting block with hash {:?}", hash);
 
         let block = self.client.get_block_verbose(&hash).await?;
@@ -1019,7 +1078,7 @@ impl DaService for BitcoinService {
         &self,
         sequencer_da_pub_key: &[u8],
     ) -> Vec<SequencerCommitment> {
-        let pending_txs = self.get_pending_transactions().await.unwrap();
+        let pending_txs = self.get_pending_transactions().await;
 
         let mut sequencer_commitments = Vec::new();
 
@@ -1183,6 +1242,7 @@ mod tests {
     use bitcoin::hashes::Hash;
     use bitcoin::secp256k1::Keypair;
     use bitcoin::{BlockHash, CompactTarget};
+    use citrea_common::tasks::manager::TaskManager;
     use sov_rollup_interface::da::{DaNamespace, DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
@@ -1221,6 +1281,7 @@ mod tests {
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
             tx_backup_dir: get_tx_backup_dir(),
+            monitoring: None,
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1242,7 +1303,9 @@ mod tests {
         da_service
     }
 
-    async fn get_service_wrong_namespace() -> Arc<BitcoinService> {
+    async fn get_service_wrong_namespace(
+        task_manager: &mut TaskManager<()>,
+    ) -> Arc<BitcoinService> {
         let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/other".to_string(),
             node_username: "chainway".to_string(),
@@ -1252,6 +1315,7 @@ mod tests {
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
             ),
             tx_backup_dir: get_tx_backup_dir(),
+            monitoring: None,
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1268,13 +1332,14 @@ mod tests {
         .expect("Error initialazing BitcoinService");
 
         let da_service = Arc::new(da_service);
-
-        da_service.clone().spawn_da_queue(rx);
+        task_manager.spawn(|tk| da_service.clone().run_da_queue(rx, tk));
 
         da_service
     }
 
-    async fn get_service_correct_sig_different_public_key() -> Arc<BitcoinService> {
+    async fn get_service_correct_sig_different_public_key(
+        task_manager: &mut TaskManager<()>,
+    ) -> Arc<BitcoinService> {
         let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/other2".to_string(),
             node_username: "chainway".to_string(),
@@ -1284,6 +1349,7 @@ mod tests {
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(), // Test key, safe to publish
             ),
             tx_backup_dir: get_tx_backup_dir(),
+            monitoring: None,
         };
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1301,7 +1367,7 @@ mod tests {
 
         let da_service = Arc::new(da_service);
 
-        da_service.clone().spawn_da_queue(rx);
+        task_manager.spawn(|tk| da_service.clone().run_da_queue(rx, tk));
 
         da_service
     }
@@ -1312,6 +1378,7 @@ mod tests {
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
 
+        let mut task_manager = TaskManager::default();
         let da_service = get_service().await;
 
         da_service
@@ -1357,7 +1424,7 @@ mod tests {
             .expect("Failed to send transaction");
 
         // seq com different namespace
-        get_service_wrong_namespace()
+        get_service_wrong_namespace(&mut task_manager)
             .await
             .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
                 merkle_root: [15; 32],
@@ -1376,7 +1443,7 @@ mod tests {
             .expect("Failed to send transaction");
 
         // seq com incorrect pubkey and sig
-        get_service_correct_sig_different_public_key()
+        get_service_correct_sig_different_public_key(&mut task_manager)
             .await
             .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
                 merkle_root: [15; 32],
@@ -1482,6 +1549,7 @@ mod tests {
                 "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261".to_string(), // Test key, safe to publish
             ),
             tx_backup_dir: get_tx_backup_dir(),
+            monitoring: None,
         };
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();

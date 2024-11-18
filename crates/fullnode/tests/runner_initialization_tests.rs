@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{FullNodeConfig, RollupPublicKeys, RpcConfig, RunnerConfig, StorageConfig};
 use citrea_fullnode::CitreaFullnode;
 use sov_db::ledger_db::LedgerDB;
@@ -129,6 +130,7 @@ fn initialize_runner(
         code_commitments_by_spec,
         fork_manager,
         broadcast::channel(1).0,
+        TaskManager::default(),
     )
     .unwrap()
 }
