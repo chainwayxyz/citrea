@@ -14,10 +14,10 @@ where
     pub ledger: DB,
 }
 
-#[rpc(client, server)]
+#[rpc(client, server, namespace = "lightClientProver")]
 pub trait LightClientProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    #[method(name = "lightClientProver_getLightClientProofByL1Height")]
+    #[method(name = "getLightClientProofByL1Height")]
     async fn get_light_client_proof_by_l1_height(
         &self,
         l1_height: u64,

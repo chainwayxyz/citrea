@@ -56,10 +56,10 @@ where
     pub(crate) phantom_w: PhantomData<fn() -> Witness>,
 }
 
-#[rpc(client, server)]
+#[rpc(client, server, namespace = "batchProver")]
 pub trait BatchProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    #[method(name = "batchProver_generateInput")]
+    #[method(name = "generateInput")]
     async fn generate_input(
         &self,
         l1_height: u64,
@@ -67,7 +67,7 @@ pub trait BatchProverRpc {
     ) -> RpcResult<Vec<ProverInputResponse>>;
 
     /// Manually invoke proving.
-    #[method(name = "batchProver_prove")]
+    #[method(name = "prove")]
     async fn prove(&self, l1_height: u64, group_commitments: Option<bool>) -> RpcResult<()>;
 }
 
