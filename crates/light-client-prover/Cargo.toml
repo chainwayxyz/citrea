@@ -22,10 +22,11 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional 
 
 # 3rd-party deps
 anyhow = { workspace = true, optional = true }
+async-trait = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
-jsonrpsee = { workspace = true, optional = true }
+jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
