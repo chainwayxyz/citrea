@@ -189,7 +189,7 @@ async fn full_node_verify_proof_and_store() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_prover_prove_rpc() {
+async fn test_batch_prover_prove_rpc() {
     // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
@@ -287,7 +287,9 @@ async fn test_prover_prove_rpc() {
     wait_for_l2_block(&full_node_test_client, 5, None).await;
 
     // Trigger proving via the RPC endpoint
-    prover_node_test_client.prover_prove(3, Some(true)).await;
+    prover_node_test_client
+        .batch_prover_prove(3, Some(true))
+        .await;
 
     // wait here until we see from prover's rpc that it finished proving
     wait_for_prover_l1_height(&prover_node_test_client, 4, None)
