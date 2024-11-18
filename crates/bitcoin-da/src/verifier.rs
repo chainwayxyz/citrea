@@ -511,6 +511,7 @@ mod tests {
             )
             .is_ok());
     }
+
     #[test]
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
