@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::da::SequencerCommitment;
 #[cfg(feature = "native")]
 use crate::stf::EventKey;
-use crate::zk::CumulativeStateDiff;
+use crate::zk::{BatchProofInfo, CumulativeStateDiff};
 
 /// A struct containing enough information to uniquely specify single batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -204,6 +204,50 @@ pub struct SequencerCommitmentResponse {
     pub l2_start_block_number: u64,
     /// Hex encoded End L2 block's number
     pub l2_end_block_number: u64,
+}
+
+/// The output of a light client proof
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LightClientProofOutputRpcResponse {
+    /// State root of the node after the light client proof
+    #[serde(with = "hex::serde")]
+    pub state_root: [u8; 32],
+    /// The method id of the light client proof
+    /// This is used to compare the previous light client proof method id with the input (current) method id
+    pub light_client_proof_method_id: [u32; 8],
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    #[serde(with = "hex::serde")]
+    pub da_block_hash: [u8; 32],
+    /// Height of the blockchain
+    pub da_block_height: u64,
+    /// Total work done in the DA blockchain
+    #[serde(with = "hex::serde")]
+    pub da_total_work: [u8; 32],
+    /// Current target bits of DA
+    pub da_current_target_bits: u32,
+    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
+    pub da_epoch_start_time: u32,
+    /// The UNIX timestamps in seconds of the previous 11 blocks
+    pub da_prev_11_timestamps: [u32; 11],
+    /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
+    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    /// Last l2 height the light client proof verifies
+    pub last_l2_height: u64,
+    /// Genesis state root of Citrea
+    #[serde(with = "hex::serde")]
+    pub l2_genesis_state_root: [u8; 32],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+/// The response to a JSON-RPC request for a light client proof
+pub struct LightClientProofResponse {
+    /// The proof
+    pub proof: ProofRpcResponse,
+    /// The output of the light client proof circuit
+    pub light_client_proof_output: LightClientProofOutputRpcResponse,
 }
 
 /// The rpc response of proof by l1 slot height

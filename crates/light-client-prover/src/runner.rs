@@ -20,6 +20,7 @@ use tokio::sync::oneshot;
 use tracing::{error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
+use crate::rpc::{create_rpc_module, RpcContext};
 
 /// Dependencies needed to run the rollup.
 pub struct LightClientProver<S: RollupBlueprint> {
@@ -39,7 +40,7 @@ impl<S: RollupBlueprint> LightClientProver<S> {
 
     /// Only run the rpc.
     pub async fn run_rpc(mut self) -> Result<(), anyhow::Error> {
-        self.runner.start_rpc_server(self.rpc_methods, None).await;
+        self.runner.start_rpc_server(self.rpc_methods, None).await?;
         Ok(())
     }
 
@@ -49,7 +50,7 @@ impl<S: RollupBlueprint> LightClientProver<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await;
+        runner.start_rpc_server(self.rpc_methods, channel).await?;
 
         runner.run().await?;
         Ok(())
@@ -117,15 +118,15 @@ where
         &mut self,
         methods: RpcModule<()>,
         channel: Option<oneshot::Sender<SocketAddr>>,
-    ) {
-        let bind_host = match self.rpc_config.bind_host.parse() {
-            Ok(bind_host) => bind_host,
-            Err(e) => {
-                error!("Failed to parse bind host: {}", e);
-                return;
-            }
-        };
-        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
+    ) -> anyhow::Result<()> {
+        let methods = self.register_rpc_methods(methods)?;
+        let listen_address = SocketAddr::new(
+            self.rpc_config
+                .bind_host
+                .parse()
+                .map_err(|e| anyhow::anyhow!("Failed to parse bind host: {}", e))?,
+            self.rpc_config.bind_port,
+        );
 
         let max_connections = self.rpc_config.max_connections;
         let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
@@ -172,6 +173,7 @@ where
                 }
             }
         });
+        Ok(())
     }
 
     /// Runs the rollup.
@@ -222,6 +224,24 @@ where
         //         }
         //     }
         // }
+    }
+
+    /// Creates a shared RpcContext with all required data.
+    fn create_rpc_context(&self) -> RpcContext<DB> {
+        RpcContext {
+            ledger: self.ledger_db.clone(),
+        }
+    }
+
+    /// Updates the given RpcModule with Prover methods.
+    pub fn register_rpc_methods(
+        &self,
+        mut rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+        let rpc_context = self.create_rpc_context();
+        let rpc = create_rpc_module(rpc_context);
+        rpc_methods.merge(rpc)?;
+        Ok(rpc_methods)
     }
 }
 

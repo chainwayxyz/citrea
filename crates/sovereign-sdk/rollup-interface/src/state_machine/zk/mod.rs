@@ -241,7 +241,7 @@ pub struct BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da: DaSpec> {
 /// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining
 /// This struct is passed as an output to the light client circuit
 /// After that the new circuit will read that info to update the state root if possible
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq, Serialize, Deserialize)]
 pub struct BatchProofInfo {
     /// Initial state root of the batch proof
     pub initial_state_root: [u8; 32],
