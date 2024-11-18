@@ -22,7 +22,7 @@ sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional 
 
 # 3rd-party deps
 anyhow = { workspace = true, optional = true }
-async-trait = { workspace = true, optional = true}
+async-trait = { workspace = true, optional = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
