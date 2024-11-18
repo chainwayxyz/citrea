@@ -115,7 +115,6 @@ impl TestCase for LightClientProvingTest {
             .get_light_client_proof_by_l1_height(batch_proof_l1_height)
             .await?;
         assert!(lcp.is_some());
-        println!("Light client proof generated: {:?}", lcp);
 
         let finalized_height = da.get_finalized_height().await?;
         // Wait for full node to see zkproofs
