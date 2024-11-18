@@ -4,7 +4,7 @@ pub mod da_block_handler;
 #[cfg(feature = "native")]
 pub mod db_migrations;
 #[cfg(feature = "native")]
-mod rpc;
+pub mod rpc;
 #[cfg(feature = "native")]
 pub mod runner;
 #[cfg(test)]

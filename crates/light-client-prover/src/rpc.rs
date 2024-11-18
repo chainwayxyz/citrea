@@ -7,7 +7,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use sov_db::ledger_db::LightClientProverLedgerOps;
 use sov_rollup_interface::rpc::LightClientProofResponse;
 
-pub(crate) struct RpcContext<DB>
+pub struct RpcContext<DB>
 where
     DB: LightClientProverLedgerOps + Clone,
 {
