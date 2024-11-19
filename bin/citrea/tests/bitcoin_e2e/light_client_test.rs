@@ -298,7 +298,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .is_empty());
 
         // Generate another da block so we generate another lcp
-        da.generate(1u64, None).await?;
+        da.generate(1, None).await?;
 
         let last_finalized_height = da.get_finalized_height().await?;
 
