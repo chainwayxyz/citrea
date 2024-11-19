@@ -148,7 +148,7 @@ pub(crate) fn sealed_block_to_block_env(
             .excess_blob_gas
             .or_else(|| {
                 if citrea_spec_id_to_evm_spec_id(
-                    fork_from_block_number(FORKS.to_vec(), sealed_header.number).spec_id,
+                    fork_from_block_number(FORKS, sealed_header.number).spec_id,
                 ) >= SpecId::CANCUN
                 {
                     Some(0)

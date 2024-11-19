@@ -118,7 +118,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
@@ -232,7 +232,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaFullnode::new(
@@ -356,7 +356,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaBatchProver::new(
@@ -446,7 +446,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(FORKS.to_vec(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaLightClientProver::new(

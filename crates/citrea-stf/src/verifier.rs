@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use citrea_primitives::forks::FORKS;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{
@@ -86,7 +85,6 @@ where
                 data.da_block_headers_of_soft_confirmations,
                 data.soft_confirmations,
                 data.preproven_commitments.clone(),
-                FORKS.to_vec(),
             );
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");

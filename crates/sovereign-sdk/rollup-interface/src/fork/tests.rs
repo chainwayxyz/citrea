@@ -6,35 +6,26 @@ use crate::spec::SpecId;
 
 #[test]
 fn test_fork_from_block_number() {
-    let forks = vec![
+    static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
         Fork::new(SpecId::Fork1, 100),
         Fork::new(SpecId::Fork2, 500),
     ];
 
-    assert_eq!(
-        fork_from_block_number(forks.clone(), 5).spec_id,
-        SpecId::Genesis
-    );
-    assert_eq!(
-        fork_from_block_number(forks.clone(), 105).spec_id,
-        SpecId::Fork1
-    );
-    assert_eq!(
-        fork_from_block_number(forks.clone(), 350).spec_id,
-        SpecId::Fork1
-    );
-    assert_eq!(fork_from_block_number(forks, 505).spec_id, SpecId::Fork2);
+    assert_eq!(fork_from_block_number(T_FORKS, 5).spec_id, SpecId::Genesis);
+    assert_eq!(fork_from_block_number(T_FORKS, 105).spec_id, SpecId::Fork1);
+    assert_eq!(fork_from_block_number(T_FORKS, 350).spec_id, SpecId::Fork1);
+    assert_eq!(fork_from_block_number(T_FORKS, 505).spec_id, SpecId::Fork2);
 }
 
 #[test]
 fn test_fork_manager() {
-    let forks = vec![
+    static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
         Fork::new(SpecId::Fork1, 100),
         Fork::new(SpecId::Fork2, 500),
     ];
-    let mut fork_manager = ForkManager::new(forks, 0);
+    let mut fork_manager = ForkManager::new(T_FORKS, 0);
     fork_manager.register_block(5).unwrap();
     assert_eq!(fork_manager.active_fork().spec_id, SpecId::Genesis);
     fork_manager.register_block(100).unwrap();
@@ -47,7 +38,7 @@ fn test_fork_manager() {
 
 #[test]
 fn test_fork_manager_callbacks() {
-    let forks = vec![
+    static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
         Fork::new(SpecId::Fork1, 100),
         Fork::new(SpecId::Fork2, 500),
@@ -63,7 +54,7 @@ fn test_fork_manager_callbacks() {
         }
     }
     let handler = Box::new(Handler {});
-    let mut fork_manager = ForkManager::new(forks, 0);
+    let mut fork_manager = ForkManager::new(T_FORKS, 0);
     fork_manager.register_handler(handler);
     let result = fork_manager.register_block(100);
     assert!(result.is_err());

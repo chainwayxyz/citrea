@@ -733,9 +733,12 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn prover_prove(&self, l1_height: u64, group_commitments: Option<bool>) {
+    pub(crate) async fn batch_prover_prove(&self, l1_height: u64, group_commitments: Option<bool>) {
         self.http_client
-            .request("prover_prove", rpc_params![l1_height, group_commitments])
+            .request(
+                "batchProver_prove",
+                rpc_params![l1_height, group_commitments],
+            )
             .await
             .unwrap()
     }

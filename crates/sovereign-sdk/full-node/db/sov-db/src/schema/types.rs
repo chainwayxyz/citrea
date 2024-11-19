@@ -5,8 +5,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, SoftConfirmationResponse, TxIdentifier,
-    TxResponse, VerifiedBatchProofResponse,
+    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LightClientProofOutputRpcResponse,
+    LightClientProofResponse, SoftConfirmationResponse, TxIdentifier, TxResponse,
+    VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::EventKey;
@@ -101,6 +102,25 @@ pub struct StoredLightClientProofOutput {
     /// L2 genesis state root.
     pub l2_genesis_state_root: [u8; 32],
 }
+
+impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
+    fn from(value: StoredLightClientProofOutput) -> Self {
+        Self {
+            state_root: value.state_root,
+            light_client_proof_method_id: value.light_client_proof_method_id,
+            da_block_hash: value.da_block_hash,
+            da_block_height: value.da_block_height,
+            da_total_work: value.da_total_work,
+            da_current_target_bits: value.da_current_target_bits,
+            da_epoch_start_time: value.da_epoch_start_time,
+            da_prev_11_timestamps: value.da_prev_11_timestamps,
+            unchained_batch_proofs_info: value.unchained_batch_proofs_info,
+            last_l2_height: value.last_l2_height,
+            l2_genesis_state_root: value.l2_genesis_state_root,
+        }
+    }
+}
+
 /// The on-disk format for a light client proof
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProof {
@@ -108,6 +128,17 @@ pub struct StoredLightClientProof {
     pub proof: Proof,
     /// The light client circuit proof output
     pub light_client_proof_output: StoredLightClientProofOutput,
+}
+
+impl From<StoredLightClientProof> for LightClientProofResponse {
+    fn from(value: StoredLightClientProof) -> Self {
+        Self {
+            proof: value.proof,
+            light_client_proof_output: LightClientProofOutputRpcResponse::from(
+                value.light_client_proof_output,
+            ),
+        }
+    }
 }
 
 /// Old version of StoredBatchProofOutput
