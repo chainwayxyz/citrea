@@ -280,11 +280,11 @@ impl TestCase for CpfpFeeBumpingTest {
         let parent_base_fee = reveal_tx.base_fee.unwrap();
         let parent_fee_rate = parent_base_fee as f64 / reveal_tx.vsize as f64;
 
-        // Test commit tx bump warning
+        // Test cpfp not allowed on commit TX
         let reveal_cpfp = sequencer
             .client
             .http_client()
-            .da_bump_transaction_fee_cpfp(reveal_tx.prev_tx, parent_fee_rate * 2.0, None)
+            .da_bump_transaction_fee_cpfp(reveal_tx.prev_txid, parent_fee_rate * 2.0, None)
             .await;
         assert!(reveal_cpfp.is_err());
 
@@ -315,7 +315,7 @@ impl TestCase for CpfpFeeBumpingTest {
         // Assert proper tx ordering
         assert_eq!(
             &txids,
-            &[reveal_tx.prev_tx.unwrap(), *parent_txid, cpfp_txid]
+            &[reveal_tx.prev_txid.unwrap(), *parent_txid, cpfp_txid]
         );
 
         da.generate(FINALITY_DEPTH - 1, None).await?;
@@ -367,6 +367,44 @@ impl TestCase for CpfpFeeBumpingTest {
 
         self.check_cpfp_fee(da, &new_cpfp_txid, parent_txid, target_fee_rate)
             .await?;
+
+        // Test RBF on cpfp
+        let entry = da.get_mempool_entry(&new_cpfp_txid).await?;
+        let new_cpfp_rbf_txid = sequencer
+            .client
+            .http_client()
+            .da_bump_transaction_fee_rbf(Some(new_cpfp_txid), target_fee_rate, None)
+            .await?;
+        let entry_post_rbf = da.get_mempool_entry(&new_cpfp_rbf_txid).await?;
+
+        assert_eq!(entry.vsize, entry_post_rbf.vsize);
+        assert_eq!(entry.weight, entry_post_rbf.weight);
+        assert_eq!(entry.height, entry_post_rbf.height);
+        assert_eq!(entry.descendant_count, entry_post_rbf.descendant_count);
+        assert_eq!(entry.descendant_size, entry_post_rbf.descendant_size);
+        assert_eq!(entry.ancestor_count, entry_post_rbf.ancestor_count);
+        assert_eq!(entry.ancestor_size, entry_post_rbf.ancestor_size);
+        assert_eq!(entry.bip125_replaceable, entry_post_rbf.bip125_replaceable);
+        assert_eq!(entry.depends, entry_post_rbf.depends);
+        assert!(entry.fees.base < entry_post_rbf.fees.base);
+        assert!(entry.fees.modified < entry_post_rbf.fees.modified);
+        assert!(entry.fees.ancestor < entry_post_rbf.fees.ancestor);
+        assert!(entry.fees.descendant < entry_post_rbf.fees.descendant);
+
+        // Assert that previous cpfp TX was evicted from mempool
+        let replaced_entry = da.get_mempool_entry(&new_cpfp_txid).await;
+        assert!(replaced_entry.is_err());
+
+        let status = sequencer
+            .client
+            .http_client()
+            .da_get_tx_status(new_cpfp_txid)
+            .await?;
+
+        assert!(matches!(status, Some(TxStatus::Replaced { .. })));
+        if let Some(TxStatus::Replaced { by_txid }) = status {
+            assert_eq!(by_txid, new_cpfp_rbf_txid);
+        }
 
         da.generate(1, None).await?;
         let hash = da.get_best_block_hash().await?;

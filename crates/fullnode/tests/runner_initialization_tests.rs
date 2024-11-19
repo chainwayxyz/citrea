@@ -53,7 +53,7 @@ fn initialize_runner(
     sov_modules_api::default_context::DefaultContext,
     LedgerDB,
 > {
-    let forks = vec![Fork::new(SpecId::Genesis, 0)];
+    static T_FORKS: &[Fork] = &[Fork::new(SpecId::Genesis, 0)];
     let da_storage_path = storage_path.join("da").to_path_buf();
     let rollup_storage_path = storage_path.join("rollup").to_path_buf();
 
@@ -113,7 +113,7 @@ fn initialize_runner(
     // let vm = MockZkvm::new(MockValidityCond::default());
     // let verifier = MockDaVerifier::default();
 
-    let fork_manager = ForkManager::new(forks, 0);
+    let fork_manager = ForkManager::new(T_FORKS, 0);
 
     let mut code_commitments_by_spec = HashMap::new();
     code_commitments_by_spec.insert(SpecId::Genesis, MockCodeCommitment([1u8; 32]));

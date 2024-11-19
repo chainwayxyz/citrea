@@ -24,6 +24,7 @@ backoff = { workspace = true, optional = true }
 borsh = { workspace = true }
 crypto-bigint = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }
