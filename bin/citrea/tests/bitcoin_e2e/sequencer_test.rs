@@ -64,6 +64,7 @@ async fn basic_sequencer_test() -> Result<()> {
 /// 3. Shutdown sequencer
 /// 4. Create a bunch of L1 blocks.
 /// 5. Start the sequencer.
+///
 /// Each DA block should have a L2 block created for it.
 struct SequencerMissedDaBlocksTest;
 
