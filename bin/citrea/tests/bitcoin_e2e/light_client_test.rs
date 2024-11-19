@@ -206,7 +206,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         let seq_test_client = make_test_client(socket_addr).await.unwrap();
 
-        let mut n_commitments = 4;
+        let n_commitments = 4;
 
         // publish min_soft_confirmations_per_commitment confirmations
         for _ in 0..n_commitments * min_soft_confirmations_per_commitment {
@@ -225,7 +225,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await?;
 
         // Wait for commitment txs to be submitted to DA
-        da.wait_mempool_len(n_commitments * 2, Some(TEN_MINS))
+        da.wait_mempool_len((n_commitments * 2) as usize, Some(TEN_MINS))
             .await
             .unwrap();
 
@@ -248,7 +248,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(commitments.len(), n_commitments);
+        assert_eq!(commitments.len(), n_commitments as usize);
 
         // Ensure that batch proofs is submitted to DA (2x reveal & 2x commit txs)
         da.wait_mempool_len(4, Some(TEN_MINS)).await.unwrap();
