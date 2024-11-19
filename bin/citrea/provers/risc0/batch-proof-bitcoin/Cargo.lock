@@ -652,6 +652,7 @@ dependencies = [
  "crypto-bigint",
  "futures",
  "hex",
+ "itertools 0.13.0",
  "rand",
  "serde",
  "serde_json",

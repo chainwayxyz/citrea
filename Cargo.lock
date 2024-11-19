@@ -1229,6 +1229,7 @@ dependencies = [
  "crypto-bigint",
  "futures",
  "hex",
+ "itertools 0.13.0",
  "jsonrpsee",
  "pin-project",
  "rand 0.8.5",
