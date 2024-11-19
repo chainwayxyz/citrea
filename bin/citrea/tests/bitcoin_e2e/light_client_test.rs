@@ -265,23 +265,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         .unwrap();
         assert_eq!(batch_proofs.len(), 2);
 
-        {
-            // print some debug info about state diff
-            let state_diff = &batch_proofs[0].proof_output.state_diff;
-            let state_diff_size: usize = state_diff
-                .iter()
-                .map(|(k, v)| k.len() + v.as_ref().map(|v| v.len()).unwrap_or_default())
-                .sum();
-            let borshed_state_diff = borsh::to_vec(state_diff).unwrap();
-            let compressed_state_diff =
-                citrea_primitives::compression::compress_blob(&borshed_state_diff);
-            println!(
-                "StateDiff: size {}, compressed {}",
-                state_diff_size,
-                compressed_state_diff.len()
-            );
-        }
-
         // Wait for light client prover to process batch proofs.
         light_client_prover
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
