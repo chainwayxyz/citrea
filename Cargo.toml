@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
   # Citrea
-  "rollup",
+  "bin/citrea",
   "crates/batch-prover",
   "crates/bitcoin-da",
   "crates/citrea-stf",

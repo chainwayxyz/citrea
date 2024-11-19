@@ -1,0 +1,106 @@
+[package]
+name = "citrea"
+version = { workspace = true }
+authors = { workspace = true }
+default-run = "citrea"
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+publish = false
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Citrea deps
+bitcoin-da = { path = "../../crates/bitcoin-da", features = ["native"] }
+citrea-batch-prover = { path = "../../crates/batch-prover" }
+citrea-common = { path = "../../crates/common" }
+citrea-fullnode = { path = "../../crates/fullnode" }
+citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
+citrea-primitives = { path = "../../crates/primitives" }
+citrea-risc0 = { package = "risc0", path = "../../guests/risc0" }
+citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
+citrea-sequencer = { path = "../../crates/sequencer" }
+# citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
+citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
+ethereum-rpc = { path = "../../crates/ethereum-rpc" }
+prover-services = { path = "../../crates/prover-services" }
+sequencer-client = { path = "../../crates/sequencer-client" }
+
+# Sovereign-SDK deps
+soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
+sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
+sov-ledger-rpc = { path = "../../crates/sovereign-sdk/full-node/sov-ledger-rpc", features = ["server"] }
+sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", features = ["native"] }
+sov-modules-api = { path = "../../crates/sovereign-sdk/module-system/sov-modules-api", features = ["native"] }
+sov-modules-rollup-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
+sov-modules-stf-blueprint = { path = "../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
+sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager" }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["native"] }
+sov-state = { path = "../../crates/sovereign-sdk/module-system/sov-state", features = ["native"] }
+sov-stf-runner = { path = "../../crates/sovereign-sdk/full-node/sov-stf-runner", features = ["native"] }
+
+# 3rd-party deps
+alloy-primitives = { workspace = true }
+alloy-sol-types = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+borsh = { workspace = true, features = ["bytes"] }
+clap = { workspace = true }
+hex = { workspace = true, optional = true }
+jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+log-panics = { workspace = true }
+reth-primitives = { workspace = true }
+reth-rpc-types = { workspace = true }
+reth-transaction-pool = { workspace = true }
+secp256k1 = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+citrea-evm = { path = "../../crates/evm", features = ["native"] }
+citrea-primitives = { path = "../../crates/primitives", features = ["testing"] }
+sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
+sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
+
+alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers", "signer-local"] }
+alloy-rlp = { workspace = true }
+bincode = { workspace = true }
+borsh = { workspace = true }
+hex = { workspace = true }
+proptest = { workspace = true }
+reqwest = { workspace = true }
+rs_merkle = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+
+revm = { workspace = true }
+
+log = "0.4.22"
+regex = "1.10"
+rustc_version_runtime = { workspace = true }
+
+# bitcoin-e2e dependencies
+bitcoin.workspace = true
+bitcoincore-rpc.workspace = true
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "53cdf57" }
+
+[build-dependencies]
+sp1-helper = { version = "3.0.0", default-features = false }
+
+[features]
+default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
+
+bench = ["hex"] # "sov-risc0-adapter/bench", "risc0/bench"]
+
+[[bin]]
+name = "citrea"
+path = "src/main.rs"
