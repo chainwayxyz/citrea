@@ -570,7 +570,14 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
-        let keys_size = KEY_KEY_SIZE + KEY_VALUE_SIZE; // key + value
+
+        // If CANCUN is enabled this was not even added in the first place so no need to add it to the diff size
+        let keys_size = if SPEC::enabled(SpecId::CANCUN) {
+            0
+        } else {
+            KEY_VALUE_SIZE + KEY_KEY_SIZE // key + value
+        };
+
         diff_size +=
             slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
         diff_size += keys_size * account.storage_changes.len();
