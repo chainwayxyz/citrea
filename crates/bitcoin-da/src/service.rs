@@ -4,7 +4,6 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -16,10 +15,8 @@ use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
-use bitcoin::{Amount, BlockHash, CompactTarget, Sequence, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::json::{
-    CreateRawTransactionInput, TestMempoolAcceptResult, WalletCreateFundedPsbtOptions,
-};
+use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
+use bitcoincore_rpc::json::TestMempoolAcceptResult;
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -36,6 +33,7 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::fee::{BumpFeeMethod, FeeService};
 use crate::helpers::builders::batch_proof_namespace::{
     create_seqcommitment_transactions, BatchProvingTxs,
 };
@@ -63,9 +61,6 @@ use crate::REVEAL_OUTPUT_AMOUNT;
 
 pub const FINALITY_DEPTH: u64 = 8; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
-
-const MEMPOOL_SPACE_URL: &str = "https://mempool.space/";
-const MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT: &str = "api/v1/fees/recommended";
 
 /// Runtime configuration for the DA service
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -116,6 +111,7 @@ pub struct BitcoinService {
     inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
     tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
+    fee: FeeService,
 }
 
 impl BitcoinService {
@@ -156,7 +152,7 @@ impl BitcoinService {
         }
 
         let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
-
+        let fee = FeeService::new(client.clone(), config.network);
         Ok(Self {
             client,
             network: config.network,
@@ -166,6 +162,7 @@ impl BitcoinService {
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
+            fee,
         })
     }
 
@@ -197,6 +194,7 @@ impl BitcoinService {
         }
 
         let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
+        let fee = FeeService::new(client.clone(), config.network);
 
         Ok(Self {
             client,
@@ -207,6 +205,7 @@ impl BitcoinService {
             inscribes_queue: tx,
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
+            fee,
         })
     }
 
@@ -229,7 +228,7 @@ impl BitcoinService {
                         trace!("A new request is received");
                         loop {
                             // Build and send tx with retries:
-                            let fee_sat_per_vbyte = match self.get_fee_rate().await {
+                            let fee_sat_per_vbyte = match self.fee.get_fee_rate().await {
                                 Ok(rate) => rate,
                                 Err(e) => {
                                     error!(?e, "Failed to call get_fee_rate. Retrying...");
@@ -312,9 +311,10 @@ impl BitcoinService {
     #[instrument(level = "trace", skip_all, ret)]
     async fn get_pending_transactions(&self) -> Vec<Transaction> {
         self.monitoring
-            .get_pending_transactions()
+            .get_monitored_txs()
             .await
             .into_iter()
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::Pending { .. }))
             .map(|(_, monitored_tx)| monitored_tx.tx)
             .collect()
     }
@@ -516,123 +516,56 @@ impl BitcoinService {
         Ok(txids)
     }
 
-    #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate(&self) -> Result<u64> {
-        match self.get_fee_rate_as_sat_vb().await {
-            Ok(fee) => Ok(fee),
-            Err(e) => {
-                if self.network == bitcoin::Network::Regtest
-                    || self.network == bitcoin::Network::Testnet
-                {
-                    Ok(1)
-                } else {
-                    Err(e)
-                }
-            }
-        }
-    }
-
-    #[instrument(level = "trace", skip_all, ret)]
-    pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64> {
-        // If network is regtest or signet, mempool space is not available
-        let smart_fee = match get_fee_rate_from_mempool_space(self.network).await {
-            Ok(fee_rate) => fee_rate,
-            Err(e) => {
-                tracing::error!(?e, "Failed to get fee rate from mempool.space");
-                self.client.estimate_smart_fee(1, None).await?.fee_rate
-            }
-        };
-        let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
-
-        tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
-        Ok(sat_vkb / 1000)
-    }
-
-    /// Bump TX fee via cpfp.
-    /// If txid is None, resolves to the latest TX in chain
-    pub async fn bump_fee_cpfp(
+    pub async fn bump_fee(
         &self,
         txid: Option<Txid>,
         fee_rate: f64,
         force: Option<bool>,
+        method: BumpFeeMethod,
     ) -> Result<Txid> {
         // Look for input tx or resolve to monitored last_tx
-        let parent_txid = match txid {
-            None => {
-                self.monitoring
-                    .get_last_tx()
+        let (txid, tx) = match txid {
+            None => self
+                .monitoring
+                .get_last_tx()
+                .await
+                .context("No monitored tx")?,
+            Some(txid) => {
+                let monitored_tx = self
+                    .monitoring
+                    .get_monitored_tx(&txid)
                     .await
-                    .context("No monitored tx")?
-                    .0
+                    .context("Parent tx not found")?;
+                (txid, monitored_tx)
             }
-            Some(txid) => txid,
         };
 
-        let monitored_tx = self
-            .monitoring
-            .get_monitored_tx(&parent_txid)
-            .await
-            .context("Parent tx not found")?;
-
-        let TxStatus::Pending { .. } = monitored_tx.status else {
+        let TxStatus::Pending { .. } = tx.status else {
             bail!(
-                "Cannot bump fee for TX with status: {:?}. Transaction must be in mempool",
-                monitored_tx.status
+                "Cannot bump fee for TX with status: {:?}. Transaction must be pending",
+                tx.status
             )
         };
-
-        let force = force.unwrap_or_default();
-        match (monitored_tx.kind, force) {
-            (MonitoredTxKind::Commit, false) => {
-                bail!("Trying to bump a commit TX.")
-            }
-            (MonitoredTxKind::Commit, true) => {
-                warn!("Force creating CPFP TX for commit TX {parent_txid}");
-            }
-            _ => debug!("Creating CPFP TX for {parent_txid}"),
-        }
 
         let Some(utxo) = self.get_prev_utxo().await else {
-            bail!("Cannot bump fee for TX without prev_utxo available")
+            bail!("Cannot bump fee without prev_utxo available")
         };
 
-        let parent_tx = &monitored_tx.tx;
-        let change_address = utxo
-            .address
-            .clone()
-            .context("Missing address")?
-            .require_network(self.network)
-            .context("Invalid network for address")?;
+        let funded_psbt = match method {
+            BumpFeeMethod::Cpfp => {
+                self.fee
+                    .bump_fee_cpfp(&tx, &txid, fee_rate, force, utxo)
+                    .await
+            }
+            BumpFeeMethod::Rbf => self.fee.bump_fee_rbf(tx.kind, &txid).await,
+        }?;
 
-        let mut outputs = HashMap::new();
-        outputs.insert(change_address.to_string(), parent_tx.output[0].value);
-        let options = WalletCreateFundedPsbtOptions {
-            add_inputs: Some(true),
-            fee_rate: Some(Amount::from_btc(fee_rate / 100_000.0)?), // sat/vB to BTC/kB
-            replaceable: Some(true),
-            ..Default::default()
-        };
-
-        let psbt = self
+        let wallet_psbt = self
             .client
-            .wallet_create_funded_psbt(
-                &[CreateRawTransactionInput {
-                    txid: utxo.tx_id,
-                    vout: utxo.vout,
-                    sequence: Some(Sequence::ENABLE_RBF_NO_LOCKTIME.to_consensus_u32()),
-                }],
-                &outputs,
-                None,
-                Some(options),
-                None,
-            )
-            .await?;
-        let processed = self
-            .client
-            .wallet_process_psbt(&psbt.psbt, Some(true), None, None)
+            .wallet_process_psbt(&funded_psbt, Some(true), None, None)
             .await?;
 
-        let processed = self.client.finalize_psbt(&processed.psbt, None).await?;
+        let processed = self.client.finalize_psbt(&wallet_psbt.psbt, None).await?;
 
         let Some(raw_hex) = processed.hex else {
             bail!("Couldn't finalize psbt")
@@ -642,14 +575,19 @@ impl BitcoinService {
             bail!("Tx not accepted in mempool : {e}");
         }
 
-        let child_txid = self.client.send_raw_transaction(&raw_hex).await?;
+        let new_txid = self.client.send_raw_transaction(&raw_hex).await?;
 
-        self.monitoring
-            .monitor_transaction(child_txid, Some(parent_txid), None, MonitoredTxKind::Cpfp)
-            .await?;
-        self.monitoring.set_next_tx(&parent_txid, child_txid).await;
+        match method {
+            BumpFeeMethod::Cpfp => {
+                self.monitoring
+                    .monitor_transaction(new_txid, Some(txid), None, MonitoredTxKind::Cpfp)
+                    .await?;
+                self.monitoring.set_next_tx(&txid, new_txid).await;
+            }
+            BumpFeeMethod::Rbf => self.monitoring.replace_txid(txid, new_txid).await?,
+        };
 
-        Ok(child_txid)
+        Ok(new_txid)
     }
 }
 
@@ -1035,7 +973,7 @@ impl DaService for BitcoinService {
 
     #[instrument(level = "trace", skip(self))]
     async fn get_fee_rate(&self) -> Result<u128> {
-        let sat_vb_ceil = self.get_fee_rate_as_sat_vb().await? as u128;
+        let sat_vb_ceil = self.fee.get_fee_rate_as_sat_vb().await? as u128;
 
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
         let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
@@ -1200,36 +1138,6 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
     BitcoinMerkleTree::new(hashes).root()
 }
 
-pub(crate) async fn get_fee_rate_from_mempool_space(
-    network: bitcoin::Network,
-) -> Result<Option<Amount>> {
-    let url = match network {
-        bitcoin::Network::Bitcoin => format!(
-            // Mainnet
-            "{}{}",
-            MEMPOOL_SPACE_URL, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
-        ),
-        bitcoin::Network::Testnet => format!(
-            "{}testnet4/{}",
-            MEMPOOL_SPACE_URL, MEMPOOL_SPACE_RECOMMENDED_FEE_ENDPOINT
-        ),
-        _ => {
-            trace!("Unsupported network for mempool space fee estimation");
-            return Ok(None);
-        }
-    };
-    let fee_rate = reqwest::get(url)
-        .await?
-        .json::<serde_json::Value>()
-        .await?
-        .get("fastestFee")
-        .and_then(|fee| fee.as_u64())
-        .map(|fee| Amount::from_sat(fee * 1000)) // multiply by 1000 to convert to sat/vkb
-        .ok_or(anyhow!("Failed to get fee rate from mempool space"))?;
-
-    Ok(Some(fee_rate))
-}
-
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -1246,7 +1154,7 @@ mod tests {
     use sov_rollup_interface::da::{DaNamespace, DaVerifier, SequencerCommitment};
     use sov_rollup_interface::services::da::{DaService, SlotData};
 
-    use super::{get_fee_rate_from_mempool_space, get_relevant_blobs_from_txs, BitcoinService};
+    use super::{get_relevant_blobs_from_txs, BitcoinService};
     use crate::helpers::parsers::parse_hex_transaction;
     use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
     use crate::service::BitcoinServiceConfig;
@@ -1673,28 +1581,6 @@ mod tests {
             txs.first().unwrap().sender.0,
             da_pubkey,
             "Publickey recovered incorrectly!"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_mempool_space_fee_rate() {
-        let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Bitcoin)
-            .await
-            .unwrap();
-        let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Testnet)
-            .await
-            .unwrap();
-        assert_eq!(
-            None,
-            get_fee_rate_from_mempool_space(bitcoin::Network::Regtest)
-                .await
-                .unwrap()
-        );
-        assert_eq!(
-            None,
-            get_fee_rate_from_mempool_space(bitcoin::Network::Signet)
-                .await
-                .unwrap()
         );
     }
 }

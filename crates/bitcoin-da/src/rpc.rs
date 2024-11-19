@@ -7,6 +7,7 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::fee::BumpFeeMethod;
 use crate::monitoring::{MonitoredTx, TxStatus};
 use crate::service::BitcoinService;
 
@@ -17,8 +18,9 @@ pub struct MonitoredTxResponse {
     pub base_fee: Option<u64>,
     pub initial_broadcast: u64,
     pub initial_height: u64,
-    pub prev_tx: Option<Txid>,
-    pub next_tx: Option<Txid>,
+    pub prev_txid: Option<Txid>,
+    pub next_txid: Option<Txid>,
+    pub status: TxStatus,
 }
 
 impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
@@ -35,8 +37,9 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
             vsize: tx.tx.vsize(),
             initial_broadcast: tx.initial_broadcast,
             initial_height: tx.initial_height,
-            prev_tx: tx.prev_tx,
-            next_tx: tx.next_tx,
+            prev_txid: tx.prev_txid,
+            next_txid: tx.next_txid,
+            status: tx.status,
         }
     }
 }
@@ -45,6 +48,9 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
 pub trait DaRpc {
     #[method(name = "getPendingTransactions")]
     async fn da_get_pending_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
+
+    #[method(name = "getMonitoredTransactions")]
+    async fn da_get_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>>;
 
     #[method(name = "getTxStatus")]
     async fn da_get_tx_status(&self, txid: Txid) -> RpcResult<Option<TxStatus>>;
@@ -59,6 +65,14 @@ pub trait DaRpc {
         fee_rate: f64,
         force: Option<bool>,
     ) -> RpcResult<Txid>;
+
+    #[method(name = "bumpFeeRbf")]
+    async fn da_bump_transaction_fee_rbf(
+        &self,
+        txid: Option<Txid>,
+        fee_rate: f64,
+        force: Option<bool>,
+    ) -> RpcResult<Txid>;
 }
 
 #[async_trait::async_trait]
@@ -67,13 +81,25 @@ impl DaRpcServer for DaRpcServerImpl {
         let txs = self
             .da
             .monitoring
-            .get_pending_transactions()
+            .get_monitored_txs()
             .await
             .into_iter()
+            .filter(|(_, tx)| matches!(tx.status, TxStatus::Pending { .. }))
             .map(Into::into)
             .collect::<Vec<_>>();
 
         Ok(txs)
+    }
+
+    async fn da_get_monitored_transactions(&self) -> RpcResult<Vec<MonitoredTxResponse>> {
+        Ok(self
+            .da
+            .monitoring
+            .get_monitored_txs()
+            .await
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>())
     }
 
     async fn da_get_tx_status(&self, txid: Txid) -> RpcResult<Option<TxStatus>> {
@@ -91,7 +117,25 @@ impl DaRpcServer for DaRpcServerImpl {
         force: Option<bool>,
     ) -> RpcResult<Txid> {
         self.da
-            .bump_fee_cpfp(txid, fee_rate, force)
+            .bump_fee(txid, fee_rate, force, BumpFeeMethod::Cpfp)
+            .await
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}",)),
+                )
+            })
+    }
+
+    async fn da_bump_transaction_fee_rbf(
+        &self,
+        txid: Option<Txid>,
+        fee_rate: f64,
+        force: Option<bool>,
+    ) -> RpcResult<Txid> {
+        self.da
+            .bump_fee(txid, fee_rate, force, BumpFeeMethod::Rbf)
             .await
             .map_err(|e| {
                 ErrorObjectOwned::owned(
