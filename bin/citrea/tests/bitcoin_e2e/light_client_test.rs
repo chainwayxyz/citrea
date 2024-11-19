@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
+    BatchProverConfig, LightClientProverConfig, SequencerConfig, SequencerMempoolConfig,
+    TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::Config;
@@ -165,14 +166,20 @@ impl TestCase for LightClientProvingTestMultipleProofs {
     }
 
     fn sequencer_config() -> SequencerConfig {
-        let mut cfg = SequencerConfig {
+        SequencerConfig {
             min_soft_confirmations_per_commitment: 20,
             da_update_interval_ms: 500,
+            mempool_conf: SequencerMempoolConfig {
+                pending_tx_limit: 100_000,
+                pending_tx_size: 2000,
+                queue_tx_limit: 100_000,
+                queue_tx_size: 200,
+                base_fee_tx_limit: 100_000,
+                base_fee_tx_size: 200,
+                max_account_slots: 1600,
+            },
             ..Default::default()
-        };
-
-        cfg.mempool_conf.max_account_slots = 400;
-        cfg
+        }
     }
 
     fn batch_prover_config() -> BatchProverConfig {
