@@ -206,8 +206,10 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         let seq_test_client = make_test_client(socket_addr).await.unwrap();
 
+        let mut n_commitments = 4;
+
         // publish min_soft_confirmations_per_commitment confirmations
-        for _ in 0..4 * min_soft_confirmations_per_commitment {
+        for _ in 0..n_commitments * min_soft_confirmations_per_commitment {
             // sequencer.client.http_client().eth_send_raw_transaction(data)
             for _ in 0..30 {
                 let address = Address::random();
@@ -219,11 +221,13 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
-            .wait_for_l2_height(4 * min_soft_confirmations_per_commitment, None)
+            .wait_for_l2_height(n_commitments * min_soft_confirmations_per_commitment, None)
             .await?;
 
         // Wait for commitment txs to be submitted to DA
-        da.wait_mempool_len(8, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(n_commitments * 2, Some(TEN_MINS))
+            .await
+            .unwrap();
 
         // Finalize the DA block which contains the commitment txs
         da.generate(FINALITY_DEPTH, None).await.unwrap();
@@ -244,7 +248,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(commitments.len(), 4);
+        assert_eq!(commitments.len(), n_commitments);
 
         // Ensure that batch proofs is submitted to DA (2x reveal & 2x commit txs)
         da.wait_mempool_len(4, Some(TEN_MINS)).await.unwrap();
