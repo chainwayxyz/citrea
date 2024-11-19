@@ -1067,6 +1067,29 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
+        let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
+
+        txs.swap(0, 1);
+
+        assert_eq!(
+            verifier.verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToBatchProver,
+            ),
+            Err(ValidationError::BlobWasTamperedWith)
+        );
+    }
+
+    #[test]
+    fn break_rel_tx_and_completeness_order() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
         let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
 
         txs.swap(0, 1);
@@ -1081,29 +1104,6 @@ mod tests {
                 DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::RelevantTxNotInProof)
-        );
-    }
-
-    #[test]
-    fn break_rel_tx_and_completeness_proof_order() {
-        let verifier = BitcoinVerifier::new(RollupParams {
-            to_batch_proof_prefix: vec![1, 1],
-            to_light_client_prefix: vec![2, 2],
-        });
-
-        let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
-
-        txs.swap(0, 1);
-
-        assert_eq!(
-            verifier.verify_transactions(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-                DaNamespace::ToBatchProver,
-            ),
-            Err(ValidationError::BlobWasTamperedWith)
         );
     }
 
