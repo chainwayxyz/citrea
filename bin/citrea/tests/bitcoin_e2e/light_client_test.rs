@@ -288,6 +288,11 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             batch_proofs[1].proof_output.final_state_root
         );
 
+        assert!(light_client_proof
+            .light_client_proof_output
+            .unchained_batch_proofs_info
+            .is_empty());
+
         // Generate another da block so we generate another lcp
         da.generate(1u64, None).await?;
 
@@ -335,6 +340,11 @@ impl TestCase for LightClientProvingTestMultipleProofs {
                 .light_client_proof_output
                 .l2_genesis_state_root
         );
+
+        assert!(light_client_proof2
+            .light_client_proof_output
+            .unchained_batch_proofs_info
+            .is_empty());
 
         // Let's generate a new batch proof
         // publish min_soft_confirmations_per_commitment confirmations
@@ -434,6 +444,11 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             light_client_proof3.light_client_proof_output.state_root,
             light_client_proof.light_client_proof_output.state_root
         );
+
+        assert!(light_client_proof3
+            .light_client_proof_output
+            .unchained_batch_proofs_info
+            .is_empty());
 
         Ok(())
     }
