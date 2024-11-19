@@ -46,12 +46,15 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 	cargo install --locked cargo-udeps
 	cargo install flaky-finder
 	cargo install --locked cargo-nextest
-	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall --no-confirm cargo-risczero@1.1.2
-	cargo risczero install --version r0.1.79.0-2
+	$(MAKE) install-risc0
 	rustup target add thumbv6m-none-eabi
 	rustup component add llvm-tools-preview
 	$(MAKE) install-sp1
+
+install-risc0:
+	cargo install --version 1.7.0 cargo-binstall
+	cargo binstall --no-confirm cargo-risczero@1.1.3
+	cargo risczero install --version r0.1.81.0
 
 install-sp1: ## Install necessary SP1 toolchain
 	curl -L https://sp1.succinct.xyz | bash

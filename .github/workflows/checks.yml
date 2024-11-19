@@ -184,7 +184,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.79.0
+      - uses: dtolnay/rust-toolchain@1.81.0
         with:
           components: llvm-tools-preview
       - name: Rust Cache
@@ -333,13 +333,13 @@ jobs:
       - name: Install Rust Bare Metal
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           target: thumbv6m-none-eabi
           override: true
       - name: Install Rust WASM
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           target: wasm32-unknown-unknown
           override: true
       - name: cargo install cargo-hack
@@ -365,7 +365,7 @@ jobs:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Toolchain
-        uses: dtolnay/rust-toolchain@1.79.0
+        uses: dtolnay/rust-toolchain@1.81.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
       - name: Install risc0
