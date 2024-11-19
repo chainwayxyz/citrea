@@ -23,7 +23,7 @@ fn main() {
 fn build_sp1_guest() {
     println!("cargo:rerun-if-env-changed=BUILD_SP1_GUEST");
 
-    let bitcoin_program_path = "provers/sp1/batch-prover-bitcoin";
+    let bitcoin_program_path = "guests/sp1/batch-prover-bitcoin";
 
     let build_args = sp1_helper::BuildArgs {
         elf_name: "zkvm-elf".to_string(),
