@@ -90,8 +90,7 @@ impl DaVerifier for BitcoinVerifier {
             .wtxids
             .iter()
             .filter(|wtxid| wtxid.starts_with(prefix));
-        let completeness_iter = completeness_proof.iter();
-        for (wtxid, tx) in relevant_wtxid_iter.zip_eq(completeness_iter) {
+for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
             // ensure completeness proof tx matches the inclusion tx
             if tx.compute_wtxid().as_byte_array() != wtxid {
                 return Err(ValidationError::RelevantTxNotInProof);
