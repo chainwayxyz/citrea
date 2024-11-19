@@ -101,7 +101,7 @@ impl TestCase for BasicProverTest {
         da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
         let finalized_height = da.get_finalized_height().await?;
@@ -239,7 +239,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.generate(FINALITY_DEPTH, None).await?;
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH, None).await?;
 
@@ -408,7 +408,7 @@ impl TestCase for LocalProvingTest {
         }
 
         // Wait for commitment tx to hit mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Make commitment tx into a finalized block
         da.generate(FINALITY_DEPTH, None).await?;
@@ -420,7 +420,7 @@ impl TestCase for LocalProvingTest {
             .await?;
 
         // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Make batch proof tx into a finalized block
         da.generate(FINALITY_DEPTH, None).await?;

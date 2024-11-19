@@ -80,7 +80,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
             .await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH, None).await?;
@@ -155,7 +155,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         // sequencer.client.send_publish_batch_request().await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Generate enough block to finalize
         da.generate(FINALITY_DEPTH, None).await?;
@@ -253,7 +253,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH, None).await?;
@@ -276,7 +276,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH, None).await?;
 

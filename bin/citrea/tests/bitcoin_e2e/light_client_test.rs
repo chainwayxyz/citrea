@@ -77,7 +77,7 @@ impl TestCase for LightClientProvingTest {
             .await?;
 
         // Wait for commitment tx to be submitted to DA
-        da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await.unwrap();
 
         // Finalize the DA block which contains the commitment tx
         da.generate(FINALITY_DEPTH, None).await.unwrap();
@@ -101,7 +101,7 @@ impl TestCase for LightClientProvingTest {
         assert_eq!(commitments.len(), 1);
 
         // Ensure that batch proof is submitted to DA
-        da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await.unwrap();
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH, None).await.unwrap();
