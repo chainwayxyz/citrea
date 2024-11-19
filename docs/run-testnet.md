@@ -8,7 +8,7 @@ curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker-compose
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
 ```sh
-docker-compose -f docker-compose.yml up
+docker-compose -f docker/docker-compose.yml up
 ```
 
 # Run a Citrea Testnet Full Node

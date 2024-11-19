@@ -49,7 +49,7 @@ bitcoind -regtest -txindex=1 -addresstype=bech32m
 Or using docker:
 
 ```sh
-docker compose -f docker-compose.regtest.yml up
+docker compose -f docker/docker-compose.regtest.yml up
 ```
 
 Keep this terminal open.
