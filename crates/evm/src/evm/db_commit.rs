@@ -27,9 +27,13 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 });
             let db_account = DbAccount::new(address);
 
-            // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
-                // TODO find mroe efficient way to clear storage
+                if self.current_spec.is_enabled_in(SpecId::CANCUN) {
+                    // SELFDESTRUCT does not delete any data (including storage keys, code, or the account itself).
+                    continue;
+                }
+
+                // TODO find more efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
 
