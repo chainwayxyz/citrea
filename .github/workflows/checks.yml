@@ -64,7 +64,6 @@ env:
   RUSTFLAGS: -D warnings
   FOUNDRY_PROFILE: ci
   TEST_BITCOIN_DOCKER: "bitcoin/bitcoin:28.0"
-  RUST_LOG: ${{ inputs.RUST_LOG }}
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -194,6 +193,10 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+
+      - name: Setup env
+        if: ${{ github.event.inputs.RUST_LOG != '' }}
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install risc0
@@ -373,6 +376,9 @@ jobs:
         uses: dtolnay/rust-toolchain@1.81.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+      - name: Setup env
+        if: ${{ github.event.inputs.RUST_LOG != '' }}
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
