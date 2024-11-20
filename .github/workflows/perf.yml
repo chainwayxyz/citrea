@@ -36,7 +36,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
