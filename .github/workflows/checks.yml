@@ -398,6 +398,7 @@ jobs:
           CI_TEST_MODE: 1
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
+          RUST_LOG: trace
 
   system-contracts:
     strategy:
