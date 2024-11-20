@@ -1,6 +1,5 @@
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};

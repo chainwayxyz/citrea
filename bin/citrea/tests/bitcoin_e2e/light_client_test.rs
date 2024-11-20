@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
 };
