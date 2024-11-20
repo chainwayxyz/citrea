@@ -19,7 +19,7 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
+citrea-risc0 = { package = "risc0", path = "../../guests/risc0" }
 citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
 # citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }

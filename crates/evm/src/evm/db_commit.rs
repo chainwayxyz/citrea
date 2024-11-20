@@ -79,7 +79,10 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
                 let value = value.present_value();
-                if db_account.storage.get(&key, self.working_set).is_none() {
+                // If cancun is enabled there is no need to add the keys because they will not be deleted
+                if !self.current_spec.is_enabled_in(SpecId::CANCUN)
+                    && db_account.storage.get(&key, self.working_set).is_none()
+                {
                     db_account.keys.push(&key, self.working_set);
                 }
                 db_account.storage.set(&key, &value, self.working_set);

@@ -7,14 +7,14 @@ edition = "2021"
 resolver = "2"
 
 [dependencies]
-bitcoin-da = { path = "../../../../../crates/bitcoin-da", default-features = false }
-citrea-primitives = { path = "../../../../../crates/primitives" }
-citrea-sp1 = { path = "../../../../../crates/sp1", default-features = false }
-citrea-stf = { path = "../../../../../crates/citrea-stf" }
-sov-modules-api = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
-sov-modules-stf-blueprint = { path = "../../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
-sov-rollup-interface = { path = "../../../../../crates/sovereign-sdk/rollup-interface" }
-sov-state = { path = "../../../../../crates/sovereign-sdk/module-system/sov-state" }
+bitcoin-da = { path = "../../../../crates/bitcoin-da", default-features = false }
+citrea-primitives = { path = "../../../../crates/primitives" }
+citrea-sp1 = { path = "../../../../crates/sp1", default-features = false }
+citrea-stf = { path = "../../../../crates/citrea-stf" }
+sov-modules-api = { path = "../../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
+sov-modules-stf-blueprint = { path = "../../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
+sov-rollup-interface = { path = "../../../../crates/sovereign-sdk/rollup-interface" }
+sov-state = { path = "../../../../crates/sovereign-sdk/module-system/sov-state" }
 sp1-zkvm = { version = "3.0.0", default-features = false, features = ["lib"] }
 
 # Have to put this here to enable features for the patch crate even though we don't use this crate explicitly
