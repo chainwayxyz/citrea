@@ -107,7 +107,7 @@ jobs:
 
   check:
     name: check
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
@@ -180,7 +180,7 @@ jobs:
 
   coverage:
     needs: docker-setup
-    runs-on: ubicloud-standard-32
+    runs-on: ubicloud-standard-30
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -353,7 +353,7 @@ jobs:
   nextest:
     needs: docker-setup
     name: nextest
-    runs-on: ubicloud-standard-32
+    runs-on: ubicloud-standard-30
     timeout-minutes: 60
     if: github.event.pull_request.draft == false
     steps:
