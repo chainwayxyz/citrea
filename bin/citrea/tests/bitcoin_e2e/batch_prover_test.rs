@@ -89,7 +89,7 @@ impl TestCase for BasicProverTest {
         };
 
         // Generate confirmed UTXOs
-        da.generate(120, None).await?;
+        da.generate(120).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -98,19 +98,19 @@ impl TestCase for BasicProverTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let proofs = wait_for_zkproofs(
             full_node,
             finalized_height + FINALITY_DEPTH,
@@ -227,7 +227,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
         // Generate 1 FINALIZED DA block.
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(1 + FINALITY_DEPTH).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -236,19 +236,19 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let proofs = wait_for_zkproofs(
             full_node,
             finalized_height + FINALITY_DEPTH,
@@ -308,7 +308,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Wait for the sequencer commitment to be submitted & accepted.
         da.wait_mempool_len(4, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -316,7 +316,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let proofs = wait_for_zkproofs(
             full_node,
@@ -411,7 +411,7 @@ impl TestCase for LocalProvingTest {
         da.wait_mempool_len(1, None).await?;
 
         // Make commitment tx into a finalized block
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         // Wait for batch prover to process the proof
@@ -423,7 +423,7 @@ impl TestCase for LocalProvingTest {
         da.wait_mempool_len(1, None).await?;
 
         // Make batch proof tx into a finalized block
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         // Wait for full node to see zkproofs
