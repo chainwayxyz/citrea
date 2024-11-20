@@ -454,7 +454,7 @@ mod tests {
     use crate::helpers::merkle_tree::BitcoinMerkleTree;
     use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction};
     use crate::helpers::test_utils::{
-        get_blob_with_sender, get_mock_data, get_mock_txs, get_non_segwit_mock_txs,
+        get_blob_with_sender, get_mock_data, get_mock_txs, get_non_segwit_mock_txs, MockData,
     };
     use crate::spec::blob::BlobWithSender;
     use crate::spec::header::HeaderWrapper;
@@ -470,7 +470,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, completeness_proof, txs) = get_mock_data();
+        let (block_header, inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         assert!(verifier
             .verify_transactions(
@@ -629,7 +630,7 @@ mod tests {
 
         let txs: Vec<BlobWithSender> = relevant_txs_indices
             .into_iter()
-            .filter_map(|i| get_blob_with_sender(&block_txs[i]).ok())
+            .filter_map(|i| get_blob_with_sender(&block_txs[i], MockData::BatchProof).ok())
             .collect();
 
         assert_eq!(
@@ -727,7 +728,7 @@ mod tests {
 
         let txs: Vec<BlobWithSender> = relevant_txs_indices
             .into_iter()
-            .filter_map(|i| get_blob_with_sender(&block_txs[i]).ok())
+            .filter_map(|i| get_blob_with_sender(&block_txs[i], MockData::BatchProof).ok())
             .collect();
 
         assert_eq!(
@@ -817,7 +818,7 @@ mod tests {
 
         let txs: Vec<BlobWithSender> = relevant_txs_indices
             .into_iter()
-            .filter_map(|i| get_blob_with_sender(&block_txs[i]).ok())
+            .filter_map(|i| get_blob_with_sender(&block_txs[i], MockData::BatchProof).ok())
             .collect();
 
         assert_eq!(
@@ -840,7 +841,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+        let (block_header, mut inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         assert!(verifier
             .verify_transactions(
@@ -887,7 +889,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+        let (block_header, mut inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         inclusion_proof.wtxids.push([5; 32]);
 
@@ -911,7 +914,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+        let (block_header, mut inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         inclusion_proof.wtxids.pop();
 
@@ -933,7 +937,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+        let (block_header, mut inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         inclusion_proof.wtxids.clear();
 
@@ -954,7 +959,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, mut inclusion_proof, completeness_proof, txs) = get_mock_data();
+        let (block_header, mut inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         inclusion_proof.wtxids.swap(0, 1);
 
@@ -978,7 +984,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
+        let (block_header, inclusion_proof, mut completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         completeness_proof.pop();
 
@@ -1000,7 +1007,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
+        let (block_header, inclusion_proof, mut completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         completeness_proof.clear();
 
@@ -1022,7 +1030,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
+        let (block_header, inclusion_proof, mut completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         completeness_proof.push(get_mock_txs().get(1).unwrap().clone().into());
 
@@ -1043,7 +1052,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
+        let (block_header, inclusion_proof, mut completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
 
         completeness_proof.swap(2, 3);
 
@@ -1066,7 +1076,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::BatchProof);
 
         txs.swap(0, 1);
 
@@ -1089,7 +1100,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
+        let (block_header, inclusion_proof, mut completeness_proof, mut txs) =
+            get_mock_data(MockData::BatchProof);
 
         txs.swap(0, 1);
         completeness_proof.swap(0, 1);
@@ -1113,7 +1125,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::BatchProof);
 
         let new_blob = vec![2; 152];
 
@@ -1137,7 +1150,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::BatchProof);
         let tx1 = &completeness_proof[1];
         let body = {
             let parsed = parse_batch_proof_transaction(tx1).unwrap();
@@ -1165,7 +1179,8 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, completeness_proof, mut txs) = get_mock_data();
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::BatchProof);
 
         txs = vec![txs[0].clone(), txs[1].clone(), txs[2].clone()];
 

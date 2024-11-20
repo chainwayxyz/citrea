@@ -6,13 +6,19 @@ use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, Transaction};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
-use super::parsers::{parse_batch_proof_transaction, ParserError};
+use super::parsers::{parse_batch_proof_transaction, parse_light_client_transaction, ParserError};
 use super::{calculate_sha256, merkle_tree};
 use crate::helpers::parsers::parse_hex_transaction;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
 use crate::verifier::BitcoinVerifier;
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MockData {
+    BatchProof,
+    LightClientProof,
+}
 
 pub(crate) fn get_mock_txs() -> Vec<Transaction> {
     // relevant txs are on 6, 8, 10, 12 indices
@@ -23,14 +29,27 @@ pub(crate) fn get_mock_txs() -> Vec<Transaction> {
         .collect()
 }
 
-pub(crate) fn get_blob_with_sender(tx: &Transaction) -> Result<BlobWithSender, ParserError> {
-    let tx = tx.clone();
-
-    let parsed_transaction = parse_batch_proof_transaction(&tx)?;
-
-    let (blob, public_key) = match parsed_transaction {
-        super::parsers::ParsedBatchProofTransaction::SequencerCommitment(seq_com) => {
-            (seq_com.body, seq_com.public_key)
+pub(crate) fn get_blob_with_sender(
+    tx: &Transaction,
+    ty: MockData,
+) -> Result<BlobWithSender, ParserError> {
+    let (blob, public_key) = match ty {
+        MockData::BatchProof => {
+            let parsed_tx = parse_batch_proof_transaction(tx)?;
+            match parsed_tx {
+                super::parsers::ParsedBatchProofTransaction::SequencerCommitment(seq_com) => {
+                    (seq_com.body, seq_com.public_key)
+                }
+            }
+        }
+        MockData::LightClientProof => {
+            let parsed_tx = parse_light_client_transaction(tx)?;
+            match parsed_tx {
+                super::parsers::ParsedLightClientTransaction::Complete(complete) => {
+                    (complete.body, complete.public_key)
+                }
+                _ => unimplemented!(),
+            }
         }
     };
 
@@ -42,7 +61,9 @@ pub(crate) fn get_blob_with_sender(tx: &Transaction) -> Result<BlobWithSender, P
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) fn get_mock_data() -> (
+pub(crate) fn get_mock_data(
+    ty: MockData,
+) -> (
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::BlockHeader, // block header
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::InclusionMultiProof, // inclusion proof
     <<BitcoinVerifier as DaVerifier>::Spec as DaSpec>::CompletenessProof, // completeness proof
@@ -75,11 +96,14 @@ pub(crate) fn get_mock_data() -> (
 
     let block_txs = get_mock_txs();
 
-    let relevant_txs_indices = [4, 6, 18, 28, 34];
+    let relevant_txs_indices: &[usize] = match ty {
+        MockData::BatchProof => &[4, 6, 18, 28, 34],
+        MockData::LightClientProof => &[], // TODO: add lc mock_txs
+    };
 
     let completeness_proof = relevant_txs_indices
-        .into_iter()
-        .map(|i| block_txs[i].clone())
+        .iter()
+        .map(|i| block_txs[*i].clone())
         .map(Into::into)
         .collect();
 
@@ -103,8 +127,8 @@ pub(crate) fn get_mock_data() -> (
     inclusion_proof.wtxids[0] = [0; 32];
 
     let txs: Vec<BlobWithSender> = relevant_txs_indices
-        .into_iter()
-        .filter_map(|i| get_blob_with_sender(&block_txs[i]).ok())
+        .iter()
+        .filter_map(|i| get_blob_with_sender(&block_txs[*i], ty).ok())
         .collect();
 
     (header, inclusion_proof, completeness_proof, txs)

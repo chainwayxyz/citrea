@@ -1156,7 +1156,7 @@ mod tests {
 
     use super::{get_relevant_blobs_from_txs, BitcoinService};
     use crate::helpers::parsers::parse_hex_transaction;
-    use crate::helpers::test_utils::{get_mock_data, get_mock_txs};
+    use crate::helpers::test_utils::{get_mock_data, get_mock_txs, MockData};
     use crate::service::BitcoinServiceConfig;
     use crate::spec::block::BitcoinBlock;
     use crate::spec::header::HeaderWrapper;
@@ -1391,7 +1391,8 @@ mod tests {
     #[tokio::test]
     async fn extract_relevant_blobs() {
         let da_service = get_service().await;
-        let (header, _inclusion_proof, _completeness_proof, relevant_txs) = get_mock_data();
+        let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
+            get_mock_data(MockData::BatchProof);
 
         let block_txs = get_mock_txs();
         let block_txs = block_txs.into_iter().map(Into::into).collect();
@@ -1415,7 +1416,8 @@ mod tests {
         });
 
         let da_service = get_service().await;
-        let (header, _inclusion_proof, _completeness_proof, _relevant_txs) = get_mock_data();
+        let (header, _inclusion_proof, _completeness_proof, _relevant_txs) =
+            get_mock_data(MockData::BatchProof);
         let block_txs = get_mock_txs();
         let block_txs = block_txs.into_iter().map(Into::into).collect();
 
