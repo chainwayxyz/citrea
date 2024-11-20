@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
 };
@@ -74,7 +73,7 @@ impl TestCase for LightClientProvingTest {
         da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
 
         // Finalize the DA block which contains the commitment tx
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await.unwrap();
 
         let commitment_l1_height = da.get_finalized_height().await.unwrap();
 
@@ -98,7 +97,7 @@ impl TestCase for LightClientProvingTest {
         da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await.unwrap();
 
         let batch_proof_l1_height = da.get_finalized_height().await.unwrap();
 

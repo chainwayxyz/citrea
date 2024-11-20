@@ -1,6 +1,5 @@
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -35,7 +34,7 @@ impl TestCase for BasicSequencerTest {
 
         sequencer.client.send_publish_batch_request().await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         sequencer.client.wait_for_l2_block(1, None).await?;
         let head_batch1 = sequencer
@@ -84,14 +83,14 @@ impl TestCase for SequencerMissedDaBlocksTest {
         let initial_l1_height = da.get_finalized_height().await?;
 
         // Create initial DA blocks
-        da.generate(3, None).await?;
+        da.generate(3).await?;
 
         sequencer.client.send_publish_batch_request().await?;
 
         sequencer.wait_until_stopped().await?;
 
         // Create 10 more DA blocks while the sequencer is down
-        da.generate(10, None).await?;
+        da.generate(10).await?;
 
         // Restart the sequencer
         sequencer.start(None).await?;

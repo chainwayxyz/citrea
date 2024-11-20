@@ -83,7 +83,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         da.wait_mempool_len(1, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -150,7 +150,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         }
 
         // disable this since it's the only difference from other tests??
-        // da.generate(1, None).await?;
+        // da.generate(1).await?;
 
         // sequencer.client.send_publish_batch_request().await?;
 
@@ -158,7 +158,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         da.wait_mempool_len(1, None).await?;
 
         // Generate enough block to finalize
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         full_node
             .wait_for_l2_height(min_soft_confirmations_per_commitment, None)
@@ -224,7 +224,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .wait_for_l2_height(min_soft_confirmations_per_commitment - 1, None)
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let finalized_height = da.get_finalized_height().await?;
@@ -256,7 +256,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.wait_mempool_len(1, None).await?;
 
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let start_l2_block = 1;
@@ -278,7 +278,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(1, None).await?;
         // Include commitment in block and finalize it
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let start_l2_block = end_l2_block + 1;
         let end_l2_block = end_l2_block + 12;
