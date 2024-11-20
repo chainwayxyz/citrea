@@ -170,13 +170,9 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             min_soft_confirmations_per_commitment: 20,
             da_update_interval_ms: 500,
             mempool_conf: SequencerMempoolConfig {
-                pending_tx_limit: 100_000,
                 pending_tx_size: 2000,
-                queue_tx_limit: 100_000,
-                queue_tx_size: 200,
-                base_fee_tx_limit: 100_000,
-                base_fee_tx_size: 200,
-                max_account_slots: 1600,
+                max_account_slots: 2600,
+                ..Default::default()
             },
             ..Default::default()
         }
