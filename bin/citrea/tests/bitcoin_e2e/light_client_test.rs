@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, SequencerConfig, SequencerMempoolConfig,
     TestCaseConfig,
@@ -78,12 +77,12 @@ impl TestCase for LightClientProvingTest {
             .await?;
 
         // Wait for commitment tx to be submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the commitment tx
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await.unwrap();
+        let commitment_l1_height = da.get_finalized_height().await?;
 
         // Wait for batch prover to generate proof for commitment
         batch_prover
@@ -102,12 +101,12 @@ impl TestCase for LightClientProvingTest {
         assert_eq!(commitments.len(), 1);
 
         // Ensure that batch proof is submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await?;
 
-        let batch_proof_l1_height = da.get_finalized_height().await.unwrap();
+        let batch_proof_l1_height = da.get_finalized_height().await?;
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
@@ -207,7 +206,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         let socket_addr = SocketAddr::new(rpc_bind_host.parse().unwrap(), rpc_bind_port);
 
-        let seq_test_client = make_test_client(socket_addr).await.unwrap();
+        let seq_test_client = make_test_client(socket_addr).await?;
 
         let n_commitments = 4;
 
@@ -229,13 +228,12 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         // Wait for commitment txs to be submitted to DA
         da.wait_mempool_len((n_commitments * 2) as usize, Some(TEN_MINS))
-            .await
-            .unwrap();
+            .await?;
 
         // Finalize the DA block which contains the commitment txs
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await.unwrap();
+        let commitment_l1_height = da.get_finalized_height().await?;
 
         // Wait for batch prover to generate proofs for commitments
         batch_prover
@@ -254,10 +252,10 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_eq!(commitments.len(), n_commitments as usize);
 
         // Ensure that batch proofs is submitted to DA (2x reveal & 2x commit txs)
-        da.wait_mempool_len(4, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(4, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height().await?;
         // Wait for the full node to see all process verify and store all batch proofs
         full_node
@@ -268,15 +266,13 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             batch_proof_l1_height,
             Some(Duration::from_secs(30)),
         )
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-            .await
-            .unwrap();
+            .await?;
 
         // Expect light client prover to have generated light client proof
         let lcp = light_client_prover
@@ -301,7 +297,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .is_empty());
 
         // Generate another da block so we generate another lcp
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         let last_finalized_height = da.get_finalized_height().await?;
 
@@ -368,18 +364,17 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await?;
 
         // Wait for commitment tx to be submitted to DA
-        da.wait_mempool_len(2, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the commitment txs
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await?;
 
-        let commitment_l1_height = da.get_finalized_height().await.unwrap();
+        let commitment_l1_height = da.get_finalized_height().await?;
 
         // Wait for batch prover to generate proofs for commitments
         batch_prover
             .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
-            .await
-            .unwrap();
+            .await?;
 
         // Assert that commitments are queryable
         let commitments = batch_prover
@@ -392,10 +387,10 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         assert_eq!(commitments.len(), 1);
 
         // Ensure that batch proofs is submitted to DA (1x reveal & 1x commit txs)
-        da.wait_mempool_len(2, Some(TEN_MINS)).await.unwrap();
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let batch_proof_l1_height = da.get_finalized_height().await?;
         // Wait for the full node to see all process verify and store all batch proofs
         full_node
@@ -406,15 +401,13 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             batch_proof_l1_height,
             Some(Duration::from_secs(30)),
         )
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(batch_proofs.len(), 1);
 
         // Wait for light client prover to process batch proofs.
         light_client_prover
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-            .await
-            .unwrap();
+            .await?;
 
         // Expect light client prover to have generated light client proof
         let lcp3 = light_client_prover

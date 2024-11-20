@@ -45,6 +45,10 @@ on:
         description: 'Custom run name (optional)'
         required: false
         type: string
+      RUST_LOG:
+        description: 'Set RUST_LOG level (optional)'
+        required: false
+        type: string
   merge_group:
     types: ["checks_requested"]
   push:
@@ -189,6 +193,10 @@ jobs:
           components: llvm-tools-preview
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+
+      - name: Setup env
+        if: ${{ github.event.inputs.RUST_LOG != '' }}
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
       - uses: taiki-e/install-action@nextest
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install risc0
@@ -368,6 +376,9 @@ jobs:
         uses: dtolnay/rust-toolchain@1.81.0
       - name: Rust Cache
         uses: ubicloud/rust-cache@v2
+      - name: Setup env
+        if: ${{ github.event.inputs.RUST_LOG != '' }}
+        run: echo "RUST_LOG=${{ github.event.inputs.RUST_LOG }}" >> $GITHUB_ENV
       - name: Install risc0
         uses: ./.github/actions/install-risc0
         with:
