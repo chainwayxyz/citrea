@@ -1490,6 +1490,37 @@ mod tests {
     }
 
     #[tokio::test]
+    // Ignore for now as it is not working due to mock_txs.txt being outdated
+    #[ignore]
+    async fn extract_relevant_zk_proofs() {
+        let da_service = get_service().await;
+
+        let secp = bitcoin::secp256k1::Secp256k1::new();
+        let da_pubkey = Keypair::from_secret_key(&secp, &da_service.da_private_key.unwrap())
+            .public_key()
+            .serialize()
+            .to_vec();
+
+        let (header, _inclusion_proof, _completeness_proof, _relevant_txs) =
+            get_mock_data(MockData::LightClientProof);
+
+        let block_txs = get_mock_txs();
+        let block_txs = block_txs.into_iter().map(Into::into).collect();
+
+        let block = BitcoinBlock {
+            header,
+            txdata: block_txs,
+        };
+
+        let proofs = da_service
+            .extract_relevant_zk_proofs(&block, &da_pubkey)
+            .await
+            .unwrap();
+
+        dbg!(proofs.len());
+    }
+
+    #[tokio::test]
     async fn incorrect_private_key_signature_should_fail() {
         let mut task_manager = TaskManager::default();
 
