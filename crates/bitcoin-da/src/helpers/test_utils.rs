@@ -4,11 +4,12 @@ use bitcoin::block::{Header, Version};
 use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
 use bitcoin::hashes::Hash;
 use bitcoin::{BlockHash, CompactTarget, Transaction};
+use citrea_primitives::compression::decompress_blob;
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
 
+use super::merkle_tree;
 use super::parsers::{parse_batch_proof_transaction, parse_light_client_transaction, ParserError};
-use super::{calculate_sha256, merkle_tree};
-use crate::helpers::parsers::parse_hex_transaction;
+use crate::helpers::parsers::{parse_hex_transaction, VerifyParsed};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
@@ -33,12 +34,15 @@ pub(crate) fn get_blob_with_sender(
     tx: &Transaction,
     ty: MockData,
 ) -> Result<BlobWithSender, ParserError> {
-    let (blob, public_key) = match ty {
+    let (blob, public_key, hash) = match ty {
         MockData::BatchProof => {
             let parsed_tx = parse_batch_proof_transaction(tx)?;
             match parsed_tx {
                 super::parsers::ParsedBatchProofTransaction::SequencerCommitment(seq_com) => {
-                    (seq_com.body, seq_com.public_key)
+                    let hash = seq_com
+                        .get_sig_verified_hash()
+                        .expect("Invalid sighash on commitment");
+                    (seq_com.body, seq_com.public_key, hash)
                 }
             }
         }
@@ -46,18 +50,26 @@ pub(crate) fn get_blob_with_sender(
             let parsed_tx = parse_light_client_transaction(tx)?;
             match parsed_tx {
                 super::parsers::ParsedLightClientTransaction::Complete(complete) => {
-                    (complete.body, complete.public_key)
+                    println!("is complete");
+                    let hash = complete
+                        .get_sig_verified_hash()
+                        .expect("Invalid sighash on complete zk proof");
+                    let blob = decompress_blob(&complete.body);
+                    (blob, complete.public_key, hash)
+                }
+                super::parsers::ParsedLightClientTransaction::Aggregate(aggregate) => {
+                    println!("is aggregate");
+                    let hash = aggregate
+                        .get_sig_verified_hash()
+                        .expect("Invalid sighash on aggregate zk proof");
+                    (aggregate.body, aggregate.public_key, hash)
                 }
                 _ => unimplemented!(),
             }
         }
     };
 
-    Ok(BlobWithSender::new(
-        blob.clone(),
-        public_key,
-        calculate_sha256(&blob),
-    ))
+    Ok(BlobWithSender::new(blob.clone(), public_key, hash))
 }
 
 #[allow(clippy::type_complexity)]
@@ -96,9 +108,17 @@ pub(crate) fn get_mock_data(
 
     let block_txs = get_mock_txs();
 
+    block_txs
+        .iter()
+        .enumerate()
+        .filter(|(_, tx)| tx.compute_wtxid().as_byte_array().starts_with(&[2, 2]))
+        .for_each(|(idx, _)| {
+            println!("{}", idx);
+        });
+
     let relevant_txs_indices: &[usize] = match ty {
         MockData::BatchProof => &[4, 6, 18, 28, 34],
-        MockData::LightClientProof => &[], // TODO: add lc mock_txs
+        MockData::LightClientProof => &[8, 14, 16, 32], // TODO: add lc mock_txs
     };
 
     let completeness_proof = relevant_txs_indices

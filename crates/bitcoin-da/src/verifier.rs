@@ -448,11 +448,15 @@ mod tests {
     use bitcoin::hash_types::{TxMerkleNode, WitnessMerkleNode};
     use bitcoin::hashes::Hash;
     use bitcoin::{BlockHash, CompactTarget, ScriptBuf, Witness};
+    use citrea_primitives::compression::decompress_blob;
     use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 
     use super::BitcoinVerifier;
     use crate::helpers::merkle_tree::BitcoinMerkleTree;
-    use crate::helpers::parsers::{parse_batch_proof_transaction, ParsedBatchProofTransaction};
+    use crate::helpers::parsers::{
+        parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
+        ParsedLightClientTransaction,
+    };
     use crate::helpers::test_utils::{
         get_blob_with_sender, get_mock_data, get_mock_txs, get_non_segwit_mock_txs, MockData,
     };
@@ -464,7 +468,7 @@ mod tests {
     use crate::verifier::{ValidationError, WITNESS_COMMITMENT_PREFIX};
 
     #[test]
-    fn correct() {
+    fn correct_bp() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
@@ -482,6 +486,71 @@ mod tests {
                 DaNamespace::ToBatchProver,
             )
             .is_ok());
+    }
+
+    #[test]
+    fn correct_lcp() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
+        let (block_header, inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::LightClientProof);
+
+        assert!(verifier
+            .verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToLightClientProver,
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn batch_in_light_client_should_fail() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
+        let (block_header, inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::BatchProof);
+
+        assert_eq!(
+            verifier.verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToLightClientProver,
+            ),
+            Err(ValidationError::RelevantTxNotInProof),
+        );
+    }
+
+    #[test]
+    fn light_client_in_batch_should_fail() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
+        let (block_header, inclusion_proof, completeness_proof, txs) =
+            get_mock_data(MockData::LightClientProof);
+
+        assert_eq!(
+            verifier.verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToBatchProver,
+            ),
+            Err(ValidationError::RelevantTxNotInProof),
+        );
     }
 
     #[test]
@@ -1119,7 +1188,7 @@ mod tests {
     }
 
     #[test]
-    fn tamper_rel_tx_content() {
+    fn tamper_rel_tx_content_bp() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
@@ -1144,7 +1213,32 @@ mod tests {
     }
 
     #[test]
-    fn tamper_senders() {
+    fn tamper_rel_tx_content_lcp() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::LightClientProof);
+
+        let new_blob = vec![2; 152];
+
+        txs[1] = BlobWithSender::new(new_blob, txs[1].sender.0.clone(), txs[1].hash);
+        assert_eq!(
+            verifier.verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToLightClientProver,
+            ),
+            Err(ValidationError::BlobContentWasModified)
+        );
+    }
+
+    #[test]
+    fn tamper_senders_bp() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
@@ -1169,6 +1263,69 @@ mod tests {
                 DaNamespace::ToBatchProver,
             ),
             Err(ValidationError::IncorrectSenderInBlob)
+        );
+    }
+
+    #[test]
+    fn tamper_senders_lcp() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::LightClientProof);
+        let tx1 = &completeness_proof[1];
+        let body = {
+            let parsed = parse_light_client_transaction(tx1).unwrap();
+            match parsed {
+                ParsedLightClientTransaction::Complete(complete) => decompress_blob(&complete.body),
+                ParsedLightClientTransaction::Aggregate(aggregate) => aggregate.body,
+                _ => unimplemented!(),
+            }
+        };
+        txs[1] = BlobWithSender::new(body, vec![2; 33], txs[1].hash);
+
+        assert_eq!(
+            verifier.verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToLightClientProver,
+            ),
+            Err(ValidationError::IncorrectSenderInBlob)
+        );
+    }
+
+    #[test]
+    fn compressed_lcp_blob_tx_should_fail() {
+        let verifier = BitcoinVerifier::new(RollupParams {
+            to_batch_proof_prefix: vec![1, 1],
+            to_light_client_prefix: vec![2, 2],
+        });
+
+        let (block_header, inclusion_proof, completeness_proof, mut txs) =
+            get_mock_data(MockData::LightClientProof);
+        let tx0 = &completeness_proof[0];
+        let body = {
+            let parsed = parse_light_client_transaction(tx0).unwrap();
+            match parsed {
+                ParsedLightClientTransaction::Complete(complete) => complete.body, // normally we should decompress the tx body here
+                _ => panic!("Should not select zk proof tx other than complete"),
+            }
+        };
+        txs[1] = BlobWithSender::new(body, txs[1].sender.0.clone(), txs[1].hash);
+
+        assert_eq!(
+            verifier.verify_transactions(
+                &block_header,
+                txs.as_slice(),
+                inclusion_proof,
+                completeness_proof,
+                DaNamespace::ToLightClientProver,
+            ),
+            Err(ValidationError::BlobContentWasModified)
         );
     }
 
