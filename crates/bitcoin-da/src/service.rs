@@ -4,6 +4,7 @@
 use core::result::Result::Ok;
 use core::str::FromStr;
 use core::time::Duration;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -16,7 +17,7 @@ use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
-use bitcoincore_rpc::json::TestMempoolAcceptResult;
+use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
 use bitcoincore_rpc::{Auth, Client, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
@@ -422,32 +423,80 @@ impl BitcoinService {
         commit: Transaction,
         reveal: TxWithId,
     ) -> Result<Vec<Txid>> {
+        assert_eq!(
+            commit_chunks.len(),
+            reveal_chunks.len(),
+            "Chunks commit and reveal length mismatch"
+        );
+
         debug!("Sending chunked transaction");
-        let mut raw_txs = Vec::with_capacity(commit_chunks.len() * 2 + 2);
+
+        let all_tx_map = commit_chunks
+            .iter()
+            .chain(reveal_chunks.iter())
+            .chain([commit.clone(), reveal.tx.clone()].iter())
+            .map(|tx| (tx.compute_txid(), tx.clone()))
+            .collect::<HashMap<_, _>>();
+
+        let mut raw_txs = Vec::with_capacity(all_tx_map.len());
 
         for (commit, reveal) in commit_chunks.into_iter().zip(reveal_chunks) {
+            let mut inputs = vec![];
+
+            for input in commit.input.iter() {
+                if let Some(entry) = all_tx_map.get(&input.previous_output.txid) {
+                    inputs.push(SignRawTransactionInput {
+                        txid: input.previous_output.txid,
+                        vout: input.previous_output.vout,
+                        script_pub_key: entry.output[input.previous_output.vout as usize]
+                            .script_pubkey
+                            .clone(),
+                        redeem_script: None,
+                        amount: Some(entry.output[input.previous_output.vout as usize].value),
+                    });
+                }
+            }
+
             let signed_raw_commit_tx = self
                 .client
-                .sign_raw_transaction_with_wallet(&commit, None, None)
+                .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
                 .await?;
             raw_txs.push(signed_raw_commit_tx.hex);
+
             let serialized_reveal_tx = encode::serialize(&reveal);
             raw_txs.push(serialized_reveal_tx);
         }
 
+        let mut inputs = vec![];
+
+        for input in commit.input.iter() {
+            if let Some(entry) = all_tx_map.get(&input.previous_output.txid) {
+                inputs.push(SignRawTransactionInput {
+                    txid: input.previous_output.txid,
+                    vout: input.previous_output.vout,
+                    script_pub_key: entry.output[input.previous_output.vout as usize]
+                        .script_pubkey
+                        .clone(),
+                    redeem_script: None,
+                    amount: Some(entry.output[input.previous_output.vout as usize].value),
+                });
+            }
+        }
         let signed_raw_commit_tx = self
             .client
-            .sign_raw_transaction_with_wallet(&commit, None, None)
+            .sign_raw_transaction_with_wallet(&commit, Some(inputs.as_slice()), None)
             .await?;
+
         raw_txs.push(signed_raw_commit_tx.hex);
 
         let serialized_reveal_tx = encode::serialize(&reveal.tx);
         raw_txs.push(serialized_reveal_tx);
 
         self.test_mempool_accept(&raw_txs).await?;
+
         let txids = self.send_raw_transactions(&raw_txs).await?;
 
-        for txid in txids[1..txids.len() - 1].iter().step_by(2) {
+        for txid in txids[1..].iter().step_by(2) {
             info!("Blob chunk inscribe tx sent. Hash: {txid}");
         }
 
@@ -781,7 +830,7 @@ impl DaService for BitcoinService {
                     }
                 }
             }
-            let zk_proof: Proof = borsh::from_slice(&body)
+            let zk_proof: Proof = borsh::from_slice(decompress_blob(&body).as_slice())
                 .map_err(|e| anyhow!("{}: Failed to parse Proof from Aggregate: {e}", tx_id))?;
             aggregates.push((i, zk_proof));
         }
