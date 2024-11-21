@@ -108,7 +108,7 @@ pub(crate) fn get_mock_data(
 
     let relevant_txs_indices: &[usize] = match ty {
         MockData::BatchProof => &[4, 6, 18, 28, 34],
-        MockData::LightClientProof => &[8, 14, 16, 32], // TODO: add lc mock_txs
+        MockData::LightClientProof => &[8, 14, 16, 32],
     };
 
     let completeness_proof = relevant_txs_indices
