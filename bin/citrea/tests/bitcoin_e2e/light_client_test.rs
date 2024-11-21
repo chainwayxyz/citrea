@@ -212,7 +212,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         // publish min_soft_confirmations_per_commitment confirmations
         for _ in 0..n_commitments * min_soft_confirmations_per_commitment {
-            // sequencer.client.http_client().eth_send_raw_transaction(data)
             for _ in 0..1 {
                 let address = Address::random();
                 let _pending = seq_test_client
@@ -251,7 +250,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .unwrap();
         assert_eq!(commitments.len(), n_commitments as usize);
 
-        // Ensure that batch proofs is submitted to DA (2x reveal & 2x commit txs)
+        // Ensure that batch proofs are submitted to DA (2x reveal & 2x commit txs)
         da.wait_mempool_len(4, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
@@ -316,13 +315,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
         // Since there are no batch proofs the state root should be the same as the last one
         let light_client_proof2 = lcp2.unwrap();
-        assert_eq!(
-            light_client_proof2
-                .light_client_proof_output
-                .state_root
-                .to_vec(),
-            batch_proofs[1].proof_output.final_state_root
-        );
         assert_eq!(
             light_client_proof2.light_client_proof_output.state_root,
             light_client_proof.light_client_proof_output.state_root
