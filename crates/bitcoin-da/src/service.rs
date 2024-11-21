@@ -1282,7 +1282,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     /// A test we use to generate some data for the other tests
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
@@ -1387,11 +1387,14 @@ mod tests {
             }))
             .await
             .expect("Failed to send transaction");
-        task_manager.abort();
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_bp() {
+        let mut task_manager = TaskManager::default();
+
         let da_service = get_service(&mut task_manager).await;
 
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
@@ -1409,14 +1412,15 @@ mod tests {
             da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert_eq!(txs, relevant_txs);
-        task_manager.abort();
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_lcp() {
         let mut task_manager = TaskManager::default();
 
-        let da_service = get_service(task_manager).await;
+        let da_service = get_service(&mut task_manager).await;
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
             get_mock_data(MockData::LightClientProof);
 
@@ -1432,6 +1436,8 @@ mod tests {
             da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
 
         assert_eq!(txs, relevant_txs);
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
@@ -1466,12 +1472,15 @@ mod tests {
                 DaNamespace::ToBatchProver
             )
             .is_ok());
-        task_manager.abort();
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof_lcp() {
-        let da_service = get_service().await;
+        let mut task_manager = TaskManager::default();
+
+        let da_service = get_service(&mut task_manager).await;
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
             get_mock_data(MockData::LightClientProof);
 
@@ -1487,13 +1496,17 @@ mod tests {
             da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
 
         assert_eq!(txs, relevant_txs);
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
     // Ignore for now as it is not working due to mock_txs.txt being outdated
     #[ignore]
     async fn extract_relevant_zk_proofs() {
-        let da_service = get_service().await;
+        let mut task_manager = TaskManager::default();
+
+        let da_service = get_service(&mut task_manager).await;
 
         let secp = bitcoin::secp256k1::Secp256k1::new();
         let da_pubkey = Keypair::from_secret_key(&secp, &da_service.da_private_key.unwrap())
@@ -1518,6 +1531,8 @@ mod tests {
             .unwrap();
 
         dbg!(proofs.len());
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
@@ -1612,7 +1627,8 @@ mod tests {
             incorrect_pub_key,
             "Publickey recovered incorrectly!"
         );
-        task_manager.abort();
+
+        task_manager.abort().await;
     }
 
     #[tokio::test]
@@ -1670,6 +1686,6 @@ mod tests {
             "Publickey recovered incorrectly!"
         );
 
-        task_manager.abort();
+        task_manager.abort().await;
     }
 }
