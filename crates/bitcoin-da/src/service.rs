@@ -1179,7 +1179,7 @@ mod tests {
         path.to_str().unwrap().to_string()
     }
 
-    async fn get_service() -> Arc<BitcoinService> {
+    async fn get_service(task_manager: &mut TaskManager<()>) -> Arc<BitcoinService> {
         let runtime_config = BitcoinServiceConfig {
             node_url: "http://localhost:38332/wallet/test".to_string(),
             node_username: "chainway".to_string(),
@@ -1192,7 +1192,7 @@ mod tests {
             monitoring: None,
         };
 
-        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
         let da_service = BitcoinService::new_without_wallet_check(
             runtime_config,
@@ -1206,7 +1206,8 @@ mod tests {
         .expect("Error initialazing BitcoinService");
 
         let da_service = Arc::new(da_service);
-        // da_service.clone().spawn_da_queue(_rx);
+        task_manager.spawn(|tk| da_service.clone().run_da_queue(rx, tk));
+
         #[allow(clippy::let_and_return)]
         da_service
     }
@@ -1281,13 +1282,13 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    // #[ignore]
     /// A test we use to generate some data for the other tests
     async fn send_transaction() {
         use sov_rollup_interface::da::DaData;
 
         let mut task_manager = TaskManager::default();
-        let da_service = get_service().await;
+        let da_service = get_service(&mut task_manager).await;
 
         da_service
             .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
@@ -1386,11 +1387,13 @@ mod tests {
             }))
             .await
             .expect("Failed to send transaction");
+        task_manager.abort();
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_bp() {
-        let da_service = get_service().await;
+        let da_service = get_service(&mut task_manager).await;
+
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
             get_mock_data(MockData::BatchProof);
 
@@ -1406,11 +1409,14 @@ mod tests {
             da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
 
         assert_eq!(txs, relevant_txs);
+        task_manager.abort();
     }
 
     #[tokio::test]
     async fn extract_relevant_blobs_lcp() {
-        let da_service = get_service().await;
+        let mut task_manager = TaskManager::default();
+
+        let da_service = get_service(task_manager).await;
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
             get_mock_data(MockData::LightClientProof);
 
@@ -1430,12 +1436,14 @@ mod tests {
 
     #[tokio::test]
     async fn extract_relevant_blobs_with_proof_bp() {
+        let mut task_manager = TaskManager::default();
+
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
         });
 
-        let da_service = get_service().await;
+        let da_service = get_service(&mut task_manager).await;
         let (header, _inclusion_proof, _completeness_proof, _relevant_txs) =
             get_mock_data(MockData::BatchProof);
         let block_txs = get_mock_txs();
@@ -1458,6 +1466,7 @@ mod tests {
                 DaNamespace::ToBatchProver
             )
             .is_ok());
+        task_manager.abort();
     }
 
     #[tokio::test]
@@ -1482,8 +1491,10 @@ mod tests {
 
     #[tokio::test]
     async fn incorrect_private_key_signature_should_fail() {
+        let mut task_manager = TaskManager::default();
+
         // The transaction was sent with this service and the tx data is stored in false_signature_txs.txt
-        let da_service = get_service().await;
+        let da_service = get_service(&mut task_manager).await;
         let secp = bitcoin::secp256k1::Secp256k1::new();
         let da_pubkey = Keypair::from_secret_key(&secp, &da_service.da_private_key.unwrap())
             .public_key()
@@ -1570,11 +1581,14 @@ mod tests {
             incorrect_pub_key,
             "Publickey recovered incorrectly!"
         );
+        task_manager.abort();
     }
 
     #[tokio::test]
     async fn check_signature() {
-        let da_service = get_service().await;
+        let mut task_manager = TaskManager::default();
+
+        let da_service = get_service(&mut task_manager).await;
         let secp = bitcoin::secp256k1::Secp256k1::new();
         let da_pubkey = Keypair::from_secret_key(&secp, &da_service.da_private_key.unwrap())
             .public_key()
@@ -1624,5 +1638,7 @@ mod tests {
             da_pubkey,
             "Publickey recovered incorrectly!"
         );
+
+        task_manager.abort();
     }
 }
