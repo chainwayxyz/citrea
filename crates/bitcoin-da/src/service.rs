@@ -435,12 +435,10 @@ impl BitcoinService {
 
         commit_chunks.iter().for_each(|c| {
             all_tx_map.insert(c.compute_txid(), c.clone());
-            ()
         });
 
         reveal_chunks.iter().for_each(|r| {
             all_tx_map.insert(r.compute_txid(), r.clone());
-            ()
         });
 
         all_tx_map.insert(commit.compute_txid(), commit.clone());
