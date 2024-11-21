@@ -62,7 +62,7 @@ impl TestCase for BitcoinReorgTest {
         assert_eq!(mempool1.len(), 0);
 
         // Mine block with the sequencer commitment on the main chain
-        da0.generate(1, None).await?;
+        da0.generate(1).await?;
 
         let original_chain_height = da0.get_block_count().await?;
         let original_chain_hash = da0.get_block_hash(original_chain_height).await?;
@@ -70,7 +70,7 @@ impl TestCase for BitcoinReorgTest {
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
 
         let da1_generated_blocks = 2;
-        da1.generate(da1_generated_blocks, None).await?;
+        da1.generate(da1_generated_blocks).await?;
 
         // Reconnect nodes and wait for sync
         f.bitcoin_nodes.connect_nodes().await?;
@@ -106,13 +106,13 @@ impl TestCase for BitcoinReorgTest {
         let mempool1 = da1.get_raw_mempool().await?;
         assert_eq!(mempool1.len(), 2);
 
-        da1.generate(1, None).await?;
+        da1.generate(1).await?;
         let height = da0.get_block_count().await?;
         let hash = da0.get_block_hash(height).await?;
         let block = da0.get_block(&hash).await?;
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
 
-        da1.generate(FINALITY_DEPTH - 1, None).await?;
+        da1.generate(FINALITY_DEPTH - 1).await?;
         let finalized_height = da1.get_finalized_height().await?;
 
         batch_prover
@@ -182,7 +182,7 @@ impl TestCase for DaMonitoringTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Pending { .. })));
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         sleep(Duration::from_secs(1)).await;
         let tx_status = sequencer
@@ -192,7 +192,7 @@ impl TestCase for DaMonitoringTest {
             .await?;
         assert!(matches!(tx_status, Some(TxStatus::Confirmed { .. })));
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         sleep(Duration::from_secs(1)).await;
         let tx_status = sequencer
@@ -301,7 +301,7 @@ impl TestCase for CpfpFeeBumpingTest {
         self.check_cpfp_fee(da, &cpfp_txid, parent_txid, target_fee_rate)
             .await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
         let hash = da.get_best_block_hash().await?;
         let block = da.get_block(&hash).await?;
 
@@ -318,7 +318,7 @@ impl TestCase for CpfpFeeBumpingTest {
             &[reveal_tx.prev_txid.unwrap(), *parent_txid, cpfp_txid]
         );
 
-        da.generate(FINALITY_DEPTH - 1, None).await?;
+        da.generate(FINALITY_DEPTH - 1).await?;
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
@@ -336,7 +336,7 @@ impl TestCase for CpfpFeeBumpingTest {
 
         // Mine prover tx before re-generating seqcommitments lest it conflicts
         da.wait_mempool_len(2, None).await?;
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         // Generate another seqcommitments to assert that it spends from cpfp output
         for _ in 0..sequencer.min_soft_confirmations_per_commitment() {
@@ -406,7 +406,7 @@ impl TestCase for CpfpFeeBumpingTest {
             assert_eq!(by_txid, new_cpfp_rbf_txid);
         }
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
         let hash = da.get_best_block_hash().await?;
         let block = da.get_block(&hash).await?;
 

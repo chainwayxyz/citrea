@@ -48,7 +48,7 @@ impl TestCase for TestSequencerTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         // Get latest block
         let block = da.get_block(&da.get_best_block_hash().await?).await?;
@@ -78,7 +78,7 @@ impl TestCase for TestSequencerTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         // Get latest block
         let block = da.get_block(&da.get_best_block_hash().await?).await?;
@@ -141,7 +141,7 @@ impl TestSequencerTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         // Get latest block
         let block = da.get_block(&da.get_best_block_hash().await?).await?;
@@ -203,7 +203,7 @@ impl TestSequencerTransactionChaining {
         da.wait_mempool_len(4, None).await?;
 
         // Generate two round of commit/reveal tx pair
-        da.generate(1, None).await?;
+        da.generate(1).await?;
 
         // Get latest block
         let block = da.get_block(&da.get_best_block_hash().await?).await?;
@@ -290,14 +290,14 @@ impl TestCase for TestProverTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
         let block_height = da.get_block_count().await?;
 
         // Get block holding prover txs
@@ -330,14 +330,14 @@ impl TestCase for TestProverTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
         let block_height = da.get_block_count().await?;
 
         // Get block holding prover txs
@@ -372,14 +372,14 @@ impl TestCase for TestProverTransactionChaining {
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        da.generate(1, None).await?;
+        da.generate(1).await?;
         let block_height = da.get_block_count().await?;
 
         // Get block holding prover txs
