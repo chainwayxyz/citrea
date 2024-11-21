@@ -15,7 +15,6 @@ use backoff::ExponentialBackoff;
 use bitcoin::block::Header;
 use bitcoin::consensus::{encode, Decodable};
 use bitcoin::hashes::Hash;
-use bitcoin::psbt::Input;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
@@ -471,9 +470,6 @@ impl BitcoinService {
                 .sign_raw_transaction_with_wallet(commit, Some(inputs.as_slice()), None)
                 .await?;
             raw_txs.push(signed_raw_commit_tx.hex.clone());
-
-            let signed_chunk_commit: Transaction =
-                encode::deserialize(&signed_raw_commit_tx.hex).unwrap();
 
             let reveal = &reveal_chunks[i];
             let serialized_reveal_tx = encode::serialize(reveal);
