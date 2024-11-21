@@ -20,7 +20,7 @@ jobs:
           git fetch origin nightly:nightly
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@v3
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -36,7 +36,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache ethereum-tests
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           key: "eth-tests-1c23e3c"
           path: crates/evm/ethereum-tests
