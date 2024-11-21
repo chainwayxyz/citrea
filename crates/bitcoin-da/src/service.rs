@@ -434,7 +434,7 @@ impl BitcoinService {
         let all_tx_map = commit_chunks
             .iter()
             .chain(reveal_chunks.iter())
-            .chain([commit.clone(), reveal.tx.clone()].iter())
+            .chain([&commit, &reveal.tx].into_iter())
             .map(|tx| (tx.compute_txid(), tx.clone()))
             .collect::<HashMap<_, _>>();
 
