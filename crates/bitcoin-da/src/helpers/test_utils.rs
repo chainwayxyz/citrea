@@ -50,7 +50,6 @@ pub(crate) fn get_blob_with_sender(
             let parsed_tx = parse_light_client_transaction(tx)?;
             match parsed_tx {
                 super::parsers::ParsedLightClientTransaction::Complete(complete) => {
-                    println!("is complete");
                     let hash = complete
                         .get_sig_verified_hash()
                         .expect("Invalid sighash on complete zk proof");
@@ -58,7 +57,6 @@ pub(crate) fn get_blob_with_sender(
                     (blob, complete.public_key, hash)
                 }
                 super::parsers::ParsedLightClientTransaction::Aggregate(aggregate) => {
-                    println!("is aggregate");
                     let hash = aggregate
                         .get_sig_verified_hash()
                         .expect("Invalid sighash on aggregate zk proof");
@@ -107,14 +105,6 @@ pub(crate) fn get_mock_data(
     );
 
     let block_txs = get_mock_txs();
-
-    block_txs
-        .iter()
-        .enumerate()
-        .filter(|(_, tx)| tx.compute_wtxid().as_byte_array().starts_with(&[2, 2]))
-        .for_each(|(idx, _)| {
-            println!("{}", idx);
-        });
 
     let relevant_txs_indices: &[usize] = match ty {
         MockData::BatchProof => &[4, 6, 18, 28, 34],
