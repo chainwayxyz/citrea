@@ -1389,7 +1389,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extract_relevant_blobs() {
+    async fn extract_relevant_blobs_bp() {
         let da_service = get_service().await;
         let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
             get_mock_data(MockData::BatchProof);
@@ -1409,7 +1409,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extract_relevant_blobs_with_proof() {
+    async fn extract_relevant_blobs_lcp() {
+        let da_service = get_service().await;
+        let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
+            get_mock_data(MockData::LightClientProof);
+
+        let block_txs = get_mock_txs();
+        let block_txs = block_txs.into_iter().map(Into::into).collect();
+
+        let block = BitcoinBlock {
+            header,
+            txdata: block_txs,
+        };
+
+        let (txs, _, _) =
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
+
+        assert_eq!(txs, relevant_txs);
+    }
+
+    #[tokio::test]
+    async fn extract_relevant_blobs_with_proof_bp() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
@@ -1438,6 +1458,26 @@ mod tests {
                 DaNamespace::ToBatchProver
             )
             .is_ok());
+    }
+
+    #[tokio::test]
+    async fn extract_relevant_blobs_with_proof_lcp() {
+        let da_service = get_service().await;
+        let (header, _inclusion_proof, _completeness_proof, relevant_txs) =
+            get_mock_data(MockData::LightClientProof);
+
+        let block_txs = get_mock_txs();
+        let block_txs = block_txs.into_iter().map(Into::into).collect();
+
+        let block = BitcoinBlock {
+            header,
+            txdata: block_txs,
+        };
+
+        let (txs, _, _) =
+            da_service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
+
+        assert_eq!(txs, relevant_txs);
     }
 
     #[tokio::test]
