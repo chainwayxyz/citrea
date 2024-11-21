@@ -488,17 +488,19 @@ async fn test_full_node_sync_status() {
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
         LayerStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 20);
-            assert_eq!(syncing.head_block_number, 20);
+            // Da block count is up to 23 after decreasing max txbody size from 39k to 3.9k
+            // We generate 3 commitments and in mock da they cause 3 more da blocks
+            assert!(syncing.synced_block_number > 0 && syncing.synced_block_number < 23);
+            assert_eq!(syncing.head_block_number, 23);
         }
         _ => panic!("Expected syncing status"),
     }
-    wait_for_prover_l1_height(&full_node_test_client, 20, Some(Duration::from_secs(60)))
+    wait_for_prover_l1_height(&full_node_test_client, 23, Some(Duration::from_secs(60)))
         .await
         .unwrap();
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
-        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 20),
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, 23),
         _ => panic!("Expected synced status"),
     }
 
