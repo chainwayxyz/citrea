@@ -59,10 +59,10 @@ where
     pub(crate) phantom_tx: PhantomData<fn() -> Tx>,
 }
 
-#[rpc(client, server)]
-pub trait ProverRpc {
+#[rpc(client, server, namespace = "batchProver")]
+pub trait BatchProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
-    #[method(name = "prover_generateInput")]
+    #[method(name = "generateInput")]
     async fn generate_input(
         &self,
         l1_height: u64,
@@ -70,11 +70,11 @@ pub trait ProverRpc {
     ) -> RpcResult<Vec<ProverInputResponse>>;
 
     /// Manually invoke proving.
-    #[method(name = "prover_prove")]
+    #[method(name = "prove")]
     async fn prove(&self, l1_height: u64, group_commitments: Option<bool>) -> RpcResult<()>;
 }
 
-pub struct ProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
+pub struct BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -94,7 +94,7 @@ where
 }
 
 impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
-    ProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
+    BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -118,8 +118,8 @@ where
 }
 
 #[async_trait::async_trait]
-impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx> ProverRpcServer
-    for ProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
+impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx> BatchProverRpcServer
+    for BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -253,7 +253,7 @@ fn serialize_batch_proof_circuit_input<T: BorshSerialize>(item: T) -> Vec<u8> {
 
 pub fn create_rpc_module<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
     rpc_context: RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>,
-) -> jsonrpsee::RpcModule<ProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>>
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -273,7 +273,7 @@ where
         Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned + Send + 'static,
     Tx: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
-    let server = ProverRpcServerImpl::new(rpc_context);
+    let server = BatchProverRpcServerImpl::new(rpc_context);
 
-    ProverRpcServer::into_rpc(server)
+    BatchProverRpcServer::into_rpc(server)
 }

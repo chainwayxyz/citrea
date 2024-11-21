@@ -574,3 +574,129 @@ async fn execute_blocks(
 
     Ok(())
 }
+
+/// Deploy pre-fork contract, activate a fork and then check fetching the contract's code
+/// through RPC to make sure that the actual code is fetched properly pre and post fork.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_offchain_contract_storage() {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "prover", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let sequencer_config = SequencerConfig::default();
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+            None,
+            None,
+            rollup_config,
+            Some(sequencer_config),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let sequencer_client = make_test_client(seq_port).await.unwrap();
+
+    sequencer_client.send_publish_batch_request().await;
+    wait_for_l2_block(&sequencer_client, 1, None).await;
+
+    let (contract_address, contract, runtime_code) = {
+        let contract = SimpleStorageContract::default();
+        let runtime_code = sequencer_client
+            .deploy_contract_call(contract.byte_code(), None)
+            .await
+            .unwrap();
+        let deploy_contract_req = sequencer_client
+            .deploy_contract(contract.byte_code(), None)
+            .await
+            .unwrap();
+        sequencer_client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, contract, runtime_code)
+    };
+
+    {
+        let set_value_req = sequencer_client
+            .contract_transaction(contract_address, contract.set_call_data(42), None)
+            .await;
+        sequencer_client.send_publish_batch_request().await;
+        set_value_req.watch().await.unwrap();
+    }
+
+    let code = sequencer_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+
+    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
+
+    // reach the block at which the fork will be activated
+    for _ in 3..=100 {
+        sequencer_client.send_publish_batch_request().await;
+    }
+
+    // This should access the `code` and copy code over to `offchain_code` in EVM
+    let code = sequencer_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
+
+    // Execute transaction on the contract living in `offchain_code`
+    {
+        let set_value_req = sequencer_client
+            .contract_transaction(contract_address, contract.set_call_data(50), None)
+            .await;
+        sequencer_client.send_publish_batch_request().await;
+        set_value_req.watch().await.unwrap();
+    }
+
+    let code = sequencer_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+    assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
+
+    // Deploy a contract post-fork
+    let (contract_address, contract) = {
+        let contract = SimpleStorageContract::default();
+        let deploy_contract_req = sequencer_client
+            .deploy_contract(contract.byte_code(), None)
+            .await
+            .unwrap();
+        sequencer_client.send_publish_batch_request().await;
+
+        let contract_address = deploy_contract_req
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
+
+        (contract_address, contract)
+    };
+
+    {
+        let set_value_req = sequencer_client
+            .contract_transaction(contract_address, contract.set_call_data(60), None)
+            .await;
+        sequencer_client.send_publish_batch_request().await;
+        set_value_req.watch().await.unwrap();
+    }
+    seq_task.abort();
+}

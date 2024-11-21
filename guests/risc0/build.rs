@@ -52,7 +52,7 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
 
     let use_docker = if std::env::var("REPR_GUEST_BUILD").is_ok() {
         let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
-        let root_dir = format!("{this_package_dir}/../../../../");
+        let root_dir = format!("{this_package_dir}/../../");
         Some(DockerOptions {
             root_dir: Some(root_dir.into()),
         })

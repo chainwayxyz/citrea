@@ -19,7 +19,7 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-risc0 = { package = "risc0", path = "./provers/risc0" }
+citrea-risc0 = { package = "risc0", path = "../../guests/risc0" }
 citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
 citrea-sequencer = { path = "../../crates/sequencer" }
 # citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
@@ -58,11 +58,13 @@ secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
 citrea-evm = { path = "../../crates/evm", features = ["native"] }
+citrea-primitives = { path = "../../crates/primitives", features = ["testing"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
@@ -89,7 +91,7 @@ rustc_version_runtime = { workspace = true }
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 bitcoincore-rpc.workspace = true
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "5b3e127" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "5baaef3" }
 
 [build-dependencies]
 sp1-helper = { version = "3.0.0", default-features = false }

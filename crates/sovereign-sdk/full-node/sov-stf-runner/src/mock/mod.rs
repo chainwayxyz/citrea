@@ -4,7 +4,6 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::SoftConfirmationError;
 use sov_modules_api::transaction::Transaction;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::fork::Fork;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, BatchReceipt, SlotResult, SoftConfirmationResult,
@@ -103,7 +102,6 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
             Vec<sov_modules_api::SignedSoftConfirmation<Self::Transaction>>,
         >,
         _preproven_commitment_indicies: Vec<usize>,
-        _forks: Vec<Fork>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         todo!()
     }

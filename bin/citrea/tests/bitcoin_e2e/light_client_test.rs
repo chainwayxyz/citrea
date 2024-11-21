@@ -2,15 +2,16 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
-use bitcoincore_rpc::RpcApi;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, SequencerConfig, TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
+use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use sov_ledger_rpc::client::RpcClient;
 
+use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
@@ -24,6 +25,7 @@ impl TestCase for LightClientProvingTest {
             with_sequencer: true,
             with_batch_prover: true,
             with_light_client_prover: true,
+            with_full_node: true,
             ..Default::default()
         }
     }
@@ -54,6 +56,7 @@ impl TestCase for LightClientProvingTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -70,7 +73,7 @@ impl TestCase for LightClientProvingTest {
         da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
 
         // Finalize the DA block which contains the commitment tx
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await.unwrap();
 
         let commitment_l1_height = da.get_finalized_height().await.unwrap();
 
@@ -94,7 +97,7 @@ impl TestCase for LightClientProvingTest {
         da.wait_mempool_len(1, Some(TEN_MINS)).await.unwrap();
 
         // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH, None).await.unwrap();
+        da.generate(FINALITY_DEPTH).await.unwrap();
 
         let batch_proof_l1_height = da.get_finalized_height().await.unwrap();
 
@@ -103,6 +106,30 @@ impl TestCase for LightClientProvingTest {
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await
             .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+        assert!(lcp.is_some());
+
+        let finalized_height = da.get_finalized_height().await?;
+        // Wait for full node to see zkproofs
+        let batch_proof =
+            wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(7200)))
+                .await
+                .unwrap();
+
+        let light_client_proof = lcp.unwrap();
+        assert_eq!(
+            light_client_proof
+                .light_client_proof_output
+                .state_root
+                .to_vec(),
+            batch_proof[0].proof_output.final_state_root
+        );
 
         Ok(())
     }

@@ -59,7 +59,7 @@ impl From<MockHash> for [u8; 32] {
 impl std::hash::Hash for MockHash {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.0);
-        state.finish();
+        let _ = state.finish();
     }
 }
 

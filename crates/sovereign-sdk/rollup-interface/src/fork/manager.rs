@@ -5,25 +5,20 @@ use alloc::vec::Vec;
 use super::{Fork, ForkMigration};
 
 pub struct ForkManager {
-    forks: Vec<Fork>,
+    forks: &'static [Fork],
     active_fork_idx: usize,
     migration_handlers: Vec<Box<dyn ForkMigration + Sync + Send>>,
 }
 
 impl ForkManager {
-    pub fn new(mut forks: Vec<Fork>, current_l2_height: u64) -> Self {
-        // Make sure the list of specs is sorted by the block number at which they activate.
-        forks.sort_by_key(|fork| fork.activation_height);
+    pub fn new(forks: &'static [Fork], current_l2_height: u64) -> Self {
+        // FORKS from citrea-primitives are checked at compile time to be sorted.
 
-        // TODO: binary search here and assume forks is always sorted
-        let mut active_fork_idx = 0;
-        for (idx, fork) in forks.iter().enumerate() {
-            if current_l2_height >= fork.activation_height {
-                active_fork_idx = idx;
-            } else {
-                break;
-            }
-        }
+        let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&current_l2_height));
+        let active_fork_idx = match pos {
+            Ok(idx) => idx,
+            Err(idx) => idx.saturating_sub(1),
+        };
 
         Self {
             forks,
@@ -36,8 +31,8 @@ impl ForkManager {
         self.migration_handlers.push(handler);
     }
 
-    pub fn active_fork(&self) -> &Fork {
-        &self.forks[self.active_fork_idx]
+    pub fn active_fork(&self) -> Fork {
+        self.forks[self.active_fork_idx]
     }
 
     pub fn register_block(&mut self, height: u64) -> anyhow::Result<()> {
@@ -71,6 +66,6 @@ impl ForkManager {
 
 /// Simple search for the fork to which a specific block number blongs.
 /// This assumes that the list of forks is sorted by block number in ascending fashion.
-pub fn fork_from_block_number(forks: Vec<Fork>, block_number: u64) -> Fork {
-    ForkManager::new(forks, block_number).active_fork().clone()
+pub fn fork_from_block_number(forks: &'static [Fork], block_number: u64) -> Fork {
+    ForkManager::new(forks, block_number).active_fork()
 }

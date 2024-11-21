@@ -1,8 +1,7 @@
-use std::collections::BTreeSet;
-
 use bitcoin::hashes::Hash;
 use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
+use itertools::Itertools;
 use sov_rollup_interface::da::{
     BlockHeaderTrait, CountedBufReader, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
 };
@@ -82,29 +81,19 @@ impl DaVerifier for BitcoinVerifier {
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
-        let mut inclusion_iter = inclusion_proof.wtxids.iter();
-
         let prefix = match namespace {
             DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
             DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
         };
-        // Check starting bytes tx that parsed correctly is in blobs
-        let mut completeness_tx_hashes = BTreeSet::new();
 
-        for tx in completeness_proof.iter() {
-            let wtxid = tx.compute_wtxid();
-            // make sure it starts with the correct prefix
-            if !wtxid.as_byte_array().starts_with(prefix) {
-                return Err(ValidationError::NonRelevantTxInProof);
-            }
-
-            // make sure completeness txs are ordered same in inclusion proof
-            // this logic always start seaching from the last found index
-            // ordering should be preserved naturally
-            let is_found_in_block =
-                inclusion_iter.any(|wtxid_inc| wtxid_inc == wtxid.as_byte_array());
-            if !is_found_in_block {
-                return Err(ValidationError::RelevantTxNotFoundInBlock);
+        let relevant_wtxid_iter = inclusion_proof
+            .wtxids
+            .iter()
+            .filter(|wtxid| wtxid.starts_with(prefix));
+        for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
+            // ensure completeness proof tx matches the inclusion tx
+            if tx.compute_wtxid().as_byte_array() != wtxid {
+                return Err(ValidationError::RelevantTxNotInProof);
             }
 
             // it must be parsed correctly
@@ -162,29 +151,11 @@ impl DaVerifier for BitcoinVerifier {
                     }
                 }
             }
-
-            completeness_tx_hashes.insert(wtxid.to_byte_array());
         }
 
         // assert no extra txs than the ones in the completeness proof are left
         if blobs_iter.next().is_some() {
             return Err(ValidationError::IncorrectCompletenessProof);
-        }
-
-        // no prefix bytes left behind completeness proof
-        inclusion_proof.wtxids.iter().try_for_each(|wtxid| {
-            if wtxid.starts_with(prefix) {
-                // assert all prefixed transactions are included in completeness proof
-                if !completeness_tx_hashes.remove(wtxid) {
-                    return Err(ValidationError::RelevantTxNotInProof);
-                }
-            }
-            Ok(())
-        })?;
-
-        // assert no other (irrelevant) tx is in completeness proof
-        if !completeness_tx_hashes.is_empty() {
-            return Err(ValidationError::NonRelevantTxInProof);
         }
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
@@ -511,6 +482,7 @@ mod tests {
             )
             .is_ok());
     }
+
     #[test]
     fn test_non_segwit_block() {
         let verifier = BitcoinVerifier::new(RollupParams {
@@ -856,7 +828,7 @@ mod tests {
                 completeness_proof,
                 DaNamespace::ToBatchProver,
             ),
-            Err(ValidationError::NonRelevantTxInProof)
+            Err(ValidationError::RelevantTxNotInProof)
         );
     }
 
@@ -932,6 +904,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "itertools: .zip_eq() reached end of one iterator before the other")]
     fn missing_tx_in_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
@@ -942,19 +915,18 @@ mod tests {
 
         inclusion_proof.wtxids.pop();
 
-        assert_eq!(
-            verifier.verify_transactions(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-                DaNamespace::ToBatchProver,
-            ),
-            Err(ValidationError::RelevantTxNotFoundInBlock)
+        // should panic
+        let _ = verifier.verify_transactions(
+            &block_header,
+            txs.as_slice(),
+            inclusion_proof,
+            completeness_proof,
+            DaNamespace::ToBatchProver,
         );
     }
 
     #[test]
+    #[should_panic(expected = "itertools: .zip_eq() reached end of one iterator before the other")]
     fn empty_inclusion() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
@@ -965,15 +937,13 @@ mod tests {
 
         inclusion_proof.wtxids.clear();
 
-        assert_eq!(
-            verifier.verify_transactions(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-                DaNamespace::ToBatchProver,
-            ),
-            Err(ValidationError::RelevantTxNotFoundInBlock)
+        // should panic
+        let _ = verifier.verify_transactions(
+            &block_header,
+            txs.as_slice(),
+            inclusion_proof,
+            completeness_proof,
+            DaNamespace::ToBatchProver,
         );
     }
 
@@ -1001,6 +971,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "itertools: .zip_eq() reached end of one iterator before the other")]
     fn missing_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
@@ -1011,19 +982,18 @@ mod tests {
 
         completeness_proof.pop();
 
-        assert_eq!(
-            verifier.verify_transactions(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-                DaNamespace::ToBatchProver,
-            ),
-            Err(ValidationError::IncorrectCompletenessProof)
+        // should panic
+        let _ = verifier.verify_transactions(
+            &block_header,
+            txs.as_slice(),
+            inclusion_proof,
+            completeness_proof,
+            DaNamespace::ToBatchProver,
         );
     }
 
     #[test]
+    #[should_panic(expected = "itertools: .zip_eq() reached end of one iterator before the other")]
     fn empty_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
@@ -1034,19 +1004,18 @@ mod tests {
 
         completeness_proof.clear();
 
-        assert_eq!(
-            verifier.verify_transactions(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-                DaNamespace::ToBatchProver,
-            ),
-            Err(ValidationError::IncorrectCompletenessProof)
+        // should panic
+        let _ = verifier.verify_transactions(
+            &block_header,
+            txs.as_slice(),
+            inclusion_proof,
+            completeness_proof,
+            DaNamespace::ToBatchProver,
         );
     }
 
     #[test]
+    #[should_panic(expected = "itertools: .zip_eq() reached end of one iterator before the other")]
     fn non_relevant_tx_in_completeness_proof() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
@@ -1057,15 +1026,13 @@ mod tests {
 
         completeness_proof.push(get_mock_txs().get(1).unwrap().clone().into());
 
-        assert_eq!(
-            verifier.verify_transactions(
-                &block_header,
-                txs.as_slice(),
-                inclusion_proof,
-                completeness_proof,
-                DaNamespace::ToBatchProver,
-            ),
-            Err(ValidationError::NonRelevantTxInProof)
+        // should panic
+        let _ = verifier.verify_transactions(
+            &block_header,
+            txs.as_slice(),
+            inclusion_proof,
+            completeness_proof,
+            DaNamespace::ToBatchProver,
         );
     }
 
@@ -1076,10 +1043,9 @@ mod tests {
             to_light_client_prefix: vec![2, 2],
         });
 
-        let (block_header, inclusion_proof, mut completeness_proof, mut txs) = get_mock_data();
+        let (block_header, inclusion_proof, mut completeness_proof, txs) = get_mock_data();
 
         completeness_proof.swap(2, 3);
-        txs.swap(2, 3);
 
         assert_eq!(
             verifier.verify_transactions(
@@ -1089,7 +1055,7 @@ mod tests {
                 completeness_proof,
                 DaNamespace::ToBatchProver,
             ),
-            Err(ValidationError::RelevantTxNotFoundInBlock)
+            Err(ValidationError::RelevantTxNotInProof)
         );
     }
 
@@ -1117,7 +1083,7 @@ mod tests {
     }
 
     #[test]
-    fn break_rel_tx_and_completeness_proof_order() {
+    fn break_rel_tx_and_completeness_order() {
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: vec![1, 1],
             to_light_client_prefix: vec![2, 2],
@@ -1136,7 +1102,7 @@ mod tests {
                 completeness_proof,
                 DaNamespace::ToBatchProver,
             ),
-            Err(ValidationError::RelevantTxNotFoundInBlock)
+            Err(ValidationError::RelevantTxNotInProof)
         );
     }
 

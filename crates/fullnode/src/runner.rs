@@ -102,6 +102,7 @@ where
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
+        task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -148,7 +149,7 @@ where
             fork_manager,
             soft_confirmation_tx,
             pruning_config: runner_config.pruning_config,
-            task_manager: TaskManager::default(),
+            task_manager,
         })
     }
 

@@ -3,9 +3,9 @@ use std::time::{Duration, Instant};
 
 use anyhow::bail;
 use async_trait::async_trait;
-use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper, FINALITY_DEPTH};
+use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
-use bitcoincore_rpc::RpcApi;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
     BatchProverConfig, ProverGuestRunConfig, SequencerConfig, TestCaseConfig, TestCaseEnv,
 };
@@ -18,8 +18,6 @@ use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
-use sov_rollup_interface::services::da::SenderWithNotifier;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -90,7 +88,7 @@ impl TestCase for BasicProverTest {
         };
 
         // Generate confirmed UTXOs
-        da.generate(120, None).await?;
+        da.generate(120).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -99,19 +97,19 @@ impl TestCase for BasicProverTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let proofs = wait_for_zkproofs(
             full_node,
             finalized_height + FINALITY_DEPTH,
@@ -151,7 +149,7 @@ async fn basic_prover_test() -> Result<()> {
 
 #[derive(Default)]
 struct SkipPreprovenCommitmentsTest {
-    tx: Option<UnboundedSender<Option<SenderWithNotifier<TxidWrapper>>>>,
+    task_manager: TaskManager<()>,
 }
 
 #[async_trait]
@@ -207,10 +205,9 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                 .join("tx_backup_dir")
                 .display()
                 .to_string(),
+            monitoring: Default::default(),
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        // Keep sender for cleanup
-        self.tx = Some(tx.clone());
 
         let bitcoin_da_service = Arc::new(
             BitcoinService::new_with_wallet_check(
@@ -219,15 +216,17 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                     to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
                     to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
-                tx.clone(),
+                tx,
             )
             .await
             .unwrap(),
         );
-        bitcoin_da_service.clone().spawn_da_queue(rx);
+
+        self.task_manager
+            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
         // Generate 1 FINALIZED DA block.
-        da.generate(1 + FINALITY_DEPTH, None).await?;
+        da.generate(1 + FINALITY_DEPTH).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -236,19 +235,19 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             sequencer.client.send_publish_batch_request().await?;
         }
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         // Wait for blob inscribe tx to be in mempool
         da.wait_mempool_len(1, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         prover
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
         let proofs = wait_for_zkproofs(
             full_node,
             finalized_height + FINALITY_DEPTH,
@@ -289,12 +288,10 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .collect();
 
         // Send the same commitment that was already proven.
-        let fee_sat_per_vbyte = bitcoin_da_service.get_fee_rate().await.unwrap();
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                None,
                 DaData::SequencerCommitment(commitments.first().unwrap().clone()),
-                fee_sat_per_vbyte,
+                1,
             )
             .await
             .unwrap();
@@ -310,7 +307,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Wait for the sequencer commitment to be submitted & accepted.
         da.wait_mempool_len(4, None).await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
 
@@ -318,7 +315,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .wait_for_l1_height(finalized_height, Some(Duration::from_secs(300)))
             .await?;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let proofs = wait_for_zkproofs(
             full_node,
@@ -342,10 +339,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     }
 
     async fn cleanup(&self) -> Result<()> {
-        // Send shutdown message to da queue
-        if let Some(tx) = &self.tx {
-            tx.send(None).unwrap();
-        }
+        self.task_manager.abort().await;
         Ok(())
     }
 }
@@ -416,7 +410,7 @@ impl TestCase for LocalProvingTest {
         da.wait_mempool_len(1, None).await?;
 
         // Make commitment tx into a finalized block
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         // Wait for batch prover to process the proof
@@ -428,7 +422,7 @@ impl TestCase for LocalProvingTest {
         da.wait_mempool_len(1, None).await?;
 
         // Make batch proof tx into a finalized block
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await?;
         // Wait for full node to see zkproofs

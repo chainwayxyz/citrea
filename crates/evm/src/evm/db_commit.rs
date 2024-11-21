@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{Address, U256};
-use revm::primitives::SpecId::CANCUN;
-use revm::primitives::{Account, AccountInfo, HashMap};
+use revm::primitives::{Account, AccountInfo, HashMap, SpecId};
 use revm::DatabaseCommit;
 use sov_modules_api::{StateMapAccessor, StateVecAccessor};
 
@@ -28,9 +27,13 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                 });
             let db_account = DbAccount::new(address);
 
-            // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
-                // TODO find mroe efficient way to clear storage
+                if self.current_spec.is_enabled_in(SpecId::CANCUN) {
+                    // SELFDESTRUCT does not delete any data (including storage keys, code, or the account itself).
+                    continue;
+                }
+
+                // TODO find more efficient way to clear storage
                 // https://github.com/chainwayxyz/rollup-modules/issues/4
                 // clear storage
 
@@ -58,7 +61,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                         .is_some();
 
                     if !exists_in_db {
-                        if self.current_spec.is_enabled_in(CANCUN) {
+                        if self.current_spec.is_enabled_in(SpecId::CANCUN) {
                             self.offchain_code.set(
                                 &account_info.code_hash,
                                 code,
@@ -76,7 +79,10 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
                 let value = value.present_value();
-                if db_account.storage.get(&key, self.working_set).is_none() {
+                // If cancun is enabled there is no need to add the keys because they will not be deleted
+                if !self.current_spec.is_enabled_in(SpecId::CANCUN)
+                    && db_account.storage.get(&key, self.working_set).is_none()
+                {
                     db_account.keys.push(&key, self.working_set);
                 }
                 db_account.storage.set(&key, &value, self.working_set);

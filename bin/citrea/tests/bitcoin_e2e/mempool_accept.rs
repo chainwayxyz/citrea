@@ -37,7 +37,7 @@ impl TestCase for MempoolAcceptTest {
             .wait_for_l2_height(min_soft_conf_per_commitment, None)
             .await;
 
-        da.generate(FINALITY_DEPTH, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
 
         // TODO find the right assertions here
         // Should be either 2 or 0

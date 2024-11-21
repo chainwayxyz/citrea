@@ -439,7 +439,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     } = &mut context.evm.inner;
 
     // Get the last journal entry to calculate diff.
-    let journal = journaled_state.journal.last().cloned().unwrap_or(vec![]);
+    let journal = journaled_state.journal.last().into_iter().flatten();
     let state = &journaled_state.state;
 
     #[derive(Default)]
@@ -457,7 +457,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     let from = account_changes.entry(&env.tx.caller).or_default();
     from.account_info_changed = true;
 
-    for entry in &journal {
+    for entry in journal {
         match entry {
             JournalEntry::NonceChange { address } => {
                 let account = account_changes.entry(address).or_default();
@@ -485,7 +485,29 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
                 // So we need to only force the nonce change.
                 account.account_info_changed = true;
             }
-            JournalEntry::AccountDestroyed { address, .. } => {
+            JournalEntry::AccountDestroyed {
+                address,
+                target,
+                was_destroyed,
+                had_balance,
+            } => {
+                // This event is produced only if acc.is_created() || !is_cancun_enabled
+                // State is not changed:
+                // * if we are after Cancun upgrade and
+                // * Selfdestruct account that is created in the same transaction and
+                // * Specify the target is same as selfdestructed account. The balance stays unchanged.
+
+                if *was_destroyed {
+                    // It was already destroyed before in the log, no need to do anything.
+                    continue;
+                }
+
+                if address != target && !had_balance.is_zero() {
+                    // mark changes to the target account
+                    let target = account_changes.entry(target).or_default();
+                    target.account_info_changed = true;
+                }
+
                 let account = account_changes.entry(address).or_default();
                 if account.created {
                     // That's a temporary account.
@@ -514,7 +536,7 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
     }
 
     for (addr, account) in account_changes {
-        if account.destroyed {
+        if account.destroyed && !SPEC::enabled(SpecId::CANCUN) {
             // Each 'delete' key produces a write of 'key' + 1 byte
             // account_info:
             diff_size += DB_ACCOUNT_KEY_SIZE + 1;
@@ -548,7 +570,14 @@ fn calc_diff_size<EXT, SPEC: Spec, DB: Database>(
 
         // Apply size of changed slots
         let slot_size = STORAGE_KEY_SIZE + STORAGE_VALUE_SIZE; // key + value;
-        let keys_size = KEY_KEY_SIZE + KEY_VALUE_SIZE; // key + value
+
+        // If CANCUN is enabled this was not even added in the first place so no need to add it to the diff size
+        let keys_size = if SPEC::enabled(SpecId::CANCUN) {
+            0
+        } else {
+            KEY_VALUE_SIZE + KEY_KEY_SIZE // key + value
+        };
+
         diff_size +=
             slot_size * account.storage_changes.len() * STORAGE_DISCOUNTED_PERCENTAGE / 100;
         diff_size += keys_size * account.storage_changes.len();

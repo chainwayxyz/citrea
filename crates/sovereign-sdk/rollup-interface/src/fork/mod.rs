@@ -11,7 +11,7 @@ pub use migration::*;
 use crate::spec::SpecId;
 
 /// Fork is a wrapper struct that contains spec id and it's activation height
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Fork {
     /// Spec id for this fork
     pub spec_id: SpecId,
@@ -21,7 +21,7 @@ pub struct Fork {
 
 impl Fork {
     /// Creates new Fork instance
-    pub fn new(spec_id: SpecId, activation_height: u64) -> Self {
+    pub const fn new(spec_id: SpecId, activation_height: u64) -> Self {
         Self {
             spec_id,
             activation_height,

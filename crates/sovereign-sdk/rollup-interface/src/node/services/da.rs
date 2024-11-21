@@ -115,7 +115,7 @@ pub trait DaService: Send + Sync + 'static {
     /// A tx part of the queue to send transactions in order
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<Option<SenderWithNotifier<Self::TransactionId>>> {
+    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
         unimplemented!()
     }
 
