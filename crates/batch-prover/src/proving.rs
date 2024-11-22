@@ -9,7 +9,7 @@ use citrea_common::da::extract_sequencer_commitments;
 use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
 use citrea_primitives::forks::FORKS;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
 use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, SlotData, SpecId, Zkvm};
@@ -117,22 +117,21 @@ where
         l1_block.header().clone();
 
     let ranges = match group_commitments {
-        Some(GroupCommitments::Normal) => {
-            break_sequencer_commitments_into_groups(&ledger, &sequencer_commitments).map_err(
-                |e| {
-                    L1ProcessingError::Other(format!(
-                        "Error breaking sequencer commitments into groups: {:?}",
-                        e
-                    ))
-                },
-            )?
-        }
         Some(GroupCommitments::SingleShot) => vec![(0..=sequencer_commitments.len() - 1)],
-        _ => sequencer_commitments
+        Some(GroupCommitments::OneByOne) => sequencer_commitments
             .iter()
             .enumerate()
             .map(|(i, _)| (i..=i))
             .collect(),
+        // Default behavior is the normal grouping
+        _ => break_sequencer_commitments_into_groups(&ledger, &sequencer_commitments).map_err(
+            |e| {
+                L1ProcessingError::Other(format!(
+                    "Error breaking sequencer commitments into groups: {:?}",
+                    e
+                ))
+            },
+        )?,
     };
 
     let mut batch_proof_circuit_inputs = vec![];

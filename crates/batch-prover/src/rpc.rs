@@ -27,7 +27,7 @@ pub struct ProverInputResponse {
     pub encoded_serialized_batch_proof_input: String,
 }
 
-pub(crate) struct RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness>
+pub struct RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness>
 where
     C: sov_modules_api::Context,
     Da: DaService,

@@ -177,7 +177,7 @@ where
                 self.sequencer_da_pub_key.clone(),
                 self.l1_block_cache.clone(),
                 l1_block.clone(),
-                Some(true),
+                Some(GroupCommitments::Normal),
             )
             .await;
 

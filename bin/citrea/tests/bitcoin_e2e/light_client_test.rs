@@ -1,26 +1,24 @@
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
+use citrea_batch_prover::rpc::BatchProverRpcClient;
+use citrea_batch_prover::GroupCommitments;
 use citrea_e2e::config::{
     BatchProverConfig, LightClientProverConfig, SequencerConfig, SequencerMempoolConfig,
     TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::Config;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use reth_primitives::Address;
 use sov_ledger_rpc::client::RpcClient;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
-use crate::evm::make_test_client;
 
 const TEN_MINS: Duration = Duration::from_secs(10 * 60);
+const TWENTY_MINS: Duration = Duration::from_secs(20 * 60);
 
 struct LightClientProvingTest;
 
@@ -180,6 +178,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
             enable_recovery: false,
+            proof_sampling_number: 99999999,
             ..Default::default()
         }
     }
@@ -201,24 +200,10 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
 
-        let rpc_bind_host = sequencer.config().rpc_bind_host();
-        let rpc_bind_port = sequencer.config().rpc_bind_port();
-
-        let socket_addr = SocketAddr::new(rpc_bind_host.parse().unwrap(), rpc_bind_port);
-
-        let seq_test_client = make_test_client(socket_addr).await?;
-
-        let n_commitments = 4;
+        let n_commitments = 2;
 
         // publish min_soft_confirmations_per_commitment confirmations
         for _ in 0..n_commitments * min_soft_confirmations_per_commitment {
-            for _ in 0..1 {
-                let address = Address::random();
-                let _pending = seq_test_client
-                    .send_eth(address, None, None, None, 1u128)
-                    .await
-                    .unwrap();
-            }
             sequencer.client.send_publish_batch_request().await?;
         }
         sequencer
@@ -240,7 +225,18 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .await
             .unwrap();
 
-        // Assert that commitments are queryable
+        // There are two commitments, for each commitment generate a proof
+        batch_prover
+            .client
+            .http_client()
+            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
+            .await
+            .unwrap();
+
+        // Ensure that batch proofs are submitted to DA (2x reveal & 2x commit txs)
+        da.wait_mempool_len(4, Some(TWENTY_MINS)).await?;
+
+        // Assert that commitments are queryable this also means that the batch proofs are submitted to DA
         let commitments = batch_prover
             .client
             .http_client()
@@ -249,9 +245,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .unwrap()
             .unwrap();
         assert_eq!(commitments.len(), n_commitments as usize);
-
-        // Ensure that batch proofs are submitted to DA (2x reveal & 2x commit txs)
-        da.wait_mempool_len(4, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
@@ -288,7 +281,9 @@ impl TestCase for LightClientProvingTestMultipleProofs {
                 .light_client_proof_output
                 .state_root
                 .to_vec(),
-            batch_proofs[1].proof_output.final_state_root
+            batch_proofs[(n_commitments - 1) as usize]
+                .proof_output
+                .final_state_root
         );
 
         assert!(light_client_proof
@@ -370,7 +365,18 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .wait_for_l1_height(commitment_l1_height, Some(TEN_MINS))
             .await?;
 
-        // Assert that commitments are queryable
+        // There is one commitment, generate a single proof
+        batch_prover
+            .client
+            .http_client()
+            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
+            .await
+            .unwrap();
+
+        // Ensure that batch proofs is submitted to DA (1x reveal & 1x commit txs)
+        da.wait_mempool_len(2, Some(TWENTY_MINS)).await?;
+
+        // Assert that commitments are queryable this also means the batch proofs are submitted to DA with the prove rpc
         let commitments = batch_prover
             .client
             .http_client()
@@ -379,9 +385,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .unwrap()
             .unwrap();
         assert_eq!(commitments.len(), 1);
-
-        // Ensure that batch proofs is submitted to DA (1x reveal & 1x commit txs)
-        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
 
         // Finalize the DA block which contains the batch proof tx
         da.generate(FINALITY_DEPTH).await?;
