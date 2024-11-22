@@ -7,7 +7,7 @@ use alloy_primitives::{Address, B256, U256};
 // use alloy_primitives::{address, keccak256, Address, BlockNumber, Bloom, Bytes, B256, U256};
 // use borsh::io::{Error, Write};
 use borsh::BorshSerialize;
-use compression::SlotChange;
+use compression::{CodeHashChange, SlotChange};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{CacheKey, CacheValue};
 
@@ -115,8 +115,7 @@ pub(crate) fn build_post_state(ordered_writes: &[(CacheKey, Option<CacheValue>)]
 pub struct AccountChange {
     pub balance: SlotChange,
     pub nonce: SlotChange,
-    #[borsh(serialize_with = "borsh_ser_option_b256")]
-    pub code_hash: Option<B256>,
+    pub code_hash: CodeHashChange,
 }
 
 #[derive(BorshSerialize, Debug)]
@@ -136,7 +135,10 @@ pub struct StatefulStateDiff {
 }
 
 pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> StatefulStateDiff {
-    use compression::{compress_one_best_strategy, compress_two_best_strategy};
+    use compression::{
+        compress_one_best_strategy, compress_one_code_hash, compress_two_best_strategy,
+        compress_two_code_hash,
+    };
 
     //  Compute diff for all evm::account(address): balance, nonce, code_hash
     let mut changed_evm_accounts = BTreeMap::new();
@@ -151,13 +153,13 @@ pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> Stat
             AccountChange {
                 balance: compress_two_best_strategy(prev_info.balance, new_info.balance),
                 nonce: compress_two_best_strategy(prev_info.balance, U256::from(new_info.nonce)),
-                code_hash: new_info.code_hash,
+                code_hash: compress_two_code_hash(prev_info.code_hash, new_info.code_hash),
             }
         } else {
             AccountChange {
                 balance: compress_one_best_strategy(new_info.balance),
                 nonce: compress_one_best_strategy(U256::from(new_info.nonce)),
-                code_hash: new_info.code_hash,
+                code_hash: compress_one_code_hash(new_info.code_hash),
             }
         };
         changed_evm_accounts.insert(address, acc_change);

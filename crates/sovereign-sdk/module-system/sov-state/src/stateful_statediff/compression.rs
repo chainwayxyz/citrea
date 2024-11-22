@@ -1,6 +1,6 @@
 // Originally written in 2019 by Matter Labs. Lisence: MIT/APACHE.
 
-use alloy_primitives::U256;
+use alloy_primitives::{B256, U256};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Debug)]
@@ -212,6 +212,69 @@ pub fn compress_one_best_strategy(new_value: U256) -> SlotChange {
         compressors.into_iter(),
         SlotChange::NoCompression(no_compression),
     )
+}
+
+#[derive(Debug)]
+pub enum CodeHashChange {
+    Same,
+    Removed,
+    Set(B256),
+}
+
+impl BorshSerialize for CodeHashChange {
+    fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
+        match self {
+            CodeHashChange::Same => writer.write_all(&[0]),
+            CodeHashChange::Removed => writer.write_all(&[1]),
+            CodeHashChange::Set(val) => {
+                writer.write_all(&[2])?;
+                writer.write_all(val.as_slice())
+            }
+        }
+    }
+}
+
+impl BorshDeserialize for CodeHashChange {
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let mut m_buf = [0u8];
+        reader.read_exact(&mut m_buf)?;
+        let kind = m_buf[0];
+
+        match kind {
+            0 => Ok(CodeHashChange::Same),
+            1 => Ok(CodeHashChange::Removed),
+            2 => {
+                let mut d_buff = [0u8; 32];
+                let bytes = &mut d_buff[..];
+                reader.read_exact(bytes)?;
+                let value = B256::from_slice(bytes);
+
+                Ok(CodeHashChange::Set(value))
+            }
+            _ => Err(borsh::io::Error::new(
+                borsh::io::ErrorKind::InvalidData,
+                "Unexpected type of operation",
+            )),
+        }
+    }
+}
+
+pub fn compress_two_code_hash(prev_value: Option<B256>, new_value: Option<B256>) -> CodeHashChange {
+    if prev_value == new_value {
+        CodeHashChange::Same
+    } else if let Some(value) = new_value {
+        CodeHashChange::Set(value)
+    } else {
+        CodeHashChange::Removed
+    }
+}
+
+pub fn compress_one_code_hash(new_value: Option<B256>) -> CodeHashChange {
+    if let Some(value) = new_value {
+        CodeHashChange::Set(value)
+    } else {
+        CodeHashChange::Removed
+    }
 }
 
 /*
