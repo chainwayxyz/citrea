@@ -1225,6 +1225,7 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "citrea-common",
+ "citrea-e2e",
  "citrea-primitives",
  "crypto-bigint",
  "futures",
