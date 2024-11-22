@@ -16,6 +16,7 @@ use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
+use citrea_batch_prover::GroupCommitments;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
@@ -733,7 +734,11 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn batch_prover_prove(&self, l1_height: u64, group_commitments: Option<bool>) {
+    pub(crate) async fn batch_prover_prove(
+        &self,
+        l1_height: u64,
+        group_commitments: Option<GroupCommitments>,
+    ) {
         self.http_client
             .request(
                 "batchProver_prove",

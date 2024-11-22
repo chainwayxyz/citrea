@@ -27,6 +27,19 @@ use crate::da_block_handler::{
 };
 use crate::errors::L1ProcessingError;
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+/// Enum to determine how to group commitments
+pub enum GroupCommitments {
+    /// Groups commitments the normal way
+    /// Generates proof(s) given l1 height using the same strategy of batch prover
+    Normal,
+    /// Breaks all commitments into a single group and generates a single proof
+    SingleShot,
+    /// Every commitment is a group on their own
+    /// Generates a proof for every commitment
+    OneByOne,
+}
+
 pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
     da_service: Arc<Da>,
     ledger: DB,
@@ -34,7 +47,7 @@ pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
     sequencer_da_pub_key: Vec<u8>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     l1_block: <Da as DaService>::FilteredBlock,
-    group_commitments: Option<bool>,
+    group_commitments: Option<GroupCommitments>,
 ) -> Result<
     (
         Vec<SequencerCommitment>,
@@ -104,14 +117,22 @@ where
         l1_block.header().clone();
 
     let ranges = match group_commitments {
-        Some(true) => break_sequencer_commitments_into_groups(&ledger, &sequencer_commitments)
-            .map_err(|e| {
-                L1ProcessingError::Other(format!(
-                    "Error breaking sequencer commitments into groups: {:?}",
-                    e
-                ))
-            })?,
-        _ => vec![(0..=sequencer_commitments.len() - 1)],
+        Some(GroupCommitments::Normal) => {
+            break_sequencer_commitments_into_groups(&ledger, &sequencer_commitments).map_err(
+                |e| {
+                    L1ProcessingError::Other(format!(
+                        "Error breaking sequencer commitments into groups: {:?}",
+                        e
+                    ))
+                },
+            )?
+        }
+        Some(GroupCommitments::SingleShot) => vec![(0..=sequencer_commitments.len() - 1)],
+        _ => sequencer_commitments
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (i..=i))
+            .collect(),
     };
 
     let mut batch_proof_circuit_inputs = vec![];

@@ -14,6 +14,8 @@ pub use runner::*;
 mod proving;
 mod rpc;
 
+pub use proving::GroupCommitments;
+
 /// Dependencies needed to run the rollup.
 pub struct BatchProver<S: RollupBlueprint> {
     /// The State Transition Runner.

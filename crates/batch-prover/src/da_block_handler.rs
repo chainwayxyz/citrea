@@ -31,7 +31,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::errors::L1ProcessingError;
-use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1};
+use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Witness, Da> = (
     VecDeque<Vec<(Witness, Witness)>>,
