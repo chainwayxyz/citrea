@@ -21,7 +21,7 @@ const fn get_reveal_light_client_prefix() -> &'static [u8] {
 
 const fn get_max_txbody_size() -> usize {
     match option_env!("CI_TEST_MODE") {
-        Some(v) if matches!(v.as_bytes(), b"1" | b"true") => 3970,
+        Some(v) if matches!(v.as_bytes(), b"1" | b"true") => 39700,
         _ => 397000,
     }
 }
