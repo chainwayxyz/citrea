@@ -278,7 +278,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .client
             .http_client()
             .get_light_client_proof_by_l1_height(batch_proof_l1_height)
-            .await?;
+            .await
+            .unwrap();
         assert!(lcp.is_some());
 
         let light_client_proof = lcp.unwrap();
@@ -310,7 +311,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .client
             .http_client()
             .get_light_client_proof_by_l1_height(last_finalized_height)
-            .await?;
+            .await
+            .unwrap();
         assert!(lcp2.is_some());
 
         // Since there are no batch proofs the state root should be the same as the last one
@@ -406,7 +408,8 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             .client
             .http_client()
             .get_light_client_proof_by_l1_height(batch_proof_l1_height)
-            .await?;
+            .await
+            .unwrap();
         assert!(lcp3.is_some());
 
         let light_client_proof3 = lcp3.unwrap();
