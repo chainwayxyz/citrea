@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use anyhow::bail;
+use anyhow::{bail, Context as _};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::cache::L1BlockCache;
@@ -246,7 +246,11 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
+        let mut signed_soft_confirmation: SignedSoftConfirmation<Stf::Transaction> =
+            soft_confirmation
+                .clone()
+                .try_into()
+                .context("Failed to parse transactions")?;
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
@@ -273,7 +277,7 @@ where
         self.storage_manager.finalize_l2(l2_height)?;
 
         let tx_bodies = if self.include_tx_body {
-            Some(signed_soft_confirmation.txs().to_owned())
+            Some(signed_soft_confirmation.blobs().to_owned())
         } else {
             None
         };

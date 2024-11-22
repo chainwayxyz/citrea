@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_primitives::forks::FORKS;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
@@ -11,6 +11,7 @@ use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
     TxHooks,
 };
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
     Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
@@ -147,6 +148,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         &mut self,
         soft_confirmation: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
+        txs_new: &[Self::Transaction],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
 
@@ -156,7 +158,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (
@@ -171,7 +173,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -229,9 +231,10 @@ where
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
+        txs_new: &[Self::Transaction],
         batch_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
-        self.apply_sov_txs_inner(soft_confirmation_info, txs, batch_workspace)
+        self.apply_sov_txs_inner(soft_confirmation_info, txs, txs_new, batch_workspace)
     }
 
     fn end_soft_confirmation(
@@ -239,7 +242,7 @@ where
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (
@@ -251,6 +254,7 @@ where
             soft_confirmation.da_slot_height(),
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
+            soft_confirmation.blobs(),
             soft_confirmation.txs(),
             soft_confirmation.deposit_data().to_vec(),
             soft_confirmation.l1_fee_rate(),
@@ -269,7 +273,7 @@ where
             }
 
             // verify signature
-            if verify_soft_confirmation_signature::<C>(
+            if verify_soft_confirmation_signature::<C, _>(
                 soft_confirmation,
                 soft_confirmation.signature(),
                 sequencer_public_key,
@@ -292,7 +296,7 @@ where
             }
 
             // verify signature
-            if pre_fork1_verify_soft_confirmation_signature::<C>(
+            if pre_fork1_verify_soft_confirmation_signature::<C, _>(
                 &unsigned,
                 soft_confirmation.signature(),
                 sequencer_public_key,
@@ -321,7 +325,7 @@ where
         sc_receipt: SoftConfirmationReceipt<TxEffect, Da>,
         checkpoint: StateCheckpoint<C>,
         pre_state: Self::PreState,
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<
         <C::Storage as Storage>::Root,
         C::Storage,
@@ -396,6 +400,7 @@ where
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
+    type Transaction = Transaction<C>;
     type StateRoot = <C::Storage as Storage>::Root;
 
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
@@ -476,7 +481,7 @@ where
         // the header hash does not need to be verified here because the full
         // nodes construct the header on their own
         slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -504,6 +509,7 @@ where
             (Ok(()), batch_workspace) => {
                 let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
                     soft_confirmation_info,
+                    soft_confirmation.blobs(),
                     soft_confirmation.txs(),
                     batch_workspace,
                 );
@@ -553,7 +559,9 @@ where
         sequencer_commitments_range: (u32, u32),
         witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        soft_confirmations: std::collections::VecDeque<Vec<SignedSoftConfirmation>>,
+        soft_confirmations: std::collections::VecDeque<
+            Vec<SignedSoftConfirmation<Self::Transaction>>,
+        >,
         preproven_commitment_indices: Vec<usize>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
@@ -832,8 +840,8 @@ where
     }
 }
 
-fn verify_soft_confirmation_signature<C: Context>(
-    signed_soft_confirmation: &SignedSoftConfirmation,
+fn verify_soft_confirmation_signature<C: Context, Tx: Clone>(
+    signed_soft_confirmation: &SignedSoftConfirmation<Tx>,
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
@@ -853,8 +861,8 @@ fn verify_soft_confirmation_signature<C: Context>(
 // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
 //   when removing this fn
 // FIXME: ^
-fn pre_fork1_verify_soft_confirmation_signature<C: Context>(
-    unsigned_soft_confirmation: &UnsignedSoftConfirmation,
+fn pre_fork1_verify_soft_confirmation_signature<C: Context, Tx: BorshSerialize>(
+    unsigned_soft_confirmation: &UnsignedSoftConfirmation<Tx>,
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {

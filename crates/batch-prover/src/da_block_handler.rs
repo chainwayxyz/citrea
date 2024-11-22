@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context as _};
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
@@ -33,13 +33,13 @@ use tracing::{error, info, warn};
 use crate::errors::L1ProcessingError;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
-type CommitmentStateTransitionData<'txs, Witness, Da> = (
+type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<(Witness, Witness)>>,
-    VecDeque<Vec<SignedSoftConfirmation<'txs>>>,
+    VecDeque<Vec<SignedSoftConfirmation<'txs, Tx>>>,
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness>
+pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -66,9 +66,10 @@ where
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
+    _tx: PhantomData<Tx>,
 }
 
-impl<Vm, Da, Ps, DB, StateRoot, Witness> L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness>
+impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx> L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -82,6 +83,7 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
+    Tx: Clone + BorshDeserialize + BorshSerialize,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -108,6 +110,7 @@ where
             pending_l1_blocks: VecDeque::new(),
             _state_root: PhantomData,
             _witness: PhantomData,
+            _tx: PhantomData,
         }
     }
 
@@ -170,7 +173,7 @@ where
                 )
                 .unwrap();
 
-            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness>(
+            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
                 self.sequencer_pub_key.clone(),
@@ -237,7 +240,7 @@ where
 
             if should_prove {
                 if l1_height >= self.skip_submission_until_l1 {
-                    prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness>(
+                    prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
                         self.prover_service.clone(),
                         self.ledger_db.clone(),
                         self.code_commitments_by_spec.clone(),
@@ -333,17 +336,19 @@ async fn sync_l1<Da>(
 }
 
 pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
+    'txs,
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
+    Tx: Clone + BorshDeserialize + 'txs,
 >(
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,
     ledger_db: &DB,
     l1_block_cache: &Arc<Mutex<L1BlockCache<Da>>>,
-) -> Result<CommitmentStateTransitionData<'static, Witness, Da>, anyhow::Error> {
+) -> Result<CommitmentStateTransitionData<'txs, Witness, Da, Tx>, anyhow::Error> {
     let mut state_transition_witnesses: VecDeque<Vec<(Witness, Witness)>> = VecDeque::new();
-    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>> = VecDeque::new();
+    let mut soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Tx>>> = VecDeque::new();
     let mut da_block_headers_of_soft_confirmations: VecDeque<
         Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>,
     > = VecDeque::new();
@@ -388,7 +393,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 };
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
-            let signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.into();
+            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
+                .try_into()
+                .context("Failed to parse transactions")?;
             commitment_soft_confirmations.push(signed_soft_confirmation);
         }
         soft_confirmations.push_back(commitment_soft_confirmations);

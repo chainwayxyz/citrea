@@ -106,7 +106,7 @@ where
             Da::Spec,
             PreState = Sm::NativeStorage,
             ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec>,
+        > + StfBlueprintTrait<C, Da::Spec, Transaction = Transaction<C>>,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
     #[allow(clippy::too_many_arguments)]
@@ -293,14 +293,19 @@ where
                                 >>::encode_call(
                                     call_txs
                                 );
-                                let signed_blob =
-                                    self.make_blob(raw_message, &mut working_set_to_discard)?;
+                                let signed_blob = self
+                                    .make_blob(raw_message.clone(), &mut working_set_to_discard)?;
+
+                                let signed_tx =
+                                    self.sign_tx(raw_message, &mut working_set_to_discard)?;
 
                                 let txs = vec![signed_blob.clone()];
+                                let txs_new = vec![signed_tx];
 
                                 let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
                                     soft_confirmation_info.clone(),
                                     &txs,
+                                    &txs_new,
                                     working_set_to_discard,
                                 );
 
@@ -433,6 +438,7 @@ where
         ) {
             (Ok(()), mut batch_workspace) => {
                 let mut txs = vec![];
+                let mut txs_new = vec![];
                 let mut tx_receipts = vec![];
 
                 let evm_txs_count = txs_to_run.len();
@@ -442,12 +448,15 @@ where
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
                             call_txs,
                         );
-                    let signed_blob = self.make_blob(raw_message, &mut batch_workspace)?;
+                    let signed_blob = self.make_blob(raw_message.clone(), &mut batch_workspace)?;
+                    let signed_tx = self.sign_tx(raw_message, &mut batch_workspace)?;
                     txs.push(signed_blob);
+                    txs_new.push(signed_tx);
 
                     (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
                         soft_confirmation_info,
                         &txs,
+                        &txs_new,
                         batch_workspace,
                     );
                 }
@@ -459,6 +468,7 @@ where
                     da_block.header().hash().into(),
                     da_block.header().txs_commitment().into(),
                     &txs,
+                    &txs_new,
                     deposit_data.clone(),
                     l1_fee_rate,
                     timestamp,
@@ -515,7 +525,7 @@ where
                 // however we need much better DA + finalization logic here
                 self.storage_manager.finalize_l2(l2_height)?;
 
-                let tx_bodies = signed_soft_confirmation.txs().to_owned();
+                let tx_bodies = signed_soft_confirmation.blobs().to_owned();
                 self.ledger_db.commit_soft_confirmation(
                     next_state_root.as_ref(),
                     receipt,
@@ -781,12 +791,28 @@ where
         borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
     }
 
+    fn sign_tx(
+        &mut self,
+        raw_message: Vec<u8>,
+        working_set: &mut WorkingSet<C>,
+    ) -> anyhow::Result<Transaction<C>> {
+        // if a batch failed need to refetch nonce
+        // so sticking to fetching from state makes sense
+        let nonce = self.get_nonce(working_set)?;
+        // TODO: figure out what to do with sov-tx fields
+        // chain id gas tip and gas limit
+
+        let tx =
+            Transaction::<C>::new_signed_tx(&self.sov_tx_signer_priv_key, raw_message, 0, nonce);
+        Ok(tx)
+    }
+
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, Stf::Transaction>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
         let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
 
@@ -800,6 +826,7 @@ where
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.l1_fee_rate(),
+            soft_confirmation.blobs().into(),
             soft_confirmation.txs().into(),
             soft_confirmation.deposit_data(),
             borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,
@@ -814,9 +841,9 @@ where
     /// FIXME: ^
     fn pre_fork1_sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, Stf::Transaction>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
         use digest::Digest;
         let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
@@ -831,6 +858,7 @@ where
             soft_confirmation.da_slot_hash(),
             soft_confirmation.da_slot_txs_commitment(),
             soft_confirmation.l1_fee_rate(),
+            soft_confirmation.blobs().into(),
             soft_confirmation.txs().into(),
             soft_confirmation.deposit_data(),
             borsh::to_vec(&signature).map_err(|e| anyhow!(e))?,

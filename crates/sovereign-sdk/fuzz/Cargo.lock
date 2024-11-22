@@ -2159,6 +2159,7 @@ dependencies = [
  "borsh",
  "clap",
  "derive_more",
+ "digest",
  "ed25519-dalek",
  "hex",
  "jmt",

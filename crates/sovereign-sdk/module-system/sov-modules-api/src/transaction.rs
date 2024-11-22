@@ -1,6 +1,7 @@
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
 use sov_modules_core::{Context, Signature};
+use sov_rollup_interface::stf::TransactionDigest;
 // #[cfg(all(target_os = "zkvm", feature = "bench"))]
 // use sov_zk_cycle_macros::cycle_tracker;
 
@@ -68,6 +69,16 @@ impl<C: Context> Transaction<C> {
             chain_id,
             nonce,
         }
+    }
+}
+
+impl<C: Context> TransactionDigest for Transaction<C> {
+    fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D> {
+        let mut hasher = D::new();
+        hasher.update(self.runtime_msg());
+        hasher.update(self.chain_id().to_be_bytes());
+        hasher.update(self.nonce().to_be_bytes());
+        hasher.finalize()
     }
 }
 

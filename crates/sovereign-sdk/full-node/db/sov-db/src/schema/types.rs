@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -283,22 +284,36 @@ pub struct StoredSoftConfirmation {
     pub timestamp: u64,
 }
 
-impl From<StoredSoftConfirmation> for SignedSoftConfirmation<'static> {
-    fn from(value: StoredSoftConfirmation) -> Self {
-        SignedSoftConfirmation::new(
-            value.l2_height,
-            value.hash,
-            value.prev_hash,
-            value.da_slot_height,
-            value.da_slot_hash,
-            value.da_slot_txs_commitment,
-            value.l1_fee_rate,
-            value.txs.into_iter().map(|tx| tx.body.unwrap()).collect(),
-            value.deposit_data,
-            value.soft_confirmation_signature,
-            value.pub_key,
-            value.timestamp,
-        )
+impl<'txs, Tx> TryFrom<StoredSoftConfirmation> for SignedSoftConfirmation<'txs, Tx>
+where
+    Tx: Clone + BorshDeserialize,
+{
+    type Error = borsh::io::Error;
+    fn try_from(val: StoredSoftConfirmation) -> Result<Self, Self::Error> {
+        let parsed_txs = val
+            .txs
+            .iter()
+            .map(|tx| {
+                let body = tx.body.as_ref().unwrap();
+                borsh::from_slice::<Tx>(body)
+            })
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let res = SignedSoftConfirmation::new(
+            val.l2_height,
+            val.hash,
+            val.prev_hash,
+            val.da_slot_height,
+            val.da_slot_hash,
+            val.da_slot_txs_commitment,
+            val.l1_fee_rate,
+            val.txs.into_iter().map(|tx| tx.body.unwrap()).collect(),
+            parsed_txs.into(),
+            val.deposit_data,
+            val.soft_confirmation_signature,
+            val.pub_key,
+            val.timestamp,
+        );
+        Ok(res)
     }
 }
 

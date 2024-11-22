@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::SoftConfirmationError;
+use sov_modules_api::transaction::Transaction;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
@@ -13,6 +15,7 @@ use sov_rollup_interface::stf::{
 pub struct MockStf;
 
 impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
+    type Transaction = Transaction<DefaultContext>;
     type StateRoot = [u8; 0];
     type GenesisParams = ();
     type PreState = ();
@@ -71,7 +74,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _state_witness: Self::Witness,
         _offchain_witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -96,7 +99,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _soft_confirmations: std::collections::VecDeque<
-            Vec<sov_modules_api::SignedSoftConfirmation>,
+            Vec<sov_modules_api::SignedSoftConfirmation<Self::Transaction>>,
         >,
         _preproven_commitment_indicies: Vec<usize>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {

@@ -173,6 +173,12 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
     pub soft_confirmation_receipt: SoftConfirmationReceipt<T, Da>,
 }
 
+/// Transaction should provide its hash in order to put Receipt by hash.
+pub trait TransactionDigest {
+    /// Compute digest for the whole Transaction struct
+    fn compute_digest<D: digest::Digest>(&self) -> digest::Output<D>;
+}
+
 // TODO(@preston-evans98): update spec with simplified API
 /// State transition function defines business logic that responsible for changing state.
 /// Terminology:
@@ -181,6 +187,14 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
 ///  - batch: Set of transactions grouped together, or block on L2
 ///  - blob: Non serialised batch or anything else that can be posted on DA layer, like attestation or proof.
 pub trait StateTransitionFunction<Da: DaSpec> {
+    /// The type of rollup transaction
+    type Transaction: TransactionDigest
+        + Clone
+        + BorshDeserialize
+        + BorshSerialize
+        + Send
+        + Sync
+        + 'static;
     /// Root hash of state merkle tree
     type StateRoot: BorshDeserialize
         + BorshSerialize
@@ -283,7 +297,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         state_witness: Self::Witness,
         offchain_witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -310,7 +324,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         sequencer_commitments_range: (u32, u32),
         witnesses: VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        soft_confirmations: VecDeque<Vec<SignedSoftConfirmation>>,
+        soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Self::Transaction>>>,
         preproven_commitment_indicies: Vec<usize>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
 }

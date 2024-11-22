@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
@@ -74,7 +74,7 @@ where
 impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
 where
     C: Context,
-    Da: DaService<Error = anyhow::Error> + Send + Sync + 'static,
+    Da: DaService<Error = anyhow::Error> + Send + 'static,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost + 'static,
     Stf: StateTransitionFunction<
@@ -159,7 +159,10 @@ where
     }
 
     /// Creates a shared RpcContext with all required data.
-    fn create_rpc_context(&self) -> RpcContext<C, Da, Ps, Vm, DB, Stf::StateRoot, Stf::Witness> {
+    #[allow(clippy::type_complexity)]
+    fn create_rpc_context(
+        &self,
+    ) -> RpcContext<C, Da, Ps, Vm, DB, Stf::StateRoot, Stf::Witness, Stf::Transaction> {
         RpcContext {
             ledger: self.ledger_db.clone(),
             da_service: self.da_service.clone(),
@@ -172,6 +175,7 @@ where
             phantom_vm: std::marker::PhantomData,
             phantom_sr: std::marker::PhantomData,
             phantom_w: std::marker::PhantomData,
+            phantom_tx: std::marker::PhantomData,
         }
     }
 
@@ -278,18 +282,25 @@ where
         let l1_block_cache = self.l1_block_cache.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
-            let l1_block_handler =
-                L1BlockHandler::<Vm, Da, Ps, DB, Stf::StateRoot, Stf::Witness>::new(
-                    prover_config,
-                    prover_service,
-                    ledger_db,
-                    da_service,
-                    sequencer_pub_key,
-                    sequencer_da_pub_key,
-                    code_commitments_by_spec,
-                    skip_submission_until_l1,
-                    l1_block_cache.clone(),
-                );
+            let l1_block_handler = L1BlockHandler::<
+                Vm,
+                Da,
+                Ps,
+                DB,
+                Stf::StateRoot,
+                Stf::Witness,
+                Stf::Transaction,
+            >::new(
+                prover_config,
+                prover_service,
+                ledger_db,
+                da_service,
+                sequencer_pub_key,
+                sequencer_da_pub_key,
+                code_commitments_by_spec,
+                skip_submission_until_l1,
+                l1_block_cache.clone(),
+            );
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
                 .await
@@ -386,7 +397,11 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation = soft_confirmation.clone().into();
+        let mut signed_soft_confirmation: SignedSoftConfirmation<Stf::Transaction> =
+            soft_confirmation
+                .clone()
+                .try_into()
+                .context("Failed to parse transactions")?;
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             self.fork_manager.active_fork().spec_id,
             self.sequencer_pub_key.as_slice(),
@@ -398,7 +413,7 @@ where
             current_l1_block.header(),
             &mut signed_soft_confirmation,
         )?;
-        let txs_bodies = signed_soft_confirmation.txs().to_owned();
+        let txs_bodies = signed_soft_confirmation.blobs().to_owned();
 
         let receipt = soft_confirmation_result.soft_confirmation_receipt;
 

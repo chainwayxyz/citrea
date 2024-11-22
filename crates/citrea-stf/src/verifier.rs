@@ -40,7 +40,8 @@ where
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
         println!("Running sequencer commitments in DA slot");
-        let data: BatchProofCircuitInputV2<Stf::StateRoot, _, Da::Spec> = zkvm.read_from_host();
+        let data: BatchProofCircuitInputV2<Stf::StateRoot, _, Da::Spec, Stf::Transaction> =
+            zkvm.read_from_host();
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");

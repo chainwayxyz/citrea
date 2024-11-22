@@ -9,7 +9,8 @@ use sov_modules_api::{
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationReceipt, TransactionReceipt,
+    SoftConfirmationError, SoftConfirmationReceipt, StateTransitionFunction, TransactionDigest,
+    TransactionReceipt,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -62,16 +63,34 @@ where
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
+        txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
         mut sc_workspace: WorkingSet<C>,
     ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
         let mut tx_receipts = Vec::with_capacity(txs.len());
-        for raw_tx in txs {
-            let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
-            // Stateless verification of transaction, such as signature check
-            // TODO: https://github.com/chainwayxyz/citrea/issues/1061
-            let mut reader = std::io::Cursor::new(raw_tx);
-            let tx = Transaction::<C>::deserialize_reader(&mut reader)
-                .expect("Sequencer must not include non-deserializable transaction.");
+        let txs: Vec<_> = if soft_confirmation_info.current_spec >= SpecId::Fork1 {
+            txs_new
+                .iter()
+                .map(|tx| {
+                    let digest = tx.compute_digest::<<C as Spec>::Hasher>();
+                    let raw_tx_hash: [u8; 32] = digest.into();
+                    (raw_tx_hash, tx.clone())
+                })
+                .collect()
+        } else {
+            txs.iter()
+                .map(|raw_tx| {
+                    let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
+                    // Stateless verification of transaction, such as signature check
+                    // TODO: https://github.com/chainwayxyz/citrea/issues/1061
+                    let mut reader = std::io::Cursor::new(raw_tx);
+                    let tx = Transaction::<C>::deserialize_reader(&mut reader)
+                        .expect("Sequencer must not include non-deserializable transaction.");
+                    (raw_tx_hash, tx)
+                })
+                .collect()
+        };
+
+        for (raw_tx_hash, tx) in txs {
             tx.verify()
                 .expect("Sequencer must include correctly signed transaction.");
             // Checks that runtime message can be decoded from transaction.
@@ -198,7 +217,9 @@ where
         &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
-        soft_confirmation: &mut SignedSoftConfirmation,
+        soft_confirmation: &mut SignedSoftConfirmation<
+            <Self as StateTransitionFunction<Da>>::Transaction,
+        >,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
     ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {

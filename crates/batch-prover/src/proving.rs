@@ -40,7 +40,7 @@ pub enum GroupCommitments {
     OneByOne,
 }
 
-pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
+pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx>(
     da_service: Arc<Da>,
     ledger: DB,
     sequencer_pub_key: Vec<u8>,
@@ -51,21 +51,16 @@ pub(crate) async fn data_to_prove<Da, DB, StateRoot, Witness>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInputV2<'static, StateRoot, Witness, Da::Spec>>,
+        Vec<BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da::Spec, Tx>>,
     ),
     L1ProcessingError,
 >
 where
     Da: DaService,
-    DB: BatchProverLedgerOps + Clone + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
+    DB: BatchProverLedgerOps,
+    StateRoot: DeserializeOwned,
+    Witness: DeserializeOwned,
+    Tx: Clone + BorshDeserialize + 'txs,
 {
     let l1_height = l1_block.header().height();
 
@@ -163,7 +158,7 @@ where
             })?
             .expect("There should be a state root");
 
-        let input: BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec> =
+        let input: BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec, Tx> =
             BatchProofCircuitInputV2 {
                 initial_state_root,
                 da_data: da_data.clone(),
@@ -188,13 +183,13 @@ where
     Ok((sequencer_commitments, batch_proof_circuit_inputs))
 }
 
-pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness>(
+pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
     prover_service: Arc<Ps>,
     ledger: DB,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block: Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInputV2<'_, StateRoot, Witness, Da::Spec>>,
+    inputs: Vec<BatchProofCircuitInputV2<'_, StateRoot, Witness, Da::Spec, Tx>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -209,6 +204,7 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+    Tx: Clone + BorshSerialize,
 {
     let submitted_proofs = ledger
         .get_proofs_by_l1_height(l1_block.header().height())
@@ -217,7 +213,8 @@ where
 
     // Add each non-proven proof's data to ProverService
     for input in inputs {
-        if !state_transition_already_proven::<StateRoot, Witness, Da>(&input, &submitted_proofs) {
+        if !state_transition_already_proven::<StateRoot, Witness, Da, Tx>(&input, &submitted_proofs)
+        {
             prover_service
                 .add_proof_data((borsh::to_vec(&input)?, vec![]))
                 .await;
@@ -246,8 +243,8 @@ where
     Ok(())
 }
 
-pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da>(
-    input: &BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec>,
+pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da, Tx>(
+    input: &BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec, Tx>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool
 where
@@ -260,6 +257,7 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
+    Tx: Clone,
 {
     for proof in proofs {
         if proof.proof_output.initial_state_root == input.initial_state_root.as_ref()

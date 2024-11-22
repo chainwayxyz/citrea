@@ -1,6 +1,8 @@
 use sha2::Digest;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
@@ -88,6 +90,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         &mut self,
         _soft_confirmation_info: HookSoftConfirmationInfo,
         _txs: &[Vec<u8>],
+        _txs_new: &[Self::Transaction],
         _batch_workspace: sov_modules_api::WorkingSet<C>,
     ) -> (
         sov_modules_api::WorkingSet<C>,
@@ -101,7 +104,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _current_spec: SpecId,
         _pre_state_root: Vec<u8>,
         _sequencer_public_key: &[u8],
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
         _tx_receipts: Vec<
             sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
         >,
@@ -122,7 +125,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _sc_receipt: SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
         _checkpoint: sov_modules_api::StateCheckpoint<C>,
         _pre_state: Self::PreState,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<
         Self::StateRoot,
         Self::ChangeSet,
@@ -135,6 +138,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
 }
 
 impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
+    type Transaction = Transaction<DefaultContext>;
     type StateRoot = [u8; 32];
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<Q>;
@@ -213,7 +217,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
         _state_witness: Self::Witness,
         _offchain_witness: Self::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
-        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation,
+        _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
         SoftConfirmationResult<
             Self::StateRoot,
@@ -238,7 +242,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
         _witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
         _soft_confirmations: std::collections::VecDeque<
-            Vec<sov_modules_api::SignedSoftConfirmation>,
+            Vec<sov_modules_api::SignedSoftConfirmation<Self::Transaction>>,
         >,
         _preproven_commitment_indicies: Vec<usize>,
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
