@@ -3,29 +3,50 @@ use std::sync::Arc;
 
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::RollupParams;
+use bitcoincore_rpc::RpcApi;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
+use citrea_e2e::traits::NodeT;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::services::da::DaService;
+
+const DEFAULT_DA_PRIVATE_KEY: &str =
+    "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
+
+pub async fn get_default_service(
+    task_manager: &mut TaskManager<()>,
+    config: &BitcoinConfig,
+) -> Arc<BitcoinService> {
+    get_service(
+        task_manager,
+        config,
+        NodeKind::Bitcoin.to_string(),
+        DEFAULT_DA_PRIVATE_KEY.to_string(),
+        TO_BATCH_PROOF_PREFIX.to_vec(),
+        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+    )
+    .await
+}
 
 pub async fn get_service(
     task_manager: &mut TaskManager<()>,
     config: &BitcoinConfig,
+    wallet: String,
+    da_private_key: String,
+    to_batch_proof_prefix: Vec<u8>,
+    to_light_client_prefix: Vec<u8>,
 ) -> Arc<BitcoinService> {
-    let node_url = format!(
-        "http://127.0.0.1:{}/wallet/{}",
-        config.rpc_port,
-        NodeKind::Bitcoin
-    );
+    let node_url = format!("http://127.0.0.1:{}/wallet/{}", config.rpc_port, wallet,);
 
     let runtime_config = BitcoinServiceConfig {
         node_url,
         node_username: config.rpc_user.clone(),
         node_password: config.rpc_password.clone(),
         network: bitcoin::Network::Regtest,
-        da_private_key: Some(
-            "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262".to_string(), // Test key, safe to publish
-        ),
+        da_private_key: Some(da_private_key),
         tx_backup_dir: get_tx_backup_dir(),
         monitoring: None,
     };
@@ -35,8 +56,8 @@ pub async fn get_service(
     let da_service = BitcoinService::new_without_wallet_check(
         runtime_config,
         RollupParams {
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            to_batch_proof_prefix,
+            to_light_client_prefix,
         },
         tx,
     )
@@ -49,8 +70,138 @@ pub async fn get_service(
     da_service
 }
 
-pub async fn generate_mock_txs(_service: &BitcoinService) {
-    todo!()
+pub async fn generate_mock_txs(
+    da_service: &BitcoinService,
+    da_node: &BitcoinNode,
+    task_manager: &mut TaskManager<()>,
+) {
+    println!("Generating mock txs");
+
+    da_service
+        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+            merkle_root: [13; 32],
+            l2_start_block_number: 1002,
+            l2_end_block_number: 1100,
+        }))
+        .await
+        .expect("Failed to send transaction");
+
+    println!("1 generated");
+
+    da_service
+        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+            merkle_root: [14; 32],
+            l2_start_block_number: 1101,
+            l2_end_block_number: 1245,
+        }))
+        .await
+        .expect("Failed to send transaction");
+    println!("2 generated");
+
+    let size = 2000;
+    let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+    da_service
+        .send_transaction(DaData::ZKProof(blob))
+        .await
+        .expect("Failed to send transaction");
+    println!("3 generated");
+
+    let size = 600 * 1024;
+    let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+    println!("wtf?");
+
+    da_service
+        .send_transaction(DaData::ZKProof(blob))
+        .await
+        .expect("Failed to send transaction");
+    println!("4 generated");
+
+    // seq com different namespace
+    let wrong_namespace_wallet = "wrong_namespace".to_string();
+    create_and_fund_wallet(wrong_namespace_wallet.clone(), da_node).await;
+    println!("maybe?");
+    get_service(
+        task_manager,
+        &da_node.config,
+        wrong_namespace_wallet,
+        DEFAULT_DA_PRIVATE_KEY.to_string(),
+        vec![5],
+        vec![6],
+    )
+    .await
+    .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        merkle_root: [15; 32],
+        l2_start_block_number: 1246,
+        l2_end_block_number: 1268,
+    }))
+    .await
+    .expect("Failed to send transaction");
+    println!("5 generated");
+
+    let size = 1024;
+    let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+    da_service
+        .send_transaction(DaData::ZKProof(blob))
+        .await
+        .expect("Failed to send transaction");
+
+    // seq com incorrect pubkey and sig
+    let incorrect_pubkey_wallet = "incorrect_pubkey".to_string();
+    create_and_fund_wallet(incorrect_pubkey_wallet.clone(), da_node).await;
+    get_service(
+        task_manager,
+        &da_node.config,
+        incorrect_pubkey_wallet,
+"E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
+        TO_BATCH_PROOF_PREFIX.to_vec(),
+        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+    )
+    .await
+    .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        merkle_root: [15; 32],
+        l2_start_block_number: 1246,
+        l2_end_block_number: 1268,
+    }))
+    .await
+    .expect("Failed to send transaction");
+
+    da_service
+        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+            merkle_root: [15; 32],
+            l2_start_block_number: 1246,
+            l2_end_block_number: 1268,
+        }))
+        .await
+        .expect("Failed to send transaction");
+
+    let size = 1200 * 1024;
+    let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+
+    da_service
+        .send_transaction(DaData::ZKProof(blob))
+        .await
+        .expect("Failed to send transaction");
+
+    da_service
+        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+            merkle_root: [30; 32],
+            l2_start_block_number: 1268,
+            l2_end_block_number: 1314,
+        }))
+        .await
+        .expect("Failed to send transaction");
+}
+
+async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
+    da_node
+        .client()
+        .create_wallet(&wallet, None, None, None, None)
+        .await
+        .unwrap();
+
+    da_node.fund_wallet(wallet, 1).await.unwrap();
 }
 
 pub fn get_citrea_path() -> PathBuf {

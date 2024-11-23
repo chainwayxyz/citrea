@@ -6,7 +6,7 @@ use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
-use test_utils::{generate_mock_txs, get_citrea_path, get_service};
+use test_utils::{generate_mock_txs, get_citrea_path, get_default_service};
 
 struct BitcoinVerifierTest;
 
@@ -22,10 +22,10 @@ impl TestCase for BitcoinVerifierTest {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let mut task_manager = TaskManager::default();
-        let da = f.bitcoin_nodes.get(0).unwrap();
+        let da_node = f.bitcoin_nodes.get(0).unwrap();
 
-        let da_service = get_service(&mut task_manager, &da.config).await;
-        generate_mock_txs(&da_service).await;
+        let da_service = get_default_service(&mut task_manager, &da_node.config).await;
+        generate_mock_txs(&da_service, da_node, &mut task_manager).await;
 
         task_manager.abort().await;
         Ok(())
