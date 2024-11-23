@@ -132,7 +132,7 @@ pub async fn generate_mock_txs(
         .expect("Failed to send transaction");
 
     // Invoke chunked zk proof generation with 2 chunks
-    let size = MAX_TXBODY_SIZE * 1 + 1500;
+    let size = MAX_TXBODY_SIZE + 1500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
     da_service
