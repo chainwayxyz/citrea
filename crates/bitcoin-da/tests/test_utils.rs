@@ -105,6 +105,9 @@ pub async fn generate_mock_txs(
     )
     .await;
 
+    // Generate 100 blocks for wallets to get their rewards
+    finalize_funds(da_node).await;
+
     da_service
         .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
             merkle_root: [13; 32],
@@ -192,6 +195,7 @@ pub async fn generate_mock_txs(
     da_service.get_block_by_hash(block_hash).await.unwrap()
 }
 
+/// Creates and funds a wallet. Funds are not finalized until `finalize_funds` is called.
 async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
     da_node
         .client()
@@ -199,7 +203,12 @@ async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
         .await
         .unwrap();
 
-    da_node.fund_wallet(wallet, 105).await.unwrap();
+    da_node.fund_wallet(wallet, 5).await.unwrap();
+}
+
+/// Generates 100 blocks and finalizes funds
+async fn finalize_funds(da_node: &BitcoinNode) {
+    da_node.generate(100).await.unwrap();
 }
 
 pub fn get_citrea_path() -> PathBuf {
