@@ -9,7 +9,7 @@ use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::BitcoinConfig;
 use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
-use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
@@ -75,8 +75,6 @@ pub async fn generate_mock_txs(
     da_node: &BitcoinNode,
     task_manager: &mut TaskManager<()>,
 ) {
-    println!("Generating mock txs");
-
     da_service
         .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
             merkle_root: [13; 32],
@@ -86,8 +84,6 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    println!("1 generated");
-
     da_service
         .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
             merkle_root: [14; 32],
@@ -96,7 +92,6 @@ pub async fn generate_mock_txs(
         }))
         .await
         .expect("Failed to send transaction");
-    println!("2 generated");
 
     let size = 2000;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
@@ -105,22 +100,19 @@ pub async fn generate_mock_txs(
         .send_transaction(DaData::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
-    println!("3 generated");
 
-    let size = 600 * 1024;
+    // Invoke chunked zk proof generation
+    let size = MAX_TXBODY_SIZE * 4 + 1500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
-    println!("wtf?");
 
     da_service
         .send_transaction(DaData::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
-    println!("4 generated");
 
     // seq com different namespace
     let wrong_namespace_wallet = "wrong_namespace".to_string();
     create_and_fund_wallet(wrong_namespace_wallet.clone(), da_node).await;
-    println!("maybe?");
     get_service(
         task_manager,
         &da_node.config,
@@ -137,7 +129,6 @@ pub async fn generate_mock_txs(
     }))
     .await
     .expect("Failed to send transaction");
-    println!("5 generated");
 
     let size = 1024;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
@@ -154,7 +145,7 @@ pub async fn generate_mock_txs(
         task_manager,
         &da_node.config,
         incorrect_pubkey_wallet,
-"E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
+        "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
         TO_BATCH_PROOF_PREFIX.to_vec(),
         TO_LIGHT_CLIENT_PREFIX.to_vec(),
     )
@@ -176,7 +167,8 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    let size = 1200 * 1024;
+    // Invoke chunked zk proof generation
+    let size = MAX_TXBODY_SIZE * 8 + 2500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
     da_service
@@ -201,7 +193,8 @@ async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
         .await
         .unwrap();
 
-    da_node.fund_wallet(wallet, 1).await.unwrap();
+    // TODO: fix this somehow?
+    da_node.fund_wallet(wallet, 150).await.unwrap();
 }
 
 pub fn get_citrea_path() -> PathBuf {
