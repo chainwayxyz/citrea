@@ -55,6 +55,7 @@ pub enum ValidationError {
     InvalidBlockBits,
     InvalidTargetHash,
     InvalidTimestamp,
+    HeaderInclusionTxCountMismatch,
 }
 
 impl DaVerifier for BitcoinVerifier {
@@ -78,6 +79,10 @@ impl DaVerifier for BitcoinVerifier {
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
     ) -> Result<(), Self::Error> {
+        if block_header.tx_count as usize != inclusion_proof.wtxids.len() {
+            return Err(ValidationError::HeaderInclusionTxCountMismatch);
+        }
+
         // create hash set of blobs
         let mut blobs_iter = blobs.iter();
 
