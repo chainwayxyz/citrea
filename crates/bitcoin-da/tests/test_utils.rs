@@ -75,6 +75,32 @@ pub async fn generate_mock_txs(
     da_node: &BitcoinNode,
     task_manager: &mut TaskManager<()>,
 ) {
+    // Funding wallet requires block generation, hence we do funding at the beginning
+    // to be able to write all transactions into the same block.
+    let wrong_prefix_wallet = "wrong_prefix".to_string();
+    create_and_fund_wallet(wrong_prefix_wallet.clone(), da_node).await;
+    let wrong_prefix_da_service = get_service(
+        task_manager,
+        &da_node.config,
+        wrong_prefix_wallet,
+        DEFAULT_DA_PRIVATE_KEY.to_string(),
+        vec![5],
+        vec![6],
+    )
+    .await;
+
+    let wrong_key_wallet = "wrong_key".to_string();
+    create_and_fund_wallet(wrong_key_wallet.clone(), da_node).await;
+    let wrong_key_da_service = get_service(
+        task_manager,
+        &da_node.config,
+        wrong_key_wallet,
+        "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
+        TO_BATCH_PROOF_PREFIX.to_vec(),
+        TO_LIGHT_CLIENT_PREFIX.to_vec(),
+    )
+    .await;
+
     da_service
         .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
             merkle_root: [13; 32],
@@ -110,25 +136,15 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // seq com different namespace
-    let wrong_namespace_wallet = "wrong_namespace".to_string();
-    create_and_fund_wallet(wrong_namespace_wallet.clone(), da_node).await;
-    get_service(
-        task_manager,
-        &da_node.config,
-        wrong_namespace_wallet,
-        DEFAULT_DA_PRIVATE_KEY.to_string(),
-        vec![5],
-        vec![6],
-    )
-    .await
-    .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        merkle_root: [15; 32],
-        l2_start_block_number: 1246,
-        l2_end_block_number: 1268,
-    }))
-    .await
-    .expect("Failed to send transaction");
+    // Sequencer commitment with wrong tx prefix
+    wrong_prefix_da_service
+        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+            merkle_root: [15; 32],
+            l2_start_block_number: 1246,
+            l2_end_block_number: 1268,
+        }))
+        .await
+        .expect("Failed to send transaction");
 
     let size = 1024;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
@@ -138,25 +154,15 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // seq com incorrect pubkey and sig
-    let incorrect_pubkey_wallet = "incorrect_pubkey".to_string();
-    create_and_fund_wallet(incorrect_pubkey_wallet.clone(), da_node).await;
-    get_service(
-        task_manager,
-        &da_node.config,
-        incorrect_pubkey_wallet,
-        "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263".to_string(),
-        TO_BATCH_PROOF_PREFIX.to_vec(),
-        TO_LIGHT_CLIENT_PREFIX.to_vec(),
-    )
-    .await
-    .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-        merkle_root: [15; 32],
-        l2_start_block_number: 1246,
-        l2_end_block_number: 1268,
-    }))
-    .await
-    .expect("Failed to send transaction");
+    // Sequencer commitment with wrong key and signature
+    wrong_key_da_service
+        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+            merkle_root: [15; 32],
+            l2_start_block_number: 1246,
+            l2_end_block_number: 1268,
+        }))
+        .await
+        .expect("Failed to send transaction");
 
     da_service
         .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
@@ -193,8 +199,7 @@ async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {
         .await
         .unwrap();
 
-    // TODO: fix this somehow?
-    da_node.fund_wallet(wallet, 150).await.unwrap();
+    da_node.fund_wallet(wallet, 105).await.unwrap();
 }
 
 pub fn get_citrea_path() -> PathBuf {
