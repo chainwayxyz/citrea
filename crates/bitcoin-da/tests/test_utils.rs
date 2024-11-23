@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
+use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
 use bitcoincore_rpc::RpcApi;
 use citrea_common::tasks::manager::TaskManager;
@@ -70,11 +71,14 @@ pub async fn get_service(
     da_service
 }
 
+/// Generates mock commitment and zk proof transactions and publishes a DA block
+/// with all mock transactions in it, and returns the block. Transactions also contain
+/// invalid commitment and zk proof transactions.
 pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
     task_manager: &mut TaskManager<()>,
-) {
+) -> BitcoinBlock {
     // Funding wallet requires block generation, hence we do funding at the beginning
     // to be able to write all transactions into the same block.
     let wrong_prefix_wallet = "wrong_prefix".to_string();
@@ -127,8 +131,8 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // Invoke chunked zk proof generation
-    let size = MAX_TXBODY_SIZE * 4 + 1500;
+    // Invoke chunked zk proof generation with 2 chunks
+    let size = MAX_TXBODY_SIZE * 1 + 1500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
     da_service
@@ -173,8 +177,8 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    // Invoke chunked zk proof generation
-    let size = MAX_TXBODY_SIZE * 8 + 2500;
+    // Invoke chunked zk proof generation with 3 chunks
+    let size = MAX_TXBODY_SIZE * 2 + 2500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
     da_service
@@ -182,14 +186,10 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
-    da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-            merkle_root: [30; 32],
-            l2_start_block_number: 1268,
-            l2_end_block_number: 1314,
-        }))
-        .await
-        .expect("Failed to send transaction");
+    // Write all txs to a block
+    let block_hash = da_node.generate(1).await.unwrap()[0];
+
+    da_service.get_block_by_hash(block_hash).await.unwrap()
 }
 
 async fn create_and_fund_wallet(wallet: String, da_node: &BitcoinNode) {

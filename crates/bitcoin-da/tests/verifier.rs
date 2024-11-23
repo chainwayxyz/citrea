@@ -25,7 +25,7 @@ impl TestCase for BitcoinVerifierTest {
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
         let da_service = get_default_service(&mut task_manager, &da_node.config).await;
-        generate_mock_txs(&da_service, da_node, &mut task_manager).await;
+        let _da_block = generate_mock_txs(&da_service, da_node, &mut task_manager).await;
 
         task_manager.abort().await;
         Ok(())
