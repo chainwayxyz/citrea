@@ -423,6 +423,7 @@ impl BitcoinService {
         commit: Transaction,
         reveal: TxWithId,
     ) -> Result<Vec<Txid>> {
+        assert!(!commit_chunks.is_empty(), "Received empty chunks");
         assert_eq!(
             commit_chunks.len(),
             reveal_chunks.len(),
