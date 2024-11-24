@@ -78,6 +78,15 @@ pub async fn get_service(
 /// Generates mock commitment and zk proof transactions and publishes a DA block
 /// with all mock transactions in it, and returns the block. Transactions also contain
 /// invalid commitment and zk proof transactions.
+///
+/// In total it generates 28 transactions.
+/// - Valid commitments: 3 (6 txs)
+/// - Valid complete proofs: 2 (4 txs)
+/// - Valid chunked proofs: 1 with 2 chunks (6 txs) + 1 with 3 chunks (8 txs)
+/// - Invalid commitment with wrong public key: 1 (2 txs)
+/// - Invalid commitment with wrong prefix: 1 (2 txs)
+///
+/// With coinbase transaction, returned block has total of 29 transactions.
 pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
@@ -196,7 +205,10 @@ pub async fn generate_mock_txs(
     // Write all txs to a block
     let block_hash = da_node.generate(1).await.unwrap()[0];
 
-    da_service.get_block_by_hash(block_hash).await.unwrap()
+    let block = da_service.get_block_by_hash(block_hash).await.unwrap();
+    assert_eq!(block.txdata.len(), 29);
+
+    block
 }
 
 // TODO: make this work
