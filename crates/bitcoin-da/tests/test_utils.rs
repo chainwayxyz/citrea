@@ -1,9 +1,13 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use bitcoin::Amount;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::RollupParams;
+use bitcoin_da::verifier::WITNESS_COMMITMENT_PREFIX;
+use bitcoincore_rpc::json::{AddressType, CreateRawTransactionInput, FundRawTransactionOptions};
 use bitcoincore_rpc::RpcApi;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::bitcoin::BitcoinNode;
@@ -193,6 +197,78 @@ pub async fn generate_mock_txs(
     let block_hash = da_node.generate(1).await.unwrap()[0];
 
     da_service.get_block_by_hash(block_hash).await.unwrap()
+}
+
+// TODO: make this work
+pub async fn generate_nonsegwit_block(
+    da_node: &BitcoinNode,
+    da_service: &BitcoinService,
+) -> BitcoinBlock {
+    let client = da_node.client();
+    let address = client
+        .get_new_address(Some("nonsegwit_address"), Some(AddressType::Legacy))
+        .await
+        .unwrap()
+        .assume_checked();
+
+    client.generate_to_address(5, &address).await.unwrap();
+    finalize_funds(da_node).await;
+
+    let utxos = client
+        .list_unspent(Some(0), None, Some(&[&address]), None, None)
+        .await
+        .unwrap();
+    assert_eq!(utxos.len(), 5);
+
+    let input = CreateRawTransactionInput {
+        txid: utxos[0].txid,
+        vout: utxos[0].vout,
+        sequence: None,
+    };
+    let mut output = HashMap::new();
+    output.insert(address.to_string(), utxos[0].amount / 2);
+    output.insert(address.to_string(), utxos[0].amount / 2);
+
+    let raw_tx = client
+        .create_raw_transaction(&[input], &output, None, None)
+        .await
+        .unwrap();
+
+    let funded_tx = client
+        .fund_raw_transaction(
+            &raw_tx,
+            Some(&FundRawTransactionOptions {
+                change_address: Some(address.clone()),
+                fee_rate: Some(Amount::ONE_SAT * 1000),
+                ..Default::default()
+            }),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let signed_tx = client
+        .sign_raw_transaction_with_wallet(&funded_tx.hex, None, None)
+        .await
+        .unwrap();
+
+    client.send_raw_transaction(&signed_tx.hex).await.unwrap();
+
+    let block_hash = da_node.generate(1).await.unwrap()[0];
+
+    let block = da_service.get_block_by_hash(block_hash).await.unwrap();
+    let txs = block.txdata.as_slice();
+
+    // ensure that block does not have any segwit txs
+    let idx = txs[0].output.iter().position(|output| {
+        output
+            .script_pubkey
+            .to_bytes()
+            .starts_with(WITNESS_COMMITMENT_PREFIX)
+    });
+    assert_eq!(idx, None);
+
+    block
 }
 
 /// Creates and funds a wallet. Funds are not finalized until `finalize_funds` is called.

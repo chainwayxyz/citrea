@@ -1,8 +1,11 @@
 mod test_utils;
 
 use async_trait::async_trait;
+use bitcoin::hashes::Hash;
+use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
 use bitcoin_da::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
 use bitcoin_da::spec::blob::BlobWithSender;
+use bitcoin_da::spec::proof::InclusionMultiProof;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError};
 use citrea_common::tasks::manager::TaskManager;
@@ -14,7 +17,9 @@ use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::macros::assert_panic;
-use test_utils::{generate_mock_txs, get_citrea_path, get_default_service};
+use test_utils::{
+    generate_mock_txs, generate_nonsegwit_block, get_citrea_path, get_default_service,
+};
 
 struct BitcoinVerifierTest;
 
@@ -47,28 +52,30 @@ impl TestCase for BitcoinVerifierTest {
 
         // Correct batch proof
         {
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_ok());
+                ),
+                Ok(()),
+            );
         }
 
         // Correct light client proof
         {
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &l_txs,
                     l_inclusion_proof.clone(),
                     l_completeness_proof.clone(),
                     DaNamespace::ToLightClientProver,
-                )
-                .is_ok());
+                ),
+                Ok(()),
+            );
         }
 
         // Inverted namespaces should fail
@@ -98,7 +105,33 @@ impl TestCase for BitcoinVerifierTest {
 
         // Test non-segwit block
         {
-            // TODO: do
+            let nonsegwit_block = generate_nonsegwit_block(da_node, &service).await;
+            let txs = nonsegwit_block.txdata.as_slice();
+
+            let tree = BitcoinMerkleTree::new(
+                txs.iter()
+                    .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                    .collect(),
+            );
+
+            let inclusion_proof = InclusionMultiProof {
+                wtxids: txs
+                    .iter()
+                    .map(|t| t.compute_wtxid().to_raw_hash().to_byte_array())
+                    .collect(),
+                coinbase_tx: txs[0].clone(),
+                coinbase_merkle_proof: tree.get_idx_path(0),
+            };
+            assert_eq!(
+                verifier.verify_transactions(
+                    &nonsegwit_block.header,
+                    &[],
+                    inclusion_proof,
+                    vec![],
+                    DaNamespace::ToBatchProver,
+                ),
+                Ok(())
+            );
         }
 
         // False coinbase input witness should fail
