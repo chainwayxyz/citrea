@@ -76,8 +76,8 @@ pub async fn get_service(
 }
 
 /// Generates mock commitment and zk proof transactions and publishes a DA block
-/// with all mock transactions in it, and returns the block. Transactions also contain
-/// invalid commitment and zk proof transactions.
+/// with all mock transactions in it, and returns the block, valid commitments and proofs.
+/// Transactions also contain invalid commitment and zk proof transactions.
 ///
 /// In total it generates 28 transactions.
 /// - Valid commitments: 3 (6 txs)
@@ -91,7 +91,7 @@ pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
     task_manager: &mut TaskManager<()>,
-) -> BitcoinBlock {
+) -> (BitcoinBlock, Vec<SequencerCommitment>, Vec<Vec<u8>>) {
     // Funding wallet requires block generation, hence we do funding at the beginning
     // to be able to write all transactions into the same block.
     let wrong_prefix_wallet = "wrong_prefix".to_string();
@@ -121,27 +121,35 @@ pub async fn generate_mock_txs(
     // Generate 100 blocks for wallets to get their rewards
     finalize_funds(da_node).await;
 
+    let mut valid_commitments = vec![];
+    let mut valid_proofs = vec![];
+
+    let commitment = SequencerCommitment {
+        merkle_root: [13; 32],
+        l2_start_block_number: 1002,
+        l2_end_block_number: 1100,
+    };
+    valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-            merkle_root: [13; 32],
-            l2_start_block_number: 1002,
-            l2_end_block_number: 1100,
-        }))
+        .send_transaction(DaData::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
+    let commitment = SequencerCommitment {
+        merkle_root: [14; 32],
+        l2_start_block_number: 1101,
+        l2_end_block_number: 1245,
+    };
+    valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-            merkle_root: [14; 32],
-            l2_start_block_number: 1101,
-            l2_end_block_number: 1245,
-        }))
+        .send_transaction(DaData::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
     let size = 2000;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
+    valid_proofs.push(blob.clone());
     da_service
         .send_transaction(DaData::ZKProof(blob))
         .await
@@ -151,6 +159,7 @@ pub async fn generate_mock_txs(
     let size = MAX_TXBODY_SIZE + 1500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
+    valid_proofs.push(blob.clone());
     da_service
         .send_transaction(DaData::ZKProof(blob))
         .await
@@ -169,6 +178,7 @@ pub async fn generate_mock_txs(
     let size = 1024;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
+    valid_proofs.push(blob.clone());
     da_service
         .send_transaction(DaData::ZKProof(blob))
         .await
@@ -184,12 +194,14 @@ pub async fn generate_mock_txs(
         .await
         .expect("Failed to send transaction");
 
+    let commitment = SequencerCommitment {
+        merkle_root: [15; 32],
+        l2_start_block_number: 1246,
+        l2_end_block_number: 1268,
+    };
+    valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
-            merkle_root: [15; 32],
-            l2_start_block_number: 1246,
-            l2_end_block_number: 1268,
-        }))
+        .send_transaction(DaData::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -197,6 +209,7 @@ pub async fn generate_mock_txs(
     let size = MAX_TXBODY_SIZE * 2 + 2500;
     let blob = (0..size).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
 
+    valid_proofs.push(blob.clone());
     da_service
         .send_transaction(DaData::ZKProof(blob))
         .await
@@ -208,7 +221,7 @@ pub async fn generate_mock_txs(
     let block = da_service.get_block_by_hash(block_hash).await.unwrap();
     assert_eq!(block.txdata.len(), 29);
 
-    block
+    (block, valid_commitments, valid_proofs)
 }
 
 // TODO: make this work

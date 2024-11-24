@@ -38,7 +38,7 @@ impl TestCase for BitcoinVerifierTest {
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
         let service = get_default_service(&mut task_manager, &da_node.config).await;
-        let block = generate_mock_txs(&service, da_node, &mut task_manager).await;
+        let (block, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
 
         let (b_txs, b_inclusion_proof, b_completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);

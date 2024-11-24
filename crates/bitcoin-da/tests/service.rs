@@ -36,14 +36,15 @@ impl TestCase for BitcoinServiceTest {
             to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
         });
 
-        let block = generate_mock_txs(&service, da_node, &mut task_manager).await;
+        let (block, block_commitments, block_proofs) =
+            generate_mock_txs(&service, da_node, &mut task_manager).await;
         let block_wtxids = block
             .txdata
             .iter()
             .map(|tx| tx.compute_wtxid().as_raw_hash().to_byte_array())
             .collect::<Vec<_>>();
 
-        // let sequencer_pubkey = da_node.client().get_address_info(address).await.unwrap().pubkey.unwrap().to_bytes();
+        let pubkey;
 
         // Extracts relevant batch proof blobs with proof correctly
         {
@@ -62,6 +63,15 @@ impl TestCase for BitcoinServiceTest {
                 assert!(wtxid.starts_with(TO_BATCH_PROOF_PREFIX));
                 assert!(block_wtxids.contains(&wtxid));
             }
+
+            // Since only one of the transactions has a malformed sender, we have to find the
+            // tx that is not malformed, and get its public key
+            pubkey = if txs[0].sender == txs[1].sender || txs[0].sender == txs[2].sender {
+                txs[0].sender.0.clone()
+            } else {
+                txs[1].sender.0.clone()
+            };
+
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
                 verifier.verify_transactions(
@@ -107,10 +117,19 @@ impl TestCase for BitcoinServiceTest {
 
         // Extract relevant sequencer commitments
         {
-            // let commitments = service
-            //     .extract_relevant_sequencer_commitments(&block, &[1, 2, 3, 4, 5])
-            //     .unwrap();
-            // assert_eq!(commitments.len(), 3);
+            let commitments = service
+                .extract_relevant_sequencer_commitments(&block, &pubkey)
+                .unwrap();
+            assert_eq!(commitments, block_commitments);
+        }
+
+        // Extract relevant zk proofs
+        {
+            let proofs = service
+                .extract_relevant_zk_proofs(&block, &pubkey)
+                .await
+                .unwrap();
+            assert_eq!(proofs, block_proofs);
         }
 
         task_manager.abort().await;
