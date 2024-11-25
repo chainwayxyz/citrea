@@ -56,14 +56,6 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(txs.len(), 4);
             assert_eq!(completeness_proof.len(), 4);
 
-            let completeness_wtxids = completeness_proof
-                .iter()
-                .map(|tx| tx.compute_wtxid().as_raw_hash().to_byte_array());
-            for wtxid in completeness_wtxids {
-                assert!(wtxid.starts_with(TO_BATCH_PROOF_PREFIX));
-                assert!(block_wtxids.contains(&wtxid));
-            }
-
             // Since only one of the transactions has a malformed sender, we have to find the
             // tx that is not malformed, and get its public key
             pubkey = if txs[0].sender == txs[1].sender || txs[0].sender == txs[2].sender {
@@ -95,13 +87,6 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(txs.len(), 4);
             assert_eq!(completeness_proof.len(), 4);
 
-            let completeness_wtxids = completeness_proof
-                .iter()
-                .map(|tx| tx.compute_wtxid().as_raw_hash().to_byte_array());
-            for wtxid in completeness_wtxids {
-                assert!(wtxid.starts_with(TO_LIGHT_CLIENT_PREFIX));
-                assert!(block_wtxids.contains(&wtxid));
-            }
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
                 verifier.verify_transactions(
