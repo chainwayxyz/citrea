@@ -309,10 +309,14 @@ impl DaVerifier for BitcoinVerifier {
 }
 
 // Get associated blob content only if signatures, hashes and public keys match
-fn verified_blob_content(
-    tx: &dyn VerifyParsed,
-    blobs_iter: &mut dyn Iterator<Item = &BlobWithSender>,
-) -> Result<Option<CountedBufReader<BlobBuf>>, ValidationError> {
+fn verified_blob_content<'a, T, I>(
+    tx: &T,
+    blobs_iter: &mut I,
+) -> Result<Option<CountedBufReader<BlobBuf>>, ValidationError>
+where
+    T: VerifyParsed,
+    I: Iterator<Item = &'a BlobWithSender>,
+{
     if let Some(blob_hash) = tx.get_sig_verified_hash() {
         let blob = blobs_iter.next();
 
