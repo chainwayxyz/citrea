@@ -33,7 +33,7 @@ where
     }
 
     /// Sets all required parameters and executes a transaction.
-    fn transact_commit(
+    pub(crate) fn transact_commit(
         &mut self,
         tx: &TransactionSignedEcRecovered,
     ) -> Result<ExecutionResult, EVMError<DB::Error>>
@@ -63,18 +63,6 @@ where
     {
         self.evm.context.evm.db.commit(state)
     }
-}
-
-#[allow(dead_code)]
-pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
-    db: DB,
-    block_env: BlockEnv,
-    tx: &TransactionSignedEcRecovered,
-    config_env: CfgEnvWithHandlerCfg,
-    ext: &mut EXT,
-) -> Result<ExecutionResult, EVMError<DB::Error>> {
-    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
-    evm.transact_commit(tx)
 }
 
 pub(crate) fn execute_multiple_tx<

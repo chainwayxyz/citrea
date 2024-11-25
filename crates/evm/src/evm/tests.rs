@@ -1,14 +1,18 @@
 use std::str::FromStr;
 
-use reth_primitives::{Address, TxKind};
-use revm::primitives::{BlockEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, SpecId, U256};
+use reth_primitives::{Address, TransactionSignedEcRecovered, TxKind};
+use revm::primitives::{
+    BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, Output, SpecId, U256,
+};
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::WorkingSet;
 use sov_prover_storage_manager::new_orphan_storage;
 
+use self::executor::CitreaEvm;
 use super::db::{DBError, EvmDb};
 use super::db_init::InitEvmDb;
 use super::executor;
+use super::handler::CitreaExternalExt;
 use crate::evm::handler::CitreaExternal;
 use crate::evm::AccountInfo;
 use crate::smart_contracts::SimpleStorageContract;
@@ -66,8 +70,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
         };
 
         let result =
-            executor::execute_tx(&mut evm_db, block_env, tx, cfg_env.clone(), &mut citrea_ext)
-                .unwrap();
+            execute_tx(&mut evm_db, block_env, tx, cfg_env.clone(), &mut citrea_ext).unwrap();
         contract_address(&result).expect("Expected successful contract creation")
     };
 
@@ -81,7 +84,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
             .unwrap();
         let tx = &tx.try_into().unwrap();
 
-        executor::execute_tx(
+        execute_tx(
             &mut evm_db,
             BlockEnv::default(),
             tx,
@@ -100,7 +103,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
 
         let tx = &tx.try_into().unwrap();
 
-        let result = executor::execute_tx(
+        let result = execute_tx(
             &mut evm_db,
             BlockEnv::default(),
             tx,
@@ -123,7 +126,7 @@ fn simple_contract_execution<DB: Database<Error = DBError> + DatabaseCommit + In
             .unwrap();
         let tx = &tx.try_into().unwrap();
 
-        let result = executor::execute_tx(
+        let result = execute_tx(
             &mut evm_db,
             BlockEnv::default(),
             tx,
@@ -154,4 +157,15 @@ fn output(result: ExecutionResult) -> alloy_primitives::Bytes {
         },
         _ => panic!("Expected successful ExecutionResult"),
     }
+}
+
+pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
+    db: DB,
+    block_env: BlockEnv,
+    tx: &TransactionSignedEcRecovered,
+    config_env: CfgEnvWithHandlerCfg,
+    ext: &mut EXT,
+) -> Result<ExecutionResult, EVMError<DB::Error>> {
+    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
+    evm.transact_commit(tx)
 }
