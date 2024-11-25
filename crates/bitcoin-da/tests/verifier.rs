@@ -2,12 +2,13 @@ mod test_utils;
 
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin::{ScriptBuf, Witness};
 use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
 use bitcoin_da::helpers::parsers::{parse_light_client_transaction, ParsedLightClientTransaction};
 use bitcoin_da::spec::blob::BlobWithSender;
 use bitcoin_da::spec::proof::InclusionMultiProof;
 use bitcoin_da::spec::RollupParams;
-use bitcoin_da::verifier::{BitcoinVerifier, ValidationError};
+use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
@@ -18,7 +19,8 @@ use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::macros::assert_panic;
 use test_utils::{
-    generate_mock_txs, get_citrea_path, get_default_service, get_mock_nonsegwit_block,
+    generate_mock_txs, get_blob_with_sender, get_citrea_path, get_default_service,
+    get_mock_nonsegwit_block, MockData,
 };
 
 struct BitcoinVerifierTest;
@@ -136,17 +138,143 @@ impl TestCase for BitcoinVerifierTest {
 
         // False coinbase input witness should fail
         {
-            // TODO: do
+            let mut block_txs = block.txdata.clone();
+
+            // Malform witness
+            block_txs[0].input[0].witness = Witness::from_slice(&[vec![1; 32]]);
+
+            // Recreate inclusion proof
+            let tree = BitcoinMerkleTree::new(
+                block_txs
+                    .iter()
+                    .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                    .collect(),
+            );
+            let mut inclusion_proof = InclusionMultiProof {
+                wtxids: block_txs
+                    .iter()
+                    .map(|t| t.compute_wtxid().to_byte_array())
+                    .collect(),
+                coinbase_tx: block_txs[0].clone(),
+                coinbase_merkle_proof: tree.get_idx_path(0),
+            };
+            // Coinbase tx wtxid should be [0u8;32]
+            inclusion_proof.wtxids[0] = [0; 32];
+
+            assert!(verifier
+                .verify_transactions(
+                    &block.header,
+                    &b_txs,
+                    inclusion_proof,
+                    b_completeness_proof.clone(),
+                    DaNamespace::ToBatchProver,
+                )
+                .is_err());
         }
 
         // False coinbase script pubkey should fail
         {
-            // TODO: do
+            let mut block_txs = block.txdata.clone();
+
+            let idx = block_txs[0]
+                .output
+                .iter()
+                .position(|output| {
+                    output
+                        .script_pubkey
+                        .to_bytes()
+                        .starts_with(WITNESS_COMMITMENT_PREFIX)
+                })
+                .unwrap();
+            // Malform coinbase script pubkey
+            let mut bytes = block_txs[0].output[idx].script_pubkey.to_bytes();
+            bytes[0] = bytes[0].wrapping_add(1);
+
+            block_txs[0].output[idx].script_pubkey = ScriptBuf::from_bytes(bytes);
+
+            // Recreate inclusion proof
+            let tree = BitcoinMerkleTree::new(
+                block_txs
+                    .iter()
+                    .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                    .collect(),
+            );
+            let mut inclusion_proof = InclusionMultiProof {
+                wtxids: block_txs
+                    .iter()
+                    .map(|t| t.compute_wtxid().to_byte_array())
+                    .collect(),
+                coinbase_tx: block_txs[0].clone(),
+                coinbase_merkle_proof: tree.get_idx_path(0),
+            };
+            // Coinbase tx wtxid should be [0u8;32]
+            inclusion_proof.wtxids[0] = [0; 32];
+
+            assert!(verifier
+                .verify_transactions(
+                    &block.header,
+                    &b_txs,
+                    inclusion_proof,
+                    b_completeness_proof.clone(),
+                    DaNamespace::ToBatchProver,
+                )
+                .is_err());
         }
 
         // False witness script should fail
         {
-            // TODO: do
+            let mut block_txs = block.txdata.clone();
+            let mut completeness_proof = b_completeness_proof.clone();
+
+            let relevant_tx = block_txs
+                .iter_mut()
+                .find(|tx| tx.compute_wtxid() == completeness_proof[0].compute_wtxid())
+                .unwrap();
+
+            // Malform the witness
+            let mut malformed_witness = relevant_tx.input[0].witness.to_vec();
+            malformed_witness[0][0] = malformed_witness[0][0].wrapping_add(1);
+
+            completeness_proof[0].input[0].witness = Witness::from_slice(&malformed_witness);
+            relevant_tx.input[0].witness = Witness::from_slice(&malformed_witness);
+            assert_eq!(
+                completeness_proof[0].compute_wtxid(),
+                relevant_tx.compute_wtxid()
+            );
+
+            let tree = BitcoinMerkleTree::new(
+                block_txs
+                    .iter()
+                    .map(|t| t.compute_txid().to_raw_hash().to_byte_array())
+                    .collect(),
+            );
+
+            let mut inclusion_proof = InclusionMultiProof {
+                wtxids: block_txs
+                    .iter()
+                    .map(|t| t.compute_wtxid().to_byte_array())
+                    .collect(),
+                coinbase_tx: block_txs[0].clone(),
+                coinbase_merkle_proof: tree.get_idx_path(0),
+            };
+
+            // Coinbase tx wtxid should be [0u8;32]
+            inclusion_proof.wtxids[0] = [0; 32];
+
+            let txs = completeness_proof
+                .iter()
+                .filter_map(|tx| get_blob_with_sender(tx, MockData::ToBatchProver).ok())
+                .collect::<Vec<_>>();
+
+            assert!(verifier
+                .verify_transactions(
+                    &block.header,
+                    &txs,
+                    inclusion_proof,
+                    completeness_proof,
+                    DaNamespace::ToBatchProver,
+                )
+                .is_err());
         }
 
         // Different witness ids should fail
