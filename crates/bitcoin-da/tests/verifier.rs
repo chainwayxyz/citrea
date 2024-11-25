@@ -18,7 +18,7 @@ use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::macros::assert_panic;
 use test_utils::{
-    generate_mock_txs, generate_nonsegwit_block, get_citrea_path, get_default_service,
+    generate_mock_txs, get_citrea_path, get_default_service, get_mock_nonsegwit_block,
 };
 
 struct BitcoinVerifierTest;
@@ -105,7 +105,7 @@ impl TestCase for BitcoinVerifierTest {
 
         // Test non-segwit block
         {
-            let nonsegwit_block = generate_nonsegwit_block(da_node, &service).await;
+            let nonsegwit_block = get_mock_nonsegwit_block();
             let txs = nonsegwit_block.txdata.as_slice();
 
             let tree = BitcoinMerkleTree::new(

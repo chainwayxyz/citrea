@@ -1,13 +1,16 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
-use bitcoin::Amount;
+use bitcoin::block::{Header, Version};
+use bitcoin::hashes::Hash;
+use bitcoin::{BlockHash, CompactTarget, TxMerkleNode, WitnessMerkleNode};
+use bitcoin_da::helpers::parsers::parse_hex_transaction;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig};
 use bitcoin_da::spec::block::BitcoinBlock;
+use bitcoin_da::spec::header::HeaderWrapper;
+use bitcoin_da::spec::transaction::TransactionWrapper;
 use bitcoin_da::spec::RollupParams;
-use bitcoin_da::verifier::WITNESS_COMMITMENT_PREFIX;
-use bitcoincore_rpc::json::{AddressType, CreateRawTransactionInput, FundRawTransactionOptions};
 use bitcoincore_rpc::RpcApi;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::bitcoin::BitcoinNode;
@@ -224,76 +227,46 @@ pub async fn generate_mock_txs(
     (block, valid_commitments, valid_proofs)
 }
 
-// TODO: make this work
-pub async fn generate_nonsegwit_block(
-    da_node: &BitcoinNode,
-    da_service: &BitcoinService,
-) -> BitcoinBlock {
-    let client = da_node.client();
-    let address = client
-        .get_new_address(Some("nonsegwit_address"), Some(AddressType::Legacy))
-        .await
-        .unwrap()
-        .assume_checked();
+pub fn get_mock_nonsegwit_block() -> BitcoinBlock {
+    // There are no relevant txs
+    let txs = std::fs::read_to_string("test_data/mock_non_segwit_txs.txt").unwrap();
+    // txs[2] is a non-segwit tx but its txid has the prefix 00
+    let txs: Vec<TransactionWrapper> = txs
+        .lines()
+        .map(|tx| parse_hex_transaction(tx).unwrap())
+        .map(Into::into)
+        .collect();
 
-    client.generate_to_address(5, &address).await.unwrap();
-    finalize_funds(da_node).await;
-
-    let utxos = client
-        .list_unspent(Some(0), None, Some(&[&address]), None, None)
-        .await
-        .unwrap();
-    assert_eq!(utxos.len(), 5);
-
-    let input = CreateRawTransactionInput {
-        txid: utxos[0].txid,
-        vout: utxos[0].vout,
-        sequence: None,
-    };
-    let mut output = HashMap::new();
-    output.insert(address.to_string(), utxos[0].amount / 2);
-    output.insert(address.to_string(), utxos[0].amount / 2);
-
-    let raw_tx = client
-        .create_raw_transaction(&[input], &output, None, None)
-        .await
-        .unwrap();
-
-    let funded_tx = client
-        .fund_raw_transaction(
-            &raw_tx,
-            Some(&FundRawTransactionOptions {
-                change_address: Some(address.clone()),
-                fee_rate: Some(Amount::ONE_SAT * 1000),
-                ..Default::default()
-            }),
-            None,
+    let header = HeaderWrapper::new(
+        Header {
+            version: Version::from_consensus(536870912),
+            prev_blockhash: BlockHash::from_str(
+                "6b15a2e4b17b0aabbd418634ae9410b46feaabf693eea4c8621ffe71435d24b0",
+            )
+            .unwrap(),
+            merkle_root: TxMerkleNode::from_slice(&[
+                164, 71, 72, 235, 241, 189, 131, 141, 120, 210, 207, 233, 212, 171, 56, 52, 25, 40,
+                83, 62, 135, 211, 81, 44, 3, 109, 10, 127, 210, 213, 124, 221,
+            ])
+            .unwrap(),
+            time: 1694177029,
+            bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+            nonce: 0,
+        },
+        6,
+        2,
+        WitnessMerkleNode::from_str(
+            "a8b25755ed6e2f1df665b07e751f6acc1ff4e1ec765caa93084176e34fa5ad71",
         )
-        .await
-        .unwrap();
+        .unwrap()
+        .to_raw_hash()
+        .to_byte_array(),
+    );
 
-    let signed_tx = client
-        .sign_raw_transaction_with_wallet(&funded_tx.hex, None, None)
-        .await
-        .unwrap();
-
-    client.send_raw_transaction(&signed_tx.hex).await.unwrap();
-
-    let block_hash = da_node.generate(1).await.unwrap()[0];
-
-    let block = da_service.get_block_by_hash(block_hash).await.unwrap();
-    let txs = block.txdata.as_slice();
-
-    // ensure that block does not have any segwit txs
-    let idx = txs[0].output.iter().position(|output| {
-        output
-            .script_pubkey
-            .to_bytes()
-            .starts_with(WITNESS_COMMITMENT_PREFIX)
-    });
-    assert_eq!(idx, None);
-
-    block
+    BitcoinBlock {
+        header,
+        txdata: txs,
+    }
 }
 
 /// Creates and funds a wallet. Funds are not finalized until `finalize_funds` is called.
