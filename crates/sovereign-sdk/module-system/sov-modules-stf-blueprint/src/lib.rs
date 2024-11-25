@@ -866,7 +866,7 @@ fn pre_fork1_verify_soft_confirmation_signature<C: Context, Tx: BorshSerialize>(
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
-    let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
+    let message = borsh::to_vec(&unsigned_soft_confirmation.get_old_format()).unwrap();
 
     let signature = C::Signature::try_from(signature)?;
 
