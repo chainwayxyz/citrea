@@ -1,7 +1,13 @@
 mod test_utils;
 
+use std::collections::HashMap;
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
+use bitcoin::key::Secp256k1;
+use bitcoin::secp256k1::SecretKey;
+use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::tasks::manager::TaskManager;
@@ -12,7 +18,10 @@ use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_rollup_interface::da::{DaNamespace, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
-use test_utils::{generate_mock_txs, get_citrea_path, get_default_service};
+use test_utils::{
+    generate_mock_txs, get_citrea_path, get_default_service, get_mock_false_signature_txs_block,
+    DEFAULT_DA_PRIVATE_KEY,
+};
 
 struct BitcoinServiceTest;
 
@@ -115,6 +124,61 @@ impl TestCase for BitcoinServiceTest {
                 .await
                 .unwrap();
             assert_eq!(proofs, block_proofs);
+        }
+
+        // Batch proof tx blob signed with different private key should still be
+        // returned as blob with sender recovered correctly.
+        {
+            let secp = Secp256k1::new();
+            let wrong_secret = SecretKey::from_str(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33261",
+            )
+            .unwrap();
+            let wrong_pubkey = wrong_secret
+                .keypair(&secp)
+                .public_key()
+                .serialize()
+                .to_vec();
+
+            let false_sig_block = get_mock_false_signature_txs_block();
+
+            let (txs, _, _) = service
+                .extract_relevant_blobs_with_proof(&false_sig_block, DaNamespace::ToBatchProver);
+            // There is one tx with right prefix, but wrong signature
+            assert_eq!(txs.len(), 1);
+            assert_eq!(txs[0].sender.0, wrong_pubkey);
+        }
+
+        {
+            let secp = bitcoin::secp256k1::Secp256k1::new();
+            let secret = SecretKey::from_str(DEFAULT_DA_PRIVATE_KEY).unwrap();
+            let da_pubkey = secret.keypair(&secp).public_key().serialize().to_vec();
+
+            let wrong_secret = SecretKey::from_str(
+                "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33263",
+            )
+            .unwrap();
+            let wrong_pubkey = wrong_secret
+                .keypair(&secp)
+                .public_key()
+                .serialize()
+                .to_vec();
+
+            let txs = get_relevant_blobs_from_txs(
+                block.txdata.iter().map(|tx| tx.inner().clone()).collect(),
+                TO_BATCH_PROOF_PREFIX,
+            );
+            assert_eq!(txs.len(), 4);
+
+            // Count the number of transactions occurring per public key
+            let tx_count_of_pubkey = txs.into_iter().fold(HashMap::new(), |mut acc, tx| {
+                *acc.entry(tx.sender.0).or_insert(0) += 1;
+                acc
+            });
+            // 3 valid sequencer commitments
+            assert_eq!(tx_count_of_pubkey.get(&da_pubkey).unwrap(), &3);
+            // 1 invalid sequencer commitment due to different key
+            assert_eq!(tx_count_of_pubkey.get(&wrong_pubkey).unwrap(), &1);
         }
 
         task_manager.abort().await;

@@ -21,7 +21,7 @@ use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
-const DEFAULT_DA_PRIVATE_KEY: &str =
+pub const DEFAULT_DA_PRIVATE_KEY: &str =
     "E9873D79C6D87DC0FB6A5778633389F4453213303DA61F20BD67FC233AA33262";
 
 pub async fn get_default_service(
@@ -227,6 +227,7 @@ pub async fn generate_mock_txs(
     (block, valid_commitments, valid_proofs)
 }
 
+#[allow(unused)]
 pub fn get_mock_nonsegwit_block() -> BitcoinBlock {
     // There are no relevant txs
     // txs[2] is a non-segwit tx but its txid has the prefix 00
@@ -267,6 +268,50 @@ pub fn get_mock_nonsegwit_block() -> BitcoinBlock {
         )
         .unwrap()
         .to_raw_hash()
+        .to_byte_array(),
+    );
+
+    BitcoinBlock {
+        header,
+        txdata: txs,
+    }
+}
+
+#[allow(unused)]
+pub fn get_mock_false_signature_txs_block() -> BitcoinBlock {
+    let txs = [
+        "020000000001010000000000000000000000000000000000000000000000000000000000000000ffffffff0402aa0800ffffffff026faa040000000000160014fa5554be100ee542587688a93e7c2ac37478bdc60000000000000000266a24aa21a9ed494880ce756f69b13811200d1e358a049ac3c3dd66e4ff7e86d4c4d3aad959390120000000000000000000000000000000000000000000000000000000000000000000000000",
+        "020000000001015ada1242404efd013244c1361f3207d3e34a1f0c786a96b334203bcb317dc9e40100000000fdffffff025e0300000000000022512057c195448a1acba9a08b93aa31fc224988f0e1f517908ea814bd4b052dee3df8af31000000000000160014ba033fad8b4899045c892787ff716877e5f8e18102473044022066e4bafa74ad683ecee03d2a9502ed5bda1c2c791efdc91cd82f47f0a7d139e102207a52d868d9e3f2ceeafb0c01c0f6b3e5db43ec41969d5e9740ebb86f8537b0e00121034716b0a10b8e9a64acfa721fccaf7202c5156a2686332b0ec72bbb257d2dbe0600000000",
+        "0200000000010171f88e369556505b8c5ca67625daf351d79b9fec757ba9d1259a0b63b2338b3a0000000000fdffffff012202000000000000160014ba033fad8b4899045c892787ff716877e5f8e18103409646f749c4d980a427151c31f9e1129327d4d311caab29bfa7702d674c8aaa1c9fea6547c5c947b9745a5f3ecdeb3235d8b9b0cae6a861df2e43b245c5b16161c72059975a92015d3ca4b95d3b3faffd5003ad389ab064e1144f6a5144e4e6f56a58ad020000006340bd068f826f4ca54e7d2aa7133a0ac9f945ac0e3904ea8ed203b35f430e02d5b07ed2fb9dd6e24f7930a56de2f6772f62d0b453a68ec6a5e58ef6de0094e39d6621035c4edf0c1cc8e9d8eab292be0eee726de6ece392529d5159e75f0fd68609a4b331000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0dea030000000000004c040000000000006808f9420000000000007721c059975a92015d3ca4b95d3b3faffd5003ad389ab064e1144f6a5144e4e6f56a5800000000",
+    ];
+    let txs: Vec<TransactionWrapper> = txs
+        .into_iter()
+        .map(|tx| parse_hex_transaction(tx).unwrap())
+        .map(Into::into)
+        .collect();
+
+    let header = HeaderWrapper::new(
+        Header {
+            version: Version::from_consensus(536870912),
+            prev_blockhash: BlockHash::from_str(
+                "31402555f54c3f89907c07e6d286c132f9984739f2b6b00cde195b10ac771522",
+            )
+            .unwrap(),
+            merkle_root: TxMerkleNode::from_str(
+                "40642938a6cc6124246fd9601108f9671177c1834753162f19e073eaff751191",
+            )
+            .unwrap(),
+            time: 1724665818,
+            bits: CompactTarget::from_unprefixed_hex("207fffff").unwrap(),
+            nonce: 3,
+        },
+        3,
+        1,
+        WitnessMerkleNode::from_str(
+            "494880ce756f69b13811200d1e358a049ac3c3dd66e4ff7e86d4c4d3aad95939",
+        )
+        .unwrap()
+        .as_raw_hash()
         .to_byte_array(),
     );
 
