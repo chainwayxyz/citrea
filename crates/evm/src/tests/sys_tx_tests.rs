@@ -361,7 +361,26 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             l1_fee_rate,
         );
 
-        let sys_tx_gas_usage = evm.get_pending_txs_cumulative_gas_used(&mut working_set);
+        let pending_cumulative_from_sum: u128 = evm
+            .pending_transactions
+            .iter()
+            .map(|tx| tx.receipt.gas_used)
+            .sum();
+
+        let pending_cumulative_gas_used = evm
+            .pending_transactions
+            .iter()
+            .last()
+            .unwrap()
+            .cumulative_gas_used();
+
+        // sanity check
+        assert_eq!(
+            pending_cumulative_from_sum,
+            pending_cumulative_gas_used as u128
+        );
+
+        let sys_tx_gas_usage = pending_cumulative_gas_used;
         assert_eq!(sys_tx_gas_usage, 80620);
 
         let mut rlp_transactions = Vec::new();

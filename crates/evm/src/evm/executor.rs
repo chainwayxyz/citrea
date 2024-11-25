@@ -65,6 +65,8 @@ where
     }
 }
 
+/// Will fail on the first error.
+/// Rendering the soft confirmation invalid
 pub(crate) fn execute_multiple_tx<
     DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,
@@ -76,9 +78,9 @@ pub(crate) fn execute_multiple_tx<
     ext: &mut EXT,
     prev_gas_used: u64,
     blob_gas_used: &mut u64,
-) -> Vec<Result<ExecutionResult, EVMError<DBError>>> {
+) -> Result<Vec<ExecutionResult>, EVMError<DBError>> {
     if txs.is_empty() {
-        return vec![];
+        return Ok(vec![]);
     }
 
     let block_gas_limit: u64 = block_env.gas_limit.saturating_to();
@@ -87,8 +89,16 @@ pub(crate) fn execute_multiple_tx<
 
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
 
-    let mut tx_results = Vec::with_capacity(txs.len());
+    let mut tx_results: Vec<ExecutionResult> = Vec::with_capacity(txs.len());
     for (_i, tx) in txs.iter().enumerate() {
+        if tx.signer() == SYSTEM_SIGNER {
+            native_error!("System transaction found in user txs");
+            return Err(EVMError::Custom(format!(
+                "Invalid system transaction: {:?}",
+                hex::encode(tx.hash())
+            )));
+        }
+
         #[cfg(feature = "native")]
         let _span =
             trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
@@ -99,34 +109,21 @@ pub(crate) fn execute_multiple_tx<
             && *blob_gas_used + tx.blob_gas_used().unwrap() > MAX_DATA_GAS_PER_BLOCK
         {
             native_error!("Blob gas used exceeds block gas limit");
-            tx_results.push(Err(EVMError::Custom(format!(
+            return Err(EVMError::Custom(format!(
                 "Blob gas used exceeds block gas limit {:?}",
                 block_gas_limit
-            ))));
-            continue;
+            )));
         }
 
-        let result_and_state = match evm.transact(tx) {
-            Ok(result_and_state) => result_and_state,
-            Err(e) => {
-                native_error!(error = %e, "Transaction failed");
-                tx_results.push(Err(e));
-                continue;
-            }
-        };
+        let result_and_state = evm.transact(tx)?;
 
         // Check if the transaction used more gas than the available block gas limit
-        let result = if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
+        if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
             native_error!("Gas used exceeds block gas limit");
-            Err(EVMError::Custom(format!(
+            return Err(EVMError::Custom(format!(
                 "Gas used exceeds block gas limit {:?}",
                 block_gas_limit
-            )))
-        } else if tx.signer() == SYSTEM_SIGNER {
-            Err(EVMError::Custom(format!(
-                "Invalid system transaction: {:?}",
-                hex::encode(tx.hash())
-            )))
+            )));
         } else {
             native_trace!("Commiting tx to DB");
             evm.commit(result_and_state.state);
@@ -136,11 +133,11 @@ pub(crate) fn execute_multiple_tx<
                 *blob_gas_used += tx.blob_gas_used().unwrap();
             }
 
-            Ok(result_and_state.result)
+            tx_results.push(result_and_state.result);
         };
-        tx_results.push(result);
     }
-    tx_results
+
+    Ok(tx_results)
 }
 
 pub(crate) fn execute_system_txs<

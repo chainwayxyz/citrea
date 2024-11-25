@@ -125,13 +125,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state(rename = "h")]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
-    /// Native pending transactions. Used to store transactions that are not yet included in the block.
-    /// We use this in the sequencer to see which txs did not fail
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) native_pending_transactions:
-        sov_modules_api::AccessoryStateVec<PendingTransaction, BcsCodec>,
-
     /// Transaction's hash that failed to pay the L1 fee.
     /// Used to prevent DOS attacks.
     /// The vector is cleared in `finalize_hook`.
@@ -196,7 +189,8 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
-        Ok(self.execute_call(msg.txs, context, working_set)?)
+        self.execute_call(msg.txs, context, working_set)
+            .map_err(Into::into)
     }
 }
 
@@ -223,16 +217,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         accessory_working_set: &mut AccessoryWorkingSet<C>,
     ) -> Vec<TxHash> {
         self.l1_fee_failed_txs.iter(accessory_working_set).collect()
-    }
-
-    /// Returns the list of pending EVM transactions
-    #[cfg(feature = "native")]
-    pub fn get_last_pending_transaction(
-        &self,
-        accessory_working_set: &mut WorkingSet<C>,
-    ) -> Option<PendingTransaction> {
-        self.native_pending_transactions
-            .last(&mut accessory_working_set.accessory_state())
     }
 }
 

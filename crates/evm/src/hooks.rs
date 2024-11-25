@@ -270,9 +270,6 @@ where
                 tx_index += 1
             }
             self.pending_transactions.clear();
-
-            self.native_pending_transactions
-                .clear(&mut working_set.accessory_state());
         }
     }
 
