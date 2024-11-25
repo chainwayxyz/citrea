@@ -63,7 +63,13 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 3 valid commitments, and 1 invalid commitment with wrong public key
             assert_eq!(txs.len(), 4);
-            assert_eq!(completeness_proof.len(), 4);
+            // it is >= due to the probability that one of commit transactions ended up
+            // with the prefix by chance (reveals are guaranteed to have a certain prefix)
+            assert!(
+                completeness_proof.len() >= 4,
+                "expected completeness proof to have at least 4 txs, it has {}",
+                completeness_proof.len()
+            );
 
             // Since only one of the transactions has a malformed sender, we have to find the
             // tx that is not malformed, and get its public key
@@ -94,7 +100,13 @@ impl TestCase for BitcoinServiceTest {
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 2 complete and 2 aggregate proofs
             assert_eq!(txs.len(), 4);
-            assert_eq!(completeness_proof.len(), 4);
+            // it is >= due to the probability that one of commit transactions ended up
+            // with the prefix by chance (reveals are guaranteed to have a certain prefix)
+            assert!(
+                completeness_proof.len() >= 4,
+                "expected completeness proof to have at least 4 txs, it has {}",
+                completeness_proof.len()
+            );
 
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(
