@@ -5,7 +5,6 @@ mod sequencer_replacement;
 mod soft_confirmation_status;
 mod syncing;
 mod system_transactions;
-mod tx_propagation;
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
