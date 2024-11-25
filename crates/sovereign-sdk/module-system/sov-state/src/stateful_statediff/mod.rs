@@ -152,7 +152,10 @@ pub(crate) fn compress_state(pre_state: PreState, post_state: PostState) -> Stat
         let acc_change = if let Some(Some(prev_info)) = prev_info {
             AccountChange {
                 balance: compress_two_best_strategy(prev_info.balance, new_info.balance),
-                nonce: compress_two_best_strategy(prev_info.balance, U256::from(new_info.nonce)),
+                nonce: compress_two_best_strategy(
+                    U256::from(prev_info.nonce),
+                    U256::from(new_info.nonce),
+                ),
                 code_hash: compress_two_code_hash(prev_info.code_hash, new_info.code_hash),
             }
         } else {
