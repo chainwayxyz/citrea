@@ -25,6 +25,19 @@ pub struct UnsignedSoftConfirmation<'txs, Tx> {
     timestamp: u64,
 }
 
+/// TODO: doc or find workaround
+#[derive(BorshSerialize)]
+pub struct OldFormat<'txs> {
+    l2_height: u64,
+    da_slot_height: u64,
+    da_slot_hash: [u8; 32],
+    da_slot_txs_commitment: [u8; 32],
+    blobs: &'txs [Vec<u8>],
+    deposit_data: Vec<Vec<u8>>,
+    l1_fee_rate: u128,
+    timestamp: u64,
+}
+
 impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
     #[allow(clippy::too_many_arguments)]
     /// Creates a new unsigned soft confirmation batch
@@ -109,8 +122,33 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
     //   when removing this fn
     // FIXME: ^
     pub fn pre_fork1_hash<D: Digest>(&self) -> Output<D> {
-        let raw = borsh::to_vec(&self).unwrap();
+        let old = OldFormat {
+            l2_height: self.l2_height,
+            da_slot_height: self.da_slot_height,
+            da_slot_hash: self.da_slot_hash,
+            da_slot_txs_commitment: self.da_slot_txs_commitment,
+            blobs: self.blobs,
+            deposit_data: self.deposit_data.clone(),
+            l1_fee_rate: self.l1_fee_rate,
+            timestamp: self.timestamp,
+        };
+
+        let raw = borsh::to_vec(&old).unwrap();
         D::digest(raw.as_slice())
+    }
+
+    /// TODO: Documentation
+    pub fn get_old_format(&self) -> OldFormat<'txs> {
+        OldFormat {
+            l2_height: self.l2_height,
+            da_slot_height: self.da_slot_height,
+            da_slot_hash: self.da_slot_hash,
+            da_slot_txs_commitment: self.da_slot_txs_commitment,
+            blobs: self.blobs,
+            deposit_data: self.deposit_data.clone(),
+            l1_fee_rate: self.l1_fee_rate,
+            timestamp: self.timestamp,
+        }
     }
 }
 
