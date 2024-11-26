@@ -83,26 +83,28 @@ impl TestCase for BitcoinVerifierTest {
         // Inverted namespaces should fail
         {
             // batch transactions with light client namespace
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToLightClientProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
 
             // light client transactions with batch namespace
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &l_txs,
                     l_inclusion_proof.clone(),
                     l_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
         }
 
         // Test non-segwit block
@@ -161,15 +163,16 @@ impl TestCase for BitcoinVerifierTest {
             // Coinbase tx wtxid should be [0u8;32]
             inclusion_proof.wtxids[0] = [0; 32];
 
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::IncorrectInclusionProof),
+            );
         }
 
         // False coinbase script pubkey should fail
@@ -210,15 +213,16 @@ impl TestCase for BitcoinVerifierTest {
             // Coinbase tx wtxid should be [0u8;32]
             inclusion_proof.wtxids[0] = [0; 32];
 
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::InvalidBlock),
+            );
         }
 
         // False witness script should fail
@@ -266,15 +270,16 @@ impl TestCase for BitcoinVerifierTest {
                 .filter_map(|tx| get_blob_with_sender(tx, MockData::ToBatchProver).ok())
                 .collect::<Vec<_>>();
 
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &txs,
                     inclusion_proof,
                     completeness_proof,
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
         }
 
         // Different witness ids should fail
@@ -282,27 +287,29 @@ impl TestCase for BitcoinVerifierTest {
             let mut b_inclusion_proof = b_inclusion_proof.clone();
 
             b_inclusion_proof.wtxids[0] = [1; 32];
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
 
             b_inclusion_proof.wtxids[0] = [0; 32];
             b_inclusion_proof.wtxids[1] = [16; 32];
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::IncorrectInclusionProof),
+            );
         }
 
         // Extra tx in inclusion
@@ -310,15 +317,16 @@ impl TestCase for BitcoinVerifierTest {
             let mut b_inclusion_proof = b_inclusion_proof.clone();
 
             b_inclusion_proof.wtxids.push([5; 32]);
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err());
+                ),
+                Err(ValidationError::HeaderInclusionTxCountMismatch),
+            );
         }
 
         // Missing tx in inclusion should fail
@@ -343,15 +351,16 @@ impl TestCase for BitcoinVerifierTest {
             let mut b_inclusion_proof = b_inclusion_proof.clone();
 
             b_inclusion_proof.wtxids.swap(0, 1);
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err(),);
+                ),
+                Err(ValidationError::IncorrectInclusionProof),
+            );
         }
 
         // Missing tx in completeness proof should panic
@@ -399,15 +408,16 @@ impl TestCase for BitcoinVerifierTest {
                 .unwrap()
                 .clone();
             b_completeness_proof[0] = nonrelevant_tx;
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err(),);
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
         }
 
         // Break completeness proof order should fail
@@ -415,15 +425,16 @@ impl TestCase for BitcoinVerifierTest {
             let mut b_completeness_proof = b_completeness_proof.clone();
 
             b_completeness_proof.swap(1, 2);
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
                     DaNamespace::ToBatchProver,
-                )
-                .is_err(),);
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
         }
 
         // Break tx order should fail
@@ -431,15 +442,16 @@ impl TestCase for BitcoinVerifierTest {
             let mut b_txs = b_txs.clone();
 
             b_txs.swap(0, 1);
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
-                )
-                .is_err(),);
+                ),
+                Err(ValidationError::BlobWasTamperedWith),
+            );
         }
 
         // Break tx order and completeness proof order should fail
@@ -449,15 +461,16 @@ impl TestCase for BitcoinVerifierTest {
 
             b_completeness_proof.swap(0, 1);
             b_txs.swap(0, 1);
-            assert!(verifier
-                .verify_transactions(
+            assert_eq!(
+                verifier.verify_transactions(
                     &block.header,
                     &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
                     DaNamespace::ToBatchProver,
-                )
-                .is_err(),);
+                ),
+                Err(ValidationError::RelevantTxNotInProof),
+            );
         }
 
         // Missing tx should fail
