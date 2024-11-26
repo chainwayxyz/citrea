@@ -191,7 +191,7 @@ impl TestCase for BitcoinVerifierTest {
                 .unwrap();
             // Malform coinbase script pubkey
             let mut bytes = block_txs[0].output[idx].script_pubkey.to_bytes();
-            bytes[0] = bytes[0].wrapping_add(1);
+            bytes[6] = bytes[6].wrapping_add(1);
 
             block_txs[0].output[idx].script_pubkey = ScriptBuf::from_bytes(bytes);
 
@@ -221,7 +221,7 @@ impl TestCase for BitcoinVerifierTest {
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
                 ),
-                Err(ValidationError::InvalidBlock),
+                Err(ValidationError::IncorrectInclusionProof),
             );
         }
 
@@ -284,27 +284,30 @@ impl TestCase for BitcoinVerifierTest {
 
         // Different witness ids should fail
         {
-            let mut b_inclusion_proof = b_inclusion_proof.clone();
+            let mut inclusion_proof = b_inclusion_proof.clone();
 
-            b_inclusion_proof.wtxids[0] = [1; 32];
+            // Prefix is made 1, which will look like inclusion proof
+            // has extra relevant transaction in it.
+            inclusion_proof.wtxids[0] = [1; 32];
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
                     &b_txs,
-                    b_inclusion_proof.clone(),
+                    inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
             );
 
-            b_inclusion_proof.wtxids[0] = [0; 32];
-            b_inclusion_proof.wtxids[1] = [16; 32];
+            let mut inclusion_proof = b_inclusion_proof.clone();
+
+            inclusion_proof.wtxids[1] = [16; 32];
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
                     &b_txs,
-                    b_inclusion_proof,
+                    inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
                 ),
