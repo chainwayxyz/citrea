@@ -91,7 +91,7 @@ rustc_version_runtime = { workspace = true }
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 bitcoincore-rpc.workspace = true
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "5baaef3" }
+citrea-e2e = { workspace = true }
 
 [build-dependencies]
 sp1-helper = { version = "3.0.0", default-features = false }

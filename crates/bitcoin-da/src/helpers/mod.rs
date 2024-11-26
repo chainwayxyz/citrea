@@ -6,8 +6,6 @@ use sha2::{Digest, Sha256};
 pub mod builders;
 pub mod merkle_tree;
 pub mod parsers;
-#[cfg(test)]
-pub mod test_utils;
 
 /// Type represents a typed enum for LightClient kind
 #[repr(u16)]
