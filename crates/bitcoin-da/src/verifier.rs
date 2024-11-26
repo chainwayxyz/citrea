@@ -3,7 +3,7 @@ use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{
-    BlockHeaderTrait, CountedBufReader, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
+    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
 };
 use sov_rollup_interface::zk::LightClientCircuitOutput;
 
@@ -12,7 +12,7 @@ use crate::helpers::parsers::{
     ParsedLightClientTransaction, VerifyParsed,
 };
 use crate::helpers::{calculate_double_sha256, merkle_tree};
-use crate::spec::blob::{BlobBuf, BlobWithSender};
+use crate::spec::blob::BlobWithSender;
 use crate::spec::BitcoinSpec;
 
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
@@ -105,8 +105,6 @@ impl DaVerifier for BitcoinVerifier {
                                 if let Some(blob_content) =
                                     verified_blob_content(&seq_comm, &mut blobs_iter)?
                                 {
-                                    let blob_content = blob_content.accumulator();
-
                                     // assert tx content is not modified
                                     if blob_content != seq_comm.body {
                                         return Err(ValidationError::BlobContentWasModified);
@@ -123,8 +121,6 @@ impl DaVerifier for BitcoinVerifier {
                                 if let Some(blob_content) =
                                     verified_blob_content(&complete, &mut blobs_iter)?
                                 {
-                                    let blob_content = blob_content.accumulator();
-
                                     // assert tx content is not modified
                                     let body = decompress_blob(&complete.body);
                                     if blob_content != body {
@@ -136,8 +132,6 @@ impl DaVerifier for BitcoinVerifier {
                                 if let Some(blob_content) =
                                     verified_blob_content(&aggregate, &mut blobs_iter)?
                                 {
-                                    let blob_content = blob_content.accumulator();
-
                                     // assert tx content is not modified
                                     if blob_content != aggregate.body {
                                         return Err(ValidationError::BlobContentWasModified);
@@ -312,7 +306,7 @@ impl DaVerifier for BitcoinVerifier {
 fn verified_blob_content<'a, T, I>(
     tx: &T,
     blobs_iter: &mut I,
-) -> Result<Option<CountedBufReader<BlobBuf>>, ValidationError>
+) -> Result<Option<&'a [u8]>, ValidationError>
 where
     T: VerifyParsed,
     I: Iterator<Item = &'a BlobWithSender>,
@@ -332,10 +326,7 @@ where
             return Err(ValidationError::IncorrectSenderInBlob);
         }
 
-        // read the supplied blob from txs
-        let mut blob_content = blob.blob.clone();
-        blob_content.advance(blob_content.total_len());
-        Ok(Some(blob_content))
+        Ok(Some(blob.verified_data()))
     } else {
         Ok(None)
     }
