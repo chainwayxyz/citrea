@@ -114,6 +114,7 @@ mod tests {
     use bitcoin::hashes::Hash;
 
     use super::*;
+    use crate::helpers::parsers::parse_hex_transaction;
 
     #[test]
     fn test_merkle_root_with_proof() {
@@ -143,6 +144,14 @@ mod tests {
         compare_merkle_tree_against_bitcoin_impl(vec![[255; 32]; 33]);
         compare_merkle_tree_against_bitcoin_impl(vec![[200; 32]; 2]);
         compare_merkle_tree_against_bitcoin_impl(vec![[99; 32]; 1]);
+
+        let txs = std::fs::read_to_string("test_data/mock_txs.txt")
+            .unwrap()
+            .lines()
+            .map(|tx_hex| parse_hex_transaction(tx_hex).unwrap())
+            .map(|tx| tx.compute_wtxid().to_byte_array())
+            .collect::<Vec<_>>();
+        compare_merkle_tree_against_bitcoin_impl(txs);
     }
 
     fn compare_merkle_tree_against_bitcoin_impl(transactions: Vec<[u8; 32]>) {
