@@ -12,27 +12,31 @@ use prometheus_client::encoding::text::encode;
 use prometheus_client::registry::Registry;
 use tokio::net::TcpListener;
 use tokio::pin;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio_util::sync::CancellationToken;
 
 /// Boxed HTTP body for responses
 type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 
-pub async fn start_telemetry_server(addr: SocketAddr, registry: Registry) -> anyhow::Result<()> {
+pub async fn start_telemetry_server(
+    addr: SocketAddr,
+    registry: Registry,
+    cancellation_token: CancellationToken,
+) -> anyhow::Result<()> {
     let registry = Arc::new(registry);
     let tcp_listener = TcpListener::bind(addr).await.unwrap();
     let server = hyper::server::conn::http1::Builder::new();
     while let Ok((stream, _)) = tcp_listener.accept().await {
-        let mut shutdown_stream = signal(SignalKind::terminate()).unwrap();
         let io = TokioIo::new(stream);
 
         let server_clone = server.clone();
         let registry_clone = registry.clone();
+        let cancellation_signal = cancellation_token.clone();
         tokio::task::spawn(async move {
             let conn = server_clone.serve_connection(io, service_fn(make_handler(registry_clone)));
             pin!(conn);
             tokio::select! {
                 _ = conn.as_mut() => {}
-                _ = shutdown_stream.recv() => {
+                _ = cancellation_signal.cancelled() => {
                     conn.as_mut().graceful_shutdown();
                 }
             }

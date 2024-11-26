@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
@@ -8,6 +8,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
@@ -54,6 +55,7 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
+use crate::telemetry::{setup_telemetry, TelemetryTargets};
 use crate::utils::recover_raw_transaction;
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
@@ -242,6 +244,17 @@ where
             }
         });
         Ok(())
+    }
+
+    pub async fn start_telemetry_server(&mut self) -> anyhow::Result<TelemetryTargets> {
+        let (registry, telemetry_targets) = setup_telemetry();
+
+        let telemetry_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
+        self.task_manager.spawn(|cancellation_token| async move {
+            let _ = start_telemetry_server(telemetry_addr, registry, cancellation_token).await;
+        });
+
+        Ok(telemetry_targets)
     }
 
     #[allow(clippy::too_many_arguments)]
