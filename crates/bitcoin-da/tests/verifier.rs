@@ -15,7 +15,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use sov_rollup_interface::da::{DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::macros::assert_panic;
 use test_utils::{
@@ -42,10 +42,16 @@ impl TestCase for BitcoinVerifierTest {
         let service = get_default_service(&mut task_manager, &da_node.config).await;
         let (block, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
 
-        let (b_txs, b_inclusion_proof, b_completeness_proof) =
+        let (mut b_txs, b_inclusion_proof, b_completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
-        let (l_txs, l_inclusion_proof, l_completeness_proof) =
+        let (mut l_txs, l_inclusion_proof, l_completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
+        b_txs.iter_mut().for_each(|t| {
+            t.full_data();
+        });
+        l_txs.iter_mut().for_each(|t| {
+            t.full_data();
+        });
 
         let verifier = BitcoinVerifier::new(RollupParams {
             to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
