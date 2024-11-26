@@ -7,6 +7,7 @@ pub mod bitcoin_test;
 pub mod sequencer_commitments;
 pub mod sequencer_test;
 pub mod tx_chain;
+pub mod tx_propagation;
 
 pub(super) fn get_citrea_path() -> PathBuf {
     std::env::var("CITREA_E2E_TEST_BINARY").map_or_else(
