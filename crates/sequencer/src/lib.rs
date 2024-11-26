@@ -1,12 +1,3 @@
-mod commitment;
-pub mod db_migrations;
-mod db_provider;
-mod deposit_data_mempool;
-mod mempool;
-mod rpc;
-mod runner;
-mod utils;
-
 use std::net::SocketAddr;
 
 pub use citrea_common::{SequencerConfig, SequencerMempoolConfig};
@@ -17,6 +8,16 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
 use tokio::sync::oneshot;
 use tracing::{instrument, Instrument};
+
+mod commitment;
+pub mod db_migrations;
+mod db_provider;
+mod deposit_data_mempool;
+mod mempool;
+mod rpc;
+mod runner;
+mod telemetry;
+mod utils;
 
 /// Sequencer stf runner
 pub struct Sequencer<S: RollupBlueprint> {

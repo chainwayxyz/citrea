@@ -1730,6 +1730,7 @@ dependencies = [
  "lazy_static",
  "log",
  "log-panics",
+ "prometheus-client",
  "proptest",
  "prover-services",
  "regex",
@@ -1816,9 +1817,12 @@ dependencies = [
  "citrea-pruning",
  "futures",
  "hex",
+ "http-body-util",
  "hyper",
+ "hyper-util",
  "jsonrpsee",
  "lru",
+ "prometheus-client",
  "serde",
  "serde_json",
  "sov-db",
@@ -2036,6 +2040,7 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "parking_lot",
+ "prometheus-client",
  "reth-chainspec",
  "reth-db",
  "reth-primitives",
@@ -2645,6 +2650,12 @@ dependencies = [
  "thiserror",
  "tokio",
 ]
+
+[[package]]
+name = "dtoa"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcbb2bf8e87535c23f7a8a321e364ce21462d0ff10cb6407820e8e96dfff6653"
 
 [[package]]
 name = "dunce"
@@ -4103,7 +4114,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -4916,6 +4927,29 @@ dependencies = [
  "memchr",
  "parking_lot",
  "thiserror",
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.22.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "504ee9ff529add891127c4827eb481bd69dc0ebc72e9a682e187db4caa60c3ca"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode",
+]
+
+[[package]]
+name = "prometheus-client-derive-encode"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "440f724eba9f6996b75d63681b0a92b06947f1457076d503a4d2e2c8f56442b8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ pub mod da;
 pub mod error;
 pub mod rpc;
 pub mod tasks;
+pub mod telemetry;
 pub mod utils;
 
 pub use config::*;
