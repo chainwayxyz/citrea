@@ -9,7 +9,7 @@ use sov_rollup_interface::rpc::{
     SoftConfirmationStatus, VerifiedBatchProofResponse,
 };
 
-use crate::HexHash;
+use crate::{HexHash, HexOrNum};
 
 /// A [`jsonrpsee`] trait for interacting with the ledger JSON-RPC API.
 ///
@@ -24,7 +24,7 @@ pub trait Rpc {
     #[method(name = "getSoftConfirmationByNumber")]
     async fn get_soft_confirmation_by_number(
         &self,
-        number: u64,
+        number: HexOrNum,
     ) -> RpcResult<Option<SoftConfirmationResponse>>;
 
     /// Gets a single soft confirmation by hash.
@@ -45,7 +45,7 @@ pub trait Rpc {
     #[method(name = "getSoftConfirmationStatus")]
     async fn get_soft_confirmation_status(
         &self,
-        soft_confirmation_receipt: u64,
+        soft_confirmation_receipt: HexOrNum,
     ) -> RpcResult<SoftConfirmationStatus>;
 
     /// Gets the L2 genesis state root.
@@ -56,7 +56,7 @@ pub trait Rpc {
     #[method(name = "getSequencerCommitmentsOnSlotByNumber")]
     async fn get_sequencer_commitments_on_slot_by_number(
         &self,
-        height: u64,
+        height: HexOrNum,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
     /// Gets the commitments in the DA slot with the given hash.
@@ -70,7 +70,7 @@ pub trait Rpc {
     #[method(name = "getBatchProofsBySlotHeight")]
     async fn get_batch_proofs_by_slot_height(
         &self,
-        height: u64,
+        height: HexOrNum,
     ) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets proof by slot hash.
@@ -92,7 +92,7 @@ pub trait Rpc {
     #[method(name = "getVerifiedBatchProofsBySlotHeight")]
     async fn get_verified_batch_proofs_by_slot_height(
         &self,
-        height: u64,
+        height: HexOrNum,
     ) -> RpcResult<Option<Vec<VerifiedBatchProofResponse>>>;
 
     /// Gets last verified proog

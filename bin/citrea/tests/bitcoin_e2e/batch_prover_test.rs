@@ -38,7 +38,7 @@ pub async fn wait_for_zkproofs(
         match full_node
             .client
             .http_client()
-            .get_verified_batch_proofs_by_slot_height(height)
+            .get_verified_batch_proofs_by_slot_height(height.into())
             .await?
         {
             Some(proofs) => return Ok(proofs),
@@ -270,7 +270,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let commitments: Vec<SequencerCommitment> = full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(finalized_height.into())
             .await
             .unwrap_or_else(|_| {
                 panic!(

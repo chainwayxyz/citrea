@@ -126,7 +126,7 @@ impl TestCase for BitcoinReorgTest {
         let original_commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(finalized_height.into())
             .await?
             .unwrap_or_default();
 
@@ -328,7 +328,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(finalized_height.into())
             .await?
             .unwrap();
 

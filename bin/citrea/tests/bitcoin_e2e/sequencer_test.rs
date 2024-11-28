@@ -30,6 +30,7 @@ impl TestCase for BasicSequencerTest {
             .get_head_soft_confirmation()
             .await?
             .unwrap();
+        println!("head_batch0 : {:?}", head_batch0);
         assert_eq!(head_batch0.l2_height, 1);
 
         sequencer.client.send_publish_batch_request().await?;
@@ -114,7 +115,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
             let soft_confirmation = sequencer
                 .client
                 .http_client()
-                .get_soft_confirmation_by_number(i)
+                .get_soft_confirmation_by_number(i.into())
                 .await?
                 .unwrap();
 

@@ -39,7 +39,7 @@ pub async fn wait_for_sequencer_commitments(
         match full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(height)
+            .get_sequencer_commitments_on_slot_by_number(height.into())
             .await
         {
             Ok(Some(commitments)) => return Ok(commitments),
@@ -93,7 +93,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let commitments = prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(finalized_height.into())
             .await
             .unwrap()
             .unwrap();
@@ -327,7 +327,7 @@ impl SequencerSendCommitmentsToDaTest {
                 sequencer
                     .client
                     .http_client()
-                    .get_soft_confirmation_by_number(i)
+                    .get_soft_confirmation_by_number(i.into())
                     .await?
                     .unwrap(),
             );

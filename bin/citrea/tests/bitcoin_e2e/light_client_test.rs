@@ -92,7 +92,7 @@ impl TestCase for LightClientProvingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height.into())
             .await
             .unwrap()
             .unwrap();
@@ -240,7 +240,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height.into())
             .await
             .unwrap()
             .unwrap();
@@ -380,7 +380,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height.into())
             .await
             .unwrap()
             .unwrap();
