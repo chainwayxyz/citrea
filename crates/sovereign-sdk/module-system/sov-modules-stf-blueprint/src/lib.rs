@@ -150,7 +150,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
         batch_workspace: WorkingSet<C>,
-    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>);
+    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), SoftConfirmationError>;
 
     /// End a soft confirmation
     fn end_soft_confirmation(
@@ -233,7 +233,7 @@ where
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
         batch_workspace: WorkingSet<C>,
-    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), SoftConfirmationError> {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, txs_new, batch_workspace)
     }
 
@@ -512,7 +512,7 @@ where
                     soft_confirmation.blobs(),
                     soft_confirmation.txs(),
                     batch_workspace,
-                );
+                )?;
 
                 match self.end_soft_confirmation(
                     current_spec,

@@ -1,11 +1,11 @@
 use core::panic;
 
-use anyhow::{anyhow, Result};
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{native_error, CallResponse, WorkingSet};
 
+use crate::db::DBError;
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
@@ -126,7 +126,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         txs: Vec<RlpEvmTransaction>,
         context: &C,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<CallResponse> {
+    ) -> Result<CallResponse, EVMError<DBError>> {
         // use of `self.block_env` is allowed here
 
         let users_txs: Vec<TransactionSignedEcRecovered> = txs

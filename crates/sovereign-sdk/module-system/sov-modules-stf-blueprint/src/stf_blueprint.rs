@@ -65,7 +65,7 @@ where
         txs: &[Vec<u8>],
         txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
         mut sc_workspace: WorkingSet<C>,
-    ) -> (WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>) {
+    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), SoftConfirmationError> {
         let mut tx_receipts = Vec::with_capacity(txs.len());
         let txs: Vec<_> = if soft_confirmation_info.current_spec >= SpecId::Fork1 {
             txs_new
@@ -141,15 +141,7 @@ where
             let tx_effect = match tx_result {
                 Ok(_) => TxEffect::Successful,
                 Err(e) => {
-                    native_error!(
-                        "Tx 0x{} was reverted error: {}",
-                        hex::encode(raw_tx_hash),
-                        e
-                    );
-                    // The transaction causing invalid state transition is reverted
-                    // but we don't slash and we continue processing remaining transactions.
-                    sc_workspace = sc_workspace.revert().to_revertable();
-                    TxEffect::Reverted
+                    panic!("Sequencer must not include invalid transactions: {}", e)
                 }
             };
             native_debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
@@ -170,7 +162,7 @@ where
                 .post_dispatch_tx_hook(&tx, &ctx, &mut sc_workspace)
                 .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
-        (sc_workspace, tx_receipts)
+        Ok((sc_workspace, tx_receipts))
     }
 
     /// Begins the inner processes of applying soft confirmation

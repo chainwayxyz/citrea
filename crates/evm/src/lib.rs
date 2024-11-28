@@ -190,6 +190,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         working_set: &mut WorkingSet<C>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         self.execute_call(msg.txs, context, working_set)
+            .map_err(Into::<anyhow::Error>::into)
             .map_err(Into::into)
     }
 }
