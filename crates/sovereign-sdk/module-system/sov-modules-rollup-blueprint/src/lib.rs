@@ -6,17 +6,18 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
+use citrea_common::FullNodeConfig;
 use derive_more::Display;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait};
+use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::sync::broadcast;
 
 mod runtime_rpc;
@@ -46,6 +47,9 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Data Availability config.
     type DaConfig: Send + Sync;
+
+    /// Data Availability verifier.
+    type DaVerifier: DaVerifier + Send + Sync;
 
     /// Host of a zkVM program.
     type Vm: ZkvmHost + Zkvm + Send + Sync + 'static;
@@ -132,21 +136,15 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         task_manager: &mut TaskManager<()>,
     ) -> Result<Arc<Self::DaService>, anyhow::Error>;
 
-    /// Creates instance of [`ProverService`].
-    async fn create_batch_prover_service(
-        &self,
-        prover_config: BatchProverConfig,
-        rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: &Arc<Self::DaService>,
-        ledger_db: LedgerDB,
-    ) -> Self::ProverService;
+    /// Creates instance of [`BitcoinDaVerifier`]
+    fn create_da_verifier(&self) -> Self::DaVerifier;
 
     /// Creates instance of [`ProverService`].
-    async fn create_light_client_prover_service(
+    async fn create_prover_service(
         &self,
-        prover_config: LightClientProverConfig,
-        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
+        da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
     ) -> Self::ProverService;
 

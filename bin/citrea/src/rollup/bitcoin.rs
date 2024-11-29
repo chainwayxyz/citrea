@@ -8,7 +8,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
+use citrea_common::FullNodeConfig;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 // use citrea_sp1::host::SP1Host;
@@ -48,6 +48,7 @@ impl RollupBlueprint for BitcoinRollup {
     type DaService = BitcoinService;
     type DaSpec = BitcoinSpec;
     type DaConfig = BitcoinServiceConfig;
+    type DaVerifier = BitcoinVerifier;
     type Vm = Risc0BonsaiHost;
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -159,6 +160,13 @@ impl RollupBlueprint for BitcoinRollup {
         Ok(service)
     }
 
+    fn create_da_verifier(&self) -> Self::DaVerifier {
+        BitcoinVerifier::new(RollupParams {
+            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+        })
+    }
+
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
         match self.network {
             Network::Mainnet => BATCH_PROOF_MAINNET_GUESTS
@@ -232,11 +240,11 @@ impl RollupBlueprint for BitcoinRollup {
     }
 
     #[instrument(level = "trace", skip_all)]
-    async fn create_batch_prover_service(
+    async fn create_prover_service(
         &self,
-        prover_config: BatchProverConfig,
-        _rollup_config: &FullNodeConfig<Self::DaConfig>,
+        proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
+        da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(ledger_db.clone());
@@ -248,12 +256,7 @@ impl RollupBlueprint for BitcoinRollup {
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
 
-        let da_verifier = BitcoinVerifier::new(RollupParams {
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-        });
-
-        let proof_mode = match prover_config.proving_mode {
+        let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,
             ProverGuestRunConfig::Simulate => {
                 let stf_verifier = StateTransitionVerifier::new(zk_stf, da_verifier);
@@ -271,36 +274,5 @@ impl RollupBlueprint for BitcoinRollup {
             ledger_db,
         )
         .expect("Should be able to instantiate prover service")
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    async fn create_light_client_prover_service(
-        &self,
-        prover_config: LightClientProverConfig,
-        _rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: &Arc<Self::DaService>,
-        ledger_db: LedgerDB,
-    ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone());
-        let zk_stf = StfBlueprint::new();
-        let zk_storage = ZkStorage::new();
-
-        let da_verifier = BitcoinVerifier::new(RollupParams {
-            to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
-            to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
-        });
-
-        let proof_mode = match prover_config.proving_mode {
-            ProverGuestRunConfig::Skip => ProofGenMode::Skip,
-            ProverGuestRunConfig::Simulate => {
-                let stf_verifier = StateTransitionVerifier::new(zk_stf, da_verifier);
-                ProofGenMode::Simulate(stf_verifier)
-            }
-            ProverGuestRunConfig::Execute => ProofGenMode::Execute,
-            ProverGuestRunConfig::Prove => ProofGenMode::Prove,
-        };
-
-        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
-            .expect("Should be able to instantiate prover service")
     }
 }

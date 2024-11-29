@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig};
+use citrea_common::FullNodeConfig;
 // use citrea_sp1::host::SP1Host;
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
@@ -12,7 +12,7 @@ use citrea_stf::runtime::Runtime;
 use citrea_stf::verifier::StateTransitionVerifier;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
-use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec};
+use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -37,6 +37,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaService = MockDaService;
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
+    type DaVerifier = MockDaVerifier;
     type Vm = Risc0BonsaiHost;
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
@@ -94,6 +95,10 @@ impl RollupBlueprint for MockDemoRollup {
             rollup_config.da.sender_address,
             &rollup_config.da.db_path,
         )))
+    }
+
+    fn create_da_verifier(&self) -> Self::DaVerifier {
+        Default::default()
     }
 
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
@@ -168,46 +173,19 @@ impl RollupBlueprint for MockDemoRollup {
         }
     }
 
-    async fn create_batch_prover_service(
+    async fn create_prover_service(
         &self,
-        prover_config: BatchProverConfig,
-        _rollup_config: &FullNodeConfig<Self::DaConfig>,
+        proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
+        da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(ledger_db.clone());
 
         let zk_stf = StfBlueprint::new();
         let zk_storage = ZkStorage::new();
-        let da_verifier = Default::default();
 
-        let proof_mode = match prover_config.proving_mode {
-            ProverGuestRunConfig::Skip => ProofGenMode::Skip,
-            ProverGuestRunConfig::Simulate => {
-                let stf_verifier = StateTransitionVerifier::new(zk_stf, da_verifier);
-                ProofGenMode::Simulate(stf_verifier)
-            }
-            ProverGuestRunConfig::Execute => ProofGenMode::Execute,
-            ProverGuestRunConfig::Prove => ProofGenMode::Prove,
-        };
-
-        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
-            .expect("Should be able to instantiate prover service")
-    }
-
-    async fn create_light_client_prover_service(
-        &self,
-        prover_config: LightClientProverConfig,
-        _rollup_config: &FullNodeConfig<Self::DaConfig>,
-        da_service: &Arc<Self::DaService>,
-        ledger_db: LedgerDB,
-    ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone());
-        let zk_stf = StfBlueprint::new();
-        let zk_storage = ZkStorage::new();
-        let da_verifier = Default::default();
-
-        let proof_mode = match prover_config.proving_mode {
+        let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,
             ProverGuestRunConfig::Simulate => {
                 let stf_verifier = StateTransitionVerifier::new(zk_stf, da_verifier);

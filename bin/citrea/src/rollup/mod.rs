@@ -275,6 +275,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
 
+        let da_verifier = self.create_da_verifier();
+
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
             rollup_config.storage.path.as_path(),
@@ -289,10 +291,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_batch_prover_service(
-                prover_config.clone(),
-                &rollup_config,
+            .create_prover_service(
+                prover_config.proving_mode,
                 &da_service,
+                da_verifier,
                 ledger_db.clone(),
             )
             .await;
@@ -405,6 +407,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
+        let da_verifier = self.create_da_verifier();
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -413,10 +416,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_light_client_prover_service(
-                prover_config.clone(),
-                &rollup_config,
+            .create_prover_service(
+                prover_config.proving_mode,
                 &da_service,
+                da_verifier,
                 ledger_db.clone(),
             )
             .await;
