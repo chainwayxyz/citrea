@@ -17,7 +17,9 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerC
 use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{BatchProofCircuitInputV2, Proof, ZkvmHost};
+use sov_rollup_interface::zk::{
+    BatchProofCircuitInputV1, BatchProofCircuitInputV2, Proof, ZkvmHost,
+};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -26,6 +28,17 @@ use crate::da_block_handler::{
     break_sequencer_commitments_into_groups, get_batch_proof_circuit_input_from_commitments,
 };
 use crate::errors::L1ProcessingError;
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+// Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
+// StateTransitionFunction, DA, and Zkvm traits.
+#[serde(
+    bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned, Tx: Serialize + DeserializeOwned"
+)]
+pub enum CircuitInput<'txs, StateRoot, Witness, Da: DaSpec, Tx: Clone> {
+    V1(BatchProofCircuitInputV1<'txs, StateRoot, Witness, Da, Tx>),
+    V2(BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da, Tx>),
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 /// Enum to determine how to group commitments
@@ -51,7 +64,7 @@ pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx>(
 ) -> Result<
     (
         Vec<SequencerCommitment>,
-        Vec<BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da::Spec, Tx>>,
+        Vec<CircuitInput<'txs, StateRoot, Witness, Da::Spec, Tx>>,
     ),
     L1ProcessingError,
 >
@@ -134,6 +147,8 @@ where
     for sequencer_commitments_range in ranges {
         let first_l2_height_of_l1 =
             sequencer_commitments[*sequencer_commitments_range.start()].l2_start_block_number;
+        let last_l2_height_of_l1 =
+            sequencer_commitments[*sequencer_commitments_range.end()].l2_end_block_number;
         let (
             state_transition_witnesses,
             soft_confirmations,
@@ -158,24 +173,69 @@ where
             })?
             .expect("There should be a state root");
 
-        let input: BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec, Tx> =
-            BatchProofCircuitInputV2 {
-                initial_state_root,
-                da_data: da_data.clone(),
-                da_block_header_of_commitments: da_block_header_of_commitments.clone(),
-                inclusion_proof: inclusion_proof.clone(),
-                completeness_proof: completeness_proof.clone(),
-                soft_confirmations,
-                state_transition_witnesses,
-                da_block_headers_of_soft_confirmations,
-                preproven_commitments: preproven_commitments.to_vec(),
-                sequencer_commitments_range: (
-                    *sequencer_commitments_range.start() as u32,
-                    *sequencer_commitments_range.end() as u32,
-                ),
-                sequencer_public_key: sequencer_pub_key.clone(),
-                sequencer_da_public_key: sequencer_da_pub_key.clone(),
-            };
+        let initial_batch_hash = ledger
+            .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))
+            .map_err(|e| {
+                L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
+            })?
+            .ok_or(L1ProcessingError::Other(format!(
+                "Could not find soft batch at height {}",
+                first_l2_height_of_l1
+            )))?
+            .prev_hash;
+
+        let final_state_root = ledger
+            .get_l2_state_root::<StateRoot>(last_l2_height_of_l1)
+            .map_err(|e| {
+                L1ProcessingError::Other(format!("Error getting final state root: {:?}", e))
+            })?
+            .expect("There should be a state root");
+
+        let current_spec = fork_from_block_number(FORKS, last_l2_height_of_l1).spec_id;
+
+        let input = if current_spec == SpecId::Genesis {
+            let input: BatchProofCircuitInputV1<StateRoot, Witness, Da::Spec, Tx> =
+                BatchProofCircuitInputV1 {
+                    initial_state_root,
+                    final_state_root,
+                    prev_soft_confirmation_hash: initial_batch_hash,
+                    da_data: da_data.clone(),
+                    da_block_header_of_commitments: da_block_header_of_commitments.clone(),
+                    inclusion_proof: inclusion_proof.clone(),
+                    completeness_proof: completeness_proof.clone(),
+                    preproven_commitments: preproven_commitments.to_vec(),
+                    soft_confirmations,
+                    state_transition_witnesses,
+                    da_block_headers_of_soft_confirmations,
+                    sequencer_public_key: sequencer_pub_key.clone(),
+                    sequencer_da_public_key: sequencer_da_pub_key.clone(),
+                    sequencer_commitments_range: (
+                        *sequencer_commitments_range.start() as u32,
+                        *sequencer_commitments_range.end() as u32,
+                    ),
+                };
+            CircuitInput::V1(input)
+        } else {
+            let input: BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec, Tx> =
+                BatchProofCircuitInputV2 {
+                    initial_state_root,
+                    da_data: da_data.clone(),
+                    da_block_header_of_commitments: da_block_header_of_commitments.clone(),
+                    inclusion_proof: inclusion_proof.clone(),
+                    completeness_proof: completeness_proof.clone(),
+                    soft_confirmations,
+                    state_transition_witnesses,
+                    da_block_headers_of_soft_confirmations,
+                    preproven_commitments: preproven_commitments.to_vec(),
+                    sequencer_commitments_range: (
+                        *sequencer_commitments_range.start() as u32,
+                        *sequencer_commitments_range.end() as u32,
+                    ),
+                    sequencer_public_key: sequencer_pub_key.clone(),
+                    sequencer_da_public_key: sequencer_da_pub_key.clone(),
+                };
+            CircuitInput::V2(input)
+        };
 
         batch_proof_circuit_inputs.push(input);
     }
@@ -190,7 +250,7 @@ pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block: Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
-    inputs: Vec<BatchProofCircuitInputV2<'_, StateRoot, Witness, Da::Spec, Tx>>,
+    inputs: Vec<CircuitInput<'_, StateRoot, Witness, Da::Spec, Tx>>,
 ) -> anyhow::Result<()>
 where
     Da: DaService,
@@ -255,7 +315,7 @@ where
 }
 
 pub(crate) fn state_transition_already_proven<StateRoot, Witness, Da, Tx>(
-    input: &BatchProofCircuitInputV2<StateRoot, Witness, Da::Spec, Tx>,
+    input: &CircuitInput<StateRoot, Witness, Da::Spec, Tx>,
     proofs: &Vec<StoredBatchProof>,
 ) -> bool
 where
@@ -270,9 +330,13 @@ where
     Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
     Tx: Clone,
 {
+    let (initial_state_root, sequencer_commitments_range) = match input {
+        CircuitInput::V1(i) => (i.initial_state_root.clone(), i.sequencer_commitments_range),
+        CircuitInput::V2(i) => (i.initial_state_root.clone(), i.sequencer_commitments_range),
+    };
     for proof in proofs {
-        if proof.proof_output.initial_state_root == input.initial_state_root.as_ref()
-            && proof.proof_output.sequencer_commitments_range == input.sequencer_commitments_range
+        if proof.proof_output.initial_state_root == initial_state_root.as_ref()
+            && proof.proof_output.sequencer_commitments_range == sequencer_commitments_range
         {
             return true;
         }

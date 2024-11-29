@@ -20,7 +20,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 
-use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
+use crate::proving::{data_to_prove, prove_l1, CircuitInput, GroupCommitments};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProverInputResponse {
@@ -183,9 +183,18 @@ where
         let mut batch_proof_circuit_input_responses = vec![];
 
         for input in inputs {
-            let range_start = input.sequencer_commitments_range.0;
-            let range_end = input.sequencer_commitments_range.1;
-            let serialized_circuit_input = serialize_batch_proof_circuit_input(input);
+            let (range_start, range_end, serialized_circuit_input) = match input {
+                CircuitInput::V1(i) => (
+                    i.sequencer_commitments_range.0,
+                    i.sequencer_commitments_range.1,
+                    serialize_batch_proof_circuit_input(i),
+                ),
+                CircuitInput::V2(i) => (
+                    i.sequencer_commitments_range.0,
+                    i.sequencer_commitments_range.1,
+                    serialize_batch_proof_circuit_input(i),
+                ),
+            };
 
             let response = ProverInputResponse {
                 commitment_range: (range_start, range_end),
