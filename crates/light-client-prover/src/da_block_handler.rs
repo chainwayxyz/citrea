@@ -11,7 +11,7 @@ use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
 use sov_modules_api::fork::fork_from_block_number;
-use sov_modules_api::{BlobReaderTrait, DaSpec, Zkvm};
+use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -156,16 +156,20 @@ where
             batch_proofs.len()
         );
 
-        // Do any kind of ordering etc. on batch proofs here
-        // If you do so, don't forget to do the same inside zk
-        let batch_proof_method_id = self
-            .batch_proof_code_commitments
-            .get(&SpecId::Genesis)
-            .expect("Batch proof code commitment not found");
-
         let mut assumptions = vec![];
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
+                let batch_proof_output = Vm::extract_output::<
+                    <Da as DaService>::Spec,
+                    BatchProofCircuitOutputV2<<Da as DaService>::Spec, [u8; 32]>,
+                >(&proof)
+                .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                let last_l2_height = batch_proof_output.last_l2_height;
+                let current_spec = fork_from_block_number(FORKS, last_l2_height).spec_id;
+                let batch_proof_method_id = self
+                    .batch_proof_code_commitments
+                    .get(&current_spec)
+                    .expect("Batch proof code commitment not found");
                 if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
                     tracing::error!("Failed to verify batch proof: {:?}", e);
                     continue;
@@ -224,6 +228,10 @@ where
             "Could not determine the last L2 height for batch proof"
         ))?;
         let current_fork = fork_from_block_number(FORKS, l2_last_height);
+        let batch_proof_method_id = self
+            .batch_proof_code_commitments
+            .get(&current_fork.spec_id)
+            .expect("Fork should have a guest code attached");
         let light_client_proof_code_commitment = self
             .light_client_proof_code_commitments
             .get(&current_fork.spec_id)
