@@ -155,7 +155,7 @@ tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 hyper = { version = "1.4.0" }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "5baaef3" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "8342386" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }
