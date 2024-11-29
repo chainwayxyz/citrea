@@ -1,11 +1,12 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
 use jsonrpsee::RpcModule;
+use reth_primitives::U64;
 use serde::de::DeserializeOwned;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::LedgerRpcProvider;
 
-use crate::{HexHash, HexOrNum};
+use crate::HexHash;
 
 const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
@@ -31,9 +32,10 @@ where
     rpc.register_blocking_method(
         "ledger_getSoftConfirmationByNumber",
         move |params, ledger, _| {
-            let args: HexOrNum = params.one()?;
+            let args: U64 = params.one()?;
+
             ledger
-                .get_soft_confirmation_by_number::<Tx>(args.into())
+                .get_soft_confirmation_by_number::<Tx>(args.to())
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -49,9 +51,9 @@ where
     rpc.register_blocking_method(
         "ledger_getSoftConfirmationStatus",
         move |params, ledger, _| {
-            let args: HexOrNum = params.one()?;
+            let args: U64 = params.one()?;
             ledger
-                .get_soft_confirmation_status(args.into())
+                .get_soft_confirmation_status(args.to())
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -70,10 +72,10 @@ where
         "ledger_getSequencerCommitmentsOnSlotByNumber",
         move |params, ledger, _| {
             // Returns commitments on DA slot with given height.
-            let height: HexOrNum = params.one()?;
+            let height: U64 = params.one()?;
 
             ledger
-                .get_sequencer_commitments_on_slot_by_number(height.into())
+                .get_sequencer_commitments_on_slot_by_number(height.to())
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -99,9 +101,9 @@ where
         "ledger_getBatchProofsBySlotHeight",
         move |params, ledger, _| {
             // Returns proof on DA slot with given height
-            let height: HexOrNum = params.one()?;
+            let height: U64 = params.one()?;
             ledger
-                .get_batch_proof_data_by_l1_height(height.into())
+                .get_batch_proof_data_by_l1_height(height.to())
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;
@@ -127,9 +129,9 @@ where
         "ledger_getVerifiedBatchProofsBySlotHeight",
         move |params, ledger, _| {
             // Returns proof on DA slot with given height
-            let height: HexOrNum = params.one()?;
+            let height: U64 = params.one()?;
             ledger
-                .get_verified_proof_data_by_l1_height(height.into())
+                .get_verified_proof_data_by_l1_height(height.to())
                 .map_err(|e| to_jsonrpsee_error_object(LEDGER_RPC_ERROR, e))
         },
     )?;

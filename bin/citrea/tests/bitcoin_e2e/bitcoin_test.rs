@@ -13,6 +13,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use reth_primitives::U64;
 use sov_ledger_rpc::client::RpcClient;
 use tokio::time::sleep;
 
@@ -126,7 +127,7 @@ impl TestCase for BitcoinReorgTest {
         let original_commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height.into())
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await?
             .unwrap_or_default();
 
@@ -328,7 +329,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height.into())
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await?
             .unwrap();
 
