@@ -69,6 +69,9 @@ impl TestCase for BitcoinReorgTest {
         let block = da0.get_block(&original_chain_hash).await?;
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
 
+        // Buffer to wait for monitoring to update status to confirmed
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
         let da1_generated_blocks = 2;
         da1.generate(da1_generated_blocks).await?;
 
