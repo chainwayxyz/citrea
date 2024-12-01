@@ -304,6 +304,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         }
 
         *last_price = GasPriceOracleResult {
+            block_number: header_number,
             block_hash: header.hash.unwrap(),
             price,
         };
@@ -399,6 +400,8 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 /// Stores the last result that the oracle returned
 #[derive(Debug, Clone)]
 pub struct GasPriceOracleResult {
+    /// The block number that the oracle used to calculate the price
+    pub block_number: u64,
     /// The block hash that the oracle used to calculate the price
     pub block_hash: B256,
     /// The price that the oracle calculated
@@ -408,6 +411,7 @@ pub struct GasPriceOracleResult {
 impl Default for GasPriceOracleResult {
     fn default() -> Self {
         Self {
+            block_number: 0,
             block_hash: B256::ZERO,
             // Defaults to 0 so that priority fee is low when there are no txs to calculate a median tip
             price: 0_u128,
