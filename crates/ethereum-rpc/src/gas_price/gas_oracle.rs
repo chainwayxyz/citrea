@@ -269,7 +269,14 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         // we only check a maximum of 2 * max_block_history, or the number of blocks in the chain
         let max_blocks = cmp::min(self.oracle_config.max_block_history * 2, header_number);
 
-        // use decayed cached value as a placeholder value for empty blocks
+        // Use decayed cache price as a placeholder value for empty blocks, farther the block
+        // of cached price, less effect it is going to have.
+        // This is useful especially for cases of consecutive empty blocks, which could result in
+        // high estimates. Imagine a scenario where at 100th block there is a tx with a high tip.
+        // But then there are 900 empty blocks. If we use the same estimate we had for 100th block,
+        // this would cause the estimate to be really high since all 900 blocks will be filled with
+        // this last cached value. And it would also reinforce the future estimates to return high
+        // estimates as well.
         let filler_price = if last_price.block_number == 0 {
             // if this is the first call to suggest_tip_cap, use default 0 price
             last_price.price
