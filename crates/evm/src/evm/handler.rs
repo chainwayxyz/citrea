@@ -52,6 +52,10 @@ const CODE_KEY_SIZE: usize = 39;
 /// The full calculation can be found here: https://github.com/chainwayxyz/citrea/blob/erce/l1-fee-overhead-calculations/l1_fee_overhead.md
 pub const L1_FEE_OVERHEAD: usize = 3;
 
+/// The brotli average compression ratio (compressed size / uncompressed size) was calculated by measuring the size of state diffs of batches before and after brotli compression.
+/// Multiplying the calculated diff size by this constant gives the estimated size of the state diff that is written to the da.
+pub const BROTLI_AVG_COMPRESSION_RATIO: f64 = 0.3295;
+
 /// We want to charge the user for the amount of data written as fairly as possible, the problem is at the time of when we write batch proof to the da we cannot know the exact state diff
 /// So we calculate the state diff created by a single transaction and use that to charge user
 /// However at the time of the batch proof some state diffs will be merged and some users will be overcharged.
@@ -401,8 +405,12 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         context: &mut Context<EXT, DB>,
         result: FrameResult,
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
-        let diff_size =
-            calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)? as u64;
+        let uncompressed_size =
+            calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)?;
+
+        // Estimate the size of the state diff after the brotli compression
+        let diff_size = ((uncompressed_size as f64) * BROTLI_AVG_COMPRESSION_RATIO).round() as u64;
+
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee =
             U256::from(l1_fee_rate) * (U256::from(diff_size) + U256::from(L1_FEE_OVERHEAD));
