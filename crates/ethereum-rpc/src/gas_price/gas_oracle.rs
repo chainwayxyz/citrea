@@ -3,6 +3,8 @@
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
+use std::cmp;
+
 use citrea_evm::{Evm, SYSTEM_SIGNER};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use parking_lot::Mutex;
@@ -265,11 +267,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         let header_number = header.number.unwrap();
 
         // we only check a maximum of 2 * max_block_history, or the number of blocks in the chain
-        let max_blocks = if self.oracle_config.max_block_history * 2 > header_number {
-            header_number
-        } else {
-            self.oracle_config.max_block_history * 2
-        };
+        let max_blocks = cmp::min(self.oracle_config.max_block_history * 2, header_number);
 
         for _ in 0..max_blocks {
             let (parent_hash, block_values) = self
@@ -302,9 +300,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
 
         // constrain to the max price
         if let Some(max_price) = self.oracle_config.max_price {
-            if price > max_price {
-                price = max_price;
-            }
+            price = cmp::min(price, max_price);
         }
 
         *last_price = GasPriceOracleResult {
