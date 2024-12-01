@@ -269,13 +269,21 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         // we only check a maximum of 2 * max_block_history, or the number of blocks in the chain
         let max_blocks = cmp::min(self.oracle_config.max_block_history * 2, header_number);
 
+        // use decayed cached value as a placeholder value for empty blocks
+        let filler_price = if last_price.block_number == 0 {
+            // if this is the first call to suggest_tip_cap, use default 0 price
+            last_price.price
+        } else {
+            let block_distance = header_number - last_price.block_number;
+            last_price.price / block_distance as u128
+        };
         for _ in 0..max_blocks {
             let (parent_hash, block_values) = self
                 .get_block_values(current_hash, SAMPLE_NUMBER as usize, working_set)?
                 .ok_or(EthApiError::UnknownBlockNumber)?;
 
             if block_values.is_empty() {
-                results.push(last_price.price);
+                results.push(filler_price);
             } else {
                 results.extend(block_values);
                 populated_blocks += 1;
