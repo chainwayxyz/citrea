@@ -423,7 +423,6 @@ jobs:
           CITREA_E2E_TEST_BINARY: ${{ github.workspace }}/target/debug/citrea
           PARALLEL_PROOF_LIMIT: 1
           TEST_OUT_DIR: ${{ runner.temp }}/test
-          TAIL_N_LINES: 500
 
       - name: Upload e2e test dir
         if: failure() || cancelled()
