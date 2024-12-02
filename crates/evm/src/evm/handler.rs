@@ -407,7 +407,7 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
     ) -> Result<ResultAndState, EVMError<<DB as Database>::Error>> {
         let uncompressed_size =
             calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)?;
-            
+
         let diff_size = if SPEC::enabled(SpecId::CANCUN) {
             // Estimate the size of the state diff after the brotli compression
             (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64
