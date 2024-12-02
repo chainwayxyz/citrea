@@ -8,7 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, get_da_block_at_height};
 use citrea_common::error::SyncError;
-use citrea_common::utils::check_l2_range_exists;
+use citrea_common::utils::{check_l2_range_exists, extract_vm_output};
 use citrea_primitives::forks::FORKS;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -298,12 +298,8 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
-        // TODO: select output version based on spec
-        let batch_proof_output = Vm::extract_output::<
-            <Da as DaService>::Spec,
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
-        >(&proof)
-        .expect("Proof should be deserializable");
+        let batch_proof_output =
+            extract_vm_output::<Vm, Da, StateRoot>(&proof).expect("Proof should be deserializable");
 
         let (
             batch_proof_sequencer_da_public_key,

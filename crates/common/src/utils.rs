@@ -1,10 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
+use anyhow::anyhow;
+use borsh::BorshDeserialize;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
+use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::zk::{
+    BatchProofCircuitOutput, BatchProofCircuitOutputV1, Proof, Zkvm, ZkvmHost,
+};
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
@@ -76,4 +82,22 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
         }
     }
     false
+}
+
+pub fn extract_vm_output<Vm: ZkvmHost + Zkvm, Da: DaService, StateRoot: BorshDeserialize>(
+    proof: &Proof,
+) -> anyhow::Result<BatchProofCircuitOutput<Da::Spec, StateRoot>> {
+    let Ok(batch_proof_output) = Vm::extract_output::<
+        Da::Spec,
+        BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+    >(&proof) else {
+        return Ok(BatchProofCircuitOutput::V1(
+            Vm::extract_output::<
+                Da::Spec,
+                BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
+            >(&proof)
+            .map_err(|_| anyhow!("Proof should be deserializable"))?,
+        ));
+    };
+    Ok(batch_proof_output)
 }

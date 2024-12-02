@@ -6,7 +6,9 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::extract_sequencer_commitments;
-use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
+use citrea_common::utils::{
+    check_l2_range_exists, extract_vm_output, filter_out_proven_commitments,
+};
 use citrea_primitives::forks::FORKS;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -360,12 +362,8 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
-        // TODO: select output version based on spec
-        let circuit_output = Vm::extract_output::<
-            <Da as DaService>::Spec,
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
-        >(&proof)
-        .expect("Proof should be deserializable");
+        let circuit_output =
+            extract_vm_output::<Vm, Da, StateRoot>(&proof).expect("Proof should be deserializable");
 
         let (
             circuit_output_sequencer_da_public_key,

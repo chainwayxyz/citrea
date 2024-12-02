@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
+use citrea_common::utils::extract_vm_output;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::FORKS;
 use sequencer_client::SequencerClient;
@@ -159,11 +160,8 @@ where
         let mut assumptions = vec![];
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
-                let batch_proof_output = Vm::extract_output::<
-                    <Da as DaService>::Spec,
-                    BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                >(&proof)
-                .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                let batch_proof_output = extract_vm_output::<Vm, Da, [u8; 32]>(&proof)
+                    .expect("Proof should be deserializable");
 
                 let last_l2_height = match batch_proof_output {
                     BatchProofCircuitOutput::V1(output) => output.last_l2_height,
