@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{
-    BatchProofCircuitInput, BatchProofCircuitOutput, BatchProofCircuitOutputV1,
-    BatchProofCircuitOutputV2, Zkvm, ZkvmGuest,
+    BatchProofCircuitInput, BatchProofCircuitInputV1, BatchProofCircuitOutput,
+    BatchProofCircuitOutputV1, BatchProofCircuitOutputV2, Zkvm, ZkvmGuest,
 };
 
 /// Verifies a state transition
@@ -41,8 +41,17 @@ where
         pre_state: Stf::PreState,
     ) -> Result<(), Da::Error> {
         println!("Running sequencer commitments in DA slot");
-        let data: BatchProofCircuitInput<Stf::StateRoot, _, Da::Spec, Stf::Transaction> =
-            zkvm.read_from_host();
+        let data: BatchProofCircuitInput<Stf::StateRoot, _, Da::Spec, Stf::Transaction> = match zkvm
+            .read_from_host()
+        {
+            Ok(data) => data,
+            Err(_) => {
+                let data: BatchProofCircuitInputV1<Stf::StateRoot, _, Da::Spec, Stf::Transaction> =
+                    zkvm.read_from_host()
+                        .expect("Input should be deserializable");
+                BatchProofCircuitInput::V1(data)
+            }
+        };
 
         let (
             version,

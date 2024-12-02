@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::io::Write;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
+use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::{Matches, Proof};
@@ -266,8 +267,9 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
 }
 
 impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
-    fn read_from_host<T: BorshDeserialize>(&self) -> T {
-        T::try_from_slice(self.input.as_slice()).expect("Failed to deserialize input from host")
+    fn read_from_host<T: BorshDeserialize>(&self) -> Result<T, Self::Error> {
+        T::try_from_slice(self.input.as_slice())
+            .map_err(|_| anyhow!("Failed to deserialize input from host"))
     }
 
     fn commit<T: BorshSerialize>(&self, item: &T) {

@@ -90,12 +90,12 @@ pub fn extract_vm_output<Vm: ZkvmHost + Zkvm, Da: DaService, StateRoot: BorshDes
     let Ok(batch_proof_output) = Vm::extract_output::<
         Da::Spec,
         BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
-    >(&proof) else {
+    >(proof) else {
         return Ok(BatchProofCircuitOutput::V1(
             Vm::extract_output::<
                 Da::Spec,
                 BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
-            >(&proof)
+            >(proof)
             .map_err(|_| anyhow!("Proof should be deserializable"))?,
         ));
     };

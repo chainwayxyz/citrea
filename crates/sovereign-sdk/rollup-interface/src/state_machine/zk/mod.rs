@@ -95,7 +95,7 @@ pub trait Zkvm: Send + Sync {
 /// A trait which is accessible from within a zkVM program.
 pub trait ZkvmGuest: Zkvm + Send + Sync {
     /// Obtain "advice" non-deterministically from the host
-    fn read_from_host<T: BorshDeserialize>(&self) -> T;
+    fn read_from_host<T: BorshDeserialize>(&self) -> Result<T, Self::Error>;
     /// Add a public output to the zkVM proof
     fn commit<T: BorshSerialize>(&self, item: &T);
 }
