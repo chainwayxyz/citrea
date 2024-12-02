@@ -178,6 +178,94 @@ async fn test_parallel_proofs_higher_than_limit() {
     assert_eq!(txs_and_proofs.len(), 5);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_multiple_parallel_proof_run() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let da_service = Arc::new(MockDaService::new(
+        MockAddress::from([0; 32]),
+        tmpdir.path(),
+    ));
+
+    // Parallel proof limit is 3
+    let TestProver {
+        prover_service, vm, ..
+    } = make_new_prover(3, da_service);
+
+    // 1st proof
+    let header_hash_1 = MockHash::from([0; 32]);
+    prover_service
+        .add_proof_data((
+            borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
+            vec![],
+        ))
+        .await;
+    // 2nd proof
+    let header_hash_2 = MockHash::from([1; 32]);
+    prover_service
+        .add_proof_data((
+            borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            vec![],
+        ))
+        .await;
+
+    // Spawn mock proving in the background
+    let rx = spawn_prove(prover_service.clone()).await;
+
+    // Signal finish to 1st proof
+    assert!(vm.finish_next_proof());
+    // Signal finish to 2nd proof
+    assert!(vm.finish_next_proof());
+
+    // Background proving job should be finished
+    let proofs = rx.await.unwrap();
+    assert_eq!(proofs.len(), 2);
+
+    let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
+    assert_eq!(txs_and_proofs.len(), 2);
+
+    // 1st proof
+    let header_hash_3 = MockHash::from([2; 32]);
+    prover_service
+        .add_proof_data((
+            borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
+            vec![],
+        ))
+        .await;
+    // 2nd proof
+    let header_hash_4 = MockHash::from([3; 32]);
+    prover_service
+        .add_proof_data((
+            borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
+            vec![],
+        ))
+        .await;
+    // 3rd proof
+    let header_hash_5 = MockHash::from([4; 32]);
+    prover_service
+        .add_proof_data((
+            borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
+            vec![],
+        ))
+        .await;
+
+    // Spawn mock proving in the background
+    let rx = spawn_prove(prover_service.clone()).await;
+
+    // Signal finish to 1st proof
+    assert!(vm.finish_next_proof());
+    // Signal finish to 2nd proof
+    assert!(vm.finish_next_proof());
+    // Signal finish to 3rd proof
+    assert!(vm.finish_next_proof());
+
+    // Background proving job should be finished
+    let proofs = rx.await.unwrap();
+    assert_eq!(proofs.len(), 3);
+
+    let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
+    assert_eq!(txs_and_proofs.len(), 3);
+}
+
 struct TestProver {
     prover_service: Arc<ParallelProverService<MockDaService, MockZkvm, MockStf>>,
     vm: MockZkvm,
