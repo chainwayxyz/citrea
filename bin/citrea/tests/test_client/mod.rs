@@ -19,7 +19,8 @@ use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind,
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
-use sov_ledger_rpc::{client::RpcClient, HexHash};
+use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::HexHash;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
