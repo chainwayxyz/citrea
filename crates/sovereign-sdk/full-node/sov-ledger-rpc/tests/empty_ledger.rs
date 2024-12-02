@@ -52,7 +52,7 @@ async fn getters_succeed() {
         .unwrap();
 
     rpc_client
-        .get_sequencer_commitments_on_slot_by_hash([0; 32])
+        .get_sequencer_commitments_on_slot_by_hash(hash)
         .await
         .unwrap();
 
@@ -62,7 +62,7 @@ async fn getters_succeed() {
         .unwrap();
 
     rpc_client
-        .get_batch_proofs_by_slot_hash([0; 32])
+        .get_batch_proofs_by_slot_hash(hash)
         .await
         .unwrap();
 

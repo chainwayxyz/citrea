@@ -39,7 +39,7 @@ pub trait Rpc {
     #[method(name = "getSoftConfirmationRange")]
     async fn get_soft_confirmation_range(
         &self,
-        range: (u64, u64),
+        range: (U64, U64),
     ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>>;
 
     /// Gets a single event by number.
@@ -64,7 +64,7 @@ pub trait Rpc {
     #[method(name = "getSequencerCommitmentsOnSlotByHash")]
     async fn get_sequencer_commitments_on_slot_by_hash(
         &self,
-        hash: [u8; 32],
+        hash: HexHash,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
     /// Gets proof by slot height.
@@ -78,7 +78,7 @@ pub trait Rpc {
     #[method(name = "getBatchProofsBySlotHash")]
     async fn get_batch_proofs_by_slot_hash(
         &self,
-        hash: [u8; 32],
+        hash: HexHash,
     ) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets the height pf most recent committed soft confirmation.

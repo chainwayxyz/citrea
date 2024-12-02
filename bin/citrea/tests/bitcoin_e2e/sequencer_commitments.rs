@@ -111,7 +111,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let commitments_hash = prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
+            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array().into())
             .await
             .unwrap()
             .unwrap();
@@ -181,7 +181,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         let commitments_node = full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
+            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array().into())
             .await
             .unwrap()
             .unwrap();
