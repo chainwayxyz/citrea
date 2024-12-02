@@ -242,6 +242,29 @@ pub struct BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da: DaSpec, Tx: Cl
     pub sequencer_commitments_range: (u32, u32),
 }
 
+/// Grouping circuit input to determine which to use based on current fork.
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+// Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
+// StateTransitionFunction, DA, and Zkvm traits.
+#[serde(
+    bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned, Tx: Serialize + DeserializeOwned"
+)]
+pub enum BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec, Tx: Clone> {
+    /// V1 or genesis
+    V1(BatchProofCircuitInputV1<'txs, StateRoot, Witness, Da, Tx>),
+    /// V2
+    V2(BatchProofCircuitInputV2<'txs, StateRoot, Witness, Da, Tx>),
+}
+
+/// Grouping circuit output to determine which to use based on current fork.
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+pub enum BatchProofCircuitOutput<Da: DaSpec, StateRoot> {
+    /// V1 or genesis
+    V1(BatchProofCircuitOutputV1<Da, StateRoot>),
+    /// V2
+    V2(BatchProofCircuitOutputV2<Da, StateRoot>),
+}
+
 /// The batch proof that was not verified in the light client circuit because it was missing another proof for state root chaining
 /// This struct is passed as an output to the light client circuit
 /// After that the new circuit will read that info to update the state root if possible

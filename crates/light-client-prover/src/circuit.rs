@@ -2,7 +2,7 @@ use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
-    BatchProofCircuitOutputV2, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
+    BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     ZkvmGuest,
 };
 
@@ -102,7 +102,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
                         // TODO: select output version based on the spec
-                        let batch_proof_output: BatchProofCircuitOutputV2<DaV::Spec, [u8; 32]> =
+                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
                             match G::verify_and_extract_output(
                                 &journal,
                                 &batch_proof_method_id.into(),
@@ -111,18 +111,34 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 Err(_) => continue,
                             };
 
+                        let (
+                            batch_proof_last_l2_height,
+                            batch_proof_initial_state_root,
+                            batch_proof_final_state_root,
+                        ) = match batch_proof_output {
+                            BatchProofCircuitOutput::V1(output) => (
+                                output.last_l2_height,
+                                output.initial_state_root,
+                                output.final_state_root,
+                            ),
+                            BatchProofCircuitOutput::V2(output) => (
+                                output.last_l2_height,
+                                output.initial_state_root,
+                                output.final_state_root,
+                            ),
+                        };
                         // Do not add if last l2 height is smaller or equal to previous output
                         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-                        if batch_proof_output.last_l2_height <= last_l2_height {
+                        if batch_proof_last_l2_height <= last_l2_height {
                             continue;
                         }
 
                         recursive_match_state_roots(
                             &mut initial_to_final,
                             &BatchProofInfo::new(
-                                batch_proof_output.initial_state_root,
-                                batch_proof_output.final_state_root,
-                                batch_proof_output.last_l2_height,
+                                batch_proof_initial_state_root,
+                                batch_proof_final_state_root,
+                                batch_proof_last_l2_height,
                             ),
                         );
                     }

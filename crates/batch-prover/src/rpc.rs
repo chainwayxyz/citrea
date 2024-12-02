@@ -16,11 +16,11 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{BatchProofCircuitInput, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 
-use crate::proving::{data_to_prove, prove_l1, CircuitInput, GroupCommitments};
+use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProverInputResponse {
@@ -184,12 +184,12 @@ where
 
         for input in inputs {
             let (range_start, range_end, serialized_circuit_input) = match input {
-                CircuitInput::V1(i) => (
+                BatchProofCircuitInput::V1(i) => (
                     i.sequencer_commitments_range.0,
                     i.sequencer_commitments_range.1,
                     serialize_batch_proof_circuit_input(i),
                 ),
-                CircuitInput::V2(i) => (
+                BatchProofCircuitInput::V2(i) => (
                     i.sequencer_commitments_range.0,
                     i.sequencer_commitments_range.1,
                     serialize_batch_proof_circuit_input(i),
