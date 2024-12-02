@@ -51,4 +51,5 @@ citrea-stf = { path = "../citrea-stf", features = ["native"] }
 prover-services = { path = "../prover-services" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["mock"] }
