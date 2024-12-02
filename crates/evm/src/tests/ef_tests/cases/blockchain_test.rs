@@ -79,14 +79,8 @@ impl BlockchainTestCase {
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
         let dummy_address = generate_address::<DefaultContext>("dummy");
-        let sequencer_address = generate_address::<DefaultContext>("sequencer");
-        let context = DefaultContext::new(
-            dummy_address,
-            sequencer_address,
-            l2_height,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+        let context =
+            DefaultContext::new(dummy_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
         let _ = evm.execute_call(txs, &context, &mut working_set);
 
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
