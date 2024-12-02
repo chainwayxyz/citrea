@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use reth_primitives::U64;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::client::RpcClient;
@@ -40,22 +41,28 @@ async fn getters_succeed() {
         .await
         .unwrap();
 
-    rpc_client.get_soft_confirmation_by_number(0).await.unwrap();
-
     rpc_client
-        .get_sequencer_commitments_on_slot_by_number(0)
+        .get_soft_confirmation_by_number(U64::from(0))
         .await
         .unwrap();
 
     rpc_client
-        .get_sequencer_commitments_on_slot_by_hash([0; 32])
+        .get_sequencer_commitments_on_slot_by_number(U64::from(0))
         .await
         .unwrap();
 
-    rpc_client.get_batch_proofs_by_slot_height(0).await.unwrap();
+    rpc_client
+        .get_sequencer_commitments_on_slot_by_hash(hash)
+        .await
+        .unwrap();
 
     rpc_client
-        .get_batch_proofs_by_slot_hash([0; 32])
+        .get_batch_proofs_by_slot_height(U64::from(0))
+        .await
+        .unwrap();
+
+    rpc_client
+        .get_batch_proofs_by_slot_hash(hash)
         .await
         .unwrap();
 
@@ -67,7 +74,7 @@ async fn getters_succeed() {
     rpc_client.get_head_soft_confirmation().await.unwrap();
 
     rpc_client
-        .get_verified_batch_proofs_by_slot_height(0)
+        .get_verified_batch_proofs_by_slot_height(U64::from(0))
         .await
         .unwrap();
 
