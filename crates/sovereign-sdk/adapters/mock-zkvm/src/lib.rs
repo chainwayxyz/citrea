@@ -186,7 +186,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         tasks.push_back(tx);
         drop(tasks);
 
-        // Block until signal finish signal arrives
+        // Block until finish signal arrives
         rx.recv().unwrap();
 
         Ok(self.committed_data.pop_front().unwrap_or_default())
