@@ -1,7 +1,6 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
 use std::io::Cursor;
 
-use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::Write;
@@ -23,11 +22,11 @@ impl Risc0Guest {
 }
 
 impl ZkvmGuest for Risc0Guest {
-    fn read_from_host<T: BorshDeserialize>(&self) -> Result<T, Self::Error> {
+    fn read_from_host<T: BorshDeserialize>(&self) -> T {
         let mut reader = env::stdin();
         // deserialize
         BorshDeserialize::deserialize_reader(&mut reader)
-            .map_err(|_| anyhow!("Failed to deserialize input from host"))
+            .expect("Failed to deserialize input from host")
     }
 
     fn commit<T: BorshSerialize>(&self, item: &T) {

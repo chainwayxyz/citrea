@@ -19,9 +19,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
     guest: &G,
 ) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
-    let input: LightClientCircuitInput<DaV::Spec> = guest
-        .read_from_host()
-        .expect("Light client input should be deserializable");
+    let input: LightClientCircuitInput<DaV::Spec> = guest.read_from_host();
 
     // Extract previous light client proof output
     let previous_light_client_proof_output =
