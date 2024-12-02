@@ -367,11 +367,7 @@ impl TestCase for LocalProvingTest {
 
     fn test_env() -> TestCaseEnv {
         TestCaseEnv {
-            test: vec![
-                ("CI_TEST_MODE", "1"),
-                ("BONSAI_API_URL", ""),
-                ("BONSAI_API_KEY", ""),
-            ],
+            test: vec![("BONSAI_API_URL", ""), ("BONSAI_API_KEY", "")],
             ..Default::default()
         }
     }
