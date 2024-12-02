@@ -19,26 +19,26 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/batch_proof_mock/batch_proof_mock"));
+        m.insert(SpecId::Genesis, (Digest::new(citrea_risc0::BATCH_PROOF_MOCK_ID), citrea_risc0::BATCH_PROOF_MOCK_ELF.to_vec()));
         m
     };
     pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/light_client_proof_mock/light_client_proof_mock"));
+        m.insert(SpecId::Genesis, (Digest::new(citrea_risc0::LIGHT_CLIENT_PROOF_MOCK_ID), citrea_risc0::LIGHT_CLIENT_PROOF_MOCK_ELF.to_vec()));
         m
     };
     /// The following 2 are used as latest guest builds for tests that use Bitcoin DA.
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/batch_proof_bitcoin/batch_proof_bitcoin"));
+        m.insert(SpecId::Genesis, (Digest::new(citrea_risc0::BATCH_PROOF_BITCOIN_ID), citrea_risc0::BATCH_PROOF_BITCOIN_ELF.to_vec()));
         m
     };
     pub(crate) static ref LIGHT_CLIENT_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
-        m.insert(SpecId::Genesis, guest!("../../../target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/light_client_proof_bitcoin/light_client_proof_bitcoin"));
+        m.insert(SpecId::Genesis, (Digest::new(citrea_risc0::LIGHT_CLIENT_PROOF_BITCOIN_ID), citrea_risc0::LIGHT_CLIENT_PROOF_BITCOIN_ELF.to_vec()));
         m
     };
     /// Production guests

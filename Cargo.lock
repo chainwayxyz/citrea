@@ -1738,6 +1738,7 @@ dependencies = [
  "reth-rpc-types",
  "reth-transaction-pool",
  "revm",
+ "risc0",
  "risc0-binfmt",
  "rs_merkle",
  "rustc_version_runtime",
@@ -1835,7 +1836,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=18319b1#18319b1b268da195e194e2d4cc32271a769b0559"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=423db61#423db6182000d4b94b121eed05256de1b4bd0a7c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6223,6 +6224,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
+]
+
+[[package]]
+name = "risc0"
+version = "0.5.0-rc.1"
+dependencies = [
+ "risc0-build",
 ]
 
 [[package]]

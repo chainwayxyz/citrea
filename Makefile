@@ -11,14 +11,14 @@ help: ## Display this help message
 
 .PHONY: build-risc0
 build-risc0:
-	$(MAKE) -j 4 -C guests/risc0 all
+	$(MAKE) -j 2 -C guests/risc0 all
 
 .PHONY: build-sp1
 build-sp1:
 	$(MAKE) -C guests/sp1 all
 
 .PHONY: build
-build: build-risc0 build-sp1 ## Build the project
+build: ## Build the project
 	@cargo build
 
 build-release: build-risc0 build-sp1 ## Build the project in release mode
