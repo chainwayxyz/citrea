@@ -24,14 +24,14 @@ impl<C: Context> Accounts<C> {
 
 impl<C: Context> TxHooks for Accounts<C> {
     type Context = C;
-    type PreArg = C::PublicKey;
+    type PreArg = Option<()>;
     type PreResult = AccountsTxHook<C>;
 
     fn pre_dispatch_tx_hook(
         &self,
         tx: &Transaction<C>,
         working_set: &mut WorkingSet<C>,
-        _sequencer: &C::PublicKey,
+        _sequencer: &Self::PreArg,
     ) -> anyhow::Result<AccountsTxHook<C>> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
         let tx_nonce = tx.nonce();
