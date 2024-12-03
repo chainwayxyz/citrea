@@ -196,7 +196,7 @@ pub use sov_rollup_interface::soft_confirmation::{
     SignedSoftConfirmation, UnsignedSoftConfirmation,
 };
 pub use sov_rollup_interface::stf::{Event, StateDiff};
-pub use sov_rollup_interface::zk::{BatchProofCircuitOutputV2, Zkvm};
+pub use sov_rollup_interface::zk::{BatchProofCircuitOutput, Zkvm};
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 
 pub mod prelude {

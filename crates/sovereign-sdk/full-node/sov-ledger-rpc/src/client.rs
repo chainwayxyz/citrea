@@ -4,6 +4,7 @@
 //! See [`RpcClient`].
 
 use jsonrpsee::proc_macros::rpc;
+use reth_primitives::U64;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, SequencerCommitmentResponse, SoftConfirmationResponse,
     SoftConfirmationStatus, VerifiedBatchProofResponse,
@@ -24,7 +25,7 @@ pub trait Rpc {
     #[method(name = "getSoftConfirmationByNumber")]
     async fn get_soft_confirmation_by_number(
         &self,
-        number: u64,
+        number: U64,
     ) -> RpcResult<Option<SoftConfirmationResponse>>;
 
     /// Gets a single soft confirmation by hash.
@@ -38,14 +39,14 @@ pub trait Rpc {
     #[method(name = "getSoftConfirmationRange")]
     async fn get_soft_confirmation_range(
         &self,
-        range: (u64, u64),
+        range: (U64, U64),
     ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>>;
 
     /// Gets a single event by number.
     #[method(name = "getSoftConfirmationStatus")]
     async fn get_soft_confirmation_status(
         &self,
-        soft_confirmation_receipt: u64,
+        soft_confirmation_receipt: U64,
     ) -> RpcResult<SoftConfirmationStatus>;
 
     /// Gets the L2 genesis state root.
@@ -56,28 +57,28 @@ pub trait Rpc {
     #[method(name = "getSequencerCommitmentsOnSlotByNumber")]
     async fn get_sequencer_commitments_on_slot_by_number(
         &self,
-        height: u64,
+        height: U64,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
     /// Gets the commitments in the DA slot with the given hash.
     #[method(name = "getSequencerCommitmentsOnSlotByHash")]
     async fn get_sequencer_commitments_on_slot_by_hash(
         &self,
-        hash: [u8; 32],
+        hash: HexHash,
     ) -> RpcResult<Option<Vec<SequencerCommitmentResponse>>>;
 
     /// Gets proof by slot height.
     #[method(name = "getBatchProofsBySlotHeight")]
     async fn get_batch_proofs_by_slot_height(
         &self,
-        height: u64,
+        height: U64,
     ) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets proof by slot hash.
     #[method(name = "getBatchProofsBySlotHash")]
     async fn get_batch_proofs_by_slot_hash(
         &self,
-        hash: [u8; 32],
+        hash: HexHash,
     ) -> RpcResult<Option<BatchProofResponse>>;
 
     /// Gets the height pf most recent committed soft confirmation.
@@ -92,7 +93,7 @@ pub trait Rpc {
     #[method(name = "getVerifiedBatchProofsBySlotHeight")]
     async fn get_verified_batch_proofs_by_slot_height(
         &self,
-        height: u64,
+        height: U64,
     ) -> RpcResult<Option<Vec<VerifiedBatchProofResponse>>>;
 
     /// Gets last verified proog

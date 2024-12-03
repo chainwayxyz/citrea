@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-common = { path = "../common", optional = true }
+citrea-primitives = { path = "../primitives", optional = true }
 sequencer-client = { path = "../sequencer-client", optional = true }
 
 # Sov SDK deps
@@ -40,6 +41,7 @@ tempfile = { workspace = true }
 [features]
 default = []
 native = [
+  "dep:citrea-primitives",
   "dep:citrea-common",
   "dep:sequencer-client",
   "dep:sov-db",

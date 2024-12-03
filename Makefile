@@ -9,11 +9,19 @@ PARALLEL_PROOF_LIMIT := 1
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+.PHONY: build-risc0
+build-risc0:
+	$(MAKE) -j 2 -C guests/risc0 all
+
+.PHONY: build-sp1
+build-sp1:
+	$(MAKE) -C guests/sp1 all
+
 .PHONY: build
 build: ## Build the project
 	@cargo build
 
-build-release: ## Build the project in release mode
+build-release: build-risc0 build-sp1 ## Build the project in release mode
 	@cargo build --release
 
 clean: ## Cleans compiled

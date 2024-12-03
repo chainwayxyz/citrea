@@ -22,6 +22,7 @@ sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = ["native"
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+derive_more = { workspace = true, features = ["display"] }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 tokio = { workspace = true }
 tracing = { workspace = true }

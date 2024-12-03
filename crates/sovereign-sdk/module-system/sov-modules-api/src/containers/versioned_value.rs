@@ -310,13 +310,11 @@ mod tests {
         }
 
         let signer = Address::from([1; 32]);
-        let sequencer = Address::from([2; 32]);
 
         {
             {
                 let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
                     signer,
-                    sequencer,
                     1,
                     sov_rollup_interface::spec::SpecId::Genesis,
                     0,
@@ -327,7 +325,6 @@ mod tests {
             // Try to read the value from user space with the slot number set to 4. Should succeed.
             let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
                 signer,
-                sequencer,
                 4,
                 sov_rollup_interface::spec::SpecId::Genesis,
                 0,
@@ -357,13 +354,11 @@ mod tests {
         }
 
         let signer = Address::from([1; 32]);
-        let sequencer = Address::from([2; 32]);
 
         {
             {
                 let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
                     signer,
-                    sequencer,
                     1,
                     SpecId::Genesis,
                     0,
@@ -375,7 +370,6 @@ mod tests {
                 // Try to read the value from user space with the slot number set to 2. Should succeed.
                 let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
                     signer,
-                    sequencer,
                     2,
                     SpecId::Genesis,
                     0,
@@ -385,13 +379,8 @@ mod tests {
             }
 
             // Try to read the value from user space with the slot number set to 4. Should succeed.
-            let mut versioned_state = working_set.versioned_state(&DefaultContext::new(
-                signer,
-                sequencer,
-                4,
-                SpecId::Genesis,
-                0,
-            ));
+            let mut versioned_state =
+                working_set.versioned_state(&DefaultContext::new(signer, 4, SpecId::Genesis, 0));
             assert_eq!(value.get_current(&mut versioned_state), Some(17));
         }
     }

@@ -195,7 +195,11 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         }
     }
 
-    fn run(&mut self, _with_proof: bool) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
+    fn run(
+        &mut self,
+        _elf: Vec<u8>,
+        _with_proof: bool,
+    ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
         self.worker_thread_notifier.wait();
         Ok(self.committed_data.pop_front().unwrap_or_default())
     }

@@ -12,6 +12,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use reth_primitives::U64;
 use sov_ledger_rpc::client::RpcClient;
 
 use super::batch_prover_test::wait_for_zkproofs;
@@ -92,7 +93,7 @@ impl TestCase for LightClientProvingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
             .await
             .unwrap()
             .unwrap();
@@ -240,7 +241,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
             .await
             .unwrap()
             .unwrap();
@@ -380,7 +381,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(commitment_l1_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(commitment_l1_height))
             .await
             .unwrap()
             .unwrap();

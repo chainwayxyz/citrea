@@ -1727,6 +1727,7 @@ dependencies = [
  "ethereum-rpc",
  "hex",
  "jsonrpsee",
+ "lazy_static",
  "log",
  "log-panics",
  "proptest",
@@ -1738,6 +1739,7 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0",
+ "risc0-binfmt",
  "rs_merkle",
  "rustc_version_runtime",
  "secp256k1",
@@ -1834,7 +1836,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=c3f27fc#c3f27fcc1e3cf828f151a9d564f9b667d4b1fe18"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=423db61#423db6182000d4b94b121eed05256de1b4bd0a7c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1948,6 +1950,7 @@ dependencies = [
  "bincode",
  "borsh",
  "citrea-common",
+ "citrea-primitives",
  "hex",
  "jsonrpsee",
  "sequencer-client",
@@ -7320,8 +7323,8 @@ dependencies = [
  "anyhow",
  "futures",
  "jsonrpsee",
+ "reth-primitives",
  "serde",
- "serde_json",
  "sov-db",
  "sov-modules-api",
  "sov-rollup-interface",
@@ -7454,6 +7457,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "citrea-common",
+ "derive_more",
  "jsonrpsee",
  "sov-db",
  "sov-ledger-rpc",
