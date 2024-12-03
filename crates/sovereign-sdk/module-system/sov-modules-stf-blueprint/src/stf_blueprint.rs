@@ -64,8 +64,10 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
         txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
-        mut sc_workspace: WorkingSet<C>,
-    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), StateTransitionError> {
+        sc_workspace: &mut WorkingSet<C>,
+    ) -> Result<Vec<TransactionReceipt<TxEffect>>, StateTransitionError> {
+        // TODO: fix sov-tx related error handling
+
         let mut tx_receipts = Vec::with_capacity(txs.len());
         let txs: Vec<_> = if soft_confirmation_info.current_spec >= SpecId::Fork1 {
             txs_new
@@ -113,10 +115,7 @@ where
                 current_spec: soft_confirmation_info.current_spec(),
                 l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
             };
-            let ctx = match self
-                .runtime
-                .pre_dispatch_tx_hook(&tx, &mut sc_workspace, &hook)
-            {
+            let ctx = match self.runtime.pre_dispatch_tx_hook(&tx, sc_workspace, &hook) {
                 Ok(verified_tx) => verified_tx,
                 Err(e) => {
                     // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
@@ -134,11 +133,11 @@ where
                 }
             };
             // Commit changes after pre_dispatch_tx_hook
-            sc_workspace = sc_workspace.checkpoint().to_revertable();
+            // sc_workspace = sc_workspace.checkpoint().to_revertable();
 
-            let tx_result = self.runtime.dispatch_call(msg, &mut sc_workspace, &ctx);
+            let tx_result = self.runtime.dispatch_call(msg, sc_workspace, &ctx);
 
-            let events = sc_workspace.take_events();
+            // let events = sc_workspace.take_events();
             let tx_effect = match tx_result {
                 Ok(_) => TxEffect::Successful,
                 Err(e) => return Err(StateTransitionError::ModuleCallError(e)),
@@ -147,21 +146,21 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                events,
+                events: vec![],
                 receipt: tx_effect,
             };
 
             tx_receipts.push(receipt);
             // We commit after events have been extracted into receipt.
-            sc_workspace = sc_workspace.checkpoint().to_revertable();
+            // sc_workspace = sc_workspace.checkpoint().to_revertable();
 
             // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             // TODO: Check if we need to put this in end_soft_onfirmation, becuase I am not sure if we can call pre_dispatch again for new txs after this
             self.runtime
-                .post_dispatch_tx_hook(&tx, &ctx, &mut sc_workspace)
+                .post_dispatch_tx_hook(&tx, &ctx, sc_workspace)
                 .expect("inconsistent state: error in post_dispatch_tx_hook");
         }
-        Ok((sc_workspace, tx_receipts))
+        Ok(tx_receipts)
     }
 
     /// Begins the inner processes of applying soft confirmation

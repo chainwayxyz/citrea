@@ -149,8 +149,8 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         soft_confirmation: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
-        batch_workspace: WorkingSet<C>,
-    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), StateTransitionError>;
+        batch_workspace: &mut WorkingSet<C>,
+    ) -> Result<Vec<TransactionReceipt<TxEffect>>, StateTransitionError>;
 
     /// End a soft confirmation
     fn end_soft_confirmation(
@@ -246,8 +246,8 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
-        batch_workspace: WorkingSet<C>,
-    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), StateTransitionError> {
+        batch_workspace: &mut WorkingSet<C>,
+    ) -> Result<Vec<TransactionReceipt<TxEffect>>, StateTransitionError> {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, txs_new, batch_workspace)
     }
 
@@ -530,12 +530,12 @@ where
             slot_header,
             &soft_confirmation_info,
         ) {
-            (Ok(()), batch_workspace) => {
-                let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
+            (Ok(()), mut batch_workspace) => {
+                let tx_receipts = self.apply_soft_confirmation_txs(
                     soft_confirmation_info,
                     soft_confirmation.blobs(),
                     soft_confirmation.txs(),
-                    batch_workspace,
+                    &mut batch_workspace,
                 )?;
 
                 match self.end_soft_confirmation(

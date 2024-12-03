@@ -118,7 +118,13 @@ pub(crate) fn execute_multiple_tx<
         // Check if the transaction used more gas than the available block gas limit
         if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
             native_error!("Gas used exceeds block gas limit");
-            return Err(SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit);
+            return Err(
+                SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                    cumulative_gas: cumulative_gas_used,
+                    tx_gas_used: result_and_state.result.gas_used(),
+                    block_gas_limit,
+                },
+            );
         } else {
             native_trace!("Commiting tx to DB");
             evm.commit(result_and_state.state);

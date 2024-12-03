@@ -367,7 +367,16 @@ pub enum SoftConfirmationHookError {
 /// Error that can occur during a module call of a soft confirmation
 pub enum SoftConfirmationModuleCallError {
     /// The EVM gas used exceeds the block gas limit
-    EvmGasUsedExceedsBlockGasLimit,
+    EvmGasUsedExceedsBlockGasLimit {
+        /// The cumulative gas used in the block
+        /// at the point of the error
+        cumulative_gas: u64,
+        /// The gas used by the transaction
+        /// that causes the error
+        tx_gas_used: u64,
+        /// The block gas limit
+        block_gas_limit: u64,
+    },
     /// The EVM blob gas used exceeds the block gas limit
     EvmBlobGasUsedExceedsBlockGasLimit,
     /// There was an error during EVM transaction execution
@@ -446,8 +455,16 @@ impl std::fmt::Display for SoftConfirmationHookError {
 impl std::fmt::Display for SoftConfirmationModuleCallError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit => {
-                write!(f, "EVM gas used exceeds block gas limit")
+            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                cumulative_gas,
+                tx_gas_used,
+                block_gas_limit,
+            } => {
+                write!(
+                    f,
+                    "EVM gas used exceeds block gas limit: cumulative_gas: {}, tx_gas_used: {}, block_gas_limit: {}",
+                    cumulative_gas, tx_gas_used, block_gas_limit
+                )
             }
             SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
                 write!(f, "EVM transaction execution error")
