@@ -11,7 +11,7 @@ use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
 use sov_modules_api::fork::fork_from_block_number;
-use sov_modules_api::{BatchProofCircuitOutputV2, BlobReaderTrait, DaSpec, Zkvm};
+use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -161,7 +161,7 @@ where
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 let batch_proof_output = Vm::extract_output::<
                     <Da as DaService>::Spec,
-                    BatchProofCircuitOutputV2<<Da as DaService>::Spec, [u8; 32]>,
+                    BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
                 .map_err(|_| anyhow!("Proof should be deserializable"))?;
                 let last_l2_height = batch_proof_output.last_l2_height;

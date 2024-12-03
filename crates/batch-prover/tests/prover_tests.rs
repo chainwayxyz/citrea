@@ -7,7 +7,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::zk::BatchProofCircuitInputV2;
+use sov_rollup_interface::zk::BatchProofCircuitInput;
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::ProverService;
 
@@ -99,10 +99,11 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
 
 fn make_transition_data(
     header_hash: MockHash,
-) -> BatchProofCircuitInputV2<'static, [u8; 0], Vec<u8>, MockDaSpec, ()> {
-    BatchProofCircuitInputV2 {
+) -> BatchProofCircuitInput<'static, [u8; 0], Vec<u8>, MockDaSpec, ()> {
+    BatchProofCircuitInput {
         initial_state_root: [],
         inclusion_proof: [0; 32],
+        prev_soft_confirmation_hash: [0; 32],
         completeness_proof: (),
         da_data: vec![],
         sequencer_commitments_range: (0, 0),
@@ -120,5 +121,6 @@ fn make_transition_data(
         sequencer_public_key: vec![],
         sequencer_da_public_key: vec![],
         preproven_commitments: vec![],
+        final_state_root: [],
     }
 }
