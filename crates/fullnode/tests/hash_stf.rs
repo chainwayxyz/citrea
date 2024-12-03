@@ -91,12 +91,9 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _soft_confirmation_info: HookSoftConfirmationInfo,
         _txs: &[Vec<u8>],
         _txs_new: &[Self::Transaction],
-        _batch_workspace: sov_modules_api::WorkingSet<C>,
+        _batch_workspace: &mut sov_modules_api::WorkingSet<C>,
     ) -> Result<
-        (
-            sov_modules_api::WorkingSet<C>,
-            Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
-        ),
+        Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
         StateTransitionError,
     > {
         unimplemented!()

@@ -54,9 +54,7 @@ pub(crate) fn get_soft_confirmation_rule_enforcer<Da: DaSpec>(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
     let soft_confirmation_rule_enforcer = SoftConfirmationRuleEnforcer::<C, Da>::default();
-    soft_confirmation_rule_enforcer
-        .genesis(config, &mut working_set)
-        .unwrap();
+    soft_confirmation_rule_enforcer.genesis(config, &mut working_set);
 
     (soft_confirmation_rule_enforcer, working_set)
 }

@@ -41,7 +41,7 @@ pub(crate) fn get_evm_with_storage(
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(prover_storage.clone());
     let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
+    evm.genesis(config, &mut working_set);
 
     let mut genesis_state_root = [0u8; 32];
     genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -57,7 +57,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
     let mut evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
+    evm.genesis(config, &mut working_set);
 
     let root = commit(working_set, storage.clone());
 
