@@ -1544,12 +1544,19 @@ fn test_l1_fee_compression_discount() {
             SovSpecId::Genesis,
             l1_fee_rate,
         );
-        let call_tx = dev_signer.sign_default_transaction_with_priority_fee(TxKind::Call(Address::random()), vec![], 0, 1000, 20000000, 1).unwrap();
-        
+        let call_tx = dev_signer
+            .sign_default_transaction_with_priority_fee(
+                TxKind::Call(Address::random()),
+                vec![],
+                0,
+                1000,
+                20000000,
+                1,
+            )
+            .unwrap();
+
         evm.call(
-            CallMessage {
-                txs: vec![call_tx],
-            },
+            CallMessage { txs: vec![call_tx] },
             &context,
             &mut working_set,
         )
@@ -1571,11 +1578,17 @@ fn test_l1_fee_compression_discount() {
         .get(&config.coinbase, &mut working_set)
         .unwrap();
     assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
-    
+
     let gas_fee_paid = 21000;
     let tx1_diff_size = 140;
 
-    let mut expected_db_balance = U256::from(100000000000000u64 - 1000 - gas_fee_paid * 10000001 - tx1_diff_size - L1_FEE_OVERHEAD as u64);
+    let mut expected_db_balance = U256::from(
+        100000000000000u64
+            - 1000
+            - gas_fee_paid * 10000001
+            - tx1_diff_size
+            - L1_FEE_OVERHEAD as u64,
+    );
     let mut expected_base_fee_vault_balance = U256::from(gas_fee_paid * 10000000);
     let mut expected_coinbase_balance = U256::from(gas_fee_paid);
     let mut expected_l1_fee_vault_balance = U256::from(tx1_diff_size + L1_FEE_OVERHEAD as u64);
@@ -1584,7 +1597,7 @@ fn test_l1_fee_compression_discount() {
     assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
     assert_eq!(coinbase_account.balance, expected_coinbase_balance);
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
-    
+
     // Set up the next transaction with the fork 1 activated
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height: 3,
@@ -1610,7 +1623,16 @@ fn test_l1_fee_compression_discount() {
             SovSpecId::Fork1,
             l1_fee_rate,
         );
-        let simple_tx = dev_signer.sign_default_transaction_with_priority_fee(TxKind::Call(Address::random()), vec![], 1, 1000, 20000000, 1).unwrap();
+        let simple_tx = dev_signer
+            .sign_default_transaction_with_priority_fee(
+                TxKind::Call(Address::random()),
+                vec![],
+                1,
+                1000,
+                20000000,
+                1,
+            )
+            .unwrap();
         evm.call(
             CallMessage {
                 txs: vec![simple_tx],
@@ -1622,7 +1644,7 @@ fn test_l1_fee_compression_discount() {
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[98u8; 32].into(), &mut working_set.accessory_state());
-    
+
     let db_account = evm
         .accounts
         .get(&dev_signer.address(), &mut working_set)
@@ -1638,18 +1660,22 @@ fn test_l1_fee_compression_discount() {
     let gas_fee_paid = 21000;
     let tx2_diff_size = 46;
 
-    expected_db_balance -= U256::from(gas_fee_paid * 10000001 + 1000 + tx2_diff_size + L1_FEE_OVERHEAD as u64);
+    expected_db_balance -=
+        U256::from(gas_fee_paid * 10000001 + 1000 + tx2_diff_size + L1_FEE_OVERHEAD as u64);
     expected_base_fee_vault_balance += U256::from(gas_fee_paid * 10000000);
     expected_coinbase_balance += U256::from(gas_fee_paid);
     expected_l1_fee_vault_balance += U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
 
     assert_eq!(db_account.balance, expected_db_balance);
     assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
-    assert_eq!(coinbase_account.balance, expected_coinbase_balance); 
+    assert_eq!(coinbase_account.balance, expected_coinbase_balance);
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
     // assert comression discount
-    assert_eq!(tx1_diff_size * BROTLI_COMPRESSION_PERCENTAGE as u64 /100, tx2_diff_size);
+    assert_eq!(
+        tx1_diff_size * BROTLI_COMPRESSION_PERCENTAGE as u64 / 100,
+        tx2_diff_size
+    );
 
     assert_eq!(
         evm.receipts
