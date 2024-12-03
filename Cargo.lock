@@ -7361,7 +7361,6 @@ name = "sov-mock-zkvm"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "bincode",
  "borsh",
  "serde",
  "sov-rollup-interface",
