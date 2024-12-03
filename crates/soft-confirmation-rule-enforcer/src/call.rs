@@ -1,5 +1,9 @@
+use core::result::Result;
+
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_api::{CallResponse, Context, DaSpec, StateValueAccessor, WorkingSet};
+use sov_modules_api::{
+    CallResponse, Context, DaSpec, SoftConfirmationModuleCallError, StateValueAccessor, WorkingSet,
+};
 
 use crate::SoftConfirmationRuleEnforcer;
 
@@ -35,13 +39,13 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         address: C::Address,
         context: &C,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<CallResponse> {
-        anyhow::ensure!(
-            *context.sender() == self.get_authority(working_set),
-            "Only authority can change the authority"
-        );
-        self.authority.set(&address, working_set);
-        Ok(CallResponse::default())
+    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+        if *context.sender() == self.get_authority(working_set) {
+            self.authority.set(&address, working_set);
+            Ok(CallResponse::default())
+        } else {
+            Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized)
+        }
     }
 
     pub(crate) fn modify_max_l2_blocks_per_l1(
@@ -49,18 +53,17 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         max_l2_blocks_per_l1: u32,
         context: &C,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<CallResponse> {
-        anyhow::ensure!(
-            *context.sender() == self.get_authority(working_set),
-            "Only authority can change the max L2 blocks per L1"
-        );
+    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
+        if *context.sender() == self.get_authority(working_set) {
+            let mut data = self.data.get(working_set).expect("Data must be set");
 
-        let mut data = self.data.get(working_set).expect("Data must be set");
+            data.max_l2_blocks_per_l1 = max_l2_blocks_per_l1;
 
-        data.max_l2_blocks_per_l1 = max_l2_blocks_per_l1;
+            self.data.set(&data, working_set);
 
-        self.data.set(&data, working_set);
-
-        Ok(CallResponse::default())
+            Ok(CallResponse::default())
+        } else {
+            Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized)
+        }
     }
 }

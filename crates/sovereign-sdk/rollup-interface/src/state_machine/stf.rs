@@ -368,12 +368,16 @@ pub enum SoftConfirmationHookError {
 pub enum SoftConfirmationModuleCallError {
     /// The EVM gas used exceeds the block gas limit
     EvmGasUsedExceedsBlockGasLimit,
+    /// The EVM blob gas used exceeds the block gas limit
+    EvmBlobGasUsedExceedsBlockGasLimit,
     /// There was an error during EVM transaction execution
     EvmTransactionExecutionError,
     /// There is a system transaction where it should not be
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
     EvmNotEnoughFundsForL1Fee,
+    /// The sov-tx was not sent by the rule enforcer authority
+    RuleEnforcerUnauthorized,
 }
 
 #[derive(Debug)]
@@ -453,6 +457,12 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
                 write!(f, "EVM not enough funds for L1 fee")
+            }
+            SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit => {
+                write!(f, "EVM blob gas used exceeds block gas limit")
+            }
+            SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => {
+                write!(f, "Rule enforcer unauthorized")
             }
         }
     }

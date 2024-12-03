@@ -36,9 +36,9 @@ use evm::db::EvmDb;
 use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId as EvmSpecId;
 use revm::primitives::{BlockEnv, U256};
-#[cfg(feature = "native")]
-use sov_modules_api::{AccessoryWorkingSet, StateVecAccessor};
-use sov_modules_api::{Error, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
+use sov_modules_api::{
+    Error, ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
+};
 use sov_state::codec::BcsCodec;
 
 #[cfg(feature = "native")]
@@ -125,13 +125,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[state(rename = "h")]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
 
-    /// Transaction's hash that failed to pay the L1 fee.
-    /// Used to prevent DOS attacks.
-    /// The vector is cleared in `finalize_hook`.
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) l1_fee_failed_txs: sov_modules_api::AccessoryStateVec<TxHash, BcsCodec>,
-
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.
@@ -188,10 +181,8 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         msg: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
         self.execute_call(msg.txs, context, working_set)
-            .map_err(Into::<anyhow::Error>::into)
-            .map_err(Into::into)
     }
 }
 
@@ -209,15 +200,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             working_set,
             current_spec,
         )
-    }
-
-    /// Returns transaction hashes that failed to pay the L1 fee.
-    #[cfg(feature = "native")]
-    pub fn get_l1_fee_failed_txs(
-        &self,
-        accessory_working_set: &mut AccessoryWorkingSet<C>,
-    ) -> Vec<TxHash> {
-        self.l1_fee_failed_txs.iter(accessory_working_set).collect()
     }
 }
 
