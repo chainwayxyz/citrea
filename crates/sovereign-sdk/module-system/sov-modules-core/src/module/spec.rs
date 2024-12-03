@@ -103,17 +103,7 @@ pub trait Context: Spec + Clone + Debug + PartialEq + 'static {
     fn sender(&self) -> &Self::Address;
 
     /// Constructor for the Context.
-    fn new(
-        sender: Self::Address,
-        sequencer: Self::Address,
-        height: u64,
-        active_spec: SpecId,
-        l1_fee_rate: u128,
-    ) -> Self;
-
-    /// TODO: remove
-    /// https://github.com/chainwayxyz/citrea/issues/1060
-    fn sequencer(&self) -> &Self::Address;
+    fn new(sender: Self::Address, height: u64, active_spec: SpecId, l1_fee_rate: u128) -> Self;
 
     /// Returns the height of the current slot as reported by the kernel. This value is
     /// non-decreasing and is guaranteed to be less than or equal to the actual "objective" height of the rollup.

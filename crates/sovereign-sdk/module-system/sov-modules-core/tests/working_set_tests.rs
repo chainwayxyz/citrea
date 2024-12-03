@@ -35,15 +35,9 @@ fn test_versioned_workingset_get() {
     let storage_value = StorageValue::new(&vec![7, 8, 9], &codec);
 
     let sender = Address::from([1; 32]);
-    let sequencer = Address::from([2; 32]);
     let mut working_set = WorkingSet::<DefaultContext>::new(storage.clone());
-    let mut working_set = working_set.versioned_state(&DefaultContext::new(
-        sender,
-        sequencer,
-        1,
-        SpecId::Genesis,
-        0,
-    ));
+    let mut working_set =
+        working_set.versioned_state(&DefaultContext::new(sender, 1, SpecId::Genesis, 0));
     working_set.set(&storage_key, storage_value.clone());
 
     assert_eq!(Some(storage_value), working_set.get(&storage_key));
