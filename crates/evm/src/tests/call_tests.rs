@@ -1657,7 +1657,7 @@ fn test_l1_fee_compression_discount() {
         .get(&config.coinbase, &mut working_set)
         .unwrap();
 
-    let gas_fee_paid = 21000;
+    // gas fee remains the same
     let tx2_diff_size = 46;
 
     expected_db_balance -=
