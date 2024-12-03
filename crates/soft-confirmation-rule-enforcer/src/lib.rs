@@ -74,7 +74,7 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
         }
     }
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) -> () {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) {
         self.init_module(config, working_set)
             .expect("Rule enforcer module should initialize")
     }

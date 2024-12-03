@@ -91,7 +91,7 @@ pub trait Genesis {
     type Config;
 
     /// Initializes the state of the rollup.
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) -> ();
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>);
 }
 
 impl<T> Genesis for T
@@ -102,7 +102,7 @@ where
 
     type Config = <Self as Module>::Config;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) -> () {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) {
         <Self as Module>::genesis(self, config, working_set)
     }
 }

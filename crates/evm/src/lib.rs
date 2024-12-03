@@ -172,7 +172,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> () {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
         self.init_module(config, working_set)
             .expect("Evm module should initilize")
     }

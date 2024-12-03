@@ -9,7 +9,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
-use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
@@ -345,7 +345,7 @@ where
                                             // following txs from the adress
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
-                                                l1_fee_failed_txs.push(evm_tx.hash().clone());
+                                                l1_fee_failed_txs.push(*evm_tx.hash());
 
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
