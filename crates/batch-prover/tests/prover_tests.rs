@@ -8,7 +8,7 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::zk::{BatchProofCircuitInputV2, Proof};
+use sov_rollup_interface::zk::{BatchProofCircuitInputV2, Proof, ZkvmHost};
 use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::ProverService;
 use tokio::sync::oneshot;
@@ -41,6 +41,10 @@ async fn test_successful_prover_execution() {
 
     let proofs = rx.await.unwrap();
     assert_eq!(proofs.len(), 1);
+
+    // Check that the output is correct
+    let header = extract_output_header(&proofs[0]);
+    assert_eq!(header.hash, header_hash);
 
     let txs = prover_service.submit_proofs(proofs).await.unwrap();
     assert_eq!(txs.len(), 1);
@@ -87,6 +91,12 @@ async fn test_parallel_proofs_equal_to_limit() {
     // Background proving job should be finished
     let proofs = rx.await.unwrap();
     assert_eq!(proofs.len(), 2);
+
+    // Check that the output is correct and the order of proofs are same as the input
+    let header_1 = extract_output_header(&proofs[0]);
+    assert_eq!(header_1.hash, header_hash_1);
+    let header_2 = extract_output_header(&proofs[1]);
+    assert_eq!(header_2.hash, header_hash_2);
 
     let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
     assert_eq!(txs_and_proofs.len(), 2);
@@ -173,6 +183,18 @@ async fn test_parallel_proofs_higher_than_limit() {
     // Background proving job should be finished
     let proofs = rx.await.unwrap();
     assert_eq!(proofs.len(), 5);
+
+    // Check that the output is correct and the order of proofs are same as the input
+    let header_1 = extract_output_header(&proofs[0]);
+    assert_eq!(header_1.hash, header_hash_1);
+    let header_2 = extract_output_header(&proofs[1]);
+    assert_eq!(header_2.hash, header_hash_2);
+    let header_3 = extract_output_header(&proofs[2]);
+    assert_eq!(header_3.hash, header_hash_3);
+    let header_4 = extract_output_header(&proofs[3]);
+    assert_eq!(header_4.hash, header_hash_4);
+    let header_5 = extract_output_header(&proofs[4]);
+    assert_eq!(header_5.hash, header_hash_5);
 
     let txs_and_proofs = prover_service.submit_proofs(proofs).await.unwrap();
     assert_eq!(txs_and_proofs.len(), 5);
@@ -332,4 +354,13 @@ async fn spawn_prove(
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     rx
+}
+
+fn extract_output_header(proof: &Vec<u8>) -> MockBlockHeader {
+    MockZkvm::extract_output::<
+        MockDaSpec,
+        BatchProofCircuitInputV2<'static, [u8; 0], Vec<u8>, MockDaSpec, ()>,
+    >(proof)
+    .unwrap()
+    .da_block_header_of_commitments
 }

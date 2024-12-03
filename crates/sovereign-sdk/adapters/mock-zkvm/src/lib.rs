@@ -195,7 +195,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<T, Self::Error> {
-        let data: ProofInfo = bincode::deserialize(proof)?;
+        let data: ProofInfo = borsh::from_slice(proof)?;
 
         T::try_from_slice(&data.hint).map_err(Into::into)
     }
