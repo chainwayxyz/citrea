@@ -1,10 +1,12 @@
+use core::result::Result;
+
 use sov_accounts::AccountsTxHook;
 use sov_modules_api::hooks::{
     ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
-    SoftConfirmationError, TxHooks,
+    TxHooks,
 };
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{AccessoryWorkingSet, Context, Spec, WorkingSet};
+use sov_modules_api::{AccessoryWorkingSet, Context, SoftConfirmationHookError, Spec, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 use sov_state::Storage;
@@ -24,7 +26,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         tx: &Transaction<Self::Context>,
         working_set: &mut WorkingSet<C>,
         arg: &RuntimeTxHook<C>,
-    ) -> anyhow::Result<C> {
+    ) -> Result<C, SoftConfirmationHookError> {
         let RuntimeTxHook {
             height,
             sequencer,
@@ -50,7 +52,7 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
         tx: &Transaction<Self::Context>,
         ctx: &C,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), SoftConfirmationHookError> {
         self.accounts.post_dispatch_tx_hook(tx, ctx, working_set)?;
 
         Ok(())
@@ -88,7 +90,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), SoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationHookError> {
         self.soft_confirmation_rule_enforcer
             .begin_soft_confirmation_hook(soft_confirmation_info, working_set)?;
 
@@ -103,7 +105,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<(), SoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationHookError> {
         self.evm
             .end_soft_confirmation_hook(&soft_confirmation_info, working_set);
         Ok(())

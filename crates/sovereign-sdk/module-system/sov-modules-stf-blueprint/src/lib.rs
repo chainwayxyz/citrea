@@ -22,7 +22,7 @@ use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationError, SoftConfirmationReceipt,
-    SoftConfirmationResult, StateTransitionFunction,
+    SoftConfirmationResult, StateTransitionError, StateTransitionFunction,
 };
 pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::zk::CumulativeStateDiff;
@@ -141,7 +141,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>);
+    ) -> (Result<(), StateTransitionError>, WorkingSet<C>);
 
     /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
@@ -150,7 +150,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
         batch_workspace: WorkingSet<C>,
-    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), SoftConfirmationError>;
+    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), StateTransitionError>;
 
     /// End a soft confirmation
     fn end_soft_confirmation(
@@ -162,7 +162,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (
-        Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>,
+        Result<SoftConfirmationReceipt<TxEffect, Da>, StateTransitionError>,
         StateCheckpoint<C>,
     );
 
@@ -197,7 +197,7 @@ where
         offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
+    ) -> (Result<(), StateTransitionError>, WorkingSet<C>) {
         native_debug!("Applying soft confirmation in STF Blueprint");
 
         let checkpoint = StateCheckpoint::with_witness(pre_state, state_witness, offchain_witness);
@@ -206,25 +206,39 @@ where
         // check if soft confirmation is coming from our sequencer
         if soft_confirmation_info.sequencer_pub_key() != sequencer_public_key {
             return (
-                Err(SoftConfirmationError::SequencerPublicKeyMismatch),
+                Err(StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::SequencerPublicKeyMismatch,
+                )),
                 batch_workspace,
             );
         };
 
         // then verify da hashes match
         if soft_confirmation_info.da_slot_hash() != slot_header.hash().into() {
-            return (Err(SoftConfirmationError::InvalidDaHash), batch_workspace);
+            return (
+                Err(StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::InvalidDaHash,
+                )),
+                batch_workspace,
+            );
         }
 
         // then verify da transactions commitment match
         if soft_confirmation_info.da_slot_txs_commitment() != slot_header.txs_commitment().into() {
             return (
-                Err(SoftConfirmationError::InvalidDaTxsCommitment),
+                Err(StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::InvalidDaTxsCommitment,
+                )),
                 batch_workspace,
             );
         }
 
-        self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info)
+        let (result, batch_workspace) =
+            self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info);
+
+        let result = result.map_err(StateTransitionError::HookError);
+
+        (result, batch_workspace)
     }
 
     fn apply_soft_confirmation_txs(
@@ -233,7 +247,7 @@ where
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
         batch_workspace: WorkingSet<C>,
-    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), SoftConfirmationError> {
+    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), StateTransitionError> {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, txs_new, batch_workspace)
     }
 
@@ -246,7 +260,7 @@ where
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         batch_workspace: WorkingSet<C>,
     ) -> (
-        Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>,
+        Result<SoftConfirmationReceipt<TxEffect, Da>, StateTransitionError>,
         StateCheckpoint<C>,
     ) {
         let unsigned = UnsignedSoftConfirmation::new(
@@ -267,7 +281,9 @@ where
             let hash = Into::<[u8; 32]>::into(digest);
             if soft_confirmation.hash() != hash {
                 return (
-                    Err(SoftConfirmationError::InvalidSoftConfirmationHash),
+                    Err(StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::InvalidSoftConfirmationHash,
+                    )),
                     batch_workspace.revert(),
                 );
             }
@@ -281,7 +297,9 @@ where
             .is_err()
             {
                 return (
-                    Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
+                    Err(StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::InvalidSoftConfirmationSignature,
+                    )),
                     batch_workspace.revert(),
                 );
             }
@@ -290,7 +308,9 @@ where
             let hash = Into::<[u8; 32]>::into(digest);
             if soft_confirmation.hash() != hash {
                 return (
-                    Err(SoftConfirmationError::InvalidSoftConfirmationHash),
+                    Err(StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::InvalidSoftConfirmationHash,
+                    )),
                     batch_workspace.revert(),
                 );
             }
@@ -304,19 +324,25 @@ where
             .is_err()
             {
                 return (
-                    Err(SoftConfirmationError::InvalidSoftConfirmationSignature),
+                    Err(StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::InvalidSoftConfirmationSignature,
+                    )),
                     batch_workspace.revert(),
                 );
             }
         };
 
-        self.end_soft_confirmation_inner(
+        let (result, batch_workspace) = self.end_soft_confirmation_inner(
             current_spec,
             pre_state_root,
             soft_confirmation,
             tx_receipts,
             batch_workspace,
-        )
+        );
+
+        let result = result.map_err(StateTransitionError::HookError);
+
+        (result, batch_workspace)
     }
 
     fn finalize_soft_confirmation(
@@ -490,7 +516,7 @@ where
             Self::Witness,
             Da,
         >,
-        SoftConfirmationError,
+        StateTransitionError,
     > {
         let soft_confirmation_info = HookSoftConfirmationInfo::new(
             soft_confirmation,

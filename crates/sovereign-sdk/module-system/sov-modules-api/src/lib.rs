@@ -10,6 +10,7 @@ mod pub_key_hex;
 
 pub use sov_rollup_interface::fork;
 pub use sov_rollup_interface::spec::SpecId;
+pub use sov_rollup_interface::stf::{SoftConfirmationHookError, SoftConfirmationModuleCallError};
 
 #[cfg(feature = "macros")]
 mod reexport_macros;

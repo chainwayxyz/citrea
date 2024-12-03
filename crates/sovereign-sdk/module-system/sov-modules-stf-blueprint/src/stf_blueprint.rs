@@ -9,8 +9,8 @@ use sov_modules_api::{
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
-    SoftConfirmationError, SoftConfirmationReceipt, StateTransitionFunction, TransactionDigest,
-    TransactionReceipt,
+    SoftConfirmationHookError, SoftConfirmationReceipt, StateTransitionError,
+    StateTransitionFunction, TransactionDigest, TransactionReceipt,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -28,8 +28,8 @@ pub struct StfBlueprint<C: Context, Da: DaSpec, RT: Runtime<C, Da>> {
     phantom_da: PhantomData<Da>,
 }
 
-type ApplySoftConfirmationResult<Da> =
-    Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationError>;
+type EndSoftConfirmationResult<Da> =
+    Result<SoftConfirmationReceipt<TxEffect, Da>, SoftConfirmationHookError>;
 
 impl<C, Da, RT> Default for StfBlueprint<C, Da, RT>
 where
@@ -65,7 +65,7 @@ where
         txs: &[Vec<u8>],
         txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
         mut sc_workspace: WorkingSet<C>,
-    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), SoftConfirmationError> {
+    ) -> Result<(WorkingSet<C>, Vec<TransactionReceipt<TxEffect>>), StateTransitionError> {
         let mut tx_receipts = Vec::with_capacity(txs.len());
         let txs: Vec<_> = if soft_confirmation_info.current_spec >= SpecId::Fork1 {
             txs_new
@@ -129,7 +129,8 @@ where
                     };
 
                     tx_receipts.push(receipt);
-                    continue;
+
+                    return Err(StateTransitionError::HookError(e));
                 }
             };
             // Commit changes after pre_dispatch_tx_hook
@@ -172,7 +173,7 @@ where
         &mut self,
         mut batch_workspace: WorkingSet<C>,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
+    ) -> (Result<(), SoftConfirmationHookError>, WorkingSet<C>) {
         native_debug!(
             "Beginning soft confirmation #{} from sequencer: 0x{}",
             soft_confirmation_info.l2_height(),
@@ -214,7 +215,7 @@ where
         >,
         tx_receipts: Vec<TransactionReceipt<TxEffect>>,
         mut batch_workspace: WorkingSet<C>,
-    ) -> (ApplySoftConfirmationResult<Da>, StateCheckpoint<C>) {
+    ) -> (EndSoftConfirmationResult<Da>, StateCheckpoint<C>) {
         let hook_soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);
 
