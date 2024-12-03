@@ -408,12 +408,13 @@ impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, 
         let uncompressed_size =
             calc_diff_size::<EXT, SPEC, DB>(context).map_err(EVMError::Database)?;
 
-        let diff_size = if SPEC::enabled(SpecId::CANCUN) {
+        let compression_percentage = if SPEC::enabled(SpecId::CANCUN) {
             // Estimate the size of the state diff after the brotli compression
-            (uncompressed_size * BROTLI_COMPRESSION_PERCENTAGE / 100) as u64
+            BROTLI_COMPRESSION_PERCENTAGE
         } else {
-            uncompressed_size as u64
+            100
         };
+        let diff_size = (uncompressed_size * compression_percentage / 100) as u64;
 
         let l1_fee_rate = context.external.l1_fee_rate();
         let l1_fee =
