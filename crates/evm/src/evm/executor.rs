@@ -4,7 +4,7 @@ use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
-use sov_modules_api::{native_error, native_trace};
+use sov_modules_api::{native_error, native_trace, SoftConfirmationModuleCallError};
 #[cfg(feature = "native")]
 use tracing::trace_span;
 
@@ -78,7 +78,7 @@ pub(crate) fn execute_multiple_tx<
     ext: &mut EXT,
     prev_gas_used: u64,
     blob_gas_used: &mut u64,
-) -> Result<Vec<ExecutionResult>, EVMError<DBError>> {
+) -> Result<Vec<ExecutionResult>, SoftConfirmationModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
     }
@@ -93,10 +93,7 @@ pub(crate) fn execute_multiple_tx<
     for (_i, tx) in txs.iter().enumerate() {
         if tx.signer() == SYSTEM_SIGNER {
             native_error!("System transaction found in user txs");
-            return Err(EVMError::Custom(format!(
-                "Invalid system transaction: {:?}",
-                hex::encode(tx.hash())
-            )));
+            return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
         }
 
         #[cfg(feature = "native")]
@@ -109,21 +106,19 @@ pub(crate) fn execute_multiple_tx<
             && *blob_gas_used + tx.blob_gas_used().unwrap() > MAX_DATA_GAS_PER_BLOCK
         {
             native_error!("Blob gas used exceeds block gas limit");
-            return Err(EVMError::Custom(format!(
-                "Blob gas used exceeds block gas limit {:?}",
-                block_gas_limit
-            )));
+            return Err(SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit);
         }
 
-        let result_and_state = evm.transact(tx)?;
+        let result_and_state = evm.transact(tx).map_err(|e| match e {
+            // only custom error we use is for not enough funds for L1 fee
+            EVMError::Custom(_) => SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee,
+            _ => SoftConfirmationModuleCallError::EvmTransactionExecutionError,
+        })?;
 
         // Check if the transaction used more gas than the available block gas limit
         if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
             native_error!("Gas used exceeds block gas limit");
-            return Err(EVMError::Custom(format!(
-                "Gas used exceeds block gas limit {:?}",
-                block_gas_limit
-            )));
+            return Err(SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit);
         } else {
             native_trace!("Commiting tx to DB");
             evm.commit(result_and_state.state);
