@@ -447,9 +447,7 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut working_set = StateCheckpoint::new(pre_state.clone()).to_revertable();
 
-        self.runtime
-            .genesis(&params.runtime, &mut working_set)
-            .expect("Runtime initialization must succeed");
+        self.runtime.genesis(&params.runtime, &mut working_set);
 
         let mut checkpoint = working_set.checkpoint();
         let (log, mut witness) = checkpoint.freeze();

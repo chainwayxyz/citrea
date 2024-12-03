@@ -37,7 +37,7 @@ use reth_primitives::{Address, TxHash, B256};
 pub use revm::primitives::SpecId as EvmSpecId;
 use revm::primitives::{BlockEnv, U256};
 use sov_modules_api::{
-    Error, ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
+    ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
 };
 use sov_state::codec::BcsCodec;
 
@@ -172,8 +172,9 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> () {
+        self.init_module(config, working_set)
+            .expect("Evm module should initilize")
     }
 
     fn call(

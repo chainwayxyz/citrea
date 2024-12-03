@@ -25,7 +25,8 @@ impl<C: sov_modules_api::Context> Accounts<C> {
                 anyhow::bail!("Account already exists")
             }
 
-            self.create_default_account(pub_key, working_set)?;
+            self.create_default_account(pub_key, working_set)
+                .expect("Accounts should create account in init_module");
         }
 
         Ok(())

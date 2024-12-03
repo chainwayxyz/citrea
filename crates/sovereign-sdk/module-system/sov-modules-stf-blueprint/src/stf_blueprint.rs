@@ -141,9 +141,7 @@ where
             let events = sc_workspace.take_events();
             let tx_effect = match tx_result {
                 Ok(_) => TxEffect::Successful,
-                Err(e) => {
-                    panic!("Sequencer must not include invalid transactions: {}", e)
-                }
+                Err(e) => return Err(StateTransitionError::ModuleCallError(e)),
             };
             native_debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
 
