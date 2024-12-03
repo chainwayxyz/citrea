@@ -1469,14 +1469,7 @@ fn test_l1_fee_compression_discount() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            2,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+        let context = C::new(sender_address, 2, SovSpecId::Genesis, l1_fee_rate);
         let call_tx = dev_signer
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
@@ -1548,14 +1541,7 @@ fn test_l1_fee_compression_discount() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            3,
-            SovSpecId::Fork1,
-            l1_fee_rate,
-        );
+        let context = C::new(sender_address, 3, SovSpecId::Fork1, l1_fee_rate);
         let simple_tx = dev_signer
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
