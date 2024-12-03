@@ -136,6 +136,7 @@ impl DB {
             .start_timer();
 
         let k = schema_key.encode_key()?;
+        println!("Column family name: {:?}", S::COLUMN_FAMILY_NAME);
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
 
         let result = self.inner.get_pinned_cf(cf_handle, k)?;

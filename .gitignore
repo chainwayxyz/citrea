@@ -16,6 +16,8 @@ resources/dbs/sequencer-db/
 resources/dbs/full-node-db/
 resources/dbs/batch-prover-db/
 resources/dbs/light-client-prover-db/
+data/
+resources/dbs/
 resources/bitcoin/inscription_txs/
 /.vscode/*
 

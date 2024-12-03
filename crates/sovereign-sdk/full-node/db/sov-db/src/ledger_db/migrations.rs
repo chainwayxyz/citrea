@@ -84,7 +84,7 @@ impl<'a> LedgerDBMigrator<'a> {
                         e
                     );
 
-                    // Error happend on the temporary DB, therefore,
+                    // Error happened on the temporary DB, therefore,
                     // fail the node.
                     return Err(e);
                 }
