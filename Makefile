@@ -44,7 +44,7 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: build-risc0 build-sp1 build $(EF_TESTS_DIR) ## Runs test suite using next test
+test: build $(EF_TESTS_DIR) ## Runs test suite using next test
 	RISC0_DEV_MODE=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
