@@ -59,8 +59,7 @@ where
         // If block state diff is empty, it is certain that state diff threshold won't be exceeded.
         let updated_state_diff = if !l2_state_diff.is_empty() {
             let last_state_diff = std::mem::take(&mut self.last_state_diff);
-            let merged_state_diff =
-                merge_state_diffs(last_state_diff, l2_state_diff.clone());
+            let merged_state_diff = merge_state_diffs(last_state_diff, l2_state_diff.clone());
 
             // Check if state diff threshold is reached
             if let Some(info) = self.check_state_diff_threshold(
