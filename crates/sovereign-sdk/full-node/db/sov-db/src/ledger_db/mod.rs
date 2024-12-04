@@ -105,15 +105,19 @@ impl<S: SlotData, B, T> SlotCommit<S, B, T> {
 
 impl LedgerDB {
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
-    /// The returned instance will be at the path `{path}/ledger-db`.
+    /// Will take optional column families, used for migration purposes.
+    /// The returned instance will be at the path `{path}/ledger`.
     #[instrument(level = "trace", skip_all, err)]
-    pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
+    pub fn with_config(
+        cfg: &RocksdbConfig,
+        column_families: Option<impl Iterator<Item = &str>>,
+    ) -> Result<Self, anyhow::Error> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let raw_options = cfg.as_raw_options(false);
         let inner = DB::open(
             path,
             "ledger-db",
-            LEDGER_TABLES.iter().copied(),
+            column_families.unwrap_or_else(|| LEDGER_TABLES.iter().copied()),
             &raw_options,
         )?;
 
@@ -130,6 +134,26 @@ impl LedgerDB {
             db: Arc::new(inner),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
         })
+    }
+
+    pub fn drop_cf(&self, cf_name: &str) -> anyhow::Result<()> {
+        self.db.drop_cf(cf_name)
+    }
+
+    pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
+        self.db.get_cf_handle(cf_name)
+    }
+
+    pub fn insert_into_cf_raw(&self, cf_handle: &rocksdb::ColumnFamily, key: &[u8], value: &[u8]) {
+        self.db.put_cf(cf_handle, key, value).unwrap();
+    }
+
+    pub fn get_iterator_for_cf<'a>(
+        &'a self,
+        cf_handle: &rocksdb::ColumnFamily,
+        iterator_mode: Option<rocksdb::IteratorMode>,
+    ) -> anyhow::Result<rocksdb::DBIterator<'a>> {
+        Ok(self.db.iter_cf(cf_handle, iterator_mode))
     }
 
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside
@@ -1014,14 +1038,14 @@ fn test_m() {
 
     println!("ct times put made {:?}", ct);
 
-    let iter2 = db.iterator_cf(cf2, rocksdb::IteratorMode::Start);
-    let mut ct2 = 0;
+    // let iter2 = db.iterator_cf(cf2, rocksdb::IteratorMode::Start);
+    // let mut ct2 = 0;
 
-    for res in iter2 {
-        ct2 += 1;
-    }
+    // for res in iter2 {
+    //     ct2 += 1;
+    // }
 
-    println!("ct2 times read made {:?}", ct);
+    // println!("ct2 times read made {:?}", ct);
 
     // drop(iter2);
     // drop(iter);

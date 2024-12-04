@@ -19,7 +19,7 @@ pub trait LedgerMigration {
     /// Provide an identifier for this migration
     fn identifier(&self) -> (MigrationName, MigrationVersion);
     /// Execute current migration on ledger DB
-    fn execute(&self, ledger_db: Arc<LedgerDB>) -> anyhow::Result<()>;
+    fn execute(&self, ledger_db: Arc<LedgerDB>, max_open_files: Option<i32>) -> anyhow::Result<()>;
 }
 
 /// Handler for ledger DB migrations.
@@ -56,7 +56,7 @@ impl<'a> LedgerDBMigrator<'a> {
         let original_path = &self.ledger_path;
 
         let ledger_db =
-            LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files))?;
+            LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files), None)?;
 
         // Return an empty vector for executed migrations in case of an error since the iteration fails
         // because of the absence of the table.
@@ -69,15 +69,15 @@ impl<'a> LedgerDBMigrator<'a> {
         let temp_db_path = tempfile::tempdir()?;
         copy_db_dir_recursive(original_path, temp_db_path.path())?;
 
-        let new_ledger_db = Arc::new(LedgerDB::with_config(&RocksdbConfig::new(
-            temp_db_path.path(),
-            max_open_files,
-        ))?);
+        let new_ledger_db = Arc::new(LedgerDB::with_config(
+            &RocksdbConfig::new(temp_db_path.path(), max_open_files),
+            None,
+        )?);
 
         for migration in self.migrations {
             if !executed_migrations.contains(&migration.identifier()) {
                 debug!("Running migration: {}", migration.identifier().0);
-                if let Err(e) = migration.execute(new_ledger_db.clone()) {
+                if let Err(e) = migration.execute(new_ledger_db.clone(), max_open_files) {
                     error!(
                         "Error executing migration {}: {:?}",
                         migration.identifier().0,
