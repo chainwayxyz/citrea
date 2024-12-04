@@ -58,8 +58,12 @@ where
 
         // If block state diff is empty, it is certain that state diff threshold won't be exceeded.
         let updated_state_diff = if !l2_state_diff.is_empty() {
+            // Safe to take memory here to avoid cloning. Last state diff
+            // will be reset anyways. And it is not used in any other method.
+            let last_state_diff = std::mem::take(&mut self.last_state_diff);
+
             let merged_state_diff =
-                merge_state_diffs(self.last_state_diff.clone(), l2_state_diff.clone());
+                merge_state_diffs(last_state_diff, l2_state_diff.clone());
 
             // Check if state diff threshold is reached
             if let Some(info) = self.check_state_diff_threshold(
@@ -80,8 +84,7 @@ where
 
         // Check if soft confirmation threshold is reached
         if let Some(info) = self.check_min_soft_confirmations(last_committed_l2_height, l2_height) {
-            // Clear state diff
-            self.set_state_diff(vec![])?;
+            self.clear_state_diff()?;
             return Ok(Some(info));
         }
 
@@ -160,7 +163,14 @@ where
     }
 
     fn set_state_diff(&mut self, state_diff: StateDiff) -> anyhow::Result<()> {
-        self.last_state_diff.clone_from(&state_diff);
-        self.ledger_db.set_state_diff(state_diff)
+        self.ledger_db.set_state_diff(&state_diff)?;
+        self.last_state_diff = state_diff;
+        Ok(())
+    }
+
+    // Used to clear the state without deallocating the state diff capacity
+    fn clear_state_diff(&mut self) -> anyhow::Result<()> {
+        self.last_state_diff.clear();
+        self.ledger_db.set_state_diff(&vec![])
     }
 }

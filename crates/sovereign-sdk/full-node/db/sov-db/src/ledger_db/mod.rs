@@ -666,9 +666,9 @@ impl SequencerLedgerOps for LedgerDB {
 
     /// Sets the latest state diff
     #[instrument(level = "trace", skip(self), err, ret)]
-    fn set_state_diff(&self, state_diff: StateDiff) -> anyhow::Result<()> {
+    fn set_state_diff(&self, state_diff: &StateDiff) -> anyhow::Result<()> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<LastStateDiff>(&(), &state_diff)?;
+        schema_batch.put::<LastStateDiff>(&(), state_diff)?;
 
         self.db.write_schemas(schema_batch)?;
 
