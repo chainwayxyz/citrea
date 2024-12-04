@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::vec;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -9,8 +10,8 @@ use sov_modules_api::{
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
-    SoftConfirmationHookError, SoftConfirmationReceipt, StateTransitionError,
-    StateTransitionFunction, TransactionDigest, TransactionReceipt,
+    SoftConfirmationError, SoftConfirmationHookError, SoftConfirmationReceipt,
+    StateTransitionError, StateTransitionFunction, TransactionDigest, TransactionReceipt,
 };
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -79,31 +80,37 @@ where
                 })
                 .collect()
         } else {
-            txs.iter()
-                .map(|raw_tx| {
-                    let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
-                    // Stateless verification of transaction, such as signature check
-                    // TODO: https://github.com/chainwayxyz/citrea/issues/1061
-                    let mut reader = std::io::Cursor::new(raw_tx);
-                    let tx = Transaction::<C>::deserialize_reader(&mut reader)
-                        .expect("Sequencer must not include non-deserializable transaction.");
-                    (raw_tx_hash, tx)
-                })
-                .collect()
+            let mut deserialized_txs = vec![];
+
+            for raw_tx in txs {
+                let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
+                // Stateless verification of transaction, such as signature check
+                // TODO: https://github.com/chainwayxyz/citrea/issues/1061
+                let mut reader = std::io::Cursor::new(raw_tx);
+                let tx = Transaction::<C>::deserialize_reader(&mut reader).map_err(|_| {
+                    StateTransitionError::SoftConfirmationError(
+                        SoftConfirmationError::NonSerializableSovTx,
+                    )
+                })?;
+                deserialized_txs.push((raw_tx_hash, tx));
+            }
+
+            deserialized_txs
         };
 
         for (raw_tx_hash, tx) in txs {
-            tx.verify()
-                .expect("Sequencer must include correctly signed transaction.");
+            tx.verify().map_err(|_| {
+                StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::InvalidSovTxSignature,
+                )
+            })?;
             // Checks that runtime message can be decoded from transaction.
             // If a single message cannot be decoded, sequencer is slashed
-            let msg = match RT::decode_call(tx.runtime_msg()) {
-                Ok(msg) => msg,
-                Err(e) => {
-                    native_error!("Tx 0x{} decoding error: {}", hex::encode(raw_tx_hash), e);
-                    panic!("Decoding transactions from the sequencer failed");
-                }
-            };
+            let msg = RT::decode_call(tx.runtime_msg()).map_err(|_| {
+                StateTransitionError::SoftConfirmationError(
+                    SoftConfirmationError::SovTxCantBeRuntimeDecoded,
+                )
+            })?;
 
             // Dispatching transactions
 
@@ -115,50 +122,31 @@ where
                 current_spec: soft_confirmation_info.current_spec(),
                 l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
             };
-            let ctx = match self.runtime.pre_dispatch_tx_hook(&tx, sc_workspace, &hook) {
-                Ok(verified_tx) => verified_tx,
-                Err(e) => {
-                    // Don't revert any state changes made by the pre_dispatch_hook even if the Tx is rejected.
-                    // For example nonce for the relevant account is incremented.
-                    native_error!("Stateful verification error - the sequencer included an invalid transaction: {}", e);
-                    let receipt = TransactionReceipt {
-                        tx_hash: raw_tx_hash,
-                        events: sc_workspace.take_events(),
-                        receipt: TxEffect::Reverted,
-                    };
-
-                    tx_receipts.push(receipt);
-
-                    return Err(StateTransitionError::HookError(e));
-                }
-            };
+            let ctx = self
+                .runtime
+                .pre_dispatch_tx_hook(&tx, sc_workspace, &hook)
+                .map_err(StateTransitionError::HookError)?;
             // Commit changes after pre_dispatch_tx_hook
             // sc_workspace = sc_workspace.checkpoint().to_revertable();
 
-            let tx_result = self.runtime.dispatch_call(msg, sc_workspace, &ctx);
-
-            // let events = sc_workspace.take_events();
-            let tx_effect = match tx_result {
-                Ok(_) => TxEffect::Successful,
-                Err(e) => return Err(StateTransitionError::ModuleCallError(e)),
-            };
-            native_debug!("Tx {} effect: {:?}", hex::encode(raw_tx_hash), tx_effect);
+            let _ = self
+                .runtime
+                .dispatch_call(msg, sc_workspace, &ctx)
+                .map_err(StateTransitionError::ModuleCallError)?;
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
                 events: vec![],
-                receipt: tx_effect,
+                receipt: TxEffect::Successful,
             };
 
             tx_receipts.push(receipt);
             // We commit after events have been extracted into receipt.
             // sc_workspace = sc_workspace.checkpoint().to_revertable();
 
-            // TODO: `panic` will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
-            // TODO: Check if we need to put this in end_soft_onfirmation, becuase I am not sure if we can call pre_dispatch again for new txs after this
             self.runtime
                 .post_dispatch_tx_hook(&tx, &ctx, sc_workspace)
-                .expect("inconsistent state: error in post_dispatch_tx_hook");
+                .map_err(StateTransitionError::HookError)?;
         }
         Ok(tx_receipts)
     }

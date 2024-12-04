@@ -343,6 +343,12 @@ pub enum SoftConfirmationError {
     InvalidSoftConfirmationHash,
     /// The soft confirmation signature is incorret
     InvalidSoftConfirmationSignature,
+    /// The soft confirmation includes a non-serializable sov-tx
+    NonSerializableSovTx,
+    /// The soft confirmation includes a sov-tx that can not be signature verified
+    InvalidSovTxSignature,
+    /// The soft confirmation includes a sov-tx that can not be runtime decoded
+    SovTxCantBeRuntimeDecoded,
     /// Any other error that can occur during the application of a soft confirmation
     /// These can come from runtime hooks etc.
     Other(String),
@@ -428,6 +434,11 @@ impl std::fmt::Display for SoftConfirmationError {
                 write!(f, "Invalid soft confirmation signature")
             }
             SoftConfirmationError::Other(s) => write!(f, "Other error: {}", s),
+            SoftConfirmationError::NonSerializableSovTx => write!(f, "Non serializable sov tx"),
+            SoftConfirmationError::InvalidSovTxSignature => write!(f, "Invalid sov tx signature"),
+            SoftConfirmationError::SovTxCantBeRuntimeDecoded => {
+                write!(f, "Sov tx can't be runtime decoded")
+            }
         }
     }
 }
