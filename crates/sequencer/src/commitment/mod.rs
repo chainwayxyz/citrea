@@ -123,9 +123,6 @@ where
         let l2_start = *commitment_info.l2_height_range.start();
         let l2_end = *commitment_info.l2_height_range.end();
 
-        // Clear state diff early
-        self.ledger_db.set_state_diff(vec![])?;
-
         let soft_confirmation_hashes = self
             .ledger_db
             .get_soft_confirmation_range(&(l2_start..=l2_end))?
