@@ -419,13 +419,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         let pending_cumulative_from_sum: u128 = evm
             .pending_transactions
