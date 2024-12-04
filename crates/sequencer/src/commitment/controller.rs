@@ -10,6 +10,11 @@ use tracing::{debug, warn};
 
 use super::CommitmentInfo;
 
+// Based on the test runs, brotli is able to compress the state diff 58% to 70%,
+// with an average of 66% for both empty and full blocks. This is a super safe
+// estimation of 33% compression. 
+const SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE: usize = MAX_TXBODY_SIZE * 3 / 2;
+
 pub struct CommitmentController<Db>
 where
     Db: SequencerLedgerOps,
@@ -131,7 +136,7 @@ where
         let uncompressed_state_diff =
             borsh::to_vec(state_diff).expect("State diff serialization can not fail");
         // Early return if uncompressed state diff doesn't exceed limit
-        if uncompressed_state_diff.len() <= MAX_TXBODY_SIZE {
+        if uncompressed_state_diff.len() <= SAFE_MAX_UNCOMPRESSED_TXBODY_SIZE {
             return None;
         }
 
