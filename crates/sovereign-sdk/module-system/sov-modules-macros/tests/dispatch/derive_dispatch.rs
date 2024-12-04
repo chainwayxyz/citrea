@@ -29,8 +29,7 @@ fn main() {
     let config = GenesisConfig::new((), (), ());
     runtime.genesis(&config, working_set).unwrap();
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
-    let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context = ZkDefaultContext::new(sender, sequencer, 1, SpecId::Genesis, 0);
+    let context = ZkDefaultContext::new(sender, 1, SpecId::Genesis, 0);
 
     let value = 11;
     {

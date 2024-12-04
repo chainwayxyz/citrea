@@ -1,6 +1,7 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
+use citrea_batch_prover::GroupCommitments;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockDaService};
@@ -288,7 +289,7 @@ async fn test_batch_prover_prove_rpc() {
 
     // Trigger proving via the RPC endpoint
     prover_node_test_client
-        .batch_prover_prove(3, Some(true))
+        .batch_prover_prove(3, Some(GroupCommitments::Normal))
         .await;
 
     // wait here until we see from prover's rpc that it finished proving

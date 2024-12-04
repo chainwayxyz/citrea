@@ -89,7 +89,7 @@ pub trait ProverService {
     async fn add_proof_data(&self, proof_data: ProofData);
 
     /// Prove added input and assumptions.
-    async fn prove(&self) -> anyhow::Result<Vec<Proof>>;
+    async fn prove(&self, elf: Vec<u8>) -> anyhow::Result<Vec<Proof>>;
 
     /// Submit proofs to DA.
     async fn submit_proofs(

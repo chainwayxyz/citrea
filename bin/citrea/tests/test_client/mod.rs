@@ -8,6 +8,7 @@ use alloy::providers::{PendingTransactionBuilder, Provider as AlloyProvider, Pro
 use alloy::rpc::types::eth::{Block, Transaction, TransactionReceipt, TransactionRequest};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
+use citrea_batch_prover::GroupCommitments;
 use citrea_evm::{Filter, LogResponse};
 use ethereum_rpc::SyncStatus;
 use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
@@ -15,10 +16,11 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, TxHash, TxKind, B256, U256, U64};
-// use reth_rpc_types::TransactionReceipt;
 use reth_rpc_types::trace::geth::{GethDebugTracingOptions, GethTrace};
 use reth_rpc_types::RichBlock;
 use sequencer_client::GetSoftConfirmationResponse;
+use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::HexHash;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
@@ -570,10 +572,7 @@ impl TestClient {
         hash: [u8; 32],
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, Box<dyn std::error::Error>> {
         self.http_client
-            .request(
-                "ledger_getSequencerCommitmentsOnSlotByHash",
-                rpc_params![hash],
-            )
+            .get_sequencer_commitments_on_slot_by_hash(HexHash(hash))
             .await
             .map_err(|e| e.into())
     }
@@ -733,7 +732,11 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn batch_prover_prove(&self, l1_height: u64, group_commitments: Option<bool>) {
+    pub(crate) async fn batch_prover_prove(
+        &self,
+        l1_height: u64,
+        group_commitments: Option<GroupCommitments>,
+    ) {
         self.http_client
             .request(
                 "batchProver_prove",

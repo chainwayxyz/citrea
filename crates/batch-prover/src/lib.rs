@@ -12,7 +12,9 @@ mod errors;
 mod runner;
 pub use runner::*;
 mod proving;
-mod rpc;
+pub mod rpc;
+
+pub use proving::GroupCommitments;
 
 /// Dependencies needed to run the rollup.
 pub struct BatchProver<S: RollupBlueprint> {

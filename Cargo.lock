@@ -1225,6 +1225,7 @@ dependencies = [
  "bitcoincore-rpc",
  "borsh",
  "citrea-common",
+ "citrea-e2e",
  "citrea-primitives",
  "crypto-bigint",
  "futures",
@@ -1726,6 +1727,7 @@ dependencies = [
  "ethereum-rpc",
  "hex",
  "jsonrpsee",
+ "lazy_static",
  "log",
  "log-panics",
  "proptest",
@@ -1737,6 +1739,7 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0",
+ "risc0-binfmt",
  "rs_merkle",
  "rustc_version_runtime",
  "secp256k1",
@@ -1833,7 +1836,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=5baaef3#5baaef32ac8d2c7032bca26cbb10d0f6060440dc"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=423db61#423db6182000d4b94b121eed05256de1b4bd0a7c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1947,6 +1950,7 @@ dependencies = [
  "bincode",
  "borsh",
  "citrea-common",
+ "citrea-primitives",
  "hex",
  "jsonrpsee",
  "sequencer-client",
@@ -4099,7 +4103,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6668,9 +6672,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.17"
+version = "0.23.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f1a745511c54ba6d4465e8d5dfbd81b45791756de28d4981af70d6dca128f1e"
+checksum = "9c9cc1d47e243d655ace55ed38201c19ae02c148ae56412ab8750e8f0166ab7f"
 dependencies = [
  "log",
  "once_cell",
@@ -7300,8 +7304,8 @@ dependencies = [
  "anyhow",
  "futures",
  "jsonrpsee",
+ "reth-primitives",
  "serde",
- "serde_json",
  "sov-db",
  "sov-modules-api",
  "sov-rollup-interface",
@@ -7434,6 +7438,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "citrea-common",
+ "derive_more",
  "jsonrpsee",
  "sov-db",
  "sov-ledger-rpc",

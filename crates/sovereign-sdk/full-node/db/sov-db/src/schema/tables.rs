@@ -36,8 +36,8 @@ use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, JmtValue, L2HeightRange, SlotNumber,
-    StateKey, StoredBatch, StoredBatchProof, StoredBatchProofV1, StoredLightClientProof,
-    StoredSlot, StoredSoftConfirmation, StoredVerifiedProof,
+    StateKey, StoredBatch, StoredBatchProof, StoredLightClientProof, StoredSlot,
+    StoredSoftConfirmation, StoredVerifiedProof,
 };
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
@@ -316,7 +316,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// Old version of ProofsBySlotNumber
-    (ProofsBySlotNumber) SlotNumber => Vec<StoredBatchProofV1>
+    (ProofsBySlotNumber) SlotNumber => Vec<StoredBatchProof>
 );
 
 define_table_with_default_codec!(

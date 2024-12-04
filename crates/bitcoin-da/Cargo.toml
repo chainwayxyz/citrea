@@ -40,6 +40,9 @@ sha2 = { workspace = true }
 
 bitcoincore-rpc = { workspace = true, optional = true }
 
+[dev-dependencies]
+citrea-e2e = { workspace = true }
+
 [features]
 default = []
 native = [

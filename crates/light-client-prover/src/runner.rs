@@ -74,7 +74,8 @@ where
     prover_config: LightClientProverConfig,
     task_manager: TaskManager<()>,
     batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    light_client_proof_commitment: Vm::CodeCommitment,
+    light_client_proof_commitment: HashMap<SpecId, Vm::CodeCommitment>,
+    light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
 }
 
 impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
@@ -94,7 +95,8 @@ where
         prover_service: Arc<Ps>,
         prover_config: LightClientProverConfig,
         batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        light_client_proof_commitment: Vm::CodeCommitment,
+        light_client_proof_commitment: HashMap<SpecId, Vm::CodeCommitment>,
+        light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
         let sequencer_client_url = runner_config.sequencer_client_url.clone();
@@ -110,6 +112,7 @@ where
             task_manager,
             batch_proof_commitments_by_spec,
             light_client_proof_commitment,
+            light_client_proof_elfs,
         })
     }
 
@@ -192,6 +195,7 @@ where
         let batch_prover_da_pub_key = self.public_keys.prover_da_pub_key.clone();
         let batch_proof_commitments_by_spec = self.batch_proof_commitments_by_spec.clone();
         let light_client_proof_commitment = self.light_client_proof_commitment.clone();
+        let light_client_proof_elfs = self.light_client_proof_elfs.clone();
         let sequencer_client = self.sequencer_client.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
@@ -203,6 +207,7 @@ where
                 batch_prover_da_pub_key,
                 batch_proof_commitments_by_spec,
                 light_client_proof_commitment,
+                light_client_proof_elfs,
                 Arc::new(sequencer_client),
             );
             l1_block_handler

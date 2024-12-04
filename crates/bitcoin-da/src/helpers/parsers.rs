@@ -469,7 +469,7 @@ mod batch_proof {
     }
 }
 
-#[cfg(all(test, feature = "native"))]
+#[cfg(feature = "native")]
 pub fn parse_hex_transaction(
     tx_hex: &str,
 ) -> Result<Transaction, bitcoin::consensus::encode::Error> {

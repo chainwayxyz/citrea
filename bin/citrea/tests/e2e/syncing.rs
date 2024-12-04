@@ -389,7 +389,7 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// Checks `citre_syncStatus` RPC call.
+/// Checks `citrea_syncStatus` RPC call.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_full_node_sync_status() {
     // citrea::initialize_logging();

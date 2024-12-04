@@ -169,14 +169,8 @@ fn test_sys_bitcoin_light_client() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -298,14 +292,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -356,13 +343,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         let pending_cumulative_from_sum: u128 = evm
             .pending_transactions
@@ -646,14 +627,7 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -779,14 +753,7 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -825,13 +792,7 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,

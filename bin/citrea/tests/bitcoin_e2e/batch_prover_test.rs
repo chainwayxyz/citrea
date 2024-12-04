@@ -15,6 +15,7 @@ use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use reth_primitives::U64;
 use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
@@ -38,7 +39,7 @@ pub async fn wait_for_zkproofs(
         match full_node
             .client
             .http_client()
-            .get_verified_batch_proofs_by_slot_height(height)
+            .get_verified_batch_proofs_by_slot_height(U64::from(height))
             .await?
         {
             Some(proofs) => return Ok(proofs),
@@ -100,7 +101,7 @@ impl TestCase for BasicProverTest {
         da.generate(FINALITY_DEPTH).await?;
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
@@ -238,7 +239,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.generate(FINALITY_DEPTH).await?;
 
         // Wait for blob inscribe tx to be in mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
 
@@ -270,7 +271,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let commitments: Vec<SequencerCommitment> = full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await
             .unwrap_or_else(|_| {
                 panic!(
@@ -367,11 +368,7 @@ impl TestCase for LocalProvingTest {
 
     fn test_env() -> TestCaseEnv {
         TestCaseEnv {
-            test: vec![
-                ("CI_TEST_MODE", "1"),
-                ("BONSAI_API_URL", ""),
-                ("BONSAI_API_KEY", ""),
-            ],
+            test: vec![("BONSAI_API_URL", ""), ("BONSAI_API_KEY", "")],
             ..Default::default()
         }
     }
@@ -407,7 +404,7 @@ impl TestCase for LocalProvingTest {
         }
 
         // Wait for commitment tx to hit mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Make commitment tx into a finalized block
         da.generate(FINALITY_DEPTH).await?;
@@ -419,7 +416,7 @@ impl TestCase for LocalProvingTest {
             .await?;
 
         // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Make batch proof tx into a finalized block
         da.generate(FINALITY_DEPTH).await?;

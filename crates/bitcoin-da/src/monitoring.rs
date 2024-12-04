@@ -149,7 +149,7 @@ pub struct MonitoringService {
     config: MonitoringConfig,
     // Last tx in queue
     last_tx: Mutex<Option<Txid>>,
-    // Keep track of total monitored transaciton size
+    // Keep track of total monitored transaction size
     // Only takes into account inner tx field from MonitoredTx
     total_size: AtomicUsize,
 }

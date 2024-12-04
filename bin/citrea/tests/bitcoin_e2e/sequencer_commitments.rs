@@ -14,6 +14,7 @@ use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::TO_BATCH_PROOF_PREFIX;
+use reth_primitives::U64;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::client::RpcClient;
@@ -39,7 +40,7 @@ pub async fn wait_for_sequencer_commitments(
         match full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(height))
             .await
         {
             Ok(Some(commitments)) => return Ok(commitments),
@@ -80,7 +81,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
             .await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH).await?;
@@ -93,7 +94,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let commitments = prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await
             .unwrap()
             .unwrap();
@@ -110,7 +111,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let commitments_hash = prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
+            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array().into())
             .await
             .unwrap()
             .unwrap();
@@ -155,7 +156,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         // sequencer.client.send_publish_batch_request().await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Generate enough block to finalize
         da.generate(FINALITY_DEPTH).await?;
@@ -180,7 +181,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         let commitments_node = full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array())
+            .get_sequencer_commitments_on_slot_by_hash(hash.as_raw_hash().to_byte_array().into())
             .await
             .unwrap()
             .unwrap();
@@ -253,7 +254,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
 
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH).await?;
@@ -276,7 +277,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
             .await?;
 
         // Wait for blob tx to hit the mempool
-        da.wait_mempool_len(1, None).await?;
+        da.wait_mempool_len(2, None).await?;
         // Include commitment in block and finalize it
         da.generate(FINALITY_DEPTH).await?;
 
@@ -327,7 +328,7 @@ impl SequencerSendCommitmentsToDaTest {
                 sequencer
                     .client
                     .http_client()
-                    .get_soft_confirmation_by_number(i)
+                    .get_soft_confirmation_by_number(U64::from(i))
                     .await?
                     .unwrap(),
             );
