@@ -1,5 +1,4 @@
 use std::cmp;
-use std::sync::Arc;
 
 use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
@@ -15,7 +14,7 @@ pub struct CommitmentController<Db>
 where
     Db: SequencerLedgerOps,
 {
-    ledger_db: Arc<Db>,
+    ledger_db: Db,
     min_soft_confirmations: u64,
     last_state_diff: StateDiff,
 }
@@ -24,7 +23,7 @@ impl<Db> CommitmentController<Db>
 where
     Db: SequencerLedgerOps,
 {
-    pub fn new(ledger_db: Arc<Db>, min_soft_confirmations: u64) -> Self {
+    pub fn new(ledger_db: Db, min_soft_confirmations: u64) -> Self {
         let last_state_diff = ledger_db.get_state_diff().unwrap_or_default();
         Self {
             ledger_db,

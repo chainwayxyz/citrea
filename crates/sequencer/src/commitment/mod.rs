@@ -33,7 +33,7 @@ where
     Da: DaService,
     Db: SequencerLedgerOps,
 {
-    ledger_db: Arc<Db>,
+    ledger_db: Db,
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
     soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
@@ -43,10 +43,10 @@ where
 impl<Da, Db> CommitmentService<Da, Db>
 where
     Da: DaService,
-    Db: SequencerLedgerOps + Send + Sync + 'static,
+    Db: SequencerLedgerOps + Clone + Send + Sync + 'static,
 {
     pub fn new(
-        ledger_db: Arc<Db>,
+        ledger_db: Db,
         da_service: Arc<Da>,
         sequencer_da_pub_key: Vec<u8>,
         min_soft_confirmations: u64,
