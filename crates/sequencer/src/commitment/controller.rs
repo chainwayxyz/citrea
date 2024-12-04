@@ -58,6 +58,8 @@ where
 
         // If block state diff is empty, it is certain that state diff threshold won't be exceeded.
         let updated_state_diff = if !l2_state_diff.is_empty() {
+            // It is OK to take value of last_state_diff here to avoid cloning the value.
+            // It is not used anywhere except this point, and it will certainly be set to a new value.
             let last_state_diff = std::mem::take(&mut self.last_state_diff);
             let merged_state_diff = merge_state_diffs(last_state_diff, l2_state_diff.clone());
 
