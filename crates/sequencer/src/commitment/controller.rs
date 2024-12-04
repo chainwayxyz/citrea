@@ -84,7 +84,8 @@ where
 
         // Check if soft confirmation threshold is reached
         if let Some(info) = self.check_min_soft_confirmations(last_committed_l2_height, l2_height) {
-            self.clear_state_diff()?;
+            // Clear state diff
+            self.set_state_diff(vec![])?;
             return Ok(Some(info));
         }
 
@@ -166,11 +167,5 @@ where
         self.ledger_db.set_state_diff(&state_diff)?;
         self.last_state_diff = state_diff;
         Ok(())
-    }
-
-    // Used to clear the state without deallocating the state diff capacity
-    fn clear_state_diff(&mut self) -> anyhow::Result<()> {
-        self.last_state_diff.clear();
-        self.ledger_db.set_state_diff(&vec![])
     }
 }
