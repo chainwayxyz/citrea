@@ -109,10 +109,13 @@ pub(crate) fn execute_multiple_tx<
             return Err(SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit);
         }
 
-        let result_and_state = evm.transact(tx).map_err(|e| match e {
-            // only custom error we use is for not enough funds for L1 fee
-            EVMError::Custom(_) => SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee,
-            _ => SoftConfirmationModuleCallError::EvmTransactionExecutionError,
+        let result_and_state = evm.transact(tx).map_err(|e| {
+            native_error!("Invalid tx {}. Error: {}", tx.hash(), e);
+            match e {
+                // only custom error we use is for not enough funds for L1 fee
+                EVMError::Custom(_) => SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee,
+                _ => SoftConfirmationModuleCallError::EvmTransactionExecutionError,
+            }
         })?;
 
         // Check if the transaction used more gas than the available block gas limit

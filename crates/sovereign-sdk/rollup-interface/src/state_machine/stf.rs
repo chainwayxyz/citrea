@@ -329,7 +329,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 /// Error in the soft confirmation itself
 pub enum SoftConfirmationError {
     /// The public key of the sequencer (known by a full node or prover) does not match
@@ -348,7 +348,7 @@ pub enum SoftConfirmationError {
     Other(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 /// Error that can occur during the runtime hook of a soft confirmation
 pub enum SoftConfirmationHookError {
     /// The nonce of the sov-tx is incorrect
@@ -363,7 +363,7 @@ pub enum SoftConfirmationHookError {
     TimestampShouldBeGreater,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 /// Error that can occur during a module call of a soft confirmation
 pub enum SoftConfirmationModuleCallError {
     /// The EVM gas used exceeds the block gas limit
@@ -389,7 +389,7 @@ pub enum SoftConfirmationModuleCallError {
     RuleEnforcerUnauthorized,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 /// Error that can occur during the state transition
 pub enum StateTransitionError {
     /// An error in the soft confirmation itself
