@@ -267,7 +267,7 @@ where
                 &da_block_header,
                 &soft_confirmation_info,
             ) {
-                (Ok(()), mut working_set_to_discard) => {
+                Ok(mut working_set_to_discard) => {
                     let block_gas_limit = self.db_provider.cfg().block_gas_limit;
 
                     let evm = Evm::<C>::default();
@@ -338,12 +338,11 @@ where
                         L2BlockMode::Empty => Ok((vec![], vec![])),
                     }
                 }
-                (Err(err), batch_workspace) => {
+                Err(err) => {
                     warn!(
                     "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
                     err
                 );
-                    batch_workspace.revert();
                     Err(anyhow!(
                         "DryRun: Failed to apply begin soft confirmation hook: {:?}",
                         err
@@ -436,7 +435,7 @@ where
             da_block.header(),
             &soft_confirmation_info,
         ) {
-            (Ok(()), mut batch_workspace) => {
+            Ok(mut batch_workspace) => {
                 let mut txs = vec![];
                 let mut txs_new = vec![];
                 let mut tx_receipts = vec![];
@@ -574,12 +573,11 @@ where
                     soft_confirmation_result.state_diff,
                 ))
             }
-            (Err(err), batch_workspace) => {
+            Err(err) => {
                 warn!(
                     "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
                     err
                 );
-                batch_workspace.revert();
                 Err(anyhow!(
                     "Failed to apply begin soft confirmation hook: {:?}",
                     err

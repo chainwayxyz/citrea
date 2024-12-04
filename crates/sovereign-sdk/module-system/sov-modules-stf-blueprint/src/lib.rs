@@ -141,7 +141,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>);
+    ) -> Result<WorkingSet<C>, SoftConfirmationError>;
 
     /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
@@ -197,7 +197,7 @@ where
         offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (Result<(), SoftConfirmationError>, WorkingSet<C>) {
+    ) -> Result<WorkingSet<C>, SoftConfirmationError> {
         native_debug!("Applying soft confirmation in STF Blueprint");
 
         let checkpoint = StateCheckpoint::with_witness(pre_state, state_witness, offchain_witness);
@@ -205,23 +205,17 @@ where
 
         // check if soft confirmation is coming from our sequencer
         if soft_confirmation_info.sequencer_pub_key() != sequencer_public_key {
-            return (
-                Err(SoftConfirmationError::SequencerPublicKeyMismatch),
-                batch_workspace,
-            );
+            return Err(SoftConfirmationError::SequencerPublicKeyMismatch);
         };
 
         // then verify da hashes match
         if soft_confirmation_info.da_slot_hash() != slot_header.hash().into() {
-            return (Err(SoftConfirmationError::InvalidDaHash), batch_workspace);
+            return Err(SoftConfirmationError::InvalidDaHash);
         }
 
         // then verify da transactions commitment match
         if soft_confirmation_info.da_slot_txs_commitment() != slot_header.txs_commitment().into() {
-            return (
-                Err(SoftConfirmationError::InvalidDaTxsCommitment),
-                batch_workspace,
-            );
+            return Err(SoftConfirmationError::InvalidDaTxsCommitment);
         }
 
         self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info)
@@ -506,7 +500,7 @@ where
             slot_header,
             &soft_confirmation_info,
         ) {
-            (Ok(()), batch_workspace) => {
+            Ok(batch_workspace) => {
                 let (batch_workspace, tx_receipts) = self.apply_soft_confirmation_txs(
                     soft_confirmation_info,
                     soft_confirmation.blobs(),
@@ -538,12 +532,8 @@ where
                     }
                 }
             }
-            (Err(err), batch_workspace) => {
-                native_warn!(
-                    "Error applying soft confirmation: {:?} \n reverting batch workspace",
-                    err
-                );
-                batch_workspace.revert();
+            Err(err) => {
+                native_warn!("Error applying soft confirmation: {:?}", err);
                 Err(err)
             }
         }

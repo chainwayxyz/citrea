@@ -79,10 +79,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _offchain_witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (
-        Result<(), SoftConfirmationError>,
-        sov_modules_api::WorkingSet<C>,
-    ) {
+    ) -> Result<sov_modules_api::WorkingSet<C>, SoftConfirmationError> {
         unimplemented!()
     }
 
