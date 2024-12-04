@@ -14,10 +14,6 @@ help: ## Display this help message
 build-risc0:
 	$(MAKE) -j 2 -C guests/risc0 all
 
-.PHONY: build-risc0-test
-build-risc0-test:
-	$(MAKE) -j 2 -C guests/risc0 test
-
 .PHONY: build-sp1
 build-sp1:
 	$(MAKE) -C guests/sp1 all
@@ -53,7 +49,7 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: build-risc0-test build-sp1-test build-test $(EF_TESTS_DIR) ## Runs test suite using next test
+test: build-test $(EF_TESTS_DIR) ## Runs test suite using next test
 	RISC0_DEV_MODE=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
