@@ -18,9 +18,9 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
-use self::strategy::CommitmentController;
+use self::controller::CommitmentController;
 
-mod strategy;
+mod controller;
 
 #[derive(Clone, Debug)]
 pub struct CommitmentInfo {
