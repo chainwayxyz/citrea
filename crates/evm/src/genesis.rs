@@ -1,7 +1,7 @@
+use core::result::Result;
 use std::collections::HashMap;
 
 use alloy_eips::eip1559::BaseFeeParams;
-use anyhow::Result;
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
 use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
 use revm::primitives::{Bytecode, SpecId};
@@ -162,7 +162,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<()> {
+    ) {
         let mut evm_db = self.get_db(working_set, SpecId::SHANGHAI);
 
         for acc in &config.data {
@@ -249,8 +249,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         #[cfg(feature = "native")]
         self.pending_head
             .set(&block, &mut working_set.accessory_state());
-
-        Ok(())
     }
 }
 

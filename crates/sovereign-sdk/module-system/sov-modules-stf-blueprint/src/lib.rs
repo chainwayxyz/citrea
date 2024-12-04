@@ -8,8 +8,7 @@ use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::hooks::{
-    ApplyBlobHooks, ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks,
-    TxHooks,
+    ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
@@ -58,12 +57,6 @@ pub trait Runtime<C: Context, Da: DaSpec>:
         Da,
         Context = C,
         SoftConfirmationResult = SequencerOutcome<
-            <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
-        >,
-    > + ApplyBlobHooks<
-        Da::BlobTransaction,
-        Context = C,
-        BlobResult = SequencerOutcome<
             <<Da as DaSpec>::BlobTransaction as BlobReaderTrait>::Address,
         >,
     > + Default

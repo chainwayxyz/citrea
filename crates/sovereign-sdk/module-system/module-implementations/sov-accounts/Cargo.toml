@@ -12,7 +12,6 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
-anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 proptest = { workspace = true, optional = true }

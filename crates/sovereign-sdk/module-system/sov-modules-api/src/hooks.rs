@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::SoftConfirmationError;
@@ -35,26 +35,6 @@ pub trait TxHooks {
         ctx: &Self::Context,
         working_set: &mut WorkingSet<Self::Context>,
     ) -> Result<(), SoftConfirmationHookError>;
-}
-
-/// Hooks related to the Sequencer functionality.
-/// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
-/// and is rewarded once a blob of transactions is processed.
-pub trait ApplyBlobHooks<B: BlobReaderTrait> {
-    type Context: Context;
-    type BlobResult;
-
-    /// Runs at the beginning of apply_blob, locks the sequencer bond.
-    /// If this hook returns Err, batch is not applied
-    fn begin_blob_hook(
-        &self,
-        blob: &mut B,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
-
-    /// Executes at the end of apply_blob and rewards or slashes the sequencer
-    /// If this hook returns Err rollup panics
-    fn end_blob_hook(&self, working_set: &mut WorkingSet<Self::Context>) -> anyhow::Result<()>;
 }
 
 /// Hooks that are executed before and after a soft confirmation is processed.

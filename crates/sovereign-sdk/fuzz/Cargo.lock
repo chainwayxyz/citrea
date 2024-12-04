@@ -2097,7 +2097,6 @@ dependencies = [
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "arbitrary",
  "borsh",
  "clap",

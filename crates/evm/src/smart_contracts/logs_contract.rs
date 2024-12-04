@@ -1,3 +1,5 @@
+use core::result::Result;
+
 use alloy_sol_types::{sol, SolCall, SolEvent};
 
 use super::TestContract;
@@ -44,14 +46,14 @@ impl LogsContract {
     /// Decode Log event of the Logs smart contract.
     pub fn decode_log_event(
         log: &alloy_primitives::Log,
-    ) -> anyhow::Result<alloy_primitives::Log<Logs::Log>> {
-        Ok(Logs::Log::decode_log(log, true)?)
+    ) -> Result<alloy_primitives::Log<Logs::Log>, alloy_sol_types::Error> {
+        Logs::Log::decode_log(log, true)
     }
 
     /// Decode AnotherLog event of the Logs smart contract.
     pub fn decode_another_log_event(
         log: &alloy_primitives::Log,
-    ) -> anyhow::Result<alloy_primitives::Log<Logs::AnotherLog>> {
-        Ok(Logs::AnotherLog::decode_log(log, true)?)
+    ) -> Result<alloy_primitives::Log<Logs::AnotherLog>, alloy_sol_types::Error> {
+        Logs::AnotherLog::decode_log(log, true)
     }
 }

@@ -59,7 +59,6 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
         self.init_module(config, working_set)
-            .expect("Accounts should be initialized")
     }
 
     fn call(

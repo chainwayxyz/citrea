@@ -19,17 +19,15 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) {
         for pub_key in config.pub_keys.iter() {
             if self.accounts.get(pub_key, working_set).is_some() {
-                anyhow::bail!("Account already exists")
+                panic!("No account should exist in init_module");
             }
 
             self.create_default_account(pub_key, working_set)
                 .expect("Accounts should create account in init_module");
         }
-
-        Ok(())
     }
 
     pub(crate) fn create_default_account(

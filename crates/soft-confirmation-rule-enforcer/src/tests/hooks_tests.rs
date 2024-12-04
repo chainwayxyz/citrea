@@ -75,7 +75,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     assert!(res.is_err());
 
     assert_eq!(
-        "Other error: Timestamp should be greater than last timestamp",
+        "Timestamp should be greater",
         format!("{}", res.unwrap_err())
     );
 

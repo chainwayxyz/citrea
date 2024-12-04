@@ -16,7 +16,6 @@ sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", def
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
-anyhow = { workspace = true }
 borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 serde = { workspace = true }

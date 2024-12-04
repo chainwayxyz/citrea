@@ -1866,7 +1866,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-sol-types",
- "anyhow",
  "bcs",
  "borsh",
  "bytes",
@@ -7218,7 +7217,6 @@ dependencies = [
 name = "soft-confirmation-rule-enforcer"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "borsh",
  "chrono",
  "jsonrpsee",
@@ -7253,7 +7251,6 @@ dependencies = [
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "arbitrary",
  "borsh",
  "clap",

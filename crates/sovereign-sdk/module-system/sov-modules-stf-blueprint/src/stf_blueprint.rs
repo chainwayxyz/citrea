@@ -194,7 +194,7 @@ where
             );
         }
 
-        // Write changes from begin_blob_hook
+        // Write changes from begin_soft_confirmation_hook
         batch_workspace = batch_workspace.checkpoint().to_revertable();
 
         (Ok(()), batch_workspace)
