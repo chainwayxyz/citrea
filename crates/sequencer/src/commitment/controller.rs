@@ -6,7 +6,7 @@ use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::BatchNumber;
 use sov_modules_api::StateDiff;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use super::CommitmentInfo;
 
@@ -69,6 +69,11 @@ where
         // If the last commitment made is on par with the head
         // soft confirmation, we have already committed the latest block.
         if last_committed_l2_height.0 >= current_l2_height {
+            warn!(
+                last_committed = last_committed_l2_height.0,
+                current = current_l2_height,
+                "Got L2 height lower than the last committed L2 height."
+            );
             // Already committed.
             return None;
         }
