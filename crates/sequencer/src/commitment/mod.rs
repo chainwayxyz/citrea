@@ -18,8 +18,7 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
-use self::strategy::{CommitmentController, MinSoftConfirmations, StateDiffThreshold};
-use crate::commitment::strategy::CommitmentStrategy;
+use self::strategy::CommitmentController;
 
 mod strategy;
 
@@ -38,7 +37,7 @@ where
     da_service: Arc<Da>,
     sequencer_da_pub_key: Vec<u8>,
     soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
-    commitment_controller: Arc<RwLock<CommitmentController>>,
+    commitment_controller: Arc<RwLock<CommitmentController<Db>>>,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -53,13 +52,10 @@ where
         min_soft_confirmations: u64,
         soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
     ) -> Self {
-        let commitment_controller = Arc::new(RwLock::new(CommitmentController::new(vec![
-            Box::new(MinSoftConfirmations::new(
-                ledger_db.clone(),
-                min_soft_confirmations,
-            )),
-            Box::new(StateDiffThreshold::new(ledger_db.clone())),
-        ])));
+        let commitment_controller = Arc::new(RwLock::new(CommitmentController::new(
+            ledger_db.clone(),
+            min_soft_confirmations,
+        )));
         Self {
             ledger_db,
             da_service,
@@ -80,8 +76,10 @@ where
                     let Some((height, state_diff)) = info else {
                         // An error is returned because the channel is either
                         // closed or lagged.
+                        error!("Commitment service soft confirmation channel closed abruptly");
                         return;
                     };
+                    println!("Got height {height}");
 
                     let commitment_controller = self.commitment_controller.clone();
 

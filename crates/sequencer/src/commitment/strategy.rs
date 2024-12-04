@@ -11,14 +11,6 @@ use tracing::debug;
 
 use super::CommitmentInfo;
 
-pub trait CommitmentStrategy {
-    fn should_commit(
-        &mut self,
-        l2_height: u64,
-        l2_state_diff: StateDiff,
-    ) -> anyhow::Result<Option<CommitmentInfo>>;
-}
-
 pub(crate) struct MinSoftConfirmations<Db>
 where
     Db: SequencerLedgerOps,
@@ -27,18 +19,15 @@ where
     number: u64,
 }
 
-impl<Db: SequencerLedgerOps> MinSoftConfirmations<Db> {
-    pub fn new(ledger_db: Arc<Db>, number: u64) -> Self {
+impl<Db> MinSoftConfirmations<Db>
+where
+    Db: SequencerLedgerOps,
+{
+    fn new(ledger_db: Arc<Db>, number: u64) -> Self {
         Self { ledger_db, number }
     }
-}
 
-impl<Db: SequencerLedgerOps> CommitmentStrategy for MinSoftConfirmations<Db> {
-    fn should_commit(
-        &mut self,
-        l2_height: u64,
-        _l2_state_diff: StateDiff,
-    ) -> anyhow::Result<Option<CommitmentInfo>> {
+    fn should_commit(&mut self, l2_height: u64) -> anyhow::Result<Option<CommitmentInfo>> {
         // Get latest finalized and pending commitments and find the max height
         let last_finalized_l2_height = self
             .ledger_db
@@ -83,20 +72,18 @@ where
     last_state_diff: StateDiff,
 }
 
-impl<Db: SequencerLedgerOps> StateDiffThreshold<Db> {
-    pub fn new(ledger_db: Arc<Db>) -> Self {
+impl<Db> StateDiffThreshold<Db>
+where
+    Db: SequencerLedgerOps,
+{
+    fn new(ledger_db: Arc<Db>) -> Self {
         let last_state_diff = ledger_db.get_state_diff().unwrap_or_default();
         Self {
             ledger_db,
             last_state_diff,
         }
     }
-}
 
-impl<Db> CommitmentStrategy for StateDiffThreshold<Db>
-where
-    Db: SequencerLedgerOps,
-{
     fn should_commit(
         &mut self,
         l2_height: u64,
@@ -148,28 +135,41 @@ where
     }
 }
 
-pub struct CommitmentController {
-    strategies: Vec<Box<dyn CommitmentStrategy + Send + Sync + 'static>>,
+pub struct CommitmentController<Db>
+where
+    Db: SequencerLedgerOps,
+{
+    state_diff_strategy: StateDiffThreshold<Db>,
+    min_soft_confirmation_strategy: MinSoftConfirmations<Db>,
 }
 
-impl CommitmentController {
-    pub fn new(strategies: Vec<Box<dyn CommitmentStrategy + Send + Sync + 'static>>) -> Self {
-        Self { strategies }
+impl<Db> CommitmentController<Db>
+where
+    Db: SequencerLedgerOps,
+{
+    pub fn new(ledger_db: Arc<Db>, min_soft_confirmations: u64) -> Self {
+        Self {
+            state_diff_strategy: StateDiffThreshold::new(ledger_db.clone()),
+            min_soft_confirmation_strategy: MinSoftConfirmations::new(
+                ledger_db,
+                min_soft_confirmations,
+            ),
+        }
     }
-}
 
-impl CommitmentStrategy for CommitmentController {
-    fn should_commit(
+    pub fn should_commit(
         &mut self,
         l2_height: u64,
         l2_state_diff: StateDiff,
     ) -> anyhow::Result<Option<CommitmentInfo>> {
-        let mut commitment_infos: Vec<Option<CommitmentInfo>> = self
-            .strategies
-            .iter_mut()
-            .flat_map(|strategy| strategy.should_commit(l2_height, l2_state_diff.clone()))
-            .collect();
-        commitment_infos.retain(|s| s.is_some());
-        Ok(commitment_infos.first().cloned().flatten())
+        match self
+            .min_soft_confirmation_strategy
+            .should_commit(l2_height)?
+        {
+            Some(commitment_info) => Ok(Some(commitment_info)),
+            None => Ok(self
+                .state_diff_strategy
+                .should_commit(l2_height, l2_state_diff)?),
+        }
     }
 }
