@@ -19,7 +19,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
+    ) {
         self.authority.set(&config.authority, working_set);
 
         self.data.set(
@@ -31,7 +31,5 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
             },
             working_set,
         );
-
-        Ok(())
     }
 }

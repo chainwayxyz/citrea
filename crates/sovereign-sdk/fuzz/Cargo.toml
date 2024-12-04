@@ -22,9 +22,6 @@ sov-accounts = { path = "../module-system/module-implementations/sov-accounts", 
     "arbitrary",
     "native",
 ] }
-sov-bank = { path = "../module-system/module-implementations/sov-bank", features = [
-    "native",
-] }
 sov-state = { path = "../module-system/sov-state" }
 sov-prover-storage-manager = { path = "../full-node/sov-prover-storage-manager", features = [
     "test-utils",
@@ -49,18 +46,6 @@ doc = false
 [[bin]]
 name = "address_bech_32_try_from_bytes"
 path = "fuzz_targets/address_bech_32_try_from_bytes.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "bank_call"
-path = "fuzz_targets/bank_call.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "bank_parse_call_message"
-path = "fuzz_targets/bank_parse_call_message.rs"
 test = false
 doc = false
 

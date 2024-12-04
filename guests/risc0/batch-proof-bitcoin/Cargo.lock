@@ -914,7 +914,6 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "alloy-sol-types",
- "anyhow",
  "borsh",
  "citrea-primitives",
  "hex",
@@ -2924,7 +2923,6 @@ dependencies = [
 name = "soft-confirmation-rule-enforcer"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "borsh",
  "serde",
  "sov-modules-api",
@@ -2936,7 +2934,6 @@ dependencies = [
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "borsh",
  "serde",
  "sov-modules-api",

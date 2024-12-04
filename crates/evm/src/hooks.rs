@@ -270,9 +270,6 @@ where
                 tx_index += 1
             }
             self.pending_transactions.clear();
-
-            self.native_pending_transactions
-                .clear(&mut working_set.accessory_state());
         }
     }
 
@@ -323,8 +320,6 @@ where
                 accessory_working_set,
             );
             self.pending_head.delete(accessory_working_set);
-
-            self.l1_fee_failed_txs.clear(accessory_working_set);
         }
     }
 }

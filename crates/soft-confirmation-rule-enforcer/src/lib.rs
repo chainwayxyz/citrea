@@ -60,7 +60,8 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
         message: Self::CallMessage,
         context: &Self::Context,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+    {
         match message {
             CallMessage::ChangeAuthority { new_authority } => {
                 Ok(self.change_authority(new_authority, context, working_set)?)
@@ -73,11 +74,7 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
         }
     }
 
-    fn genesis(
-        &self,
-        config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), sov_modules_api::Error> {
-        Ok(self.init_module(config, working_set)?)
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) {
+        self.init_module(config, working_set)
     }
 }

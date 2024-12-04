@@ -1,6 +1,6 @@
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, StateMapAccessor, WorkingSet};
+use sov_modules_api::{Context, SoftConfirmationHookError, StateMapAccessor, WorkingSet};
 
 use crate::{Account, Accounts};
 
@@ -15,7 +15,7 @@ impl<C: Context> Accounts<C> {
         &self,
         pubkey: &C::PublicKey,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<Account<C>> {
+    ) -> Result<Account<C>, SoftConfirmationHookError> {
         self.accounts
             .get(pubkey, working_set)
             .map_or_else(|| self.create_default_account(pubkey, working_set), Ok)
@@ -32,16 +32,13 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction<C>,
         working_set: &mut WorkingSet<C>,
         _sequencer: &Self::PreArg,
-    ) -> anyhow::Result<AccountsTxHook<C>> {
+    ) -> Result<AccountsTxHook<C>, SoftConfirmationHookError> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
         let tx_nonce = tx.nonce();
 
-        anyhow::ensure!(
-            sender.nonce == tx_nonce,
-            "Tx bad nonce, expected: {}, but found: {}",
-            tx_nonce,
-            sender.nonce
-        );
+        if sender.nonce != tx_nonce {
+            return Err(SoftConfirmationHookError::SovTxBadNonce);
+        }
 
         Ok(AccountsTxHook {
             sender: sender.addr,
@@ -53,8 +50,11 @@ impl<C: Context> TxHooks for Accounts<C> {
         tx: &Transaction<Self::Context>,
         _ctx: &C,
         working_set: &mut WorkingSet<C>,
-    ) -> anyhow::Result<()> {
-        let mut account = self.accounts.get_or_err(tx.pub_key(), working_set)?;
+    ) -> Result<(), SoftConfirmationHookError> {
+        let mut account = self
+            .accounts
+            .get_or_err(tx.pub_key(), working_set)
+            .map_err(|_| SoftConfirmationHookError::SovTxAccountNotFound)?;
         account.nonce += 1;
         self.accounts.set(tx.pub_key(), &account, working_set);
         Ok(())

@@ -31,7 +31,8 @@ pub mod module_a {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        {
             todo!()
         }
     }
@@ -77,7 +78,8 @@ pub mod module_b {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        {
             todo!()
         }
     }
@@ -123,7 +125,8 @@ pub(crate) mod module_c {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        {
             todo!()
         }
     }

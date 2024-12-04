@@ -77,9 +77,7 @@ where
         let config: AccountConfig<C> = u.arbitrary()?;
         let accounts = Accounts::default();
 
-        accounts
-            .genesis(&config, working_set)
-            .map_err(|_| arbitrary::Error::IncorrectFormat)?;
+        accounts.genesis(&config, working_set);
 
         Ok(accounts)
     }

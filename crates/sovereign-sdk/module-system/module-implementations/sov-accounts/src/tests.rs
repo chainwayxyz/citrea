@@ -22,7 +22,7 @@ fn test_config_account() {
     let tmpdir = tempfile::tempdir().unwrap();
     let working_set = &mut WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
-    accounts.init_module(&account_config, working_set).unwrap();
+    accounts.init_module(&account_config, working_set);
 
     let query_response = accounts.get_account(init_pub_key, working_set).unwrap();
 

@@ -1866,7 +1866,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-sol-types",
- "anyhow",
  "bcs",
  "borsh",
  "bytes",
@@ -7218,7 +7217,6 @@ dependencies = [
 name = "soft-confirmation-rule-enforcer"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "borsh",
  "chrono",
  "jsonrpsee",
@@ -7253,7 +7251,6 @@ dependencies = [
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "arbitrary",
  "borsh",
  "clap",
@@ -7263,25 +7260,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sov-modules-api",
- "sov-prover-storage-manager",
- "sov-state",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "sov-bank"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "clap",
- "jsonrpsee",
- "schemars",
- "serde",
- "serde_json",
- "sov-bank",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-state",

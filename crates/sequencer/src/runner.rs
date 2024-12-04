@@ -9,7 +9,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
-use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
@@ -268,13 +268,10 @@ where
                 &soft_confirmation_info,
             ) {
                 Ok(mut working_set_to_discard) => {
-                    let block_gas_limit = self.db_provider.cfg().block_gas_limit;
-
-                    let evm = Evm::<C>::default();
-
                     match l2_block_mode {
                         L2BlockMode::NotEmpty => {
                             let mut all_txs = vec![];
+                            let mut l1_fee_failed_txs = vec![];
 
                             for evm_tx in transactions {
                                 let rlp_tx = RlpEvmTransaction {
@@ -302,36 +299,68 @@ where
                                 let txs = vec![signed_blob.clone()];
                                 let txs_new = vec![signed_tx];
 
-                                let (sc_workspace, _) = self.stf.apply_soft_confirmation_txs(
+                                let mut working_set =
+                                    working_set_to_discard.checkpoint().to_revertable();
+
+                                let _ = match self.stf.apply_soft_confirmation_txs(
                                     soft_confirmation_info.clone(),
                                     &txs,
                                     &txs_new,
-                                    working_set_to_discard,
-                                );
+                                    &mut working_set,
+                                ) {
+                                    Ok(result) => result,
+                                    Err(e) => match e {
+                                        // Since this is the sequencer, it should never get a soft confirmation error or a hook error
+                                        sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
+                                        sov_rollup_interface::stf::StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
+                                        sov_rollup_interface::stf::StateTransitionError::ModuleCallError(soft_confirmation_module_call_error) => match soft_confirmation_module_call_error {
+                                            // if we are exceeding block gas limit with a transaction
+                                            // we should inspect the gas usage and act accordingly
+                                            // if there is room for another transaction
+                                            // keep trying txs
+                                            // if not, break
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                                                cumulative_gas,
+                                                tx_gas_used: _,
+                                                block_gas_limit
+                                            } => {
+                                               if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
+                                                break;
+                                               } else {
+                                                working_set_to_discard = working_set.revert().to_revertable();
+                                                continue;
+                                               }
+                                            },
+                                            // we configure mempool to never accept blob transactions
+                                            // to mitigate potential bugs in reth-mempool we should look into continue instead of panicking here
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit => panic!("got blob tx from mempool"),
+                                            // Discard tx if it fails to execute
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
+                                                working_set_to_discard = working_set.revert().to_revertable();
+                                                continue;
+                                            },
+                                            // we won't try to execute system transactions here
+                                            // TODO: there is methods in mempool iterators to mark invalid transactions
+                                            // it might be better to mark them as invalid so we don't try executing the
+                                            // following txs from the adress
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
+                                                l1_fee_failed_txs.push(*evm_tx.hash());
 
-                                working_set_to_discard = sc_workspace;
+                                                working_set_to_discard = working_set.revert().to_revertable();
+                                                continue;
+                                            },
+                                            // we don't call the rule enforcer in the sequencer -- yet at least
+                                            sov_modules_api::SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
+                                        },
+                                    },
+                                };
 
-                                let last_tx =
-                                    evm.get_last_pending_transaction(&mut working_set_to_discard);
-
-                                if let Some(last_tx) = last_tx {
-                                    if last_tx.hash() == *evm_tx.hash() {
-                                        all_txs.push(rlp_tx);
-                                    }
-
-                                    if last_tx.cumulative_gas_used()
-                                        >= block_gas_limit - MIN_TRANSACTION_GAS
-                                    {
-                                        break;
-                                    }
-                                }
+                                // if no errors
+                                // we can include the transaction in the block
+                                working_set_to_discard = working_set.checkpoint().to_revertable();
+                                all_txs.push(rlp_tx);
                             }
-
-                            // before finalize we can get tx hashes that failed due to L1 fees.
-                            // nasty hack to access state
-                            let l1_fee_failed_txs = evm.get_l1_fee_failed_txs(
-                                &mut working_set_to_discard.accessory_state(),
-                            );
 
                             Ok((all_txs, l1_fee_failed_txs))
                         }
@@ -452,12 +481,16 @@ where
                     txs.push(signed_blob);
                     txs_new.push(signed_tx);
 
-                    (batch_workspace, tx_receipts) = self.stf.apply_soft_confirmation_txs(
-                        soft_confirmation_info,
-                        &txs,
-                        &txs_new,
-                        batch_workspace,
-                    );
+                    tx_receipts = self
+                        .stf
+                        .apply_soft_confirmation_txs(
+                            soft_confirmation_info,
+                            &txs,
+                            &txs_new,
+                            &mut batch_workspace,
+                        )
+                        // TODO: handle this error
+                        .expect("dry_run_transactions should have already checked this");
                 }
 
                 // create the unsigned batch with the txs then sign th sc
@@ -843,7 +876,7 @@ where
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
         use digest::Digest;
-        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
+        let raw = borsh::to_vec(&soft_confirmation.get_old_format()).map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);

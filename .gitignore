@@ -1,7 +1,7 @@
 demo-rollup-readme.sh
 *.db
 /target
-
+resources/dbs/
 .idea/
 target-path*
 

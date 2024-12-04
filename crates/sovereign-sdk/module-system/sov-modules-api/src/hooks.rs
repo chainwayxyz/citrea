@@ -1,10 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_core::{AccessoryWorkingSet, Context, Spec, Storage, WorkingSet};
-use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::SoftConfirmationError;
+use sov_rollup_interface::stf::SoftConfirmationHookError;
 
 use crate::transaction::Transaction;
 
@@ -24,7 +25,7 @@ pub trait TxHooks {
         tx: &Transaction<Self::Context>,
         working_set: &mut WorkingSet<Self::Context>,
         arg: &Self::PreArg,
-    ) -> anyhow::Result<Self::PreResult>;
+    ) -> Result<Self::PreResult, SoftConfirmationHookError>;
 
     /// Runs after the tx is dispatched to an appropriate module.
     /// IF this hook returns error rollup panics
@@ -33,27 +34,7 @@ pub trait TxHooks {
         tx: &Transaction<Self::Context>,
         ctx: &Self::Context,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
-}
-
-/// Hooks related to the Sequencer functionality.
-/// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
-/// and is rewarded once a blob of transactions is processed.
-pub trait ApplyBlobHooks<B: BlobReaderTrait> {
-    type Context: Context;
-    type BlobResult;
-
-    /// Runs at the beginning of apply_blob, locks the sequencer bond.
-    /// If this hook returns Err, batch is not applied
-    fn begin_blob_hook(
-        &self,
-        blob: &mut B,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> anyhow::Result<()>;
-
-    /// Executes at the end of apply_blob and rewards or slashes the sequencer
-    /// If this hook returns Err rollup panics
-    fn end_blob_hook(&self, working_set: &mut WorkingSet<Self::Context>) -> anyhow::Result<()>;
+    ) -> Result<(), SoftConfirmationHookError>;
 }
 
 /// Hooks that are executed before and after a soft confirmation is processed.
@@ -67,7 +48,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), SoftConfirmationError>;
+    ) -> Result<(), SoftConfirmationHookError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
     /// If this hook returns Err rollup panics
@@ -75,7 +56,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), SoftConfirmationError>;
+    ) -> Result<(), SoftConfirmationHookError>;
 }
 
 /// Information about the soft confirmation block

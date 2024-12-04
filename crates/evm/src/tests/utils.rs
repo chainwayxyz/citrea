@@ -41,7 +41,7 @@ pub(crate) fn get_evm_with_storage(
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(prover_storage.clone());
     let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
+    evm.genesis(config, &mut working_set);
 
     let mut genesis_state_root = [0u8; 32];
     genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -57,7 +57,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
     let mut evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
+    evm.genesis(config, &mut working_set);
 
     let root = commit(working_set, storage.clone());
 
@@ -148,6 +148,26 @@ pub(crate) fn create_contract_message_with_fee<T: TestContract>(
         )
         .unwrap()
 }
+
+pub(crate) fn create_contract_message_with_fee_and_gas_limit<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+    max_fee_per_gas: u128,
+    gas_limit: u64,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction_with_fee_and_gas_limit(
+            TxKind::Create,
+            contract.byte_code(),
+            nonce,
+            0,
+            max_fee_per_gas,
+            gas_limit,
+        )
+        .unwrap()
+}
+
 pub(crate) fn create_contract_transaction<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,

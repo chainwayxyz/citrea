@@ -132,33 +132,3 @@ impl From<ReadError> for anyhow::Error {
         anyhow::Error::msg(err)
     }
 }
-
-/// General error type in the Module System.
-#[derive(Debug)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
-pub enum ModuleError {
-    /// Custom error thrown by a module.
-    #[cfg_attr(feature = "std", error(transparent))]
-    ModuleError(#[cfg_attr(feature = "std", from)] anyhow::Error),
-}
-
-#[cfg(not(feature = "std"))]
-impl core::fmt::Display for ModuleError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        <ModuleError as core::fmt::Debug>::fmt(self, f)
-    }
-}
-
-#[cfg(all(not(feature = "std"), feature = "sync"))]
-impl From<ModuleError> for anyhow::Error {
-    fn from(err: ModuleError) -> anyhow::Error {
-        anyhow::Error::msg(err)
-    }
-}
-
-#[cfg(not(feature = "std"))]
-impl From<anyhow::Error> for ModuleError {
-    fn from(err: anyhow::Error) -> ModuleError {
-        ModuleError::ModuleError(err)
-    }
-}

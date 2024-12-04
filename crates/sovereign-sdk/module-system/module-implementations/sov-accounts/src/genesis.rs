@@ -1,5 +1,8 @@
-use anyhow::{bail, Result};
-use sov_modules_api::{Context, PublicKey, StateMapAccessor, WorkingSet};
+use core::result::Result;
+
+use sov_modules_api::{
+    Context, PublicKey, SoftConfirmationHookError, StateMapAccessor, WorkingSet,
+};
 
 use crate::{Account, Accounts};
 
@@ -16,23 +19,22 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<()> {
+    ) {
         for pub_key in config.pub_keys.iter() {
             if self.accounts.get(pub_key, working_set).is_some() {
-                bail!("Account already exists")
+                panic!("No account should exist in init_module");
             }
 
-            self.create_default_account(pub_key, working_set)?;
+            self.create_default_account(pub_key, working_set)
+                .expect("Accounts should create account in init_module");
         }
-
-        Ok(())
     }
 
     pub(crate) fn create_default_account(
         &self,
         pub_key: &C::PublicKey,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<Account<C>> {
+    ) -> Result<Account<C>, SoftConfirmationHookError> {
         let default_address = pub_key.to_address();
         self.exit_if_address_exists(&default_address, working_set)?;
 
@@ -51,11 +53,10 @@ impl<C: sov_modules_api::Context> Accounts<C> {
         &self,
         address: &C::Address,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<()> {
-        anyhow::ensure!(
-            self.public_keys.get(address, working_set).is_none(),
-            "Address already exists"
-        );
+    ) -> Result<(), SoftConfirmationHookError> {
+        if self.public_keys.get(address, working_set).is_some() {
+            return Err(SoftConfirmationHookError::SovTxAccountAlreadyExists);
+        }
         Ok(())
     }
 }

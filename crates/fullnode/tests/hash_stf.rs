@@ -1,7 +1,7 @@
 use sha2::Digest;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Context;
 use sov_modules_stf_blueprint::StfBlueprintTrait;
@@ -10,7 +10,7 @@ use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationReceipt, SoftConfirmationResult,
-    StateTransitionFunction,
+    StateTransitionError, StateTransitionFunction,
 };
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Prefix, ProverStorage, Storage};
@@ -79,7 +79,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _offchain_witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<sov_modules_api::WorkingSet<C>, SoftConfirmationError> {
+    ) -> Result<sov_modules_api::WorkingSet<C>, StateTransitionError> {
         unimplemented!()
     }
 
@@ -88,11 +88,11 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _soft_confirmation_info: HookSoftConfirmationInfo,
         _txs: &[Vec<u8>],
         _txs_new: &[Self::Transaction],
-        _batch_workspace: sov_modules_api::WorkingSet<C>,
-    ) -> (
-        sov_modules_api::WorkingSet<C>,
+        _batch_workspace: &mut sov_modules_api::WorkingSet<C>,
+    ) -> Result<
         Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
-    ) {
+        StateTransitionError,
+    > {
         unimplemented!()
     }
 
@@ -109,7 +109,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     ) -> (
         Result<
             SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
-            SoftConfirmationError,
+            StateTransitionError,
         >,
         sov_modules_api::StateCheckpoint<C>,
     ) {
@@ -223,7 +223,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
             Self::Witness,
             Da,
         >,
-        SoftConfirmationError,
+        StateTransitionError,
     > {
         todo!()
     }

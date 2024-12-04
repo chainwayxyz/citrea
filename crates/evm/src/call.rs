@@ -1,10 +1,9 @@
 use core::panic;
 
-use anyhow::Result;
 use reth_primitives::TransactionSignedEcRecovered;
-use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, SpecId};
+use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{native_error, CallResponse, WorkingSet};
+use sov_modules_api::{native_error, CallResponse, SoftConfirmationModuleCallError, WorkingSet};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -113,23 +112,20 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 },
                 receipt,
             };
-            #[cfg(feature = "native")]
-            {
-                self.native_pending_transactions
-                    .push(&pending_transaction, &mut working_set.accessory_state());
-            }
 
             self.pending_transactions.push(pending_transaction);
         }
     }
 
+    // TODO: return module error here and in execute_*
+    // so we don't convert errors twice
     /// Executes a call message.
     pub(crate) fn execute_call(
         &mut self,
         txs: Vec<RlpEvmTransaction>,
         context: &C,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<CallResponse> {
+    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         // use of `self.block_env` is allowed here
 
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
@@ -166,81 +162,46 @@ impl<C: sov_modules_api::Context> Evm<C> {
             &mut citrea_handler_ext,
             cumulative_gas_used,
             &mut self.blob_gas_used,
-        );
+        )?;
 
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
         for (evm_tx_recovered, result) in users_txs.into_iter().zip(results.into_iter()) {
-            match result {
-                Ok(result) => {
-                    // take ownership of result.log() and use into()
-                    let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
-                    let logs_len = logs.len() as u64;
+            // take ownership of result.log() and use into()
+            let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
+            let logs_len = logs.len() as u64;
 
-                    let gas_used = result.gas_used();
-                    cumulative_gas_used += gas_used;
-                    let tx_hash = evm_tx_recovered.hash();
-                    let tx_info = citrea_handler_ext.get_tx_info(tx_hash).unwrap_or_else(|| {
-                        panic!("evm: Could not get associated info for tx: {tx_hash}")
-                    });
+            let gas_used = result.gas_used();
+            cumulative_gas_used += gas_used;
+            let tx_hash = evm_tx_recovered.hash();
+            let tx_info = citrea_handler_ext
+                .get_tx_info(tx_hash)
+                .unwrap_or_else(|| panic!("evm: Could not get associated info for tx: {tx_hash}"));
 
-                    let receipt = Receipt {
-                        receipt: reth_primitives::Receipt {
-                            tx_type: evm_tx_recovered.tx_type(),
-                            success: result.is_success(),
-                            cumulative_gas_used,
-                            logs,
-                        },
-                        gas_used: gas_used as u128,
-                        log_index_start,
-                        l1_diff_size: tx_info.l1_diff_size,
-                    };
-                    log_index_start += logs_len;
-
-                    let pending_transaction = PendingTransaction {
-                        transaction: TransactionSignedAndRecovered {
-                            signer: evm_tx_recovered.signer(),
-                            signed_transaction: evm_tx_recovered.into(),
-                            block_number: block_number.saturating_to(),
-                        },
-                        receipt,
-                    };
-
-                    #[cfg(feature = "native")]
-                    {
-                        self.native_pending_transactions
-                            .push(&pending_transaction, &mut working_set.accessory_state());
-                    }
-
-                    self.pending_transactions.push(pending_transaction);
-                }
-                // Adopted from https://github.com/paradigmxyz/reth/blob/main/crates/payload/basic/src/lib.rs#L884
-                Err(err) => match err {
-                    EVMError::Transaction(_) => {
-                        native_error!("evm: Transaction error: {:?}", err);
-                        // This is a transactional error, so we can skip it without doing anything.
-                        continue;
-                    }
-                    EVMError::Custom(msg) => {
-                        #[cfg(feature = "native")]
-                        if !msg.starts_with("Gas used") {
-                            // not really good way to seperate these transactions but it's the best we can do for now
-                            // TODO: replace this branching with a better one.
-                            self.l1_fee_failed_txs
-                                .push(&evm_tx_recovered.hash(), &mut working_set.accessory_state());
-                        }
-                        // This is a custom error - we need to log it but no need to shutdown the system as of now.
-                        native_error!("evm: Custom error: {:?}", msg);
-                        continue;
-                    }
-                    err => {
-                        native_error!("evm: Transaction error: {:?}", err);
-                        // This is a fatal error, so we need to return it.
-                        return Err(err.into());
-                    }
+            let receipt = Receipt {
+                receipt: reth_primitives::Receipt {
+                    tx_type: evm_tx_recovered.tx_type(),
+                    success: result.is_success(),
+                    cumulative_gas_used,
+                    logs,
                 },
-            }
+                gas_used: gas_used as u128,
+                log_index_start,
+                l1_diff_size: tx_info.l1_diff_size,
+            };
+            log_index_start += logs_len;
+
+            let pending_transaction = PendingTransaction {
+                transaction: TransactionSignedAndRecovered {
+                    signer: evm_tx_recovered.signer(),
+                    signed_transaction: evm_tx_recovered.into(),
+                    block_number: block_number.saturating_to(),
+                },
+                receipt,
+            };
+
+            self.pending_transactions.push(pending_transaction);
         }
         Ok(CallResponse::default())
     }
