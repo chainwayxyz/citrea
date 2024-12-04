@@ -134,7 +134,7 @@ where
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
-        let da_data = DaData::SequencerCommitment(commitment.clone());
+        let da_data = DaData::SequencerCommitment(commitment);
         let (notify, rx) = oneshot::channel();
         let request = SenderWithNotifier { da_data, notify };
         self.da_service
