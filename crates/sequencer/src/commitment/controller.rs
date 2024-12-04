@@ -53,12 +53,19 @@ where
 
         match self.check_min_soft_confirmations(last_committed_l2_height, l2_height) {
             Some(commitment_info) => Ok(Some(commitment_info)),
-            None => Ok(self
-                .check_state_diff_threshold(last_committed_l2_height, l2_height, l2_state_diff)?),
+            None => Ok(self.check_state_diff_threshold(
+                last_committed_l2_height,
+                l2_height,
+                l2_state_diff,
+            )?),
         }
     }
 
-    fn check_min_soft_confirmations(&self, last_committed_l2_height: BatchNumber, current_l2_height: u64) -> Option<CommitmentInfo> {
+    fn check_min_soft_confirmations(
+        &self,
+        last_committed_l2_height: BatchNumber,
+        current_l2_height: u64,
+    ) -> Option<CommitmentInfo> {
         // If the last commitment made is on par with the head
         // soft confirmation, we have already committed the latest block.
         if last_committed_l2_height.0 >= current_l2_height {
@@ -80,7 +87,12 @@ where
         })
     }
 
-    fn check_state_diff_threshold(&mut self, last_committed_l2_height: BatchNumber, current_l2_height: u64, l2_state_diff: StateDiff) -> anyhow::Result<Option<CommitmentInfo>> {
+    fn check_state_diff_threshold(
+        &mut self,
+        last_committed_l2_height: BatchNumber,
+        current_l2_height: u64,
+        l2_state_diff: StateDiff,
+    ) -> anyhow::Result<Option<CommitmentInfo>> {
         let merged_state_diff =
             merge_state_diffs(self.last_state_diff.clone(), l2_state_diff.clone());
         let compressed_state_diff = compress_blob(&borsh::to_vec(&merged_state_diff)?);
