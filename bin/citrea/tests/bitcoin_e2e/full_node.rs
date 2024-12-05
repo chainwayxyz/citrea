@@ -28,7 +28,8 @@ impl TestCase for FullNodeRestartTest {
             .client
             .http_client()
             .get_l2_genesis_state_root()
-            .await?;
+            .await?
+            .unwrap();
 
         full_node.restart(None).await?;
 
@@ -36,7 +37,9 @@ impl TestCase for FullNodeRestartTest {
             .client
             .http_client()
             .get_l2_genesis_state_root()
-            .await?;
+            .await?
+            .unwrap();
+        println!("genesis_state_root_after : {:?}", genesis_state_root_after);
 
         // Verify genesis is not reprocessed
         assert_eq!(genesis_state_root.0, genesis_state_root_after.0);
