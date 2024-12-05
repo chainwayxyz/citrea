@@ -24,6 +24,27 @@ impl TestCase for FullNodeRestartTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let full_node = f.full_node.as_mut().unwrap();
 
+        let genesis_state_root = full_node
+            .client
+            .http_client()
+            .get_head_soft_confirmation()
+            .await?
+            .unwrap()
+            .state_root;
+
+        full_node.restart(None).await?;
+
+        let genesis_state_root_after = full_node
+            .client
+            .http_client()
+            .get_head_soft_confirmation()
+            .await?
+            .unwrap()
+            .state_root;
+
+        // Verify genesis is not reprocessed
+        assert_eq!(genesis_state_root, genesis_state_root_after);
+
         sequencer.client.send_publish_batch_request().await?;
         full_node.wait_for_l2_height(1, None).await?;
 
