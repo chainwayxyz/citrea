@@ -61,8 +61,24 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let dbs_path = &self.ledger_path;
 
-        let column_families_in_db = LedgerDB::list_column_families(dbs_path);
-        // Merge the existing column families in the db with the ones we have in code in LEDGER_TABLES
+        if !dbs_path.join(LEDGER_DB_PATH_SUFFIX).exists() {
+            // If this is the first time the ledger db is being created, then we don't need to run migrations
+            // all migrations up to this point are considered successful
+            let ledger_db =
+                LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files), None)?;
+
+            for migration in self.migrations.iter() {
+                ledger_db
+                    .put_executed_migration(migration.identifier())
+                    .expect(
+                    "Should mark migrations as executed, otherwise, something is seriously wrong",
+                );
+            }
+            return Ok(());
+        }
+
+        let column_families_in_db = LedgerDB::list_column_families(&self.ledger_path);
+
         let all_column_families = LedgerDBMigrator::merge_column_families(column_families_in_db);
 
         let ledger_db = LedgerDB::with_config(
