@@ -238,7 +238,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
-        println!("13");
+
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
@@ -256,7 +256,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             soft_confirmation_tx,
             task_manager,
         )?;
-        println!("14");
 
         Ok(FullNode {
             runner,
