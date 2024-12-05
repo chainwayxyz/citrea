@@ -1,11 +1,12 @@
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use anyhow::Result;
 
 use crate::metrics::{SCHEMADB_ITER_BYTES, SCHEMADB_ITER_LATENCY_SECONDS};
 use crate::schema::{KeyDecoder, Schema, ValueCodec};
-use crate::{SchemaKey, SchemaValue};
+use crate::{duration_to_seconds, SchemaKey, SchemaValue};
 
 /// This defines a type that can be used to seek a [`SchemaIterator`], via
 /// interfaces like [`SchemaIterator::seek`]. Mind you, not all
@@ -96,9 +97,7 @@ where
     }
 
     fn next_impl(&mut self) -> Result<Option<IteratorOutput<S::Key, S::Value>>> {
-        let _timer = SCHEMADB_ITER_LATENCY_SECONDS
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
-            .start_timer();
+        let start = Instant::now();
 
         if !self.db_iter.valid() {
             self.db_iter.status()?;
@@ -109,7 +108,8 @@ where
         let raw_value = self.db_iter.value().expect("db_iter.value() failed.");
         let value_size_bytes = raw_value.len();
         SCHEMADB_ITER_BYTES
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
+            .histogram
+            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
             .observe((raw_key.len() + raw_value.len()) as f64);
 
         let key = <S::Key as KeyDecoder<S>>::decode_key(raw_key)?;
@@ -119,6 +119,12 @@ where
             ScanDirection::Forward => self.db_iter.next(),
             ScanDirection::Backward => self.db_iter.prev(),
         }
+
+        let v = Instant::now().saturating_duration_since(start);
+        let _timer = SCHEMADB_ITER_LATENCY_SECONDS
+            .histogram
+            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
+            .observe(duration_to_seconds(v));
 
         Ok(Some(IteratorOutput {
             key,

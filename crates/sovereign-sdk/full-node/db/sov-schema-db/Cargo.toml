@@ -1,7 +1,7 @@
 [package]
 name = "sov-schema-db"
+license = "Apache-2.0" # This license is inherited from Aptos
 description = "A low level interface transforming RocksDB into a type-oriented data store"
-license = "Apache-2.0"                                                                     # This license is inherited from Aptos 
 
 # Workspace inherited keys
 version = { workspace = true }
@@ -17,18 +17,18 @@ readme = "README.md"
 anyhow = { workspace = true, default-features = true }
 byteorder = { workspace = true, default-features = true, optional = true }
 once_cell = { workspace = true, default-features = true }
-prometheus = { workspace = true }
+prometheus-client = { workspace = true }
 proptest = { workspace = true, optional = true, default-features = true }
 proptest-derive = { workspace = true, optional = true }
 rocksdb = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true, default-features = true }
-thiserror = { workspace = true }
 
 [dev-dependencies]
 byteorder = { workspace = true, default-features = true }
-tempfile = { workspace = true }
 sov-schema-db = { path = ".", features = ["test-utils"] }
+tempfile = { workspace = true }
 
 [features]
 default = []

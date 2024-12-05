@@ -23,6 +23,7 @@ pub mod snapshot;
 pub mod test;
 
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use anyhow::format_err;
 use iterator::ScanDirection;
@@ -131,22 +132,30 @@ impl DB {
     }
 
     fn _get<S: Schema>(&self, schema_key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
-        let _timer = SCHEMADB_GET_LATENCY_SECONDS
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
-            .start_timer();
+        let start = Instant::now();
 
         let k = schema_key.encode_key()?;
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
 
         let result = self.inner.get_pinned_cf(cf_handle, k)?;
         SCHEMADB_GET_BYTES
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
+            .histogram
+            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
             .observe(result.as_ref().map_or(0.0, |v| v.len() as f64));
 
-        result
+        let result = result
             .map(|raw_value| <S::Value as ValueCodec<S>>::decode_value(&raw_value))
             .transpose()
-            .map_err(|err| err.into())
+            .map_err(|err| err.into());
+
+        SCHEMADB_GET_LATENCY_SECONDS
+            .histogram
+            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
+            .observe(duration_to_seconds(
+                Instant::now().saturating_duration_since(start),
+            ));
+
+        result
     }
 
     /// Writes single record.
@@ -250,9 +259,7 @@ impl DB {
     }
 
     fn _write_schemas(&self, batch: SchemaBatch) -> anyhow::Result<()> {
-        let _timer = SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
-            .with_label_values(&[self.name])
-            .start_timer();
+        let start = Instant::now();
         let mut db_batch = rocksdb::WriteBatch::default();
         for (cf_name, rows) in batch.last_writes.iter() {
             let cf_handle = self.get_cf_handle(cf_name)?;
@@ -273,18 +280,30 @@ impl DB {
                 match operation {
                     Operation::Put { value } => {
                         SCHEMADB_PUT_BYTES
-                            .with_label_values(&[cf_name])
+                            .histogram
+                            .get_or_create(&("cf_name", cf_name))
                             .observe((key.len() + value.len()) as f64);
                     }
                     Operation::Delete => {
-                        SCHEMADB_DELETES.with_label_values(&[cf_name]).inc();
+                        SCHEMADB_DELETES
+                            .counter
+                            .get_or_create(&("cf_name", cf_name))
+                            .inc();
                     }
                 }
             }
         }
         SCHEMADB_BATCH_COMMIT_BYTES
-            .with_label_values(&[self.name])
+            .histogram
+            .get_or_create(&("db_name", self.name))
             .observe(serialized_size as f64);
+
+        SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
+            .histogram
+            .get_or_create(&("db_name", self.name))
+            .observe(duration_to_seconds(
+                Instant::now().saturating_duration_since(start),
+            ));
 
         Ok(())
     }
@@ -381,6 +400,13 @@ fn default_write_options() -> rocksdb::WriteOptions {
     let mut opts = rocksdb::WriteOptions::default();
     opts.set_sync(true);
     opts
+}
+
+/// `duration_to_seconds` converts Duration to seconds.
+#[inline]
+pub fn duration_to_seconds(d: Duration) -> f64 {
+    let nanos = f64::from(d.subsec_nanos()) / 1e9;
+    d.as_secs() as f64 + nanos
 }
 
 #[cfg(test)]
