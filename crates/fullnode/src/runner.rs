@@ -283,7 +283,7 @@ where
         };
 
         let receipt =
-            soft_confirmation_to_receipt::<C, _, Da::Spec>(&signed_soft_confirmation, current_spec);
+            soft_confirmation_to_receipt::<C, _, Da::Spec>(signed_soft_confirmation, current_spec);
 
         self.ledger_db
             .commit_soft_confirmation(next_state_root.as_ref(), receipt, tx_bodies)?;

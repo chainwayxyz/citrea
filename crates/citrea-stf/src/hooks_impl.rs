@@ -1,5 +1,3 @@
-use core::result::Result;
-
 use sov_accounts::AccountsTxHook;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,

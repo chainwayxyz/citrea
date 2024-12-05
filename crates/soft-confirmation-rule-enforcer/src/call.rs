@@ -54,16 +54,16 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         context: &C,
         working_set: &mut WorkingSet<C>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
-        if *context.sender() == self.get_authority(working_set) {
-            let mut data = self.data.get(working_set).expect("Data must be set");
-
-            data.max_l2_blocks_per_l1 = max_l2_blocks_per_l1;
-
-            self.data.set(&data, working_set);
-
-            Ok(CallResponse::default())
-        } else {
-            Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized)
+        if *context.sender() != self.get_authority(working_set) {
+            return Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized);
         }
+
+        let mut data = self.data.get(working_set).expect("Data must be set");
+
+        data.max_l2_blocks_per_l1 = max_l2_blocks_per_l1;
+
+        self.data.set(&data, working_set);
+
+        Ok(CallResponse::default())
     }
 }

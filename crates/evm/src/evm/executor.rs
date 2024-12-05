@@ -89,17 +89,17 @@ pub(crate) fn execute_multiple_tx<
 
     let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
 
-    let mut tx_results: Vec<ExecutionResult> = Vec::with_capacity(txs.len());
+    let mut tx_results = Vec::with_capacity(txs.len());
     for (_i, tx) in txs.iter().enumerate() {
-        if tx.signer() == SYSTEM_SIGNER {
-            native_error!("System transaction found in user txs");
-            return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
-        }
-
         #[cfg(feature = "native")]
         let _span =
             trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
                 .entered();
+
+        if tx.signer() == SYSTEM_SIGNER {
+            native_error!("System transaction found in user txs");
+            return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
+        }
 
         if tx.is_eip4844()
             // can unwrap because we checked if it's EIP-4844
@@ -128,17 +128,17 @@ pub(crate) fn execute_multiple_tx<
                     block_gas_limit,
                 },
             );
-        } else {
-            native_trace!("Commiting tx to DB");
-            evm.commit(result_and_state.state);
-            cumulative_gas_used += result_and_state.result.gas_used();
+        }
 
-            if tx.is_eip4844() {
-                *blob_gas_used += tx.blob_gas_used().unwrap();
-            }
+        native_trace!("Commiting tx to DB");
+        evm.commit(result_and_state.state);
+        cumulative_gas_used += result_and_state.result.gas_used();
 
-            tx_results.push(result_and_state.result);
-        };
+        if tx.is_eip4844() {
+            *blob_gas_used += tx.blob_gas_used().unwrap();
+        }
+
+        tx_results.push(result_and_state.result);
     }
 
     Ok(tx_results)

@@ -83,9 +83,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
         assert!(self.pending_transactions.is_empty());
 
         for (tx, result) in system_txs.into_iter().zip(tx_results.into_iter()) {
-            let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
-            let logs_len = logs.len() as u64;
             let gas_used = result.gas_used();
+            let success = result.is_success();
+            let logs = result.into_logs();
+            let logs_len = logs.len() as u64;
             cumulative_gas_used += gas_used;
             let tx_hash = tx.hash();
             let tx_info = citrea_handler_ext
@@ -94,7 +95,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             let receipt = Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: tx.tx_type(),
-                    success: result.is_success(),
+                    success,
                     cumulative_gas_used,
                     logs,
                 },
@@ -117,7 +118,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         }
     }
 
-    // TODO: return module error here and in execute_*
     // so we don't convert errors twice
     /// Executes a call message.
     pub(crate) fn execute_call(
@@ -168,10 +168,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
         for (evm_tx_recovered, result) in users_txs.into_iter().zip(results.into_iter()) {
-            // take ownership of result.log() and use into()
-            let logs: Vec<_> = result.logs().iter().cloned().map(Into::into).collect();
-            let logs_len = logs.len() as u64;
-
             let gas_used = result.gas_used();
             cumulative_gas_used += gas_used;
             let tx_hash = evm_tx_recovered.hash();
@@ -179,10 +175,15 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get_tx_info(tx_hash)
                 .unwrap_or_else(|| panic!("evm: Could not get associated info for tx: {tx_hash}"));
 
+            let success = result.is_success();
+
+            let logs = result.into_logs();
+            let logs_len = logs.len() as u64;
+
             let receipt = Receipt {
                 receipt: reth_primitives::Receipt {
                     tx_type: evm_tx_recovered.tx_type(),
-                    success: result.is_success(),
+                    success,
                     cumulative_gas_used,
                     logs,
                 },
@@ -190,6 +191,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 log_index_start,
                 l1_diff_size: tx_info.l1_diff_size,
             };
+
             log_index_start += logs_len;
 
             let pending_transaction = PendingTransaction {

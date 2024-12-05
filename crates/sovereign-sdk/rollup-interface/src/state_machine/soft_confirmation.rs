@@ -25,9 +25,11 @@ pub struct UnsignedSoftConfirmation<'txs, Tx> {
     timestamp: u64,
 }
 
-/// TODO: doc or find workaround
+/// Old version of UnsignedSoftConfirmation
+/// Used for backwards compatibility
+/// Always use ```UnsignedSoftConfirmation``` instead
 #[derive(BorshSerialize)]
-pub struct OldFormat<'txs> {
+pub struct UnsignedSoftConfirmationV1<'txs> {
     l2_height: u64,
     da_slot_height: u64,
     da_slot_hash: [u8; 32],
@@ -121,25 +123,17 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
     // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
     //   when removing this fn
     // FIXME: ^
-    pub fn pre_fork1_hash<D: Digest>(&self) -> Output<D> {
-        let old = OldFormat {
-            l2_height: self.l2_height,
-            da_slot_height: self.da_slot_height,
-            da_slot_hash: self.da_slot_hash,
-            da_slot_txs_commitment: self.da_slot_txs_commitment,
-            blobs: self.blobs,
-            deposit_data: self.deposit_data.clone(),
-            l1_fee_rate: self.l1_fee_rate,
-            timestamp: self.timestamp,
-        };
-
+    pub fn to_v1_hash<D: Digest>(&self) -> Output<D> {
+        let old = self.to_v1();
         let raw = borsh::to_vec(&old).unwrap();
         D::digest(raw.as_slice())
     }
 
-    /// TODO: Documentation
-    pub fn get_old_format(&self) -> OldFormat<'txs> {
-        OldFormat {
+    /// Convert to old version of UnsignedSoftConfirmation
+    /// Used for backwards compatibility
+    /// Only applicable for pre-fork1
+    pub fn to_v1(&self) -> UnsignedSoftConfirmationV1<'txs> {
+        UnsignedSoftConfirmationV1 {
             l2_height: self.l2_height,
             da_slot_height: self.da_slot_height,
             da_slot_hash: self.da_slot_hash,

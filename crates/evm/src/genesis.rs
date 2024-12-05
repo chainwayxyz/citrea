@@ -1,4 +1,3 @@
-use core::result::Result;
 use std::collections::HashMap;
 
 use alloy_eips::eip1559::BaseFeeParams;

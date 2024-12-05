@@ -83,23 +83,21 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
 }
 
 pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, DS: DaSpec>(
-    soft_confirmation: &SignedSoftConfirmation<'_, Tx>,
+    soft_confirmation: SignedSoftConfirmation<'_, Tx>,
     current_spec: SpecId,
 ) -> SoftConfirmationReceipt<DS> {
-    let mut tx_hashes = vec![];
-
-    if current_spec >= SpecId::Fork1 {
-        soft_confirmation.txs().iter().for_each(|tx| {
-            let digest = tx.compute_digest::<<C as Spec>::Hasher>();
-            let raw_tx_hash: [u8; 32] = digest.into();
-            tx_hashes.push(raw_tx_hash);
-        })
+    let tx_hashes = if current_spec >= SpecId::Fork1 {
+        soft_confirmation
+            .txs()
+            .iter()
+            .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
+            .collect()
     } else {
-        for raw_tx in soft_confirmation.blobs() {
-            let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
-
-            tx_hashes.push(raw_tx_hash);
-        }
+        soft_confirmation
+            .blobs()
+            .iter()
+            .map(|raw_tx| <C as Spec>::Hasher::digest(raw_tx).into())
+            .collect()
     };
 
     SoftConfirmationReceipt {

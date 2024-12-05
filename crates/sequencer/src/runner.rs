@@ -552,8 +552,9 @@ where
                 self.storage_manager.finalize_l2(l2_height)?;
 
                 let tx_bodies = signed_soft_confirmation.blobs().to_owned();
+                let soft_confirmation_hash = signed_soft_confirmation.hash();
                 let receipt = soft_confirmation_to_receipt::<C, _, Da::Spec>(
-                    &signed_soft_confirmation,
+                    signed_soft_confirmation,
                     active_fork_spec,
                 );
                 self.ledger_db.commit_soft_confirmation(
@@ -579,7 +580,7 @@ where
                 );
 
                 self.state_root = next_state_root;
-                self.batch_hash = signed_soft_confirmation.hash();
+                self.batch_hash = soft_confirmation_hash;
 
                 let mut txs_to_remove = self.db_provider.last_block_tx_hashes()?;
                 txs_to_remove.extend(l1_fee_failed_txs);
@@ -874,7 +875,7 @@ where
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
         use digest::Digest;
-        let raw = borsh::to_vec(&soft_confirmation.get_old_format()).map_err(|e| anyhow!(e))?;
+        let raw = borsh::to_vec(&soft_confirmation.to_v1()).map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
