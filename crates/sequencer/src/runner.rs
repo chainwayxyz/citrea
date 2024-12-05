@@ -32,8 +32,8 @@ use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, StateDiff,
-    UnsignedSoftConfirmation, WorkingSet,
+    Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateCheckpoint,
+    StateDiff, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
@@ -41,6 +41,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_state::storage::NativeStorage;
 use sov_stf_runner::InitVariant;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc};
@@ -252,7 +253,8 @@ where
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
-        prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
+        // prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
+        prestate: <C as Spec>::Storage,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
@@ -260,15 +262,20 @@ where
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
-            match self.stf.begin_soft_confirmation(
-                pub_key,
+            let checkpoint = StateCheckpoint::<C>::with_witness(
                 prestate.clone(),
                 Default::default(),
                 Default::default(),
+            );
+            let mut working_set_to_discard = checkpoint.to_revertable();
+
+            match self.stf.begin_soft_confirmation(
+                pub_key,
+                &mut working_set_to_discard,
                 &da_block_header,
                 &soft_confirmation_info,
             ) {
-                Ok(mut working_set_to_discard) => {
+                Ok(_) => {
                     match l2_block_mode {
                         L2BlockMode::NotEmpty => {
                             let mut all_txs = vec![];
@@ -456,16 +463,21 @@ where
             .create_storage_on_l2_height(l2_height)
             .map_err(Into::<anyhow::Error>::into)?;
 
-        // Execute the selected transactions
-        match self.stf.begin_soft_confirmation(
-            &pub_key,
+        let checkpoint = StateCheckpoint::<C>::with_witness(
             prestate.clone(),
             Default::default(),
             Default::default(),
+        );
+        let mut working_set = checkpoint.to_revertable();
+
+        // Execute the selected transactions
+        match self.stf.begin_soft_confirmation(
+            &pub_key,
+            &mut working_set,
             da_block.header(),
             &soft_confirmation_info,
         ) {
-            Ok(mut batch_workspace) => {
+            Ok(_) => {
                 let mut txs = vec![];
                 let mut txs_new = vec![];
 
@@ -476,8 +488,8 @@ where
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
                             call_txs,
                         );
-                    let signed_blob = self.make_blob(raw_message.clone(), &mut batch_workspace)?;
-                    let signed_tx = self.sign_tx(raw_message, &mut batch_workspace)?;
+                    let signed_blob = self.make_blob(raw_message.clone(), &mut working_set)?;
+                    let signed_tx = self.sign_tx(raw_message, &mut working_set)?;
                     txs.push(signed_blob);
                     txs_new.push(signed_tx);
 
@@ -486,7 +498,7 @@ where
                             soft_confirmation_info,
                             &txs,
                             &txs_new,
-                            &mut batch_workspace,
+                            &mut working_set,
                         )
                         // TODO: handle this error
                         .expect("dry_run_transactions should have already checked this");
@@ -518,14 +530,13 @@ where
                     self.state_root.as_ref().to_vec(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
-                    &mut batch_workspace,
+                    &mut working_set,
                 )?;
 
-                let checkpoint = batch_workspace.checkpoint();
                 // Finalize soft confirmation
                 let soft_confirmation_result = self.stf.finalize_soft_confirmation(
                     active_fork_spec,
-                    checkpoint,
+                    working_set,
                     prestate,
                     &mut signed_soft_confirmation,
                 );

@@ -3,7 +3,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec}
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::Context;
+use sov_modules_api::{Context, WorkingSet};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
@@ -74,12 +74,10 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     fn begin_soft_confirmation(
         &mut self,
         _sequencer_public_key: &[u8],
-        _pre_state: Self::PreState,
-        _state_witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
-        _offchain_witness: <<C as sov_modules_api::Spec>::Storage as Storage>::Witness,
+        _working_set: &mut WorkingSet<C>,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<sov_modules_api::WorkingSet<C>, StateTransitionError> {
+    ) -> Result<(), StateTransitionError> {
         unimplemented!()
     }
 
@@ -107,7 +105,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     fn finalize_soft_confirmation(
         &self,
         _current_spec: SpecId,
-        _checkpoint: sov_modules_api::StateCheckpoint<C>,
+        _working_set: sov_modules_api::WorkingSet<C>,
         _pre_state: Self::PreState,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness> {

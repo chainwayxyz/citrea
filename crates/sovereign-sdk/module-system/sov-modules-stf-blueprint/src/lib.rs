@@ -129,12 +129,10 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
     fn begin_soft_confirmation(
         &mut self,
         sequencer_public_key: &[u8],
-        pre_state: Self::PreState,
-        state_witness: <<C as Spec>::Storage as Storage>::Witness,
-        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
+        working_set: &mut WorkingSet<C>,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<WorkingSet<C>, StateTransitionError>;
+    ) -> Result<(), StateTransitionError>;
 
     /// Apply soft confirmation transactions
     fn apply_soft_confirmation_txs(
@@ -159,7 +157,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
     fn finalize_soft_confirmation(
         &self,
         current_spec: SpecId,
-        checkpoint: StateCheckpoint<C>,
+        working_set: WorkingSet<C>,
         pre_state: Self::PreState,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>;
@@ -174,17 +172,10 @@ where
     fn begin_soft_confirmation(
         &mut self,
         sequencer_public_key: &[u8],
-        pre_state: <C>::Storage,
-        state_witness: <<C as Spec>::Storage as Storage>::Witness,
-        offchain_witness: <<C as Spec>::Storage as Storage>::Witness,
+        working_set: &mut WorkingSet<C>,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<WorkingSet<C>, StateTransitionError> {
-        native_debug!("Applying soft confirmation in STF Blueprint");
-
-        let checkpoint = StateCheckpoint::with_witness(pre_state, state_witness, offchain_witness);
-        let batch_workspace = checkpoint.to_revertable();
-
+    ) -> Result<(), StateTransitionError> {
         // check if soft confirmation is coming from our sequencer
         if soft_confirmation_info.sequencer_pub_key() != sequencer_public_key {
             return Err(StateTransitionError::SoftConfirmationError(
@@ -206,7 +197,7 @@ where
             ));
         }
 
-        self.begin_soft_confirmation_inner(batch_workspace, soft_confirmation_info)
+        self.begin_soft_confirmation_inner(working_set, soft_confirmation_info)
             .map_err(StateTransitionError::HookError)
     }
 
@@ -226,7 +217,7 @@ where
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-        batch_workspace: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C>,
     ) -> Result<(), StateTransitionError> {
         let unsigned = UnsignedSoftConfirmation::new(
             soft_confirmation.l2_height(),
@@ -289,7 +280,7 @@ where
             current_spec,
             pre_state_root,
             soft_confirmation,
-            batch_workspace,
+            working_set,
         )
         .map_err(StateTransitionError::HookError)
     }
@@ -297,7 +288,7 @@ where
     fn finalize_soft_confirmation(
         &self,
         _current_spec: SpecId,
-        checkpoint: StateCheckpoint<C>,
+        working_set: WorkingSet<C>,
         pre_state: Self::PreState,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<
@@ -312,7 +303,6 @@ where
         );
 
         let (state_root_transition, witness, offchain_witness, storage, state_diff) = {
-            let working_set = checkpoint.to_revertable();
             // Save checkpoint
             let mut checkpoint = working_set.checkpoint();
 
@@ -453,44 +443,42 @@ where
         // TODO: maybe start checkpointing here
         // TODO: compare diff and make sure removed revert and checkpoints do not braek anything
 
-        match self.begin_soft_confirmation(
+        let checkpoint =
+            StateCheckpoint::<C>::with_witness(pre_state.clone(), state_witness, offchain_witness);
+        let mut working_set = checkpoint.to_revertable();
+
+        native_debug!("Applying soft confirmation in STF Blueprint");
+
+        self.begin_soft_confirmation(
             sequencer_public_key,
-            pre_state.clone(),
-            state_witness,
-            offchain_witness,
+            &mut working_set,
             slot_header,
             &soft_confirmation_info,
-        ) {
-            Ok(mut batch_workspace) => {
-                self.apply_soft_confirmation_txs(
-                    soft_confirmation_info,
-                    soft_confirmation.blobs(),
-                    soft_confirmation.txs(),
-                    &mut batch_workspace,
-                )?;
+        )?;
 
-                self.end_soft_confirmation(
-                    current_spec,
-                    pre_state_root.as_ref().to_vec(),
-                    sequencer_public_key,
-                    soft_confirmation,
-                    &mut batch_workspace,
-                )?;
+        self.apply_soft_confirmation_txs(
+            soft_confirmation_info,
+            soft_confirmation.blobs(),
+            soft_confirmation.txs(),
+            &mut working_set,
+        )?;
 
-                // TODO: can we pass workingset instead of checkpoint
-                let checkpoint = batch_workspace.checkpoint();
-                Ok(self.finalize_soft_confirmation(
-                    current_spec,
-                    checkpoint,
-                    pre_state,
-                    soft_confirmation,
-                ))
-            }
-            Err(err) => {
-                native_warn!("Error applying soft confirmation: {:?}", err);
-                Err(err)
-            }
-        }
+        self.end_soft_confirmation(
+            current_spec,
+            pre_state_root.as_ref().to_vec(),
+            sequencer_public_key,
+            soft_confirmation,
+            &mut working_set,
+        )?;
+
+        Ok(
+            self.finalize_soft_confirmation(
+                current_spec,
+                working_set,
+                pre_state,
+                soft_confirmation,
+            ),
+        )
     }
 
     fn apply_soft_confirmations_from_sequencer_commitments(

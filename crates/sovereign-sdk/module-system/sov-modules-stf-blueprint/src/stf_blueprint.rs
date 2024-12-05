@@ -96,7 +96,6 @@ where
             // Dispatching transactions
 
             // Pre dispatch hook
-            // TODO set the sequencer pubkey
             let hook = RuntimeTxHook {
                 height: soft_confirmation_info.l2_height(),
                 sequencer: tx.pub_key().clone(),
@@ -107,16 +106,11 @@ where
                 .runtime
                 .pre_dispatch_tx_hook(&tx, sc_workspace, &hook)
                 .map_err(StateTransitionError::HookError)?;
-            // Commit changes after pre_dispatch_tx_hook
-            // sc_workspace = sc_workspace.checkpoint().to_revertable();
 
             let _ = self
                 .runtime
                 .dispatch_call(msg, sc_workspace, &ctx)
                 .map_err(StateTransitionError::ModuleCallError)?;
-
-            // We commit after events have been extracted into receipt.
-            // sc_workspace = sc_workspace.checkpoint().to_revertable();
 
             self.runtime
                 .post_dispatch_tx_hook(&tx, &ctx, sc_workspace)
@@ -130,9 +124,9 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn begin_soft_confirmation_inner(
         &mut self,
-        mut batch_workspace: WorkingSet<C>,
+        working_set: &mut WorkingSet<C>,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<WorkingSet<C>, SoftConfirmationHookError> {
+    ) -> Result<(), SoftConfirmationHookError> {
         native_debug!(
             "Beginning soft confirmation #{} from sequencer: 0x{}",
             soft_confirmation_info.l2_height(),
@@ -140,22 +134,8 @@ where
         );
 
         // ApplySoftConfirmationHook: begin
-        if let Err(e) = self
-            .runtime
-            .begin_soft_confirmation_hook(soft_confirmation_info, &mut batch_workspace)
-        {
-            native_error!(
-                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {:?}\nReverting batch workspace",
-                e
-            );
-            batch_workspace.revert();
-            return Err(e);
-        }
-
-        // Write changes from begin_soft_confirmation_hook
-        batch_workspace = batch_workspace.checkpoint().to_revertable();
-
-        Ok(batch_workspace)
+        self.runtime
+            .begin_soft_confirmation_hook(soft_confirmation_info, working_set)
     }
 
     /// Ends the inner processes of applying soft confirmation
@@ -168,14 +148,14 @@ where
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
-        batch_workspace: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C>,
     ) -> Result<(), SoftConfirmationHookError> {
         let hook_soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);
 
         if let Err(e) = self
             .runtime
-            .end_soft_confirmation_hook(hook_soft_confirmation_info, batch_workspace)
+            .end_soft_confirmation_hook(hook_soft_confirmation_info, working_set)
         {
             // TODO: will be covered in https://github.com/Sovereign-Labs/sovereign-sdk/issues/421
             native_error!("Failed on `end_soft_confirmation_hook`: {:?}", e);
