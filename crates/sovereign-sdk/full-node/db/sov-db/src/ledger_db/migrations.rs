@@ -79,7 +79,7 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let column_families_in_db = LedgerDB::list_column_families(self.ledger_path);
 
-        let all_column_families = LedgerDBMigrator::merge_column_families(column_families_in_db);
+        let all_column_families = merge_column_families(column_families_in_db);
 
         let ledger_db = LedgerDB::with_config(
             &RocksdbConfig::new(self.ledger_path, max_open_files),
@@ -180,15 +180,6 @@ impl<'a> LedgerDBMigrator<'a> {
 
         Ok(())
     }
-
-    fn merge_column_families(column_families_in_db: Vec<String>) -> Vec<String> {
-        let column_families: HashSet<String> = LEDGER_TABLES
-            .iter()
-            .map(|&table_name| table_name.to_string())
-            .chain(column_families_in_db)
-            .collect();
-        column_families.into_iter().collect()
-    }
 }
 
 /// Copy DB files from src to dst.
@@ -209,6 +200,15 @@ pub fn copy_db_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn merge_column_families(column_families_in_db: Vec<String>) -> Vec<String> {
+    let column_families: HashSet<String> = LEDGER_TABLES
+        .iter()
+        .map(|&table_name| table_name.to_string())
+        .chain(column_families_in_db)
+        .collect();
+    column_families.into_iter().collect()
 }
 
 /// Completely clears the given path
