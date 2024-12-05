@@ -1,3 +1,5 @@
+pub mod utils;
+
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -6,6 +8,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use tracing::{debug, error};
 
+use super::migrations::utils::{drop_cf, list_column_families};
 use super::LedgerDB;
 use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use crate::rocks_db_config::RocksdbConfig;
@@ -77,7 +80,7 @@ impl<'a> LedgerDBMigrator<'a> {
             return Ok(());
         }
 
-        let column_families_in_db = LedgerDB::list_column_families(self.ledger_path);
+        let column_families_in_db = list_column_families(self.ledger_path);
 
         let all_column_families = merge_column_families(column_families_in_db);
 
@@ -140,7 +143,7 @@ impl<'a> LedgerDBMigrator<'a> {
 
         // Now that the lock is gone drop the tables that were migrated
         for table in tables_to_drop {
-            LedgerDB::drop_cf(
+            drop_cf(
                 &RocksdbConfig::new(temp_db_path.path(), max_open_files),
                 Some(all_column_families.clone()),
                 &table,
