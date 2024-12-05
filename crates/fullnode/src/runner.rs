@@ -28,7 +28,6 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;
-use tokio::signal::unix::{signal as signal_fn, SignalKind};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio::{select, signal};
@@ -378,8 +377,6 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
-        let mut shutdown_stream = signal_fn(SignalKind::terminate()).unwrap();
-
         loop {
             select! {
                 _ = &mut l2_sync_worker => {},
@@ -419,13 +416,6 @@ where
                     }
                 },
                 _ = signal::ctrl_c() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
-                // Use this when SIGINT is not accepted
-                // Get the process id of the node and run `kill -15 <process_id>`
-                _ = shutdown_stream.recv() => {
                     info!("Shutting down");
                     self.task_manager.abort().await;
                     return Ok(());
