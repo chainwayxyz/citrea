@@ -419,13 +419,15 @@ where
                         }
                     }
                 },
-                _ = shutdown_signal.next() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
+                _ = shutdown_signal.next() => return self.shutdown().await,
             }
         }
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        info!("Shutting down");
+        self.task_manager.abort().await;
+        Ok(())
     }
 
     /// Allows to read current state root

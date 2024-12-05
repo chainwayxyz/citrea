@@ -29,9 +29,9 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, ProverService};
+use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
-use tokio::select;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, instrument};
 
@@ -371,13 +371,15 @@ where
                         }
                     }
                 },
-                _ = shutdown_signal.next() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
+                _ = shutdown_signal.next() => return self.shutdown().await,
             }
         }
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        info!("Shutting down");
+        self.task_manager.abort().await;
+        Ok(())
     }
 
     async fn process_l2_block(
