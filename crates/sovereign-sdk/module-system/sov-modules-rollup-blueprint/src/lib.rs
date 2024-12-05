@@ -137,6 +137,6 @@ pub trait RollupBlueprint: Sized + Send + Sync {
 
     /// Creates instance of a LedgerDB.
     fn create_ledger_db(&self, rocksdb_config: &RocksdbConfig) -> LedgerDB {
-        LedgerDB::with_config(rocksdb_config).expect("Ledger DB failed to open")
+        LedgerDB::with_config(rocksdb_config, None).expect("Ledger DB failed to open")
     }
 }

@@ -22,7 +22,7 @@ pub mod snapshot;
 #[cfg(feature = "test-utils")]
 pub mod test;
 
-use std::path::Path;
+use std::{borrow::BorrowMut, path::Path};
 
 use anyhow::format_err;
 use iterator::ScanDirection;
@@ -228,8 +228,9 @@ impl DB {
         self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
     }
 
-    pub fn drop_cf(&self, cf_name: &str) -> anyhow::Result<()> {
-        Ok(self.inner.drop_cf(cf_name)?)
+    /// Drops a column family from the database.
+    pub fn drop_cf(&mut self, cf_name: &str) -> anyhow::Result<()> {
+        Ok(self.inner.borrow_mut().drop_cf(cf_name)?)
     }
 
     /// Inserts a key value pair to a column family.

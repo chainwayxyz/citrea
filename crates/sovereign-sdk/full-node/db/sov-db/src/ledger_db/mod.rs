@@ -110,14 +110,14 @@ impl LedgerDB {
     #[instrument(level = "trace", skip_all, err)]
     pub fn with_config(
         cfg: &RocksdbConfig,
-        column_families: Option<impl Iterator<Item = &str>>,
+        column_families: Option<Vec<&str>>,
     ) -> Result<Self, anyhow::Error> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let raw_options = cfg.as_raw_options(false);
         let inner = DB::open(
             path,
             "ledger-db",
-            column_families.unwrap_or_else(|| LEDGER_TABLES.iter().copied()),
+            column_families.unwrap_or_else(|| LEDGER_TABLES.to_vec()),
             &raw_options,
         )?;
 
@@ -136,18 +136,42 @@ impl LedgerDB {
         })
     }
 
-    pub fn drop_cf(&self, cf_name: &str) -> anyhow::Result<()> {
-        self.db.drop_cf(cf_name)
+    /// Drop a column family from the database
+    pub fn drop_cf(
+        cfg: &RocksdbConfig,
+        column_families: Option<Vec<&str>>,
+        cf_name: &str,
+    ) -> anyhow::Result<()> {
+        let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
+        let raw_options = cfg.as_raw_options(false);
+        let mut inner = DB::open(
+            path,
+            "ledger-db",
+            column_families.unwrap_or_else(|| LEDGER_TABLES.to_vec()),
+            &raw_options,
+        )?;
+
+        inner.drop_cf(cf_name)?;
+
+        Ok(())
     }
 
+    /// Returns the handle foe the column family with the given name
     pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
         self.db.get_cf_handle(cf_name)
     }
 
-    pub fn insert_into_cf_raw(&self, cf_handle: &rocksdb::ColumnFamily, key: &[u8], value: &[u8]) {
-        self.db.put_cf(cf_handle, key, value).unwrap();
+    /// Insert a key-value pair into the database given a column family
+    pub fn insert_into_cf_raw(
+        &self,
+        cf_handle: &rocksdb::ColumnFamily,
+        key: &[u8],
+        value: &[u8],
+    ) -> anyhow::Result<()> {
+        self.db.put_cf(cf_handle, key, value)
     }
 
+    /// Get an iterator for the given column family
     pub fn get_iterator_for_cf<'a>(
         &'a self,
         cf_handle: &rocksdb::ColumnFamily,
