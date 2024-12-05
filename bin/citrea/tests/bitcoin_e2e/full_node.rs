@@ -39,10 +39,9 @@ impl TestCase for FullNodeRestartTest {
             .get_l2_genesis_state_root()
             .await?
             .unwrap();
-        println!("genesis_state_root_after : {:?}", genesis_state_root_after);
 
         // Verify genesis is not reprocessed
-        assert_eq!(genesis_state_root.0, genesis_state_root_after.0);
+        assert_eq!(genesis_state_root, genesis_state_root_after);
 
         sequencer.client.send_publish_batch_request().await?;
         full_node.wait_for_l2_height(1, None).await?;
