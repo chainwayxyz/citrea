@@ -1,16 +1,8 @@
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
-use sov_rollup_interface::fork::{Fork, ForkMigration};
-use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, SoftConfirmationReceipt, StateDiff};
-use sov_rollup_interface::zk::Proof;
-use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
-use tracing::instrument;
+use sov_schema_db::DB;
 
+use crate::ledger_db::{LEDGER_DB_PATH_SUFFIX, LEDGER_TABLES};
 use crate::rocks_db_config::RocksdbConfig;
 
 /// Drop a column family from the database

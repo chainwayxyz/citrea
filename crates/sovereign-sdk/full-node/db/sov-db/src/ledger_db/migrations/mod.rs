@@ -1,3 +1,4 @@
+/// Utilities for mledger db migrations
 pub mod utils;
 
 use std::collections::HashSet;
