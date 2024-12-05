@@ -19,10 +19,9 @@ type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 
 pub async fn start_telemetry_server(
     addr: SocketAddr,
-    registry: Registry,
+    registry: Arc<Registry>,
     cancellation_token: CancellationToken,
 ) -> anyhow::Result<()> {
-    let registry = Arc::new(registry);
     let tcp_listener = TcpListener::bind(addr).await.unwrap();
     let server = hyper::server::conn::http1::Builder::new();
     while let Ok((stream, _)) = tcp_listener.accept().await {
@@ -45,12 +44,10 @@ pub async fn start_telemetry_server(
     Ok(())
 }
 
-/// This function returns a HTTP handler (i.e. another function)
 pub fn make_handler(
     registry: Arc<Registry>,
 ) -> impl Fn(Request<Incoming>) -> Pin<Box<dyn Future<Output = std::io::Result<Response<BoxBody>>> + Send>>
 {
-    // This closure accepts a request and responds with the OpenMetrics encoding of our metrics.
     move |_req: Request<Incoming>| {
         let reg = registry.clone();
 

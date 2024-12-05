@@ -19,6 +19,7 @@ use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
+use prometheus_client::registry::Registry;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
@@ -92,6 +93,8 @@ where
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
+    telemetry_registry: Arc<Registry>,
+    telemetry_targets: TelemetryTargets,
 }
 
 enum L2BlockMode {
@@ -157,6 +160,8 @@ where
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
+        let (telemetry_registry, telemetry_targets) = setup_telemetry();
+
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -178,6 +183,8 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            telemetry_registry,
+            telemetry_targets,
         })
     }
 
@@ -246,15 +253,17 @@ where
         Ok(())
     }
 
-    pub async fn start_telemetry_server(&mut self) -> anyhow::Result<TelemetryTargets> {
-        let (registry, telemetry_targets) = setup_telemetry();
-
+    pub async fn start_telemetry_server(&mut self) {
         let telemetry_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
+        let telemetry_registry = self.telemetry_registry.clone();
         self.task_manager.spawn(|cancellation_token| async move {
-            let _ = start_telemetry_server(telemetry_addr, registry, cancellation_token).await;
+            let _ = start_telemetry_server(
+                telemetry_addr,
+                telemetry_registry.clone(),
+                cancellation_token,
+            )
+            .await;
         });
-
-        Ok(telemetry_targets)
     }
 
     #[allow(clippy::too_many_arguments)]

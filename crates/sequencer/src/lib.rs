@@ -53,6 +53,9 @@ impl<S: RollupBlueprint> Sequencer<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut seq = self.runner;
+        seq.start_telemetry_server()
+            .instrument(tracing::Span::current())
+            .await;
         seq.start_rpc_server(channel, self.rpc_methods)
             .instrument(tracing::Span::current())
             .await
