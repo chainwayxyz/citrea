@@ -94,7 +94,7 @@ where
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
     telemetry_registry: Arc<Registry>,
-    telemetry_targets: TelemetryTargets,
+    telemetry_targets: Arc<TelemetryTargets>,
 }
 
 enum L2BlockMode {
@@ -577,6 +577,9 @@ where
                 txs_to_remove.extend(l1_fee_failed_txs);
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
+                self.telemetry_targets
+                    .mempool_txs
+                    .dec_by(txs_to_remove.len() as i64);
 
                 let account_updates = self.get_account_updates()?;
 
@@ -913,6 +916,7 @@ where
             storage: self.storage.clone(),
             ledger: self.ledger_db.clone(),
             test_mode: self.config.test_mode,
+            telemetry: self.telemetry_targets.clone(),
         }
     }
 

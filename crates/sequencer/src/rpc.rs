@@ -17,6 +17,7 @@ use tracing::{debug, error};
 
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
+use crate::telemetry::TelemetryTargets;
 use crate::utils::recover_raw_transaction;
 
 pub(crate) struct RpcContext<C: sov_modules_api::Context, DB: SequencerLedgerOps> {
@@ -26,6 +27,7 @@ pub(crate) struct RpcContext<C: sov_modules_api::Context, DB: SequencerLedgerOps
     pub storage: C::Storage,
     pub ledger: DB,
     pub test_mode: bool,
+    pub telemetry: Arc<TelemetryTargets>,
 }
 
 #[rpc(client, server)]
@@ -97,6 +99,8 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
             .insert_mempool_tx(hash.to_vec(), rlp_encoded_tx)
         {
             tracing::warn!("Failed to insert mempool tx into db: {:?}", e);
+        } else {
+            self.context.telemetry.mempool_txs.inc();
         }
 
         Ok(hash)

@@ -6,14 +6,14 @@ use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
 
 pub struct TelemetryTargets {
-    mem_pool_tx: Gauge,
+    pub mempool_txs: Gauge,
 }
 
-pub fn setup_telemetry() -> (Arc<Registry>, TelemetryTargets) {
+pub fn setup_telemetry() -> (Arc<Registry>, Arc<TelemetryTargets>) {
     let mut registry = <Registry>::with_prefix("citrea_sequencer");
 
-    let mem_pool_tx: Gauge = Default::default();
-    let inbound_mem_pool_tx: Gauge = Default::default();
+    let mempool_txs: Gauge = Default::default();
+    let inbound_mempool_tx: Gauge = Default::default();
     let dry_run_tx_execution: Histogram = Histogram::new(exponential_buckets(1e-6, 2.0, 22));
     let block_production_tx_execution: Histogram =
         Histogram::new(exponential_buckets(1e-6, 2.0, 22));
@@ -22,9 +22,9 @@ pub fn setup_telemetry() -> (Arc<Registry>, TelemetryTargets) {
     let current_l1_block: Counter = Default::default();
 
     registry.register(
-        "mem_pool_tx",
+        "mempool_tx",
         "How many transactions are currently in the mempool",
-        mem_pool_tx.clone(),
+        mempool_txs.clone(),
     );
     registry.register(
         "dry_run_tx_execution",
@@ -51,5 +51,8 @@ pub fn setup_telemetry() -> (Arc<Registry>, TelemetryTargets) {
         "The current L1 block number which is used to produce L2 blocks",
         current_l1_block.clone(),
     );
-    (Arc::new(registry), TelemetryTargets { mem_pool_tx })
+    (
+        Arc::new(registry),
+        Arc::new(TelemetryTargets { mempool_txs }),
+    )
 }
