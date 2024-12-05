@@ -1,8 +1,6 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use migrations::copy_db_dir_recursive;
-use rocksdb::DBAccess;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
@@ -110,16 +108,13 @@ impl LedgerDB {
     #[instrument(level = "trace", skip_all, err)]
     pub fn with_config(
         cfg: &RocksdbConfig,
-        column_families: Option<Vec<&str>>,
+        column_families: Option<Vec<String>>,
     ) -> Result<Self, anyhow::Error> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let raw_options = cfg.as_raw_options(false);
-        let inner = DB::open(
-            path,
-            "ledger-db",
-            column_families.unwrap_or_else(|| LEDGER_TABLES.to_vec()),
-            &raw_options,
-        )?;
+        let tables = column_families
+            .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
+        let inner = DB::open(path, "ledger-db", tables, &raw_options)?;
 
         let next_item_numbers = ItemNumbers {
             slot_number: Self::last_version_written(&inner, SlotByNumber)?.unwrap_or_default() + 1,
@@ -139,7 +134,7 @@ impl LedgerDB {
     /// Drop a column family from the database
     pub fn drop_cf(
         cfg: &RocksdbConfig,
-        column_families: Option<Vec<&str>>,
+        column_families: Option<Vec<String>>,
         cf_name: &str,
     ) -> anyhow::Result<()> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
@@ -147,13 +142,23 @@ impl LedgerDB {
         let mut inner = DB::open(
             path,
             "ledger-db",
-            column_families.unwrap_or_else(|| LEDGER_TABLES.to_vec()),
+            column_families
+                .unwrap_or_else(|| LEDGER_TABLES.iter().map(|s| s.to_string()).collect()),
             &raw_options,
         )?;
 
         inner.drop_cf(cf_name)?;
 
         Ok(())
+    }
+
+    /// List all column families in the database
+    pub fn list_column_families(path: &Path) -> Vec<String> {
+        rocksdb::DB::list_cf(
+            &rocksdb::Options::default(),
+            path.join(LEDGER_DB_PATH_SUFFIX),
+        )
+        .unwrap()
     }
 
     /// Returns the handle foe the column family with the given name

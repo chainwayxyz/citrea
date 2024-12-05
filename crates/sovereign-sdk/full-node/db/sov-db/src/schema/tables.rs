@@ -74,10 +74,10 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingProvingSessions::table_name(),
     ProverStateDiffs::table_name(),
     LastPrunedBlock::table_name(),
-    // #[cfg(test)]
-    // TestTableOld::table_name(),
-    // #[cfg(test)]
-    // TestTableNew::table_name(),
+    #[cfg(test)]
+    TestTableOld::table_name(),
+    #[cfg(test)]
+    TestTableNew::table_name(),
 ];
 
 /// A list of all tables used by the NativeDB. These tables store

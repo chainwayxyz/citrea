@@ -22,7 +22,7 @@ pub mod snapshot;
 #[cfg(feature = "test-utils")]
 pub mod test;
 
-use std::{borrow::BorrowMut, path::Path};
+use std::path::Path;
 
 use anyhow::format_err;
 use iterator::ScanDirection;
@@ -75,6 +75,12 @@ impl DB {
     /// Returns the path of the DB.
     pub fn path(&self) -> &Path {
         self.inner.path()
+    }
+
+    /// Lists column families in the DB.
+    pub fn list_column_families(&self) -> Vec<String> {
+        rocksdb::DB::list_cf(&rocksdb::Options::default(), self.path())
+            .expect("Should list column families")
     }
 
     /// Open RocksDB with the provided column family descriptors.
@@ -136,7 +142,6 @@ impl DB {
             .start_timer();
 
         let k = schema_key.encode_key()?;
-        println!("Column family name: {:?}", S::COLUMN_FAMILY_NAME);
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
 
         let result = self.inner.get_pinned_cf(cf_handle, k)?;
@@ -230,7 +235,7 @@ impl DB {
 
     /// Drops a column family from the database.
     pub fn drop_cf(&mut self, cf_name: &str) -> anyhow::Result<()> {
-        Ok(self.inner.borrow_mut().drop_cf(cf_name)?)
+        Ok(self.inner.drop_cf(cf_name)?)
     }
 
     /// Inserts a key value pair to a column family.
