@@ -83,14 +83,8 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, Storage, TestSigner, u64) {
 
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, LogsContract::default()),
@@ -130,14 +124,8 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, Storage, TestSigner, u64) {
 
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             publish_event_message(contract_addr, &dev_signer, 3, "hello2".to_string()),
@@ -178,14 +166,8 @@ fn init_evm() -> (Evm<C>, WorkingSet<C>, Storage, TestSigner, u64) {
 
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 7, SimpleStorageContract::default()),
@@ -264,14 +246,8 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<C>, TestSigner) {
         create_contract_transaction(&dev_signer, 0, SimplePayableContract::default());
 
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        1,
-        SovSpecId::Genesis,
-        l1_fee_rate,
-    );
+
+    let context = C::new(sender_address, 1, SovSpecId::Genesis, l1_fee_rate);
 
     evm.call(
         CallMessage {
@@ -341,14 +317,8 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner, u6
 
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, SimpleStorageContract::default()),
@@ -387,14 +357,8 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<C>, TestSigner, u6
 
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SovSpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![create_contract_transaction(
             &dev_signer,

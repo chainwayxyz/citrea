@@ -8,8 +8,6 @@ use crate::{Account, Accounts};
 pub struct AccountsTxHook<C: Context> {
     /// The tx sender address
     pub sender: C::Address,
-    /// The sequencer address
-    pub sequencer: C::Address,
 }
 
 impl<C: Context> Accounts<C> {
@@ -20,24 +18,22 @@ impl<C: Context> Accounts<C> {
     ) -> anyhow::Result<Account<C>> {
         self.accounts
             .get(pubkey, working_set)
-            .map(Ok)
-            .unwrap_or_else(|| self.create_default_account(pubkey, working_set))
+            .map_or_else(|| self.create_default_account(pubkey, working_set), Ok)
     }
 }
 
 impl<C: Context> TxHooks for Accounts<C> {
     type Context = C;
-    type PreArg = C::PublicKey;
+    type PreArg = Option<()>;
     type PreResult = AccountsTxHook<C>;
 
     fn pre_dispatch_tx_hook(
         &self,
         tx: &Transaction<C>,
         working_set: &mut WorkingSet<C>,
-        sequencer: &C::PublicKey,
+        _sequencer: &Self::PreArg,
     ) -> anyhow::Result<AccountsTxHook<C>> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
-        let sequencer = self.get_or_create_default(sequencer, working_set)?;
         let tx_nonce = tx.nonce();
 
         anyhow::ensure!(
@@ -49,7 +45,6 @@ impl<C: Context> TxHooks for Accounts<C> {
 
         Ok(AccountsTxHook {
             sender: sender.addr,
-            sequencer: sequencer.addr,
         })
     }
 

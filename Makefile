@@ -3,17 +3,30 @@ EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
+TEST_FEATURES := --features short-prefix
 
 .PHONY: help
 
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+.PHONY: build-risc0
+build-risc0:
+	$(MAKE) -j 2 -C guests/risc0 all
+
+.PHONY: build-sp1
+build-sp1:
+	$(MAKE) -C guests/sp1 all
+
 .PHONY: build
 build: ## Build the project
 	@cargo build
 
-build-release: ## Build the project in release mode
+.PHONY: build-test
+build-test: ## Build the project
+	@cargo build $(TEST_FEATURES)
+
+build-release: build-risc0 build-sp1 ## Build the project in release mode
 	@cargo build --release
 
 clean: ## Cleans compiled
@@ -36,7 +49,7 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: build $(EF_TESTS_DIR) ## Runs test suite using next test
+test: build-test $(EF_TESTS_DIR) ## Runs test suite using next test
 	RISC0_DEV_MODE=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
@@ -90,7 +103,7 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
-coverage: build $(EF_TESTS_DIR) ## Coverage in lcov format
+coverage: build-test $(EF_TESTS_DIR) ## Coverage in lcov format
 	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format

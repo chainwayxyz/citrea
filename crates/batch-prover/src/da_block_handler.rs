@@ -11,12 +11,14 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::BatchProverConfig;
 use citrea_primitives::compression::compress_blob;
+use citrea_primitives::forks::FORKS;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -61,6 +63,7 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
@@ -94,6 +97,7 @@ where
         sequencer_pub_key: Vec<u8>,
         sequencer_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+        elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         skip_submission_until_l1: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     ) -> Self {
@@ -105,6 +109,7 @@ where
             sequencer_pub_key,
             sequencer_da_pub_key,
             code_commitments_by_spec,
+            elfs_by_spec,
             skip_submission_until_l1,
             l1_block_cache,
             pending_l1_blocks: VecDeque::new(),
@@ -244,6 +249,7 @@ where
                         self.prover_service.clone(),
                         self.ledger_db.clone(),
                         self.code_commitments_by_spec.clone(),
+                        self.elfs_by_spec.clone(),
                         l1_block.clone(),
                         sequencer_commitments,
                         inputs,
@@ -428,6 +434,13 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
 ) -> anyhow::Result<Vec<RangeInclusive<usize>>> {
     let mut result_range = vec![];
 
+    // This assumes that sequencer commitments are sorted.
+    let first_block_number = sequencer_commitments
+        .first()
+        .ok_or(anyhow!("No Sequencer commitments found"))?
+        .l2_start_block_number;
+    let mut current_spec = fork_from_block_number(FORKS, first_block_number).spec_id;
+
     let mut range = 0usize..=0usize;
     let mut cumulative_state_diff = StateDiff::new();
     for (index, sequencer_commitment) in sequencer_commitments.iter().enumerate() {
@@ -456,14 +469,15 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
         // Threshold is checked by comparing compressed state diff size as the data will be compressed before it is written on DA
         let state_diff_threshold_reached = compressed_state_diff.len() > MAX_TXBODY_SIZE;
 
-        if state_diff_threshold_reached {
-            // We've exceeded the limit with the current commitments
-            // so we have to stop at the previous one.
-            result_range.push(range);
+        let commitment_spec =
+            fork_from_block_number(FORKS, sequencer_commitment.l2_end_block_number).spec_id;
 
+        if commitment_spec != current_spec || state_diff_threshold_reached {
+            result_range.push(range);
             // Reset the cumulative state diff to be equal to the current commitment state diff
             cumulative_state_diff = sequencer_commitment_state_diff;
             range = index..=index;
+            current_spec = commitment_spec
         } else {
             range = *range.start()..=index;
         }

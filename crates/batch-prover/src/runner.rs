@@ -64,6 +64,7 @@ where
     phantom: std::marker::PhantomData<C>,
     prover_config: BatchProverConfig,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+    elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager,
@@ -103,6 +104,7 @@ where
         prover_service: Arc<Ps>,
         prover_config: BatchProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+        elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
@@ -150,6 +152,7 @@ where
             phantom: std::marker::PhantomData,
             prover_config,
             code_commitments_by_spec,
+            elfs_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
@@ -171,6 +174,7 @@ where
             l1_block_cache: self.l1_block_cache.clone(),
             prover_service: self.prover_service.clone(),
             code_commitments_by_spec: self.code_commitments_by_spec.clone(),
+            elfs_by_spec: self.elfs_by_spec.clone(),
             phantom_c: std::marker::PhantomData,
             phantom_vm: std::marker::PhantomData,
             phantom_sr: std::marker::PhantomData,
@@ -279,6 +283,7 @@ where
         let sequencer_pub_key = self.sequencer_pub_key.clone();
         let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
+        let elfs_by_spec = self.elfs_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
@@ -298,6 +303,7 @@ where
                 sequencer_pub_key,
                 sequencer_da_pub_key,
                 code_commitments_by_spec,
+                elfs_by_spec,
                 skip_submission_until_l1,
                 l1_block_cache.clone(),
             );

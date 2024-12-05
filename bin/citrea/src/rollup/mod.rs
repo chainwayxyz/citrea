@@ -224,7 +224,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_proof_code_commitments();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -275,6 +275,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
 
+        let da_verifier = self.create_da_verifier();
+
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
             rollup_config.storage.path.as_path(),
@@ -289,10 +291,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_batch_prover_service(
-                prover_config.clone(),
-                &rollup_config,
+            .create_prover_service(
+                prover_config.proving_mode,
                 &da_service,
+                da_verifier,
                 ledger_db.clone(),
             )
             .await;
@@ -348,7 +350,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             }
         };
 
-        let code_commitments_by_spec = self.get_batch_prover_code_commitments_by_spec();
+        let code_commitments_by_spec = self.get_batch_proof_code_commitments();
+        let elfs_by_spec = self.get_batch_proof_elfs();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -371,6 +374,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Arc::new(prover_service),
             prover_config,
             code_commitments_by_spec,
+            elfs_by_spec,
             fork_manager,
             soft_confirmation_tx,
             task_manager,
@@ -403,6 +407,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
+        let da_verifier = self.create_da_verifier();
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -411,10 +416,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_light_client_prover_service(
-                prover_config.clone(),
-                &rollup_config,
+            .create_prover_service(
+                prover_config.proving_mode,
                 &da_service,
+                da_verifier,
                 ledger_db.clone(),
             )
             .await;
@@ -436,9 +441,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             None,
         )?;
 
-        let batch_prover_code_commitments_by_spec =
-            self.get_batch_prover_code_commitments_by_spec();
-        let light_client_prover_code_commitment = self.get_light_client_prover_code_commitment();
+        let batch_prover_code_commitments_by_spec = self.get_batch_proof_code_commitments();
+        let light_client_prover_code_commitment = self.get_light_client_proof_code_commitment();
+        let light_client_prover_elfs = self.get_light_client_elfs();
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -459,6 +464,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             prover_config,
             batch_prover_code_commitments_by_spec,
             light_client_prover_code_commitment,
+            light_client_prover_elfs,
             task_manager,
         )?;
 

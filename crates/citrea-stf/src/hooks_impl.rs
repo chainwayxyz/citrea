@@ -27,21 +27,14 @@ impl<C: Context, Da: DaSpec> TxHooks for Runtime<C, Da> {
     ) -> anyhow::Result<C> {
         let RuntimeTxHook {
             height,
-            sequencer,
             current_spec,
             l1_fee_rate,
+            ..
         } = arg;
-        let AccountsTxHook { sender, sequencer } =
-            self.accounts
-                .pre_dispatch_tx_hook(tx, working_set, sequencer)?;
+        let AccountsTxHook { sender } =
+            self.accounts.pre_dispatch_tx_hook(tx, working_set, &None)?;
 
-        Ok(C::new(
-            sender,
-            sequencer,
-            *height,
-            *current_spec,
-            *l1_fee_rate,
-        ))
+        Ok(C::new(sender, *height, *current_spec, *l1_fee_rate))
     }
 
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all, ret))]
