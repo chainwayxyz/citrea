@@ -104,7 +104,7 @@ impl ExposeRpcMacro {
                 #(#attrs)*
                 impl #impl_generics #rpc_trait_ident #field_path_args for RpcStorage #ty_generics #where_clause {
                     /// Get a working set on top of the current storage
-                    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<#context_type>
+                    fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<<#context_type as Spec>::Storage>
                     {
                         ::sov_modules_api::WorkingSet::new(self.storage.clone())
                     }

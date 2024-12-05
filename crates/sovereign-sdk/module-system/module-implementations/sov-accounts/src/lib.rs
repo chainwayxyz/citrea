@@ -11,7 +11,7 @@ pub use query::*;
 mod tests;
 
 pub use hooks::AccountsTxHook;
-use sov_modules_api::{Context, ModuleInfo, SoftConfirmationModuleCallError, WorkingSet};
+use sov_modules_api::{Context, ModuleInfo, SoftConfirmationModuleCallError, Spec, WorkingSet};
 
 impl<C: Context> FromIterator<C::PublicKey> for AccountConfig<C> {
     fn from_iter<T: IntoIterator<Item = C::PublicKey>>(iter: T) -> Self {
@@ -57,7 +57,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
 
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<<C as Spec>::Storage>) {
         self.init_module(config, working_set)
     }
 
@@ -65,7 +65,7 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
         &mut self,
         _msg: Self::CallMessage,
         _context: &Self::Context,
-        _working_set: &mut WorkingSet<C>,
+        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
         Ok(sov_modules_api::CallResponse::default())
     }

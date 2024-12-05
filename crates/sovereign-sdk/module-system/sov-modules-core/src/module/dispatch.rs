@@ -21,7 +21,7 @@ pub trait DispatchCall: Send + Sync {
     fn dispatch_call(
         &mut self,
         message: Self::Decodable,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         context: &Self::Context,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError>;
 

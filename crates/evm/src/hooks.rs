@@ -25,7 +25,7 @@ where
     pub fn begin_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) {
         // just to be sure, we clear the pending transactions
         // do not ever think about removing this line
@@ -154,7 +154,7 @@ where
     pub fn end_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) {
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
@@ -286,7 +286,7 @@ where
     pub fn finalize_hook(
         &self,
         root_hash: &<<C as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryWorkingSet<C>,
+        accessory_working_set: &mut AccessoryWorkingSet<<C as Spec>::Storage>,
     ) {
         #[cfg(feature = "native")]
         {

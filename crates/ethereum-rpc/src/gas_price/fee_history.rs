@@ -8,7 +8,7 @@ use reth_rpc_types::{
 };
 use schnellru::{ByLength, LruMap};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Spec, WorkingSet};
 
 use super::cache::BlockCache;
 use super::gas_oracle::{effective_gas_tip, MAX_HEADER_HISTORY};
@@ -104,7 +104,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
         &mut self,
         start_block: u64,
         end_block: u64,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Vec<FeeHistoryEntry> {
         let mut result = Vec::new();
         let mut empty_blocks = Vec::new();

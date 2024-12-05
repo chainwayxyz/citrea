@@ -2,18 +2,17 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use citrea_batch_prover::{BatchProver, CitreaBatchProver};
+use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
-use citrea_fullnode::{CitreaFullnode, FullNode};
+use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::runner::{CitreaLightClientProver, LightClientProver};
 use citrea_primitives::forks::FORKS;
-use citrea_sequencer::{CitreaSequencer, Sequencer};
+use citrea_sequencer::CitreaSequencer;
 use sov_db::ledger_db::migrations::LedgerDBMigrator;
-use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::BatchNumber;
-use sov_modules_api::storage::HierarchicalStorageManager;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
@@ -41,7 +40,15 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
-    ) -> Result<Sequencer<Self>, anyhow::Error>
+    ) -> Result<
+        CitreaSequencer<
+            Self::NativeContext,
+            Self::DaService,
+            StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+            LedgerDB,
+        >,
+        anyhow::Error,
+    >
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -137,10 +144,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )
         .unwrap();
 
-        Ok(Sequencer {
-            runner: seq,
-            rpc_methods,
-        })
+        Ok(seq)
     }
 
     /// Creates a new rollup.
@@ -152,7 +156,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaSpec,
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
-    ) -> Result<FullNode<Self>, anyhow::Error>
+    ) -> Result<
+        CitreaFullnode<
+            StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+            Self::DaService,
+            Self::Vm,
+            Self::NativeContext,
+            LedgerDB,
+        >,
+        anyhow::Error,
+    >
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -250,10 +263,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             task_manager,
         )?;
 
-        Ok(FullNode {
-            runner,
-            rpc_methods,
-        })
+        Ok(runner)
     }
 
     /// Creates a new prover
@@ -266,7 +276,17 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: BatchProverConfig,
-    ) -> Result<BatchProver<Self>, anyhow::Error>
+    ) -> Result<
+        CitreaBatchProver<
+            Self::NativeContext,
+            Self::DaService,
+            Self::Vm,
+            StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+            Self::ProverService,
+            LedgerDB,
+        >,
+        anyhow::Error,
+    >
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -380,10 +400,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             task_manager,
         )?;
 
-        Ok(BatchProver {
-            runner,
-            rpc_methods,
-        })
+        Ok(runner)
     }
 
     /// Creates a new light client prover

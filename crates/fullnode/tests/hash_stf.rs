@@ -3,7 +3,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec}
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Context, WorkingSet};
+use sov_modules_api::{Context, Spec, WorkingSet};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
@@ -74,7 +74,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     fn begin_soft_confirmation(
         &mut self,
         _sequencer_public_key: &[u8],
-        _working_set: &mut WorkingSet<C>,
+        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> Result<(), StateTransitionError> {
@@ -86,7 +86,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _soft_confirmation_info: HookSoftConfirmationInfo,
         _txs: &[Vec<u8>],
         _txs_new: &[Self::Transaction],
-        _batch_workspace: &mut sov_modules_api::WorkingSet<C>,
+        _batch_workspace: &mut sov_modules_api::WorkingSet<<C as Spec>::Storage>,
     ) -> Result<(), StateTransitionError> {
         unimplemented!()
     }
@@ -97,7 +97,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _pre_state_root: Vec<u8>,
         _sequencer_public_key: &[u8],
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
-        _batch_workspace: &mut sov_modules_api::WorkingSet<C>,
+        _batch_workspace: &mut sov_modules_api::WorkingSet<<C as Spec>::Storage>,
     ) -> Result<(), StateTransitionError> {
         unimplemented!()
     }
@@ -105,7 +105,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
     fn finalize_soft_confirmation(
         &self,
         _current_spec: SpecId,
-        _working_set: sov_modules_api::WorkingSet<C>,
+        _working_set: sov_modules_api::WorkingSet<<C as Spec>::Storage>,
         _pre_state: Self::PreState,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness> {

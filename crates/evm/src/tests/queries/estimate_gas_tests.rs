@@ -9,7 +9,7 @@ use reth_rpc_eth_types::RpcInvalidTransactionError;
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Spec, WorkingSet};
 
 use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
@@ -438,7 +438,7 @@ fn test_pending_env() {
 
 fn test_estimate_gas_with_input(
     evm: &Evm<C>,
-    working_set: &mut WorkingSet<C>,
+    working_set: &mut WorkingSet<<C as Spec>::Storage>,
     signer: &TestSigner,
     input_data: u32,
 ) -> RpcResult<U256> {
@@ -458,7 +458,7 @@ fn test_estimate_gas_with_input(
 
 fn test_estimate_gas_with_value(
     evm: &Evm<C>,
-    working_set: &mut WorkingSet<C>,
+    working_set: &mut WorkingSet<<C as Spec>::Storage>,
     signer: &TestSigner,
     value: U256,
 ) -> RpcResult<U256> {

@@ -57,11 +57,14 @@ impl BlockchainTestCase {
         &self,
         evm: &mut Evm<DefaultContext>,
         txs: Vec<RlpEvmTransaction>,
-        mut working_set: WorkingSet<DefaultContext>,
+        mut working_set: WorkingSet<ProverStorage<SnapshotManager>>,
         storage: ProverStorage<SnapshotManager>,
         root: &[u8; 32],
         l2_height: u64,
-    ) -> (WorkingSet<DefaultContext>, ProverStorage<SnapshotManager>) {
+    ) -> (
+        WorkingSet<ProverStorage<SnapshotManager>>,
+        ProverStorage<SnapshotManager>,
+    ) {
         let l1_fee_rate = 0;
         // Call begin_soft_confirmation_hook
         let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -85,7 +88,7 @@ impl BlockchainTestCase {
 
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         let root = commit(working_set, storage.clone());
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage.clone());
+        let mut working_set = WorkingSet::new(storage.clone());
         evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
         (working_set, storage)

@@ -18,13 +18,13 @@ use citrea_stf::verifier::StateTransitionVerifier;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
-use sov_modules_api::{Address, Spec, SpecId, Zkvm};
+use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_prover_storage_manager::ProverStorageManager;
+use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
-use sov_state::ZkStorage;
+use sov_state::{ProverStorage, ZkStorage};
 use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
@@ -53,8 +53,6 @@ impl RollupBlueprint for BitcoinRollup {
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
 
-    type StorageManager = ProverStorageManager<BitcoinSpec>;
-
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
 
@@ -71,7 +69,7 @@ impl RollupBlueprint for BitcoinRollup {
     #[instrument(level = "trace", skip_all, err)]
     fn create_rpc_methods(
         &self,
-        storage: &<Self::NativeContext as Spec>::Storage,
+        storage: &ProverStorage<SnapshotManager>,
         ledger_db: &LedgerDB,
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
@@ -108,7 +106,7 @@ impl RollupBlueprint for BitcoinRollup {
     fn create_storage_manager(
         &self,
         rollup_config: &citrea_common::FullNodeConfig<Self::DaConfig>,
-    ) -> Result<Self::StorageManager, anyhow::Error> {
+    ) -> Result<ProverStorageManager<Self::DaSpec>, anyhow::Error> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,

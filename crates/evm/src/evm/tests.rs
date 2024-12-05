@@ -26,8 +26,7 @@ use crate::tests::DEFAULT_CHAIN_ID;
 #[test]
 fn simple_contract_execution_sov_state() {
     let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set: WorkingSet<C> =
-        WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
+    let mut working_set = WorkingSet::new(new_orphan_storage(tmpdir.path()).unwrap());
 
     let evm = Evm::<C>::default();
     let evm_db: EvmDb<'_, C> = evm.get_db(&mut working_set, SpecId::SHANGHAI);

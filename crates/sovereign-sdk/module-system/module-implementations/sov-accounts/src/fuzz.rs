@@ -1,7 +1,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Strategy};
-use sov_modules_api::{Context, Module, PrivateKey, WorkingSet};
+use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 
 use crate::{Account, AccountConfig, Accounts};
 
@@ -72,7 +72,7 @@ where
     /// Creates an arbitrary set of accounts and stores it under `working_set`.
     pub fn arbitrary_workset(
         u: &mut Unstructured<'a>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> arbitrary::Result<Self> {
         let config: AccountConfig<C> = u.arbitrary()?;
         let accounts = Accounts::default();

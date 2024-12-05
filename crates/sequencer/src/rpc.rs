@@ -122,7 +122,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
                 Some(true) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(None),
                 _ => {
                     let evm = Evm::<C>::default();
-                    let mut working_set = WorkingSet::<C>::new(self.context.storage.clone());
+                    let mut working_set = WorkingSet::new(self.context.storage.clone());
 
                     match evm.get_transaction_by_hash(hash, &mut working_set) {
                         Ok(tx) => Ok::<Option<reth_rpc_types::Transaction>, ErrorObjectOwned>(tx),
@@ -137,7 +137,7 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
         debug!("Sequencer: citrea_sendRawDepositTransaction");
 
         let evm = Evm::<C>::default();
-        let mut working_set = WorkingSet::<C>::new(self.context.storage.clone());
+        let mut working_set = WorkingSet::new(self.context.storage.clone());
 
         let dep_tx = self
             .context

@@ -41,7 +41,7 @@ impl GenesisMacro {
                     type Context = #generic_param;
                     type Config = GenesisConfig #type_generics;
 
-                    fn genesis(&self, config: &Self::Config, working_set: &mut sov_modules_api::WorkingSet<<Self as sov_modules_api::Genesis>::Context>) {
+                    fn genesis(&self, config: &Self::Config, working_set: &mut sov_modules_api::WorkingSet<<<Self as sov_modules_api::Genesis>::Context as Spec>::Storage>) {
                         #genesis_fn_body
                     }
                 }

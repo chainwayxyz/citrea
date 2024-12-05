@@ -66,7 +66,7 @@ impl<'a> StructDef<'a> {
                 fn dispatch_call(
                     &mut self,
                     decodable: Self::Decodable,
-                    working_set: &mut ::sov_modules_api::WorkingSet<Self::Context>,
+                    working_set: &mut ::sov_modules_api::WorkingSet<<Self::Context as Spec>::Storage>,
                     context: &Self::Context,
                 ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::SoftConfirmationModuleCallError> {
 
@@ -128,13 +128,13 @@ impl DispatchCallMacro {
         let call_enum_legs = struct_def.create_call_enum_legs();
         let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &serialization_methods);
         let create_dispatch_impl = struct_def.create_call_dispatch();
-
-        Ok(quote::quote! {
+        let x = quote::quote! {
             #[doc="This enum is generated from the underlying Runtime, the variants correspond to call messages from the relevant modules"]
             #call_enum
 
             #create_dispatch_impl
-        }
-        .into())
+        };
+        println!("{}", x.to_string());
+        Ok(x.into())
     }
 }

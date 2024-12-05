@@ -37,7 +37,12 @@ pub trait Module {
 
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
     /// Genesis functions can't return error, they must panic
-    fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<Self::Context>) {}
+    fn genesis(
+        &self,
+        _config: &Self::Config,
+        _working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    ) {
+    }
 
     /// Call allows interaction with the module and invokes state changes.
     /// It takes a module defined type and a context as parameters.
@@ -45,7 +50,7 @@ pub trait Module {
         &mut self,
         _message: Self::CallMessage,
         _context: &Self::Context,
-        _working_set: &mut WorkingSet<Self::Context>,
+        _working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError>;
 }
 
@@ -91,7 +96,11 @@ pub trait Genesis {
     type Config;
 
     /// Initializes the state of the rollup.
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>);
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    );
 }
 
 impl<T> Genesis for T
@@ -102,7 +111,11 @@ where
 
     type Config = <Self as Module>::Config;
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<Self::Context>) {
+    fn genesis(
+        &self,
+        config: &Self::Config,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    ) {
         <Self as Module>::genesis(self, config, working_set)
     }
 }

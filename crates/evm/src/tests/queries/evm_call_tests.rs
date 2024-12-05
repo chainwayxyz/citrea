@@ -9,7 +9,7 @@ use reth_rpc_types::state::AccountOverride;
 use reth_rpc_types::BlockId;
 use revm::primitives::U256;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
 use super::C;
@@ -309,7 +309,7 @@ fn test_eip1559_fields_call() {
 
 fn eth_call_eip1559(
     evm: &Evm<C>,
-    working_set: &mut WorkingSet<C>,
+    working_set: &mut WorkingSet<<C as Spec>::Storage>,
     signer: &TestSigner,
     max_fee_per_gas: Option<u128>,
     max_priority_fee_per_gas: Option<u128>,

@@ -187,9 +187,8 @@ pub use clap;
 pub use sov_modules_core::PrivateKey;
 pub use sov_modules_core::{
     archival_state, runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context,
-    DispatchCall, EncodeCall, Genesis, KernelModule, KernelWorkingSet, Module,
-    ModuleCallJsonSchema, ModuleInfo, ModulePrefix, PublicKey, Signature, Spec, StateCheckpoint,
-    StateReaderAndWriter, VersionedWorkingSet, WorkingSet,
+    DispatchCall, EncodeCall, Genesis, Module, ModuleCallJsonSchema, ModuleInfo, ModulePrefix,
+    PublicKey, Signature, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
@@ -213,7 +212,7 @@ pub mod da {
 }
 
 pub mod storage {
-    pub use sov_rollup_interface::storage::HierarchicalStorageManager;
+    // pub use sov_rollup_interface::storage::HierarchicalStorageManager;
 }
 
 struct ModuleVisitor<'a, C: Context> {

@@ -210,7 +210,7 @@ where
     let rollup_blueprint = S::new(network);
 
     if let Some(sequencer_config) = sequencer_config {
-        let sequencer_rollup = rollup_blueprint
+        let mut sequencer_rollup = rollup_blueprint
             .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
             .await
             .expect("Could not start sequencer");
@@ -218,7 +218,7 @@ where
             error!("Error: {}", e);
         }
     } else if let Some(batch_prover_config) = batch_prover_config {
-        let prover = CitreaRollupBlueprint::create_new_batch_prover(
+        let mut prover = CitreaRollupBlueprint::create_new_batch_prover(
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,
@@ -241,7 +241,7 @@ where
             error!("Error: {}", e);
         }
     } else {
-        let rollup = CitreaRollupBlueprint::create_new_rollup(
+        let mut rollup = CitreaRollupBlueprint::create_new_rollup(
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,

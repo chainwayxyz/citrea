@@ -1,5 +1,7 @@
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::{Context, DaSpec, SoftConfirmationHookError, StateValueAccessor, WorkingSet};
+use sov_modules_api::{
+    Context, DaSpec, SoftConfirmationHookError, Spec, StateValueAccessor, WorkingSet,
+};
 use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -69,7 +71,7 @@ where
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
         let RuleEnforcerData {
             max_l2_blocks_per_l1,

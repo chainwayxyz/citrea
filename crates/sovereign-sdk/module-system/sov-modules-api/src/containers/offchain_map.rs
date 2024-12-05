@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{
-    Context, OffchainWorkingSet, Prefix, StateCodec, StateKeyCodec, StateValueCodec,
-};
+use sov_modules_core::{OffchainWorkingSet, Prefix, StateCodec, StateKeyCodec, StateValueCodec};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use super::traits::StateMapAccessor;
 
@@ -54,13 +53,13 @@ impl<K, V, Codec> OffchainStateMap<K, V, Codec> {
     }
 }
 
-impl<'a, K, V, Codec, C> StateMapAccessor<K, V, Codec, OffchainWorkingSet<'a, C>>
+impl<'a, K, V, Codec, S> StateMapAccessor<K, V, Codec, OffchainWorkingSet<'a, S>>
     for OffchainStateMap<K, V, Codec>
 where
     Codec: StateCodec,
     Codec::KeyCodec: StateKeyCodec<K>,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Storage,
 {
     /// Returns the prefix used when this [`OffchainStateMap`] was created.
     fn prefix(&self) -> &Prefix {
@@ -84,12 +83,12 @@ where
     /// Generates an arbitrary [`OffchainStateMap`] instance.
     ///
     /// See the [`arbitrary`] crate for more information.
-    pub fn arbitrary_working_set<C>(
+    pub fn arbitrary_working_set<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut OffchainWorkingSet<C>,
+        working_set: &mut OffchainWorkingSet<S>,
     ) -> arbitrary::Result<Self>
     where
-        C: Context,
+        S: Storage,
     {
         use arbitrary::Arbitrary;
 

@@ -17,6 +17,7 @@ sov-db = { path = "../../full-node/db/sov-db" }
 sov-ledger-rpc = { path = "../../full-node/sov-ledger-rpc", features = ["server"] }
 sov-modules-api = { path = "../../module-system/sov-modules-api", features = ["native"] }
 sov-modules-stf-blueprint = { path = "../../module-system/sov-modules-stf-blueprint", features = ["native"] }
+sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../../rollup-interface", features = ["native"] }
 sov-stf-runner = { path = "../../full-node/sov-stf-runner", features = ["native"] }
 

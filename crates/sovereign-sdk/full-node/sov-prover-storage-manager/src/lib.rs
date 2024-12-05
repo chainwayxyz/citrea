@@ -6,9 +6,8 @@ use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SnapshotId};
-use sov_state::ProverStorage;
+pub use sov_state::ProverStorage;
 use tracing::{debug, trace};
 
 pub use crate::snapshot_manager::SnapshotManager;
@@ -189,19 +188,11 @@ where
 
         Ok(())
     }
-}
 
-impl<Da: DaSpec> HierarchicalStorageManager<Da> for ProverStorageManager<Da>
-where
-    Da::SlotHash: Hash,
-{
-    type NativeStorage = ProverStorage<SnapshotManager>;
-    type NativeChangeSet = ProverStorage<SnapshotManager>;
-
-    fn create_storage_on_l2_height(
+    pub fn create_storage_on_l2_height(
         &mut self,
         l2_block_height: u64,
-    ) -> anyhow::Result<Self::NativeStorage> {
+    ) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         trace!(
             "Requested native storage for block at height: {:?} ",
             l2_block_height
@@ -224,14 +215,14 @@ where
         self.get_storage_with_snapshot_id(snapshot_id)
     }
 
-    fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
+    pub fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
         self.finalize_by_l2_height(l2_block_height)
     }
 
-    fn save_change_set_l2(
+    pub fn save_change_set_l2(
         &mut self,
         l2_block_height: u64,
-        change_set: Self::NativeChangeSet,
+        change_set: ProverStorage<SnapshotManager>,
     ) -> anyhow::Result<()> {
         let (state_snapshot, native_snapshot) = change_set.freeze()?;
         let snapshot_id = state_snapshot.get_id();
@@ -270,10 +261,10 @@ where
         Ok(())
     }
 
-    fn create_storage_on(
+    pub fn create_storage_on(
         &mut self,
         block_header: &Da::BlockHeader,
-    ) -> anyhow::Result<Self::NativeStorage> {
+    ) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         trace!(
             "Requested native storage for block {:?}",
             block_header.hash()
@@ -328,7 +319,7 @@ where
         self.get_storage_with_snapshot_id(new_snapshot_id)
     }
 
-    fn create_finalized_storage(&mut self) -> anyhow::Result<Self::NativeStorage> {
+    pub fn create_finalized_storage(&mut self) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         self.latest_snapshot_id += 1;
         let snapshot_id = self.latest_snapshot_id;
         debug!("Giving 'finalized' storage ref with id {}", snapshot_id);
@@ -350,10 +341,10 @@ where
         Ok(ProverStorage::with_db_handles(state_db, native_db))
     }
 
-    fn save_change_set(
+    pub fn save_change_set(
         &mut self,
         block_header: &Da::BlockHeader,
-        change_set: Self::NativeChangeSet,
+        change_set: ProverStorage<SnapshotManager>,
     ) -> anyhow::Result<()> {
         if !self.chain_forks.contains_key(&block_header.prev_hash()) {
             anyhow::bail!(
@@ -408,7 +399,7 @@ where
         Ok(())
     }
 
-    fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
+    pub fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
         debug!("Finalizing block: {:?}", block_header.hash());
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();

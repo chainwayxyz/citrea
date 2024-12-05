@@ -19,9 +19,8 @@ use jsonrpsee::RpcModule;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_modules_api::storage::HierarchicalStorageManager;
-use sov_modules_api::{Context, SignedSoftConfirmation, SlotData};
-use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_modules_api::{Context, SignedSoftConfirmation, SlotData, Spec};
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
@@ -39,21 +38,19 @@ use crate::rpc::{create_rpc_module, RpcContext};
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 
-pub struct CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
+pub struct CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
 where
-    C: Context,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
-
+    Stf: StateTransitionFunction<Da::Spec>,
     Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
     stf: Stf,
-    storage_manager: Sm,
+    storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
     state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
@@ -73,17 +70,16 @@ where
     task_manager: TaskManager<()>,
 }
 
-impl<C, Da, Sm, Vm, Stf, Ps, DB> CitreaBatchProver<C, Da, Sm, Vm, Stf, Ps, DB>
+impl<C, Da, Vm, Stf, Ps, DB> CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
 where
-    C: Context,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService<Error = anyhow::Error> + Send + 'static,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Vm: ZkvmHost + 'static,
     Stf: StateTransitionFunction<
-            Da::Spec,
-            PreState = Sm::NativeStorage,
-            ChangeSet = Sm::NativeChangeSet,
-        > + StfBlueprintTrait<C, Da::Spec>,
+        Da::Spec,
+        PreState = ProverStorage<SnapshotManager>,
+        ChangeSet = ProverStorage<SnapshotManager>,
+    >,
     Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: BatchProverLedgerOps + Clone + 'static,
 {
@@ -100,7 +96,7 @@ where
         da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
-        mut storage_manager: Sm,
+        mut storage_manager: ProverStorageManager<Da::Spec>,
         init_variant: InitVariant<Stf, Da::Spec>,
         prover_service: Arc<Ps>,
         prover_config: BatchProverConfig,
@@ -474,6 +470,27 @@ where
             l2_height, self.state_root
         );
 
+        Ok(())
+    }
+
+    /// Only run the rpc.
+    pub async fn run_rpc(
+        &mut self,
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<(), anyhow::Error> {
+        self.start_rpc_server(rpc_methods, None).await?;
+        Ok(())
+    }
+
+    /// Runs the rollup. Reports rpc port to the caller using the provided channel.
+    pub async fn run_and_report_rpc_port(
+        &mut self,
+        channel: Option<oneshot::Sender<SocketAddr>>,
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<(), anyhow::Error> {
+        self.start_rpc_server(rpc_methods, channel).await?;
+
+        self.run().await?;
         Ok(())
     }
 

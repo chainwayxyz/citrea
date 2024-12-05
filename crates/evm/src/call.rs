@@ -3,7 +3,9 @@ use core::panic;
 use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{native_error, CallResponse, SoftConfirmationModuleCallError, WorkingSet};
+use sov_modules_api::{
+    native_error, CallResponse, SoftConfirmationModuleCallError, Spec, WorkingSet,
+};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -36,7 +38,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         cfg: EvmChainConfig,
         block_env: BlockEnv,
         active_spec: SpecId,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) {
         // don't use self.block_env here
         // function is expected to use block_env passed as argument
@@ -124,7 +126,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         &mut self,
         txs: Vec<RlpEvmTransaction>,
         context: &C,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         // use of `self.block_env` is allowed here
 

@@ -17,7 +17,7 @@ pub mod first_test_module {
     }
 
     impl<C: Context> FirstTestStruct<C> {
-        pub fn get_state_value(&self, working_set: &mut WorkingSet<C>) -> u8 {
+        pub fn get_state_value(&self, working_set: &mut WorkingSet<<C as Spec>::Storage>) -> u8 {
             self.state_in_first_struct.get(working_set).unwrap()
         }
     }
@@ -35,7 +35,11 @@ pub mod first_test_module {
         type CallMessage = u8;
         type Event = Event;
 
-        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<C>) {
+        fn genesis(
+            &self,
+            _config: &Self::Config,
+            working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        ) {
             self.state_in_first_struct.set(&1, working_set);
         }
 
@@ -43,7 +47,7 @@ pub mod first_test_module {
             &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
-            working_set: &mut WorkingSet<C>,
+            working_set: &mut WorkingSet<<C as Spec>::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.state_in_first_struct.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -64,7 +68,7 @@ pub mod second_test_module {
     }
 
     impl<C: Context> SecondTestStruct<C> {
-        pub fn get_state_value(&self, working_set: &mut WorkingSet<C>) -> u8 {
+        pub fn get_state_value(&self, working_set: &mut WorkingSet<<C as Spec>::Storage>) -> u8 {
             self.state_in_second_struct.get(working_set).unwrap()
         }
     }

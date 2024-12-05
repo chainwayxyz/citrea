@@ -22,7 +22,7 @@ impl<C: Context> Module for QueryModule<C> {
     type CallMessage = u8;
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<<C as Spec>::Storage>) {
         self.data.set(config, working_set);
     }
 
@@ -30,7 +30,7 @@ impl<C: Context> Module for QueryModule<C> {
         &mut self,
         msg: Self::CallMessage,
         _context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         self.data.set(&msg, working_set);
         Ok(CallResponse::default())
@@ -45,7 +45,10 @@ pub struct QueryResponse {
 #[rpc_gen(client, server, namespace = "queryModule")]
 impl<C: Context> QueryModule<C> {
     #[rpc_method(name = "queryValue")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+    pub fn query_value(
+        &self,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
+    ) -> RpcResult<QueryResponse> {
         Ok(QueryResponse {
             value: self.data.get(working_set),
         })

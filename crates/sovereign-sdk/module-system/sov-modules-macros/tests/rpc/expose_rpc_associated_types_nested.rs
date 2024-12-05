@@ -55,7 +55,11 @@ pub mod my_module {
         type CallMessage = D;
         type Event = ();
 
-        fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
+        fn genesis(
+            &self,
+            config: &Self::Config,
+            working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        ) {
             self.data.set(config, working_set);
         }
 
@@ -63,7 +67,7 @@ pub mod my_module {
             &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
-            working_set: &mut WorkingSet<C>,
+            working_set: &mut WorkingSet<<C as Spec>::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -86,7 +90,10 @@ pub mod my_module {
             C: Context,
         {
             #[rpc_method(name = "queryValue")]
-            pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+            pub fn query_value(
+                &self,
+                working_set: &mut WorkingSet<<C as Spec>::Storage>,
+            ) -> RpcResult<QueryResponse> {
                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
             }

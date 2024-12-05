@@ -36,18 +36,18 @@ use sov_modules_api::{
     StateDiff, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_state::storage::NativeStorage;
+use sov_state::ProverStorage;
 use sov_stf_runner::InitVariant;
 use tokio::signal;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn, Instrument as _};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 
@@ -64,11 +64,10 @@ type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<C, Da, Sm, Stf, DB>
+pub struct CitreaSequencer<C, Da, Stf, DB>
 where
     C: Context,
     Da: DaService,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
@@ -83,7 +82,7 @@ where
     config: SequencerConfig,
     stf: Stf,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
-    storage_manager: Sm,
+    storage_manager: ProverStorageManager<Da::Spec>,
     state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
@@ -99,15 +98,14 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<C, Da, Sm, Stf, DB> CitreaSequencer<C, Da, Sm, Stf, DB>
+impl<C, Da, Stf, DB> CitreaSequencer<C, Da, Stf, DB>
 where
-    C: Context,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
             Da::Spec,
-            PreState = Sm::NativeStorage,
-            ChangeSet = Sm::NativeChangeSet,
+            PreState = ProverStorage<SnapshotManager>,
+            ChangeSet = ProverStorage<SnapshotManager>,
         > + StfBlueprintTrait<C, Da::Spec, Transaction = Transaction<C>>,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
 {
@@ -117,7 +115,7 @@ where
         storage: C::Storage,
         config: SequencerConfig,
         stf: Stf,
-        mut storage_manager: Sm,
+        mut storage_manager: ProverStorageManager<Da::Spec>,
         init_variant: InitVariant<Stf, Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
@@ -254,7 +252,7 @@ where
         >,
         pub_key: &[u8],
         // prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
-        prestate: <C as Spec>::Storage,
+        prestate: ProverStorage<SnapshotManager>,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
@@ -262,7 +260,7 @@ where
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
-            let checkpoint = StateCheckpoint::<C>::with_witness(
+            let checkpoint = StateCheckpoint::with_witness(
                 prestate.clone(),
                 Default::default(),
                 Default::default(),
@@ -463,11 +461,8 @@ where
             .create_storage_on_l2_height(l2_height)
             .map_err(Into::<anyhow::Error>::into)?;
 
-        let checkpoint = StateCheckpoint::<C>::with_witness(
-            prestate.clone(),
-            Default::default(),
-            Default::default(),
-        );
+        let checkpoint =
+            StateCheckpoint::with_witness(prestate.clone(), Default::default(), Default::default());
         let mut working_set = checkpoint.to_revertable();
 
         // Execute the selected transactions
@@ -819,7 +814,7 @@ where
     fn make_blob(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
@@ -835,7 +830,7 @@ where
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> anyhow::Result<Transaction<C>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
@@ -909,7 +904,7 @@ where
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self, working_set: &mut WorkingSet<C>) -> anyhow::Result<u64> {
+    fn get_nonce(&self, working_set: &mut WorkingSet<<C as Spec>::Storage>) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
 
         match accounts
@@ -1044,6 +1039,20 @@ where
         }
         // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
         skipped_blocks
+    }
+
+    /// Runs the sequencer.
+    pub async fn run_and_report_rpc_port(
+        &mut self,
+        channel: Option<oneshot::Sender<SocketAddr>>,
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<(), anyhow::Error> {
+        self.start_rpc_server(channel, rpc_methods)
+            .instrument(tracing::Span::current())
+            .await
+            .unwrap();
+        self.run().await?;
+        Ok(())
     }
 }
 

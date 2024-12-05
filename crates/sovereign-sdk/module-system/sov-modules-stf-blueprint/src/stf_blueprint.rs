@@ -4,7 +4,7 @@ use std::vec;
 use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{native_debug, native_error, Context, DaSpec, SpecId, WorkingSet};
+use sov_modules_api::{native_debug, native_error, Context, DaSpec, Spec, SpecId, WorkingSet};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::stf::{
     SoftConfirmationError, SoftConfirmationHookError, StateTransitionError, StateTransitionFunction,
@@ -58,7 +58,7 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
         txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
-        sc_workspace: &mut WorkingSet<C>,
+        sc_workspace: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Result<(), StateTransitionError> {
         let txs: Vec<_> = if soft_confirmation_info.current_spec >= SpecId::Fork1 {
             txs_new.to_vec()
@@ -124,7 +124,7 @@ where
     #[cfg_attr(feature = "native", instrument(level = "trace", skip_all))]
     pub fn begin_soft_confirmation_inner(
         &mut self,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
         soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> Result<(), SoftConfirmationHookError> {
         native_debug!(
@@ -148,7 +148,7 @@ where
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<<C as Spec>::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
         let hook_soft_confirmation_info =
             HookSoftConfirmationInfo::new(soft_confirmation, pre_state_root, current_spec);

@@ -4,9 +4,6 @@ mod accessory_vec;
 
 mod offchain_map;
 
-mod kernel_value;
-mod versioned_value;
-
 mod map;
 mod value;
 mod vec;
@@ -15,7 +12,6 @@ mod traits;
 pub use accessory_map::AccessoryStateMap;
 pub use accessory_value::AccessoryStateValue;
 pub use accessory_vec::AccessoryStateVec;
-pub use kernel_value::KernelStateValue;
 pub use map::StateMap;
 pub use offchain_map::OffchainStateMap;
 pub use traits::{
@@ -24,7 +20,6 @@ pub use traits::{
 };
 pub use value::StateValue;
 pub use vec::StateVec;
-pub use versioned_value::VersionedStateValue;
 
 #[cfg(test)]
 mod test {
@@ -32,9 +27,6 @@ mod test {
     use sov_mock_da::{MockBlockHeader, MockDaSpec};
     use sov_modules_core::{StateReaderAndWriter, Storage, StorageKey, StorageValue, WorkingSet};
     use sov_prover_storage_manager::ProverStorageManager;
-    use sov_rollup_interface::storage::HierarchicalStorageManager;
-
-    use crate::default_context::DefaultContext;
 
     #[derive(Clone)]
     struct TestCase {
@@ -83,8 +75,7 @@ mod test {
             let prover_storage = storage_manager.create_storage_on(&header).unwrap();
             for test in tests.clone() {
                 {
-                    let mut working_set: WorkingSet<DefaultContext> =
-                        WorkingSet::new(prover_storage.clone());
+                    let mut working_set = WorkingSet::new(prover_storage.clone());
 
                     working_set.set(&test.key, test.value.clone());
                     let (cache, mut witness) = working_set.checkpoint().freeze();
@@ -143,7 +134,7 @@ mod test {
             let header = MockBlockHeader::default();
             let prover_storage = storage_manager.create_storage_on(&header).unwrap();
             assert!(prover_storage.is_empty());
-            let mut storage: WorkingSet<DefaultContext> = WorkingSet::new(prover_storage.clone());
+            let mut storage = WorkingSet::new(prover_storage.clone());
             storage.set(&key, value.clone());
             let (cache, mut witness) = storage.checkpoint().freeze();
             prover_storage

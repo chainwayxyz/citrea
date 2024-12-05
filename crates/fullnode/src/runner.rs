@@ -18,15 +18,15 @@ use jsonrpsee::RpcModule;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_modules_api::{Context, SignedSoftConfirmation};
+use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
@@ -39,19 +39,18 @@ use crate::da_block_handler::L1BlockHandler;
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
+pub struct CitreaFullnode<Stf, Da, Vm, C, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
-    C: Context,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
     stf: Stf,
-    storage_manager: Sm,
+    storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
     state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
@@ -71,18 +70,17 @@ where
     task_manager: TaskManager<()>,
 }
 
-impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
+impl<Stf, Da, Vm, C, DB> CitreaFullnode<Stf, Da, Vm, C, DB>
 where
     Da: DaService<Error = anyhow::Error>,
     Vm: ZkvmHost + Zkvm,
     <Vm as Zkvm>::CodeCommitment: Send,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
             Da::Spec,
-            PreState = Sm::NativeStorage,
-            ChangeSet = Sm::NativeChangeSet,
+            PreState = ProverStorage<SnapshotManager>,
+            ChangeSet = ProverStorage<SnapshotManager>,
         > + StfBlueprintTrait<C, Da::Spec>,
-    C: Context + Send + Sync,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
 {
     /// Creates a new `StateTransitionRunner`.
@@ -98,7 +96,7 @@ where
         da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
-        mut storage_manager: Sm,
+        mut storage_manager: ProverStorageManager<Da::Spec>,
         init_variant: InitVariant<Stf, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
@@ -428,6 +426,26 @@ where
         }
     }
 
+    /// Runs the rollup. Reports rpc port to the caller using the provided channel.
+    pub async fn run_and_report_rpc_port(
+        &mut self,
+        channel: Option<oneshot::Sender<SocketAddr>>,
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<(), anyhow::Error> {
+        self.start_rpc_server(rpc_methods, channel).await;
+
+        self.run().await?;
+        Ok(())
+    }
+
+    /// Only run the rpc.
+    pub async fn run_rpc(
+        &mut self,
+        rpc_methods: jsonrpsee::RpcModule<()>,
+    ) -> Result<(), anyhow::Error> {
+        self.start_rpc_server(rpc_methods, None).await;
+        Ok(())
+    }
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
