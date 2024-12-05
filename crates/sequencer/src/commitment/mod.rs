@@ -79,7 +79,6 @@ where
                         error!("Commitment service soft confirmation channel closed abruptly");
                         return;
                     };
-                    println!("Got height {height}");
 
                     let commitment_controller = self.commitment_controller.clone();
 
