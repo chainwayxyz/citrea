@@ -32,7 +32,6 @@ use sov_stf_runner::{InitVariant, ProverService};
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
-use tokio_stream::StreamExt;
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
@@ -371,7 +370,7 @@ where
                         }
                     }
                 },
-                _ = shutdown_signal.next() => return self.shutdown().await,
+                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
             }
         }
     }
