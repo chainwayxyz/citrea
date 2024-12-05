@@ -1,7 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
 use sov_db::ledger_db::migrations::{LedgerMigration, MigrationName, MigrationVersion};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::LedgerDB;
 
 pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>> {
     static MIGRATIONS: OnceLock<Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>> =

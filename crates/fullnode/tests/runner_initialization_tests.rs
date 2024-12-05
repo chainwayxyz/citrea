@@ -99,8 +99,11 @@ fn initialize_runner(
 
     let da_service = MockDaService::new(address, &da_storage_path);
 
-    let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(rollup_storage_path.as_path(), None)).unwrap();
+    let ledger_db = LedgerDB::with_config(
+        &RocksdbConfig::new(rollup_storage_path.as_path(), None),
+        None,
+    )
+    .unwrap();
 
     let stf = HashStf::new();
 

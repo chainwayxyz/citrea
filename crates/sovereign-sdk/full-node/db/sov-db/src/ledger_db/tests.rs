@@ -30,7 +30,7 @@ impl LedgerMigration for OldToNewMigration {
     fn execute(
         &self,
         ledger_db: sov_rollup_interface::RefCount<LedgerDB>,
-        _max_open_files: Option<i32>,
+        _tables_to_drop: &mut Vec<String>,
     ) -> anyhow::Result<()> {
         let Some(values) = ledger_db.db.get::<TestTableOld>(&())? else {
             return Ok(());
@@ -54,7 +54,7 @@ impl LedgerMigration for FailedOldToNewMigration {
     fn execute(
         &self,
         _ledger_db: sov_rollup_interface::RefCount<LedgerDB>,
-        _max_open_files: Option<i32>,
+        _tables_to_drop: &mut Vec<String>,
     ) -> anyhow::Result<()> {
         Err(anyhow!("Could not fetch data"))
     }

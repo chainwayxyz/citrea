@@ -61,7 +61,7 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let dbs_path = &self.ledger_path;
 
-        let column_families_in_db = LedgerDB::list_column_families(&dbs_path);
+        let column_families_in_db = LedgerDB::list_column_families(dbs_path);
         // Merge the existing column families in the db with the ones we have in code in LEDGER_TABLES
         let all_column_families = LedgerDBMigrator::merge_column_families(column_families_in_db);
 
@@ -169,7 +169,7 @@ impl<'a> LedgerDBMigrator<'a> {
         let column_families: HashSet<String> = LEDGER_TABLES
             .iter()
             .map(|&table_name| table_name.to_string())
-            .chain(column_families_in_db.into_iter())
+            .chain(column_families_in_db)
             .collect();
         column_families.into_iter().collect()
     }

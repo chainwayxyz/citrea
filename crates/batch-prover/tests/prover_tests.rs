@@ -82,7 +82,7 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
     let proof_mode = ProofGenMode::Execute;
 
     let tmpdir = tempfile::tempdir().unwrap();
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None)).unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None), None).unwrap();
     TestProver {
         prover_service: ParallelProverService::new(
             da_service,
