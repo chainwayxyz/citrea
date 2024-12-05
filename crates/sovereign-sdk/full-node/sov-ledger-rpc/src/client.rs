@@ -51,7 +51,7 @@ pub trait Rpc {
 
     /// Gets the L2 genesis state root.
     #[method(name = "getL2GenesisStateRoot")]
-    async fn get_l2_state_root(&self) -> RpcResult<HexHash>;
+    async fn get_l2_genesis_state_root(&self) -> RpcResult<HexHash>;
 
     /// Gets the commitments in the DA slot with the given height.
     #[method(name = "getSequencerCommitmentsOnSlotByNumber")]

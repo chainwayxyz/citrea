@@ -63,9 +63,18 @@ where
         },
     )?;
     rpc.register_blocking_method("ledger_getL2GenesisStateRoot", move |_, ledger, _| {
-        ledger
+        let Some(state_root) = ledger
             .get_l2_genesis_state_root()
-            .map_err(to_ledger_rpc_error)
+            .map_err(to_ledger_rpc_error)?
+        else {
+            return Err(to_ledger_rpc_error("Genesis state root not found"));
+        };
+
+        let v: [u8; 32] = state_root
+            .try_into()
+            .map_err(|_| to_ledger_rpc_error("Wrong state root length"))?;
+
+        Ok(Some(HexHash::from(v)))
     })?;
     rpc.register_blocking_method("ledger_getLastScannedL1Height", move |_, ledger, _| {
         ledger
