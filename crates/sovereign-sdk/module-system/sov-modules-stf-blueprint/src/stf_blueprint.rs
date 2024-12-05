@@ -158,7 +158,7 @@ where
         &mut self,
         mut batch_workspace: WorkingSet<C>,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> (Result<(), SoftConfirmationHookError>, WorkingSet<C>) {
+    ) -> Result<WorkingSet<C>, SoftConfirmationHookError> {
         native_debug!(
             "Beginning soft confirmation #{} from sequencer: 0x{}",
             soft_confirmation_info.l2_height(),
@@ -171,21 +171,17 @@ where
             .begin_soft_confirmation_hook(soft_confirmation_info, &mut batch_workspace)
         {
             native_error!(
-                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {:?}",
+                "Error: The batch was rejected by the 'begin_soft_confirmation_hook'. Skipping batch with error: {:?}\nReverting batch workspace",
                 e
             );
-
-            return (
-                Err(e),
-                // Reverted in apply_soft_confirmation and sequencer
-                batch_workspace,
-            );
+            batch_workspace.revert();
+            return Err(e);
         }
 
         // Write changes from begin_soft_confirmation_hook
         batch_workspace = batch_workspace.checkpoint().to_revertable();
 
-        (Ok(()), batch_workspace)
+        Ok(batch_workspace)
     }
 
     /// Ends the inner processes of applying soft confirmation

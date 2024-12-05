@@ -267,7 +267,7 @@ where
                 &da_block_header,
                 &soft_confirmation_info,
             ) {
-                (Ok(()), mut working_set_to_discard) => {
+                Ok(mut working_set_to_discard) => {
                     match l2_block_mode {
                         L2BlockMode::NotEmpty => {
                             let mut all_txs = vec![];
@@ -314,7 +314,7 @@ where
                                         sov_rollup_interface::stf::StateTransitionError::SoftConfirmationError(soft_confirmation_error) => panic!("Soft confirmation error: {:?}", soft_confirmation_error),
                                         sov_rollup_interface::stf::StateTransitionError::HookError(soft_confirmation_hook_error) => panic!("Hook error: {:?}", soft_confirmation_hook_error),
                                         sov_rollup_interface::stf::StateTransitionError::ModuleCallError(soft_confirmation_module_call_error) => match soft_confirmation_module_call_error {
-                                            // if we are exceeding block gas limit with a transaction 
+                                            // if we are exceeding block gas limit with a transaction
                                             // we should inspect the gas usage and act accordingly
                                             // if there is room for another transaction
                                             // keep trying txs
@@ -367,12 +367,11 @@ where
                         L2BlockMode::Empty => Ok((vec![], vec![])),
                     }
                 }
-                (Err(err), batch_workspace) => {
+                Err(err) => {
                     warn!(
                     "DryRun: Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
                     err
                 );
-                    batch_workspace.revert();
                     Err(anyhow!(
                         "DryRun: Failed to apply begin soft confirmation hook: {:?}",
                         err
@@ -465,7 +464,7 @@ where
             da_block.header(),
             &soft_confirmation_info,
         ) {
-            (Ok(()), mut batch_workspace) => {
+            Ok(mut batch_workspace) => {
                 let mut txs = vec![];
                 let mut txs_new = vec![];
                 let mut tx_receipts = vec![];
@@ -607,12 +606,11 @@ where
                     soft_confirmation_result.state_diff,
                 ))
             }
-            (Err(err), batch_workspace) => {
+            Err(err) => {
                 warn!(
                     "Failed to apply soft confirmation hook: {:?} \n reverting batch workspace",
                     err
                 );
-                batch_workspace.revert();
                 Err(anyhow!(
                     "Failed to apply begin soft confirmation hook: {:?}",
                     err
