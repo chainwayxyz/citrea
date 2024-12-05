@@ -26,7 +26,7 @@ fn main() {
     let mut working_set = &mut sov_modules_api::WorkingSet::new(storage);
     let runtime = &mut Runtime::<C, u32>::default();
     let config = GenesisConfig::new((), (), ());
-    runtime.genesis(&config, working_set).unwrap();
+    runtime.genesis(&config, working_set);
 
     {
         let response = runtime.first.get_state_value(&mut working_set);

@@ -1,8 +1,10 @@
 use jsonrpsee::core::RpcResult;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
+use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, StateValue, WorkingSet,
+    CallResponse, Context, Module, ModuleInfo, SoftConfirmationModuleCallError, StateValue,
+    WorkingSet,
 };
 
 #[derive(ModuleInfo)]
@@ -20,9 +22,8 @@ impl<C: Context> Module for QueryModule<C> {
     type CallMessage = u8;
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
         self.data.set(config, working_set);
-        Ok(())
     }
 
     fn call(
@@ -30,7 +31,7 @@ impl<C: Context> Module for QueryModule<C> {
         msg: Self::CallMessage,
         _context: &Self::Context,
         working_set: &mut WorkingSet<C>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         self.data.set(&msg, working_set);
         Ok(CallResponse::default())
     }

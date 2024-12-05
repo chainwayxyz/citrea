@@ -1,5 +1,7 @@
+use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, StateValue, WorkingSet,
+    CallResponse, Context, Module, ModuleInfo, SoftConfirmationModuleCallError, StateValue,
+    WorkingSet,
 };
 
 pub mod first_test_module {
@@ -33,13 +35,8 @@ pub mod first_test_module {
         type CallMessage = u8;
         type Event = Event;
 
-        fn genesis(
-            &self,
-            _config: &Self::Config,
-            working_set: &mut WorkingSet<C>,
-        ) -> Result<(), Error> {
+        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<C>) {
             self.state_in_first_struct.set(&1, working_set);
-            Ok(())
         }
 
         fn call(
@@ -47,7 +44,7 @@ pub mod first_test_module {
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<C>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.state_in_first_struct.set(&msg, working_set);
             Ok(CallResponse::default())
         }
@@ -83,13 +80,8 @@ pub mod second_test_module {
         type CallMessage = u8;
         type Event = Event;
 
-        fn genesis(
-            &self,
-            _config: &Self::Config,
-            working_set: &mut WorkingSet<Ctx>,
-        ) -> Result<(), Error> {
+        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx>) {
             self.state_in_second_struct.set(&2, working_set);
-            Ok(())
         }
 
         fn call(
@@ -97,7 +89,7 @@ pub mod second_test_module {
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<Ctx>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.state_in_second_struct.set(&msg, working_set);
             Ok(CallResponse::default())
         }
@@ -137,14 +129,9 @@ pub mod third_test_module {
         type CallMessage = OtherGeneric;
         type Event = ();
 
-        fn genesis(
-            &self,
-            _config: &Self::Config,
-            working_set: &mut WorkingSet<Ctx>,
-        ) -> Result<(), Error> {
+        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx>) {
             self.state_in_third_struct
                 .set(&Default::default(), working_set);
-            Ok(())
         }
 
         fn call(
@@ -152,7 +139,7 @@ pub mod third_test_module {
             msg: Self::CallMessage,
             _context: &Self::Context,
             working_set: &mut WorkingSet<Ctx>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.state_in_third_struct.set(&msg, working_set);
             Ok(CallResponse::default())
         }

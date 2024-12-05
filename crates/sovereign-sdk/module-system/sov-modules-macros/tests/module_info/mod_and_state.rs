@@ -33,7 +33,8 @@ pub mod first_test_module {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        {
             todo!()
         }
     }
@@ -70,7 +71,8 @@ mod second_test_module {
             _message: Self::CallMessage,
             _context: &Self::Context,
             _working_set: &mut WorkingSet<Self::Context>,
-        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+        ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
+        {
             todo!()
         }
     }
