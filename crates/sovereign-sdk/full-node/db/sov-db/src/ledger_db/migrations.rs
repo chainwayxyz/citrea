@@ -77,7 +77,7 @@ impl<'a> LedgerDBMigrator<'a> {
             return Ok(());
         }
 
-        let column_families_in_db = LedgerDB::list_column_families(&self.ledger_path);
+        let column_families_in_db = LedgerDB::list_column_families(self.ledger_path);
 
         let all_column_families = LedgerDBMigrator::merge_column_families(column_families_in_db);
 
