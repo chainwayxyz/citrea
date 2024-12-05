@@ -27,23 +27,23 @@ impl TestCase for FullNodeRestartTest {
         let genesis_state_root = full_node
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_l2_state_root()
             .await?
-            .unwrap()
-            .state_root;
+            .unwrap();
 
+        println!("genesis_state_root : {:?}", genesis_state_root);
         full_node.restart(None).await?;
 
         let genesis_state_root_after = full_node
             .client
             .http_client()
-            .get_head_soft_confirmation()
+            .get_l2_state_root()
             .await?
-            .unwrap()
-            .state_root;
+            .unwrap();
+        println!("genesis_state_root_after : {:?}", genesis_state_root_after);
 
         // Verify genesis is not reprocessed
-        assert_eq!(genesis_state_root, genesis_state_root_after);
+        assert_eq!(genesis_state_root.0, genesis_state_root_after.0);
 
         sequencer.client.send_publish_batch_request().await?;
         full_node.wait_for_l2_height(1, None).await?;
