@@ -44,10 +44,10 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitVariant;
 use tokio::signal;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument, trace, warn, Instrument as _};
+use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 
@@ -181,8 +181,8 @@ where
 
     pub async fn start_rpc_server(
         &mut self,
-        channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
         methods: RpcModule<()>,
+        channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
     ) -> anyhow::Result<()> {
         let methods = self.register_rpc_methods(methods).await?;
 
@@ -1039,20 +1039,6 @@ where
         }
         // Missed DA blocks means that we produce n - 1 empty blocks, 1 per missed DA block.
         skipped_blocks
-    }
-
-    /// Runs the sequencer.
-    pub async fn run_and_report_rpc_port(
-        &mut self,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-        rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<(), anyhow::Error> {
-        self.start_rpc_server(channel, rpc_methods)
-            .instrument(tracing::Span::current())
-            .await
-            .unwrap();
-        self.run().await?;
-        Ok(())
     }
 }
 

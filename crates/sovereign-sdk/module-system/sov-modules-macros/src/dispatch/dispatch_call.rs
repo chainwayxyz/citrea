@@ -128,13 +128,12 @@ impl DispatchCallMacro {
         let call_enum_legs = struct_def.create_call_enum_legs();
         let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &serialization_methods);
         let create_dispatch_impl = struct_def.create_call_dispatch();
-        let x = quote::quote! {
+
+        Ok(quote::quote! {
             #[doc="This enum is generated from the underlying Runtime, the variants correspond to call messages from the relevant modules"]
             #call_enum
 
             #create_dispatch_impl
-        };
-        println!("{}", x.to_string());
-        Ok(x.into())
+        }.into())
     }
 }

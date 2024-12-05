@@ -426,26 +426,6 @@ where
         }
     }
 
-    /// Runs the rollup. Reports rpc port to the caller using the provided channel.
-    pub async fn run_and_report_rpc_port(
-        &mut self,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-        rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<(), anyhow::Error> {
-        self.start_rpc_server(rpc_methods, channel).await;
-
-        self.run().await?;
-        Ok(())
-    }
-
-    /// Only run the rpc.
-    pub async fn run_rpc(
-        &mut self,
-        rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<(), anyhow::Error> {
-        self.start_rpc_server(rpc_methods, None).await;
-        Ok(())
-    }
     /// Allows to read current state root
     pub fn get_state_root(&self) -> &Stf::StateRoot {
         &self.state_root
