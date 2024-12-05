@@ -5,6 +5,10 @@ use sov_db::schema::types::BatchNumber;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::stf::StateDiff;
+use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
@@ -76,4 +80,30 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
         }
     }
     false
+}
+
+pub async fn create_shutdown_signal() -> impl futures::Stream<Item = ()> {
+    let (tx, rx) = mpsc::channel(1);
+
+    // Clone the sender for each task
+    let tx_ctrl_c = tx.clone();
+    let tx_term = tx.clone();
+
+    // Listen for SIGINT
+    tokio::spawn(async move {
+        if signal::ctrl_c().await.is_ok() {
+            let _ = tx_ctrl_c.send(()).await;
+        }
+    });
+
+    // Listen for SIGTERM
+    tokio::spawn(async move {
+        if let Ok(mut term_signal) = signal(SignalKind::terminate()) {
+            while term_signal.recv().await.is_some() {
+                let _ = tx_term.send(()).await;
+            }
+        }
+    });
+
+    ReceiverStream::new(rx)
 }

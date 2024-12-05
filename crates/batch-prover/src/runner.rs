@@ -10,6 +10,7 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::utils::create_shutdown_signal;
 use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -28,10 +29,10 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{InitVariant, ProverService};
-use tokio::signal::unix::{signal as signal_fn, SignalKind};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
-use tokio::{select, signal};
+use tokio::select;
+use tokio_stream::StreamExt;
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
@@ -330,7 +331,7 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
-        let mut shutdown_stream = signal_fn(SignalKind::terminate()).unwrap();
+        let mut shutdown_signal = create_shutdown_signal().await;
 
         loop {
             select! {
@@ -370,14 +371,7 @@ where
                         }
                     }
                 },
-                _ = signal::ctrl_c() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
-                // Use this when SIGINT is not accepted
-                // Get the process id of the node and run `kill -15 <process_id>`
-                _ = shutdown_stream.recv() => {
+                _ = shutdown_signal.next() => {
                     info!("Shutting down");
                     self.task_manager.abort().await;
                     return Ok(());

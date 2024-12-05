@@ -108,6 +108,7 @@ schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
 tokio = { version = "1.40", features = ["full"] }
 tokio-util = { version = "0.7.12", features = ["rt"] }
+tokio-stream = "0.1.16"
 num_cpus = "1.0"
 
 # Risc0 dependencies
