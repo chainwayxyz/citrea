@@ -2,9 +2,13 @@ use std::collections::{HashMap, HashSet};
 
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::BatchNumber;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_modules_api::{Context, Spec};
+use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
+use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
-use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff, TransactionDigest};
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
@@ -76,4 +80,40 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
         }
     }
     false
+}
+
+pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, DS: DaSpec>(
+    soft_confirmation: &SignedSoftConfirmation<'_, Tx>,
+    current_spec: SpecId,
+) -> SoftConfirmationReceipt<DS> {
+    let mut tx_hashes = vec![];
+
+    if current_spec >= SpecId::Fork1 {
+        soft_confirmation.txs().iter().for_each(|tx| {
+            let digest = tx.compute_digest::<<C as Spec>::Hasher>();
+            let raw_tx_hash: [u8; 32] = digest.into();
+            tx_hashes.push(raw_tx_hash);
+        })
+    } else {
+        for raw_tx in soft_confirmation.blobs() {
+            let raw_tx_hash = <C as Spec>::Hasher::digest(raw_tx).into();
+
+            tx_hashes.push(raw_tx_hash);
+        }
+    };
+
+    SoftConfirmationReceipt {
+        l2_height: soft_confirmation.l2_height(),
+        hash: soft_confirmation.hash(),
+        prev_hash: soft_confirmation.prev_hash(),
+        da_slot_height: soft_confirmation.da_slot_height(),
+        da_slot_hash: soft_confirmation.da_slot_hash().into(),
+        da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
+        l1_fee_rate: soft_confirmation.l1_fee_rate(),
+        tx_hashes,
+        deposit_data: soft_confirmation.deposit_data().to_vec(),
+        timestamp: soft_confirmation.timestamp(),
+        soft_confirmation_signature: soft_confirmation.signature().to_vec(),
+        pub_key: soft_confirmation.pub_key().to_vec(),
+    }
 }

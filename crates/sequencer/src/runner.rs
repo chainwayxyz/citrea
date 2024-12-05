@@ -8,6 +8,7 @@ use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
@@ -302,7 +303,7 @@ where
                                 let mut working_set =
                                     working_set_to_discard.checkpoint().to_revertable();
 
-                                let _ = match self.stf.apply_soft_confirmation_txs(
+                                match self.stf.apply_soft_confirmation_txs(
                                     soft_confirmation_info.clone(),
                                     &txs,
                                     &txs_new,
@@ -467,7 +468,6 @@ where
             Ok(mut batch_workspace) => {
                 let mut txs = vec![];
                 let mut txs_new = vec![];
-                let mut tx_receipts = vec![];
 
                 let evm_txs_count = txs_to_run.len();
                 if evm_txs_count > 0 {
@@ -481,8 +481,7 @@ where
                     txs.push(signed_blob);
                     txs_new.push(signed_tx);
 
-                    tx_receipts = self
-                        .stf
+                    self.stf
                         .apply_soft_confirmation_txs(
                             soft_confirmation_info,
                             &txs,
@@ -514,28 +513,23 @@ where
                     self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
                 };
 
-                let (soft_confirmation_receipt, checkpoint) = self.stf.end_soft_confirmation(
+                self.stf.end_soft_confirmation(
                     active_fork_spec,
                     self.state_root.as_ref().to_vec(),
                     self.sequencer_pub_key.as_ref(),
                     &mut signed_soft_confirmation,
-                    tx_receipts,
-                    batch_workspace,
-                );
+                    &mut batch_workspace,
+                )?;
 
-                let soft_confirmation_receipt = soft_confirmation_receipt?;
-
+                let checkpoint = batch_workspace.checkpoint();
                 // Finalize soft confirmation
                 let soft_confirmation_result = self.stf.finalize_soft_confirmation(
                     active_fork_spec,
-                    soft_confirmation_receipt,
                     checkpoint,
                     prestate,
                     &mut signed_soft_confirmation,
                 );
                 let state_root_transition = soft_confirmation_result.state_root_transition;
-
-                let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
                 if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
                     bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
@@ -558,6 +552,10 @@ where
                 self.storage_manager.finalize_l2(l2_height)?;
 
                 let tx_bodies = signed_soft_confirmation.blobs().to_owned();
+                let receipt = soft_confirmation_to_receipt::<C, _, Da::Spec>(
+                    &signed_soft_confirmation,
+                    active_fork_spec,
+                );
                 self.ledger_db.commit_soft_confirmation(
                     next_state_root.as_ref(),
                     receipt,

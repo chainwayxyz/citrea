@@ -93,7 +93,7 @@ pub struct ApplySequencerCommitmentsOutput<StateRoot> {
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SoftConfirmationReceipt<T, DS: DaSpec> {
+pub struct SoftConfirmationReceipt<DS: DaSpec> {
     /// L2 block height
     pub l2_height: u64,
     /// DA layer block number
@@ -107,7 +107,7 @@ pub struct SoftConfirmationReceipt<T, DS: DaSpec> {
     /// The canonical hash of the previous batch
     pub prev_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
-    pub tx_receipts: Vec<TransactionReceipt<T>>,
+    pub tx_hashes: Vec<[u8; 32]>,
     /// Soft confirmation signature computed from borsh serialization of da_slot_height, da_slot_hash, pre_state_root, txs
     pub soft_confirmation_signature: Vec<u8>,
     /// Sequencer public key
@@ -157,7 +157,7 @@ pub struct StateRootTransition<Root> {
 /// - T - generic for transaction receipt contents
 /// - W - generic for witness
 /// - Da - generic for DA layer
-pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
+pub struct SoftConfirmationResult<S, Cs, W> {
     /// Contains state root before and after applying txs
     pub state_root_transition: StateRootTransition<S>,
     /// Container for all state alterations that happened during soft confirmation execution
@@ -168,9 +168,6 @@ pub struct SoftConfirmationResult<S, Cs, T, W, Da: DaSpec> {
     pub offchain_witness: W,
     /// State diff after applying the whole block
     pub state_diff: StateDiff,
-    /// soft confirmation receipt
-    /// This is the receipt that is stored in the database
-    pub soft_confirmation_receipt: SoftConfirmationReceipt<T, Da>,
 }
 
 /// Transaction should provide its hash in order to put Receipt by hash.
@@ -299,13 +296,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         slot_header: &Da::BlockHeader,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
-        SoftConfirmationResult<
-            Self::StateRoot,
-            Self::ChangeSet,
-            Self::TxReceiptContents,
-            Self::Witness,
-            Da,
-        >,
+        SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>,
         StateTransitionError,
     >;
 

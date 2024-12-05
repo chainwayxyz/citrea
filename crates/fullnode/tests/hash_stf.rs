@@ -9,8 +9,8 @@ use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationReceipt, SoftConfirmationResult,
-    StateTransitionError, StateTransitionFunction,
+    ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationResult, StateTransitionError,
+    StateTransitionFunction,
 };
 use sov_state::storage::{NativeStorage, StorageKey, StorageValue};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Prefix, ProverStorage, Storage};
@@ -89,10 +89,7 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _txs: &[Vec<u8>],
         _txs_new: &[Self::Transaction],
         _batch_workspace: &mut sov_modules_api::WorkingSet<C>,
-    ) -> Result<
-        Vec<sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>>,
-        StateTransitionError,
-    > {
+    ) -> Result<(), StateTransitionError> {
         unimplemented!()
     }
 
@@ -102,34 +99,18 @@ impl<C: Context, Da: DaSpec> StfBlueprintTrait<C, Da> for HashStf {
         _pre_state_root: Vec<u8>,
         _sequencer_public_key: &[u8],
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
-        _tx_receipts: Vec<
-            sov_modules_stf_blueprint::TransactionReceipt<sov_modules_stf_blueprint::TxEffect>,
-        >,
-        _batch_workspace: sov_modules_api::WorkingSet<C>,
-    ) -> (
-        Result<
-            SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
-            StateTransitionError,
-        >,
-        sov_modules_api::StateCheckpoint<C>,
-    ) {
+        _batch_workspace: &mut sov_modules_api::WorkingSet<C>,
+    ) -> Result<(), StateTransitionError> {
         unimplemented!()
     }
 
     fn finalize_soft_confirmation(
         &self,
         _current_spec: SpecId,
-        _sc_receipt: SoftConfirmationReceipt<sov_modules_stf_blueprint::TxEffect, Da>,
         _checkpoint: sov_modules_api::StateCheckpoint<C>,
         _pre_state: Self::PreState,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
-    ) -> SoftConfirmationResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::TxReceiptContents,
-        Self::Witness,
-        Da,
-    > {
+    ) -> SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness> {
         unimplemented!()
     }
 }
@@ -216,13 +197,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for HashStf {
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
-        SoftConfirmationResult<
-            Self::StateRoot,
-            Self::ChangeSet,
-            Self::TxReceiptContents,
-            Self::Witness,
-            Da,
-        >,
+        SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>,
         StateTransitionError,
     > {
         todo!()

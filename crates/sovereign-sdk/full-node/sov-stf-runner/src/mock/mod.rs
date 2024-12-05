@@ -75,13 +75,7 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
-        SoftConfirmationResult<
-            Self::StateRoot,
-            Self::ChangeSet,
-            Self::TxReceiptContents,
-            Self::Witness,
-            Da,
-        >,
+        SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>,
         StateTransitionError,
     > {
         todo!()

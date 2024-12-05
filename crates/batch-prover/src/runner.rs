@@ -10,6 +10,7 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -408,8 +409,9 @@ where
                 .clone()
                 .try_into()
                 .context("Failed to parse transactions")?;
+        let current_spec = self.fork_manager.active_fork().spec_id;
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            self.fork_manager.active_fork().spec_id,
+            current_spec,
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -420,8 +422,6 @@ where
             &mut signed_soft_confirmation,
         )?;
         let txs_bodies = signed_soft_confirmation.blobs().to_owned();
-
-        let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
@@ -444,6 +444,9 @@ where
             .save_change_set_l2(l2_height, soft_confirmation_result.change_set)?;
 
         self.storage_manager.finalize_l2(l2_height)?;
+
+        let receipt =
+            soft_confirmation_to_receipt::<C, _, Da::Spec>(&signed_soft_confirmation, current_spec);
 
         self.ledger_db.commit_soft_confirmation(
             next_state_root.as_ref(),
