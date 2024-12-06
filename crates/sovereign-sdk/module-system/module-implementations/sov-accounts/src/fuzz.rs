@@ -1,7 +1,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Strategy};
-use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{Context, Module, PrivateKey, WorkingSet};
 
 use crate::{Account, AccountConfig, Accounts};
 

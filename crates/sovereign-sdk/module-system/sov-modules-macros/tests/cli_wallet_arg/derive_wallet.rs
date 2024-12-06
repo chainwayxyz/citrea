@@ -4,7 +4,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{CliWallet, CliWalletArg, DefaultRuntime};
 use sov_modules_api::{
     CallResponse, Context, DispatchCall, Genesis, MessageCodec, Module, ModuleInfo,
-    SoftConfirmationModuleCallError, StateValue, WorkingSet,
+    SoftConfirmationModuleCallError, Spec, StateValue, WorkingSet,
 };
 
 pub mod first_test_module {
@@ -84,13 +84,13 @@ pub mod second_test_module {
         type CallMessage = MyEnum;
         type Event = ();
 
-        fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<Ctx>) {}
+        fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<Ctx::Storage>) {}
 
         fn call(
             &mut self,
             _msg: Self::CallMessage,
             _context: &Self::Context,
-            _working_set: &mut WorkingSet<Ctx>,
+            _working_set: &mut WorkingSet<Ctx::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             Ok(CallResponse::default())
         }

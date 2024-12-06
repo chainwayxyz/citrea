@@ -4,7 +4,7 @@ use modules::third_test_module::{self, ModuleThreeStorable};
 use modules::{first_test_module, second_test_module};
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
-use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec};
+use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec, Spec};
 use sov_state::ZkStorage;
 
 // Debugging hint: To expand the macro in tests run: `cargo expand --test tests`

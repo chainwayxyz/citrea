@@ -80,7 +80,7 @@ pub mod second_test_module {
         type CallMessage = u8;
         type Event = Event;
 
-        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx>) {
+        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx::Storage>) {
             self.state_in_second_struct.set(&2, working_set);
         }
 
@@ -88,7 +88,7 @@ pub mod second_test_module {
             &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
-            working_set: &mut WorkingSet<Ctx>,
+            working_set: &mut WorkingSet<Ctx::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.state_in_second_struct.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -116,7 +116,10 @@ pub mod third_test_module {
     }
 
     impl<Ctx: Context, OtherGeneric: ModuleThreeStorable> ThirdTestStruct<Ctx, OtherGeneric> {
-        pub fn get_state_value(&self, working_set: &mut WorkingSet<Ctx>) -> Option<OtherGeneric> {
+        pub fn get_state_value(
+            &self,
+            working_set: &mut WorkingSet<Ctx::Storage>,
+        ) -> Option<OtherGeneric> {
             self.state_in_third_struct.get(working_set)
         }
     }
@@ -129,7 +132,7 @@ pub mod third_test_module {
         type CallMessage = OtherGeneric;
         type Event = ();
 
-        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx>) {
+        fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx::Storage>) {
             self.state_in_third_struct
                 .set(&Default::default(), working_set);
         }
@@ -138,7 +141,7 @@ pub mod third_test_module {
             &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
-            working_set: &mut WorkingSet<Ctx>,
+            working_set: &mut WorkingSet<Ctx::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.state_in_third_struct.set(&msg, working_set);
             Ok(CallResponse::default())

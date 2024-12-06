@@ -3,7 +3,7 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, Module,
-    ModuleInfo, SoftConfirmationModuleCallError, SpecId, StateValue, WorkingSet,
+    ModuleInfo, SoftConfirmationModuleCallError, Spec, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 

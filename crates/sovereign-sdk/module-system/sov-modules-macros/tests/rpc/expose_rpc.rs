@@ -3,7 +3,7 @@ pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    CallResponse, Context, Module, ModuleInfo, SoftConfirmationModuleCallError, StateValue,
+    CallResponse, Context, Module, ModuleInfo, SoftConfirmationModuleCallError, Spec, StateValue,
     WorkingSet,
 };
 
