@@ -249,6 +249,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            rollup_config.telemetry,
         )?;
 
         Ok(FullNode {

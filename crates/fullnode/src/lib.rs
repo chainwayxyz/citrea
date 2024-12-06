@@ -10,6 +10,7 @@ use tracing::instrument;
 mod da_block_handler;
 pub mod db_migrations;
 mod runner;
+mod telemetry;
 
 /// Dependencies needed to run the rollup.
 pub struct FullNode<S: RollupBlueprint> {
@@ -46,6 +47,8 @@ impl<S: RollupBlueprint> FullNode<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
+
+        runner.start_telemetry_server().await;
         runner.start_rpc_server(self.rpc_methods, channel).await;
 
         runner.run().await?;

@@ -66,6 +66,11 @@ type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
+enum L2BlockMode {
+    Empty,
+    NotEmpty,
+}
+
 pub struct Telemetry {
     config: TelemetryConfig,
     registry: Arc<Registry>,
@@ -101,11 +106,6 @@ where
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
     telemetry: Telemetry,
-}
-
-enum L2BlockMode {
-    Empty,
-    NotEmpty,
 }
 
 impl<C, Da, Sm, Stf, DB> CitreaSequencer<C, Da, Sm, Stf, DB>
