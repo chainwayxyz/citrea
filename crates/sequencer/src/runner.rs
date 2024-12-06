@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
@@ -9,7 +9,7 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::telemetry::start_telemetry_server;
-use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
+use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig, TelemetryConfig};
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
@@ -66,6 +66,12 @@ type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
+pub struct Telemetry {
+    config: TelemetryConfig,
+    registry: Arc<Registry>,
+    targets: Arc<TelemetryTargets>,
+}
+
 pub struct CitreaSequencer<C, Da, Sm, Stf, DB>
 where
     C: Context,
@@ -94,8 +100,7 @@ where
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
-    telemetry_registry: Arc<Registry>,
-    telemetry_targets: Arc<TelemetryTargets>,
+    telemetry: Telemetry,
 }
 
 enum L2BlockMode {
@@ -129,6 +134,7 @@ where
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
+        telemetry_config: TelemetryConfig,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -184,8 +190,11 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
-            telemetry_registry,
-            telemetry_targets,
+            telemetry: Telemetry {
+                config: telemetry_config,
+                registry: telemetry_registry,
+                targets: telemetry_targets,
+            },
         })
     }
 
@@ -255,8 +264,13 @@ where
     }
 
     pub async fn start_telemetry_server(&mut self) {
-        let telemetry_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
-        let telemetry_registry = self.telemetry_registry.clone();
+        let telemetry_addr: SocketAddr = format!(
+            "{}:{}",
+            self.telemetry.config.bind_host, self.telemetry.config.bind_port
+        )
+        .parse()
+        .expect("Invalid telemetry address");
+        let telemetry_registry = self.telemetry.registry.clone();
         self.task_manager.spawn(|cancellation_token| async move {
             let _ = start_telemetry_server(
                 telemetry_addr,
@@ -359,7 +373,8 @@ where
                             );
 
                             let duration = Instant::now().saturating_duration_since(start);
-                            self.telemetry_targets
+                            self.telemetry
+                                .targets
                                 .dry_run_execution
                                 .observe(duration_to_seconds(duration));
 
@@ -587,7 +602,8 @@ where
                 txs_to_remove.extend(l1_fee_failed_txs);
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
-                self.telemetry_targets
+                self.telemetry
+                    .targets
                     .mempool_txs
                     .dec_by(txs_to_remove.len() as i64);
 
@@ -604,7 +620,8 @@ where
                 }
 
                 let duration = Instant::now().saturating_duration_since(start);
-                self.telemetry_targets
+                self.telemetry
+                    .targets
                     .block_production_execution
                     .observe(duration_to_seconds(duration));
 
@@ -674,8 +691,8 @@ where
             self.config.min_soft_confirmations_per_commitment,
             da_commitment_rx,
             CommitmentTelemetry {
-                send_commitment_execution: self.telemetry_targets.send_commitment_execution.clone(),
-                commitment_blocks_count: self.telemetry_targets.commitment_blocks_count.clone(),
+                send_commitment_execution: self.telemetry.targets.send_commitment_execution.clone(),
+                commitment_blocks_count: self.telemetry.targets.commitment_blocks_count.clone(),
             },
         );
         if self.batch_hash != [0; 32] {
@@ -719,7 +736,7 @@ where
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_height, last_used_l1_height);
                     }
-                    self.telemetry_targets.current_l1_block.set(last_finalized_height as i64);
+                    self.telemetry.targets.current_l1_block.set(last_finalized_height as i64);
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
@@ -936,7 +953,7 @@ where
             storage: self.storage.clone(),
             ledger: self.ledger_db.clone(),
             test_mode: self.config.test_mode,
-            telemetry: self.telemetry_targets.clone(),
+            telemetry: self.telemetry.targets.clone(),
         }
     }
 

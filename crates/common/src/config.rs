@@ -203,6 +203,8 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
     pub da: BitcoinServiceConfig,
     /// Important pubkeys
     pub public_keys: RollupPublicKeys,
+    /// Telemetry configuration
+    pub telemetry: TelemetryConfig,
 }
 impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
     fn from_env() -> anyhow::Result<Self> {
@@ -212,6 +214,7 @@ impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
             runner: RunnerConfig::from_env().ok(),
             da: DaC::from_env()?,
             public_keys: RollupPublicKeys::from_env()?,
+            telemetry: TelemetryConfig::from_env()?,
         })
     }
 }
@@ -389,6 +392,25 @@ impl FromEnv for SequencerMempoolConfig {
         })
     }
 }
+
+/// RPC configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
+pub struct TelemetryConfig {
+    /// Server host.
+    pub bind_host: String,
+    /// Server port.
+    pub bind_port: u16,
+}
+
+impl FromEnv for TelemetryConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            bind_host: std::env::var("TELEMETRY_BIND_HOST")?,
+            bind_port: std::env::var("TELEMETRY_BIND_PORT")?.parse()?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
