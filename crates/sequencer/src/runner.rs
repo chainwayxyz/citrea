@@ -628,7 +628,7 @@ where
         let (da_commitment_tx, da_commitment_rx) = unbounded::<(u64, StateDiff)>();
 
         let mut commitment_service = CommitmentService::new(
-            self.ledger_db.clone().into(),
+            self.ledger_db.clone(),
             self.da_service.clone(),
             self.sequencer_da_pub_key.clone(),
             self.config.min_soft_confirmations_per_commitment,
