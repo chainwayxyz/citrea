@@ -9,7 +9,7 @@ use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::CITREA_VERSION;
 use tokio::sync::broadcast;
@@ -85,10 +85,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn max_fee_per_gas(
-        &self,
-        working_set: &mut WorkingSet<<C as Spec>::Storage>,
-    ) -> (U256, U256) {
+    pub(crate) fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C::Storage>) -> (U256, U256) {
         let suggested_tip = self.gas_price_oracle.suggest_tip_cap(working_set).unwrap();
 
         let evm = Evm::<C>::default();

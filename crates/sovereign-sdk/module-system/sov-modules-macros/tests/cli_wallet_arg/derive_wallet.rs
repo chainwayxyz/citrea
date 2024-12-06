@@ -39,13 +39,13 @@ pub mod first_test_module {
         type CallMessage = MyStruct;
         type Event = ();
 
-        fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<<C as Spec>::Storage>) {}
+        fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<C::Storage>) {}
 
         fn call(
             &mut self,
             _msg: Self::CallMessage,
             _context: &Self::Context,
-            _working_set: &mut WorkingSet<<C as Spec>::Storage>,
+            _working_set: &mut WorkingSet<C::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             Ok(CallResponse::default())
         }

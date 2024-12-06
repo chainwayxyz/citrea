@@ -6,7 +6,7 @@ use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256
 use revm::primitives::{Bytecode, SpecId};
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::WorkingSet;
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
@@ -160,7 +160,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
-        working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) {
         let mut evm_db = self.get_db(working_set, SpecId::SHANGHAI);
 

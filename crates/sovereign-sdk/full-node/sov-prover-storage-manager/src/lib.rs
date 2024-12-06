@@ -13,8 +13,8 @@ use tracing::{debug, trace};
 pub use crate::snapshot_manager::SnapshotManager;
 mod snapshot_manager;
 
-/// Implementation of [`HierarchicalStorageManager`] that handles relation between snapshots
-/// And reorgs on Data Availability layer.
+/// Implementation that handles relation between snapshots
+/// And reorgs on Data Availability layer or L2 hiehgts.
 pub struct ProverStorageManager<Da: DaSpec> {
     // L1 forks representation
     // Chain: prev_block -> child_blocks

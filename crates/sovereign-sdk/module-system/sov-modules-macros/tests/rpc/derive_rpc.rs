@@ -13,10 +13,7 @@ pub struct TestStruct<C: ::sov_modules_api::Context> {
 #[rpc_gen(client, server, namespace = "test")]
 impl<C: sov_modules_api::Context> TestStruct<C> {
     #[rpc_method(name = "firstMethod")]
-    pub fn first_method(
-        &self,
-        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
-    ) -> RpcResult<u32> {
+    pub fn first_method(&self, _working_set: &mut WorkingSet<C::Storage>) -> RpcResult<u32> {
         Ok(11)
     }
 
@@ -24,7 +21,7 @@ impl<C: sov_modules_api::Context> TestStruct<C> {
     pub fn second_method(
         &self,
         result: u32,
-        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        _working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<u32> {
         Ok(result)
     }
@@ -37,7 +34,7 @@ impl<C: sov_modules_api::Context> TestStruct<C> {
     #[rpc_method(name = "fourthMethod")]
     pub fn fourth_method(
         &self,
-        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        _working_set: &mut WorkingSet<C::Storage>,
         result: u32,
     ) -> RpcResult<u32> {
         Ok(result)

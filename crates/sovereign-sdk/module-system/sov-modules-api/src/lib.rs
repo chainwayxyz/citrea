@@ -211,10 +211,6 @@ pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
 
-pub mod storage {
-    // pub use sov_rollup_interface::storage::HierarchicalStorageManager;
-}
-
 struct ModuleVisitor<'a, C: Context> {
     visited: HashSet<&'a <C as Spec>::Address>,
     visited_on_this_path: Vec<&'a <C as Spec>::Address>,

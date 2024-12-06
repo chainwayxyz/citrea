@@ -11,7 +11,7 @@ use reth_rpc_types::trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
 };
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tracing::error;
 
@@ -136,7 +136,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     trace_idx: Option<usize>,
     ethereum: &Ethereum<C, Da>,
     evm: &Evm<C>,
-    working_set: &mut WorkingSet<<C as Spec>::Storage>,
+    working_set: &mut WorkingSet<C::Storage>,
     opts: Option<GethDebugTracingOptions>,
 ) -> Result<Vec<GethTrace>, ErrorObjectOwned> {
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation

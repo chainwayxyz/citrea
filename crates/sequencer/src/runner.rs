@@ -251,7 +251,6 @@ where
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
-        // prestate: <Sm as HierarchicalStorageManager<<Da as DaService>::Spec>>::NativeStorage,
         prestate: ProverStorage<SnapshotManager>,
         da_block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader,
         soft_confirmation_info: HookSoftConfirmationInfo,
@@ -814,7 +813,7 @@ where
     fn make_blob(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> anyhow::Result<Vec<u8>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
@@ -830,7 +829,7 @@ where
     fn sign_tx(
         &mut self,
         raw_message: Vec<u8>,
-        working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> anyhow::Result<Transaction<C>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
@@ -904,7 +903,7 @@ where
     }
 
     /// Fetches nonce from state
-    fn get_nonce(&self, working_set: &mut WorkingSet<<C as Spec>::Storage>) -> anyhow::Result<u64> {
+    fn get_nonce(&self, working_set: &mut WorkingSet<C::Storage>) -> anyhow::Result<u64> {
         let accounts = Accounts::<C>::default();
 
         match accounts

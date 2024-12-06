@@ -196,16 +196,16 @@ error[E0053]: method `get_working_set` has an incompatible type for trait
 note: type in trait
   --> tests/rpc/expose_rpc_first_generic_not_context.rs:81:57
    |
-81 |             pub fn query_value(&self, working_set: &mut WorkingSet<<C as Spec>::Storage>) -> RpcResult<QueryResponse> {
+81 |             pub fn query_value(&self, working_set: &mut WorkingSet<C::Storage>) -> RpcResult<QueryResponse> {
    |                                                         ^^^^^^^^^^^^^
-   = note: expected signature `fn(&RpcStorage<S, C>) -> sov_modules_api::WorkingSet<<C as Spec>::Storage>`
+   = note: expected signature `fn(&RpcStorage<S, C>) -> sov_modules_api::WorkingSet<C::Storage>`
               found signature `fn(&RpcStorage<S, C>) -> sov_modules_api::WorkingSet<S>`
    = note: a type parameter was expected, but a different one was found; you might be missing a type parameter or trait bound
    = note: for more information, visit https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
    = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: change the output type to match the trait
    |
-91 | sov_modules_api::WorkingSet<<C as Spec>::Storage>
+91 | sov_modules_api::WorkingSet<C::Storage>
    |
 
 error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
@@ -366,7 +366,7 @@ error[E0308]: mismatched types
 92 | #[derive(Genesis, DispatchCall, MessageCodec, DefaultRuntime)]
    |          ^^^^^^^
    |          |
-   |          expected `&mut WorkingSet<<C as Spec>::Storage>`, found `&mut WorkingSet<S>`
+   |          expected `&mut WorkingSet<C::Storage>`, found `&mut WorkingSet<S>`
    |          arguments to this function are incorrect
 93 | #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 94 | struct Runtime<S: TestSpec, C: Context> {
@@ -374,7 +374,7 @@ error[E0308]: mismatched types
    |                |
    |                found type parameter
    |
-   = note: expected mutable reference `&mut sov_modules_api::WorkingSet<<C as Spec>::Storage>`
+   = note: expected mutable reference `&mut sov_modules_api::WorkingSet<C::Storage>`
               found mutable reference `&mut sov_modules_api::WorkingSet<S>`
    = note: a type parameter was expected, but a different one was found; you might be missing a type parameter or trait bound
    = note: for more information, visit https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
@@ -392,7 +392,7 @@ error[E0308]: arguments to this function are incorrect
    |                   ^^^^^^^^^^^^
    |                   |
    |                   expected `&C`, found `&S`
-   |                   expected `&mut WorkingSet<<C as Spec>::Storage>`, found `&mut WorkingSet<S>`
+   |                   expected `&mut WorkingSet<C::Storage>`, found `&mut WorkingSet<S>`
 93 | #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 94 | struct Runtime<S: TestSpec, C: Context> {
    |                -            -
@@ -406,7 +406,7 @@ error[E0308]: arguments to this function are incorrect
               found reference `&S`
    = note: a type parameter was expected, but a different one was found; you might be missing a type parameter or trait bound
    = note: for more information, visit https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
-   = note: expected mutable reference `&mut sov_modules_api::WorkingSet<<C as Spec>::Storage>`
+   = note: expected mutable reference `&mut sov_modules_api::WorkingSet<C::Storage>`
               found mutable reference `&mut sov_modules_api::WorkingSet<S>`
    = note: a type parameter was expected, but a different one was found; you might be missing a type parameter or trait bound
    = note: for more information, visit https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
@@ -426,10 +426,10 @@ error[E0277]: the trait bound `S: sov_modules_api::Context` is not satisfied
 note: required by a bound in `sov_modules_api::WorkingSet::new`
   --> $WORKSPACE/crates/sovereign-sdk/module-system/sov-modules-core/src/storage/scratchpad.rs
    |
-   | impl<C: Context> WorkingSet<<C as Spec>::Storage> {
+   | impl<C: Context> WorkingSet<C::Storage> {
    |         ^^^^^^^ required by this bound in `WorkingSet::new`
 ...
-   |     pub fn new(inner: <C as Spec>::Storage) -> Self {
+   |     pub fn new(inner: C::Storage) -> Self {
    |            --- required by a bound in this associated function
    = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider further restricting this bound

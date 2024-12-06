@@ -1,6 +1,6 @@
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Context, Event, ModulePrefix, Spec, StateMap, WorkingSet};
+use sov_modules_api::{Context, Event, ModulePrefix, StateMap, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{Storage, ZkStorage};
 
@@ -42,12 +42,12 @@ fn nested_module_call_test() {
     }
 }
 
-fn execute_module_logic<C: Context>(working_set: &mut WorkingSet<<C as Spec>::Storage>) {
+fn execute_module_logic<C: Context>(working_set: &mut WorkingSet<C::Storage>) {
     let module = &mut module_c::ModuleC::<C>::default();
     module.execute("some_key", "some_value", working_set);
 }
 
-fn test_state_update<C: Context>(working_set: &mut WorkingSet<<C as Spec>::Storage>) {
+fn test_state_update<C: Context>(working_set: &mut WorkingSet<C::Storage>) {
     let module = <module_c::ModuleC<C> as Default>::default();
 
     let expected_value = "some_value".to_owned();

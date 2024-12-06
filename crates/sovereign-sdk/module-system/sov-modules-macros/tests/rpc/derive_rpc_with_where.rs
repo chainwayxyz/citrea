@@ -35,10 +35,7 @@ where
         + 'static,
 {
     #[rpc_method(name = "firstMethod")]
-    pub fn first_method(
-        &self,
-        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
-    ) -> RpcResult<u32> {
+    pub fn first_method(&self, _working_set: &mut WorkingSet<C::Storage>) -> RpcResult<u32> {
         Ok(11)
     }
 
@@ -46,7 +43,7 @@ where
     pub fn second_method(
         &self,
         result: D,
-        _working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        _working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<(D, u64)> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         let value = result.clone();

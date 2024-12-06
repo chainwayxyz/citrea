@@ -72,7 +72,7 @@ where
     /// Creates an arbitrary set of accounts and stores it under `working_set`.
     pub fn arbitrary_workset(
         u: &mut Unstructured<'a>,
-        working_set: &mut WorkingSet<<C as Spec>::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> arbitrary::Result<Self> {
         let config: AccountConfig<C> = u.arbitrary()?;
         let accounts = Accounts::default();
