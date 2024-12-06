@@ -1,6 +1,3 @@
-/// Utilities for mledger db migrations
-pub mod utils;
-
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -14,6 +11,9 @@ use super::LedgerDB;
 use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::LEDGER_TABLES;
+
+/// Utilities for ledger db migrations
+pub mod utils;
 
 /// Alias for migration name type
 pub type MigrationName = String;
