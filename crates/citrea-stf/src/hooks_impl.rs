@@ -61,7 +61,7 @@ impl<C: Context, Da: DaSpec> ApplySoftConfirmationHooks<Da> for Runtime<C, Da> {
     fn begin_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
         self.soft_confirmation_rule_enforcer
             .begin_soft_confirmation_hook(soft_confirmation_info, working_set)?;
@@ -90,7 +90,7 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
     fn begin_slot_hook(
         &self,
         _slot_header: &Da::BlockHeader,
-        _pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        _pre_state_root: &<C::Storage as Storage>::Root,
         _working_set: &mut sov_modules_api::WorkingSet<<C as Spec>::Storage>,
     ) {
     }
@@ -107,7 +107,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da
     )]
     fn finalize_hook(
         &self,
-        root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
+        root_hash: &<C::Storage as Storage>::Root,
         accessory_working_set: &mut AccessoryWorkingSet<<C as Spec>::Storage>,
     ) {
         self.evm.finalize_hook(root_hash, accessory_working_set);

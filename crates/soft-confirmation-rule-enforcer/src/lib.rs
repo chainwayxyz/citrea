@@ -13,7 +13,7 @@ pub use query::*;
 mod tests;
 
 // "Given DA slot hasn't been used for more than N soft confirmation blocks."
-use sov_modules_api::{Context, DaSpec, ModuleInfo, Spec, StateValue, WorkingSet};
+use sov_modules_api::{Context, DaSpec, ModuleInfo, StateValue, WorkingSet};
 use sov_state::codec::BcsCodec;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -59,7 +59,7 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
         &mut self,
         message: Self::CallMessage,
         context: &Self::Context,
-        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<sov_modules_api::CallResponse, sov_modules_api::SoftConfirmationModuleCallError>
     {
         match message {
@@ -74,11 +74,7 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
         }
     }
 
-    fn genesis(
-        &self,
-        config: &Self::Config,
-        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
-    ) {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.init_module(config, working_set)
     }
 }
