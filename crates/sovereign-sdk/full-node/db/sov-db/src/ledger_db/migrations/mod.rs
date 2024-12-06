@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use tracing::{debug, error};
 
-use super::migrations::utils::{drop_cf, list_column_families};
+use super::migrations::utils::{drop_column_family, list_column_families};
 use super::LedgerDB;
 use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use crate::rocks_db_config::RocksdbConfig;
@@ -144,7 +144,7 @@ impl<'a> LedgerDBMigrator<'a> {
 
         // Now that the lock is gone drop the tables that were migrated
         for table in tables_to_drop {
-            drop_cf(
+            drop_column_family(
                 &RocksdbConfig::new(temp_db_path.path(), max_open_files),
                 Some(all_column_families.clone()),
                 &table,

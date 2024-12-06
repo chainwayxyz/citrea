@@ -6,7 +6,7 @@ use crate::ledger_db::{LEDGER_DB_PATH_SUFFIX, LEDGER_TABLES};
 use crate::rocks_db_config::RocksdbConfig;
 
 /// Drop a column family from the database
-pub fn drop_cf(
+pub fn drop_column_family(
     cfg: &RocksdbConfig,
     column_families: Option<Vec<String>>,
     cf_name: &str,
