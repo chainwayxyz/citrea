@@ -25,3 +25,7 @@ bind_host = "127.0.0.1"
 bind_port = 12345
 enable_subscriptions = true
 max_subscriptions_per_connection = 100
+
+[telemetry]
+bind_host = "0.0.0.0"
+bind_port = 8001

@@ -19,3 +19,7 @@ bind_port = 8545
 max_connections = 10000
 enable_subscriptions = true
 max_subscriptions_per_connection = 100
+
+[telemetry]
+bind_host = "0.0.0.0"
+bind_port = 8001
