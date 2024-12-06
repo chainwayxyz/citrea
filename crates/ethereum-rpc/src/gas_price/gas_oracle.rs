@@ -1,5 +1,6 @@
 //! An implementation of the eth gas price oracle, used for providing gas price estimates based on
 //! previous blocks.
+#![allow(unused)]
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 

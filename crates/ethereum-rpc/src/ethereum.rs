@@ -20,6 +20,7 @@ use crate::gas_price::gas_oracle::{GasPriceOracle, GasPriceOracleConfig};
 use crate::subscription::SubscriptionManager;
 
 const MAX_TRACE_BLOCK: u32 = 1000;
+const DEFAULT_PRIORITY_FEE: U256 = U256::from_limbs([100, 0, 0, 0]);
 
 #[derive(Clone)]
 pub struct EthRpcConfig {
@@ -86,8 +87,6 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
 
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn max_fee_per_gas(&self, working_set: &mut WorkingSet<C>) -> (U256, U256) {
-        let suggested_tip = self.gas_price_oracle.suggest_tip_cap(working_set).unwrap();
-
         let evm = Evm::<C>::default();
         let base_fee = evm
             .get_block_by_number(None, None, working_set)
@@ -97,7 +96,10 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
             .base_fee_per_gas
             .unwrap_or_default();
 
-        (U256::from(base_fee), U256::from(suggested_tip))
+        // We return a default priority of 100 wei. Small enough to
+        // not make a difference to price, but also allows bumping tip
+        // of EIP-1559 transactions in times of congestion.
+        (U256::from(base_fee), DEFAULT_PRIORITY_FEE)
     }
 
     //     fn make_raw_tx(
