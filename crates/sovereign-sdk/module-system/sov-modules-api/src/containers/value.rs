@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{Context, Prefix, StateCodec, StateValueCodec, WorkingSet};
+use sov_modules_core::{Prefix, StateCodec, StateValueCodec, WorkingSet};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use super::traits::StateValueAccessor;
 
@@ -44,11 +45,11 @@ impl<V, Codec> StateValue<V, Codec> {
     }
 }
 
-impl<V, Codec, C> StateValueAccessor<V, Codec, WorkingSet<C>> for StateValue<V, Codec>
+impl<V, Codec, S> StateValueAccessor<V, Codec, WorkingSet<S>> for StateValue<V, Codec>
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Storage,
 {
     fn prefix(&self) -> &Prefix {
         &self.prefix

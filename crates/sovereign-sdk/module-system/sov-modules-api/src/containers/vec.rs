@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec, WorkingSet};
+use sov_modules_core::{Prefix, StateCodec, StateKeyCodec, StateValueCodec, WorkingSet};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use super::traits::{StateValueAccessor, StateVecAccessor, StateVecPrivateAccessor};
 use crate::containers::{StateMap, StateValue};
@@ -52,18 +53,18 @@ where
     }
 }
 
-impl<V, Codec, C> StateVecPrivateAccessor<V, Codec, WorkingSet<C>> for StateVec<V, Codec>
+impl<V, Codec, S> StateVecPrivateAccessor<V, Codec, WorkingSet<S>> for StateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Storage,
 {
     type ElemsMap = StateMap<usize, V, Codec>;
 
     type LenValue = StateValue<usize, Codec>;
 
-    fn set_len(&self, length: usize, working_set: &mut WorkingSet<C>) {
+    fn set_len(&self, length: usize, working_set: &mut WorkingSet<S>) {
         self.len_value.set(&length, working_set);
     }
 
@@ -76,12 +77,12 @@ where
     }
 }
 
-impl<V, Codec, C> StateVecAccessor<V, Codec, WorkingSet<C>> for StateVec<V, Codec>
+impl<V, Codec, S> StateVecAccessor<V, Codec, WorkingSet<S>> for StateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Storage,
 {
     /// Returns the prefix used when this [`StateVec`] was created.
     fn prefix(&self) -> &Prefix {
@@ -95,14 +96,13 @@ mod test {
     use sov_prover_storage_manager::new_orphan_storage;
 
     use crate::containers::traits::vec_tests::Testable;
-    use crate::default_context::DefaultContext;
     use crate::StateVec;
 
     #[test]
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage);
+        let mut working_set = WorkingSet::new(storage);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = StateVec::<u32>::new(prefix);

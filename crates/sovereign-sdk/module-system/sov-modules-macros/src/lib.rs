@@ -145,7 +145,7 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// };
 ///
 /// impl<C: Context> MyModule<C> {
-///     fn my_method(&self, working_set: &mut WorkingSet<C>, param: u32) -> RpcResult<u32> {
+///     fn my_method(&self, working_set: &mut WorkingSet<C::Storage>, param: u32) -> RpcResult<u32> {
 ///         Ok(1)
 ///     }  
 /// }
@@ -170,12 +170,12 @@ pub fn config_constant(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// This proc macro also generates an implementation trait intended to be used by a Runtime struct. This trait
 /// is named `MyModuleRpcImpl`, and allows a Runtime to be converted into a functional RPC server
-/// by simply implementing the two required methods - `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+/// by simply implementing the two required methods - `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C::Storage>`
 ///
 /// ```rust,ignore
 /// pub trait MyModuleRpcImpl<C: sov_modules_api::Context> {
 ///     fn get_backing_impl(&self) -> &TestStruct<C>;
-///     fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>;
+///     fn get_working_set(&self) -> ::sov_modules_api::WorkingSet<C::Storage>;
 ///     fn my_method(&self, param: u32) -> u32 {
 ///         Self::get_backing_impl(self).my_method(self, &mut Self::get_working_set(self), param)
 ///     }

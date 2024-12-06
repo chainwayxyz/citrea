@@ -41,7 +41,6 @@ impl RollupBlueprint for MockDemoRollup {
     type Vm = Risc0BonsaiHost;
     type ZkContext = ZkDefaultContext;
     type NativeContext = DefaultContext;
-    type StorageManager = ProverStorageManager<MockDaSpec>;
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
     type ProverService = ParallelProverService<
@@ -202,7 +201,7 @@ impl RollupBlueprint for MockDemoRollup {
     fn create_storage_manager(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
-    ) -> anyhow::Result<Self::StorageManager> {
+    ) -> anyhow::Result<ProverStorageManager<Self::DaSpec>> {
         let storage_config = StorageConfig {
             path: rollup_config.storage.path.clone(),
             db_max_open_files: rollup_config.storage.db_max_open_files,

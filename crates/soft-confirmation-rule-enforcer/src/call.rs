@@ -28,7 +28,7 @@ pub enum CallMessage<C: Context> {
 
 impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     /// Returns the address of authority.
-    fn get_authority(&self, working_set: &mut WorkingSet<C>) -> C::Address {
+    fn get_authority(&self, working_set: &mut WorkingSet<C::Storage>) -> C::Address {
         self.authority
             .get(working_set)
             .expect("Authority must be set")
@@ -38,7 +38,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         &self,
         address: C::Address,
         context: &C,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         if *context.sender() == self.get_authority(working_set) {
             self.authority.set(&address, working_set);
@@ -52,7 +52,7 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         &self,
         max_l2_blocks_per_l1: u32,
         context: &C,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         if *context.sender() != self.get_authority(working_set) {
             return Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized);

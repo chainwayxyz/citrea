@@ -14,7 +14,7 @@ impl<C: Context> Accounts<C> {
     fn get_or_create_default(
         &self,
         pubkey: &C::PublicKey,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<Account<C>, SoftConfirmationHookError> {
         self.accounts
             .get(pubkey, working_set)
@@ -30,7 +30,7 @@ impl<C: Context> TxHooks for Accounts<C> {
     fn pre_dispatch_tx_hook(
         &self,
         tx: &Transaction<C>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
         _sequencer: &Self::PreArg,
     ) -> Result<AccountsTxHook<C>, SoftConfirmationHookError> {
         let sender = self.get_or_create_default(tx.pub_key(), working_set)?;
@@ -49,7 +49,7 @@ impl<C: Context> TxHooks for Accounts<C> {
         &self,
         tx: &Transaction<Self::Context>,
         _ctx: &C,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
         let mut account = self
             .accounts

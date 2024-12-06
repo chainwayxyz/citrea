@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{
-    AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec,
-};
+use sov_modules_core::{AccessoryWorkingSet, Prefix, StateCodec, StateKeyCodec, StateValueCodec};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use super::traits::StateVecPrivateAccessor;
 use super::{AccessoryStateMap, AccessoryStateValue};
@@ -40,19 +39,19 @@ where
     }
 }
 
-impl<'a, V, Codec, C> StateVecPrivateAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, V, Codec, S> StateVecPrivateAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Storage,
 {
     type ElemsMap = AccessoryStateMap<usize, V, Codec>;
 
     type LenValue = AccessoryStateValue<usize, Codec>;
 
-    fn set_len(&self, length: usize, working_set: &mut AccessoryWorkingSet<'a, C>) {
+    fn set_len(&self, length: usize, working_set: &mut AccessoryWorkingSet<'a, S>) {
         self.len_value.set(&length, working_set);
     }
 
@@ -65,13 +64,13 @@ where
     }
 }
 
-impl<'a, V, Codec, C> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, V, Codec, S> StateVecAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateVec<V, Codec>
 where
     Codec: StateCodec + Clone,
     Codec::ValueCodec: StateValueCodec<V> + StateValueCodec<usize>,
     Codec::KeyCodec: StateKeyCodec<usize>,
-    C: Context,
+    S: Storage,
 {
     /// Returns the prefix used when this vector was created.
     fn prefix(&self) -> &Prefix {
@@ -111,13 +110,12 @@ mod test {
 
     use super::*;
     use crate::containers::traits::vec_tests::Testable;
-    use crate::default_context::DefaultContext;
 
     #[test]
     fn test_accessory_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_orphan_storage(tmpdir.path()).unwrap();
-        let mut working_set: WorkingSet<DefaultContext> = WorkingSet::new(storage);
+        let mut working_set = WorkingSet::new(storage);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = AccessoryStateVec::<u32>::new(prefix);

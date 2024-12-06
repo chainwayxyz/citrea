@@ -4,7 +4,7 @@ use reth_primitives::{Bloom, Bytes, U256};
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
+use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
 use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -25,7 +25,7 @@ where
     pub fn begin_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) {
         // just to be sure, we clear the pending transactions
         // do not ever think about removing this line
@@ -154,7 +154,7 @@ where
     pub fn end_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) {
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
@@ -285,8 +285,8 @@ where
     #[cfg_attr(not(feature = "native"), allow(unused_variables))]
     pub fn finalize_hook(
         &self,
-        root_hash: &<<C as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryWorkingSet<C>,
+        root_hash: &<C::Storage as Storage>::Root,
+        accessory_working_set: &mut AccessoryWorkingSet<C::Storage>,
     ) {
         #[cfg(feature = "native")]
         {

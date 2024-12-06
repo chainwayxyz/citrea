@@ -23,7 +23,7 @@ pub trait TxHooks {
     fn pre_dispatch_tx_hook(
         &self,
         tx: &Transaction<Self::Context>,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
         arg: &Self::PreArg,
     ) -> Result<Self::PreResult, SoftConfirmationHookError>;
 
@@ -33,7 +33,7 @@ pub trait TxHooks {
         &self,
         tx: &Transaction<Self::Context>,
         ctx: &Self::Context,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
     ) -> Result<(), SoftConfirmationHookError>;
 }
 
@@ -47,7 +47,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     fn begin_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
     ) -> Result<(), SoftConfirmationHookError>;
 
     /// Executes at the end of apply_blob and rewards or slashes the sequencer
@@ -55,7 +55,7 @@ pub trait ApplySoftConfirmationHooks<Da: DaSpec> {
     fn end_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
     ) -> Result<(), SoftConfirmationHookError>;
 }
 
@@ -163,10 +163,10 @@ pub trait SlotHooks<Da: DaSpec> {
         &self,
         slot_header: &Da::BlockHeader,
         pre_state_root: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        working_set: &mut WorkingSet<Self::Context>,
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
     );
 
-    fn end_slot_hook(&self, working_set: &mut WorkingSet<Self::Context>);
+    fn end_slot_hook(&self, working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>);
 }
 
 pub trait FinalizeHook<Da: DaSpec> {
@@ -175,6 +175,6 @@ pub trait FinalizeHook<Da: DaSpec> {
     fn finalize_hook(
         &self,
         root_hash: &<<Self::Context as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryWorkingSet<Self::Context>,
+        accessory_working_set: &mut AccessoryWorkingSet<<Self::Context as Spec>::Storage>,
     );
 }

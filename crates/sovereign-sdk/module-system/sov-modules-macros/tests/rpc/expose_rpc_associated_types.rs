@@ -4,7 +4,7 @@ use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, Module,
-    ModuleInfo, SoftConfirmationModuleCallError, SpecId, StateValue, WorkingSet,
+    ModuleInfo, SoftConfirmationModuleCallError, Spec, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 
@@ -50,7 +50,7 @@ pub mod my_module {
         type CallMessage = D;
         type Event = ();
 
-        fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
+        fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
             self.data.set(config, working_set);
         }
 
@@ -58,7 +58,7 @@ pub mod my_module {
             &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
-            working_set: &mut WorkingSet<C>,
+            working_set: &mut WorkingSet<C::Storage>,
         ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())
@@ -81,7 +81,10 @@ pub mod my_module {
             C: Context,
         {
             #[rpc_method(name = "queryValue")]
-            pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+            pub fn query_value(
+                &self,
+                working_set: &mut WorkingSet<C::Storage>,
+            ) -> RpcResult<QueryResponse> {
                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
             }

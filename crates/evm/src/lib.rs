@@ -172,7 +172,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.init_module(config, working_set)
     }
 
@@ -180,7 +180,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         &mut self,
         msg: Self::CallMessage,
         context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
         self.execute_call(msg.txs, context, working_set)
     }
@@ -189,7 +189,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
         &self,
-        working_set: &'a mut WorkingSet<C>,
+        working_set: &'a mut WorkingSet<C::Storage>,
         current_spec: EvmSpecId,
     ) -> EvmDb<'a, C> {
         EvmDb::new(

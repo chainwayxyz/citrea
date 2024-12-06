@@ -210,15 +210,17 @@ where
     let rollup_blueprint = S::new(network);
 
     if let Some(sequencer_config) = sequencer_config {
-        let sequencer_rollup = rollup_blueprint
+        let (mut sequencer, rpc_methods) = rollup_blueprint
             .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
             .await
             .expect("Could not start sequencer");
-        if let Err(e) = sequencer_rollup.run().await {
+        sequencer.start_rpc_server(rpc_methods, None).await.unwrap();
+
+        if let Err(e) = sequencer.run().await {
             error!("Error: {}", e);
         }
     } else if let Some(batch_prover_config) = batch_prover_config {
-        let prover = CitreaRollupBlueprint::create_new_batch_prover(
+        let (mut prover, rpc_methods) = CitreaRollupBlueprint::create_new_batch_prover(
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,
@@ -226,6 +228,12 @@ where
         )
         .await
         .expect("Could not start batch prover");
+
+        prover
+            .start_rpc_server(rpc_methods, None)
+            .await
+            .expect("Failed to start rpc server");
+
         if let Err(e) = prover.run().await {
             error!("Error: {}", e);
         }
@@ -241,13 +249,16 @@ where
             error!("Error: {}", e);
         }
     } else {
-        let rollup = CitreaRollupBlueprint::create_new_rollup(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_rollup(
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,
         )
         .await
         .expect("Could not start full-node");
+
+        rollup.start_rpc_server(rpc_methods, None).await;
+
         if let Err(e) = rollup.run().await {
             error!("Error: {}", e);
         }

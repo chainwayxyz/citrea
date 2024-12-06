@@ -19,8 +19,6 @@ use tokio::sync::broadcast;
 
 type MockInitVariant = InitVariant<HashStf, MockDaSpec>;
 
-type StorageManager = ProverStorageManager<MockDaSpec>;
-
 #[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
     let tmpdir = tempfile::tempdir().unwrap();
@@ -47,7 +45,6 @@ fn initialize_runner(
     init_variant: MockInitVariant,
 ) -> CitreaFullnode<
     HashStf,
-    StorageManager,
     MockDaService,
     MockZkvm,
     sov_modules_api::default_context::DefaultContext,

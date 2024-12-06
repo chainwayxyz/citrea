@@ -69,7 +69,7 @@ where
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), SoftConfirmationHookError> {
         let RuleEnforcerData {
             max_l2_blocks_per_l1,

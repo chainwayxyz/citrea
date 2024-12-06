@@ -12,8 +12,8 @@ use sov_modules_api::hooks::{
 };
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    native_debug, native_warn, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall,
-    Genesis, Signature, Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
+    native_debug, BasicAddress, BlobReaderTrait, Context, DaSpec, DispatchCall, Genesis, Signature,
+    Spec, StateCheckpoint, UnsignedSoftConfirmation, WorkingSet,
 };
 use sov_rollup_interface::da::DaDataBatchProof;
 use sov_rollup_interface::fork::ForkManager;
@@ -70,7 +70,7 @@ pub trait Runtime<C: Context, Da: DaSpec>:
 
     #[cfg(feature = "native")]
     /// Default rpc methods.
-    fn rpc_methods(storage: <C as Spec>::Storage) -> jsonrpsee::RpcModule<()>;
+    fn rpc_methods(storage: C::Storage) -> jsonrpsee::RpcModule<()>;
 
     #[cfg(feature = "native")]
     /// Reads genesis configs.
@@ -129,7 +129,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
     fn begin_soft_confirmation(
         &mut self,
         sequencer_public_key: &[u8],
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> Result<(), StateTransitionError>;
@@ -140,7 +140,7 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         soft_confirmation: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
-        batch_workspace: &mut WorkingSet<C>,
+        batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError>;
 
     /// End a soft confirmation
@@ -150,14 +150,14 @@ pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da>
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-        batch_workspace: &mut WorkingSet<C>,
+        batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError>;
 
     /// Finalizes a soft confirmation
     fn finalize_soft_confirmation(
         &self,
         current_spec: SpecId,
-        working_set: WorkingSet<C>,
+        working_set: WorkingSet<C::Storage>,
         pre_state: Self::PreState,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>;
@@ -172,7 +172,7 @@ where
     fn begin_soft_confirmation(
         &mut self,
         sequencer_public_key: &[u8],
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
         slot_header: &<Da as DaSpec>::BlockHeader,
         soft_confirmation_info: &HookSoftConfirmationInfo,
     ) -> Result<(), StateTransitionError> {
@@ -206,7 +206,7 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
         txs_new: &[Self::Transaction],
-        batch_workspace: &mut WorkingSet<C>,
+        batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, txs_new, batch_workspace)
     }
@@ -217,7 +217,7 @@ where
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         let unsigned = UnsignedSoftConfirmation::new(
             soft_confirmation.l2_height(),
@@ -288,13 +288,13 @@ where
     fn finalize_soft_confirmation(
         &self,
         _current_spec: SpecId,
-        working_set: WorkingSet<C>,
+        working_set: WorkingSet<C::Storage>,
         pre_state: Self::PreState,
         soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
     ) -> SoftConfirmationResult<
         <C::Storage as Storage>::Root,
         C::Storage,
-        <<C as Spec>::Storage as Storage>::Witness,
+        <C::Storage as Storage>::Witness,
     > {
         native_debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
@@ -362,7 +362,7 @@ where
     type BatchReceiptContents = ();
     // SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
-    type Witness = <<C as Spec>::Storage as Storage>::Witness;
+    type Witness = <C::Storage as Storage>::Witness;
 
     fn init_chain(
         &self,
@@ -444,7 +444,7 @@ where
         // TODO: compare diff and make sure removed revert and checkpoints do not braek anything
 
         let checkpoint =
-            StateCheckpoint::<C>::with_witness(pre_state.clone(), state_witness, offchain_witness);
+            StateCheckpoint::with_witness(pre_state.clone(), state_witness, offchain_witness);
         let mut working_set = checkpoint.to_revertable();
 
         native_debug!("Applying soft confirmation in STF Blueprint");

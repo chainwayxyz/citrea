@@ -8,7 +8,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     pub fn basic_account(
         &self,
         address: &Address,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Option<Account> {
         Some(
             self.accounts
@@ -19,7 +19,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     }
 
     /// Returns the sealed head block.
-    pub fn last_sealed_header(&self, working_set: &mut WorkingSet<C>) -> SealedHeader {
+    pub fn last_sealed_header(&self, working_set: &mut WorkingSet<C::Storage>) -> SealedHeader {
         self.blocks
             .last(&mut working_set.accessory_state())
             .unwrap()
