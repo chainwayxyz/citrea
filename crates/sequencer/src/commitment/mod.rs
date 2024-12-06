@@ -1,10 +1,14 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::anyhow;
+use citrea_primitives::utils::duration_to_seconds;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::StreamExt;
 use parking_lot::RwLock;
+use prometheus_client::metrics::gauge::Gauge;
+use prometheus_client::metrics::histogram::Histogram;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
@@ -28,6 +32,11 @@ pub struct CommitmentInfo {
     pub l2_height_range: RangeInclusive<BatchNumber>,
 }
 
+pub struct CommitmentTelemetry {
+    pub send_commitment_execution: Histogram,
+    pub commitment_blocks_count: Gauge,
+}
+
 pub struct CommitmentService<Da, Db>
 where
     Da: DaService,
@@ -38,6 +47,7 @@ where
     sequencer_da_pub_key: Vec<u8>,
     soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
     commitment_controller: Arc<RwLock<CommitmentController>>,
+    commitment_telemetry: CommitmentTelemetry,
 }
 
 impl<Da, Db> CommitmentService<Da, Db>
@@ -51,6 +61,7 @@ where
         sequencer_da_pub_key: Vec<u8>,
         min_soft_confirmations: u64,
         soft_confirmation_rx: UnboundedReceiver<(u64, StateDiff)>,
+        commitment_telemetry: CommitmentTelemetry,
     ) -> Self {
         let commitment_controller = Arc::new(RwLock::new(CommitmentController::new(vec![
             Box::new(MinSoftConfirmations::new(
@@ -65,6 +76,7 @@ where
             sequencer_da_pub_key,
             soft_confirmation_rx,
             commitment_controller,
+            commitment_telemetry,
         }
     }
 
@@ -134,10 +146,15 @@ where
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
 
+        self.commitment_telemetry
+            .commitment_blocks_count
+            .set(soft_confirmation_hashes.len() as i64);
+
         let commitment = self.get_commitment(commitment_info, soft_confirmation_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
+        let start = Instant::now();
         let da_data = DaData::SequencerCommitment(commitment.clone());
         let (notify, rx) = oneshot::channel();
         let request = SenderWithNotifier { da_data, notify };
@@ -152,12 +169,17 @@ where
         );
 
         let ledger_db = self.ledger_db.clone();
+        let send_commitment_execution = self.commitment_telemetry.send_commitment_execution.clone();
         let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
                 let _tx_id = rx
                     .await
                     .map_err(|_| anyhow!("DA service is dead!"))?
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
+
+                send_commitment_execution.observe(duration_to_seconds(
+                    Instant::now().saturating_duration_since(start),
+                ));
 
                 ledger_db
                     .set_last_commitment_l2_height(l2_end)

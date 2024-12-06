@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::vec;
 
 use anyhow::{anyhow, bail};
@@ -13,6 +13,7 @@ use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
 use citrea_evm::{CallMessage, Evm, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::duration_to_seconds;
 use citrea_stf::runtime::Runtime;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
@@ -51,7 +52,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 
-use crate::commitment::CommitmentService;
+use crate::commitment::{CommitmentService, CommitmentTelemetry};
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
@@ -278,6 +279,8 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
+        let start = Instant::now();
+
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
@@ -355,6 +358,11 @@ where
                                 &mut working_set_to_discard.accessory_state(),
                             );
 
+                            let duration = Instant::now().saturating_duration_since(start);
+                            self.telemetry_targets
+                                .dry_run_execution
+                                .observe(duration_to_seconds(duration));
+
                             Ok((all_txs, l1_fee_failed_txs))
                         }
                         L2BlockMode::Empty => Ok((vec![], vec![])),
@@ -381,6 +389,8 @@ where
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(u64, u64, StateDiff)> {
+        let start = Instant::now();
+
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -593,6 +603,11 @@ where
                     warn!("Failed to remove txs from mempool: {:?}", e);
                 }
 
+                let duration = Instant::now().saturating_duration_since(start);
+                self.telemetry_targets
+                    .block_production_execution
+                    .observe(duration_to_seconds(duration));
+
                 Ok((
                     l2_height,
                     da_block.header().height(),
@@ -658,6 +673,10 @@ where
             self.sequencer_da_pub_key.clone(),
             self.config.min_soft_confirmations_per_commitment,
             da_commitment_rx,
+            CommitmentTelemetry {
+                send_commitment_execution: self.telemetry_targets.send_commitment_execution.clone(),
+                commitment_blocks_count: self.telemetry_targets.commitment_blocks_count.clone(),
+            },
         );
         if self.batch_hash != [0; 32] {
             // Resubmit if there were pending commitments on restart, skip it on first init
@@ -700,6 +719,7 @@ where
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_height, last_used_l1_height);
                     }
+                    self.telemetry_targets.current_l1_block.set(last_finalized_height as i64);
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
