@@ -5,6 +5,9 @@ use sov_db::schema::types::BatchNumber;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::stf::StateDiff;
+use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
@@ -76,4 +79,28 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
         }
     }
     false
+}
+
+pub async fn create_shutdown_signal() -> tokio::sync::mpsc::Receiver<()> {
+    let (tx, rx) = mpsc::channel(1);
+
+    tokio::spawn(async move {
+        let term_signal = signal(SignalKind::terminate()).ok();
+
+        if let Some(mut term_signal) = term_signal {
+            tokio::select! {
+                _ = signal::ctrl_c() => {
+                    let _ = tx.send(()).await;
+                }
+                _ = term_signal.recv() => {
+                    let _ = tx.send(()).await;
+                }
+            }
+        } else {
+            let _ = signal::ctrl_c().await;
+            let _ = tx.send(()).await;
+        }
+    });
+
+    rx
 }

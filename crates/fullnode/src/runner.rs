@@ -8,6 +8,7 @@ use backoff::ExponentialBackoffBuilder;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::utils::create_shutdown_signal;
 use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_pruning::{Pruner, PruningConfig};
@@ -28,9 +29,9 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;
+use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
-use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
@@ -377,6 +378,8 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
+        let mut shutdown_signal = create_shutdown_signal().await;
+
         loop {
             select! {
                 _ = &mut l2_sync_worker => {},
@@ -415,13 +418,15 @@ where
                         }
                     }
                 },
-                _ = signal::ctrl_c() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
+                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
             }
         }
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        info!("Shutting down");
+        self.task_manager.abort().await;
+        Ok(())
     }
 
     /// Allows to read current state root
