@@ -52,9 +52,9 @@ on:
   merge_group:
     types: ["checks_requested"]
   push:
-    branches: ["nightly", "devnet-freeze", "main"]
+    branches: ["nightly", "devnet-freeze", "release-v*"]
   pull_request:
-    branches: ["nightly", "devnet-freeze", "main"]
+    branches: ["nightly", "devnet-freeze", "release-v*"]
     types: [opened, synchronize, reopened, ready_for_review]
 
 run-name: ${{ inputs.custom_name || github.event.pull_request.title || github.sha }}
