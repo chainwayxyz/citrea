@@ -1,5 +1,5 @@
 use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::{Context, Module, ModuleInfo, StateMap, WorkingSet};
+use sov_modules_api::{Context, Module, ModuleInfo, Spec, StateMap, WorkingSet};
 
 pub mod first_test_module {
     use super::*;
