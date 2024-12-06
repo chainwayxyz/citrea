@@ -66,7 +66,7 @@ fn test_successful_migrations() {
 
     // Write some data to the pre-migrations version of the database.
     let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None), None).unwrap();
+        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None, None)).unwrap();
 
     let mut schema_batch = SchemaBatch::new();
     schema_batch
@@ -81,7 +81,7 @@ fn test_successful_migrations() {
 
     // This instance is post-migrations DB.
     let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None), None).unwrap();
+        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None, None)).unwrap();
 
     // Check for:
     // 1. The new values are there
@@ -110,7 +110,7 @@ fn test_failed_migrations() {
 
     // Write some data to the pre-migrations version of the database.
     let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None), None).unwrap();
+        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None, None)).unwrap();
 
     let mut schema_batch = SchemaBatch::new();
     schema_batch
@@ -124,7 +124,7 @@ fn test_failed_migrations() {
     assert!(ledger_db_migrator.migrate(None).is_err());
 
     let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None), None).unwrap();
+        LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None, None)).unwrap();
     let executed_migrations = ledger_db.get_executed_migrations().unwrap();
     assert_eq!(executed_migrations.len(), 0);
 }

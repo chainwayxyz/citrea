@@ -11,7 +11,7 @@ use tracing::warn;
 /// The current default values are taken from Aptos. TODO: tune rocksdb for our workload.
 /// see <https://github.com/facebook/rocksdb/blob/master/include/rocksdb/options.h>
 /// for detailed explanations.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RocksdbConfig<'a> {
     /// The path to the RocksDB database.
     pub path: &'a Path,
@@ -23,11 +23,17 @@ pub struct RocksdbConfig<'a> {
     pub max_total_wal_size: u64,
     /// The maximum number of background threads, including threads for flushing and compaction. Defaults to 16.
     pub max_background_jobs: i32,
+    /// Provide a custom list of column families to use in Rocksdb
+    pub column_families: Option<Vec<String>>,
 }
 
 impl<'a> RocksdbConfig<'a> {
     /// Creates new instance of [`RocksdbConfig`]
-    pub fn new(path: &'a Path, max_open_files: Option<i32>) -> Self {
+    pub fn new(
+        path: &'a Path,
+        max_open_files: Option<i32>,
+        column_families: Option<Vec<String>>,
+    ) -> Self {
         let max_open_files = max_open_files.unwrap_or_else(get_fd_limit);
         Self {
             path,
@@ -39,6 +45,7 @@ impl<'a> RocksdbConfig<'a> {
             // This includes threads for flushing and compaction. Rocksdb will decide the # of
             // threads to use internally.
             max_background_jobs: 16,
+            column_families,
         }
     }
 

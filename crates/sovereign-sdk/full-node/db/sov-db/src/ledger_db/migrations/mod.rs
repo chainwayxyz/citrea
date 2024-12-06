@@ -69,7 +69,7 @@ impl<'a> LedgerDBMigrator<'a> {
             // If this is the first time the ledger db is being created, then we don't need to run migrations
             // all migrations up to this point are considered successful
             let ledger_db =
-                LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files), None)?;
+                LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files, None))?;
 
             for migration in self.migrations.iter() {
                 ledger_db
@@ -85,10 +85,11 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let all_column_families = merge_column_families(column_families_in_db);
 
-        let ledger_db = LedgerDB::with_config(
-            &RocksdbConfig::new(self.ledger_path, max_open_files),
+        let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+            self.ledger_path,
+            max_open_files,
             Some(all_column_families.clone()),
-        )?;
+        ))?;
 
         // Return an empty vector for executed migrations in case of an error since the iteration fails
         // because of the absence of the table.
@@ -101,10 +102,11 @@ impl<'a> LedgerDBMigrator<'a> {
         let temp_db_path = tempfile::tempdir()?;
         copy_db_dir_recursive(dbs_path, temp_db_path.path())?;
 
-        let new_ledger_db = Arc::new(LedgerDB::with_config(
-            &RocksdbConfig::new(temp_db_path.path(), max_open_files),
+        let new_ledger_db = Arc::new(LedgerDB::with_config(&RocksdbConfig::new(
+            temp_db_path.path(),
+            max_open_files,
             Some(all_column_families.clone()),
-        )?);
+        ))?);
 
         let mut tables_to_drop = vec![];
 
@@ -145,8 +147,11 @@ impl<'a> LedgerDBMigrator<'a> {
         // Now that the lock is gone drop the tables that were migrated
         for table in tables_to_drop {
             drop_column_family(
-                &RocksdbConfig::new(temp_db_path.path(), max_open_files),
-                Some(all_column_families.clone()),
+                &RocksdbConfig::new(
+                    temp_db_path.path(),
+                    max_open_files,
+                    Some(all_column_families.clone()),
+                ),
                 &table,
             )?;
         }

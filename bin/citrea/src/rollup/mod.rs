@@ -64,6 +64,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
@@ -176,6 +177,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
 
         let ledger_db = self.create_ledger_db(&rocksdb_config);
@@ -292,6 +294,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
@@ -414,6 +417,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 

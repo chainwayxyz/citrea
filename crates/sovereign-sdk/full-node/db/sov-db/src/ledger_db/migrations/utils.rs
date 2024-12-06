@@ -6,17 +6,15 @@ use crate::ledger_db::{LEDGER_DB_PATH_SUFFIX, LEDGER_TABLES};
 use crate::rocks_db_config::RocksdbConfig;
 
 /// Drop a column family from the database
-pub fn drop_column_family(
-    cfg: &RocksdbConfig,
-    column_families: Option<Vec<String>>,
-    cf_name: &str,
-) -> anyhow::Result<()> {
+pub fn drop_column_family(cfg: &RocksdbConfig, cf_name: &str) -> anyhow::Result<()> {
     let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
     let raw_options = cfg.as_raw_options(false);
     let mut inner = DB::open(
         path,
         "ledger-db",
-        column_families.unwrap_or_else(|| LEDGER_TABLES.iter().map(|s| s.to_string()).collect()),
+        cfg.column_families
+            .clone()
+            .unwrap_or_else(|| LEDGER_TABLES.iter().map(|s| s.to_string()).collect()),
         &raw_options,
     )?;
 

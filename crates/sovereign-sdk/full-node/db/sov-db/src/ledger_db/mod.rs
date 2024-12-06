@@ -106,13 +106,12 @@ impl LedgerDB {
     /// Will take optional column families, used for migration purposes.
     /// The returned instance will be at the path `{path}/ledger`.
     #[instrument(level = "trace", skip_all, err)]
-    pub fn with_config(
-        cfg: &RocksdbConfig,
-        column_families: Option<Vec<String>>,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let raw_options = cfg.as_raw_options(false);
-        let tables = column_families
+        let tables = cfg
+            .column_families
+            .clone()
             .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
         let inner = DB::open(path, "ledger-db", tables, &raw_options)?;
 
