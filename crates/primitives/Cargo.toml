@@ -32,4 +32,6 @@ native = [
 ]
 testing = [
   "native",
+  "short-prefix",
 ]
+short-prefix = []

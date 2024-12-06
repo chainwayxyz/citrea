@@ -18,7 +18,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::evm::DbAccount;
-use crate::handler::L1_FEE_OVERHEAD;
+use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
     SimpleStorageContract, TestContract,
@@ -1442,6 +1442,166 @@ fn test_l1_fee_halt() {
     assert_eq!(
         l1_fee_vault.balance,
         U256::from(447 + 96 + 2 * L1_FEE_OVERHEAD as u64)
+    );
+}
+
+#[test]
+fn test_l1_fee_compression_discount() {
+    let (config, dev_signer, _) =
+        get_evm_config_starting_base_fee(U256::from_str("100000000000000").unwrap(), None, 1);
+
+    let (mut evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 1;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height: 2,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, 2, SovSpecId::Genesis, l1_fee_rate);
+        let call_tx = dev_signer
+            .sign_default_transaction_with_priority_fee(
+                TxKind::Call(Address::random()),
+                vec![],
+                0,
+                1000,
+                20000000,
+                1,
+            )
+            .unwrap();
+
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let db_account = evm
+        .accounts
+        .get(&dev_signer.address(), &mut working_set)
+        .unwrap();
+
+    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+
+    let coinbase_account = evm
+        .accounts
+        .get(&config.coinbase, &mut working_set)
+        .unwrap();
+    assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
+
+    let gas_fee_paid = 21000;
+    let tx1_diff_size = 140;
+
+    let mut expected_db_balance = U256::from(
+        100000000000000u64
+            - 1000
+            - gas_fee_paid * 10000001
+            - tx1_diff_size
+            - L1_FEE_OVERHEAD as u64,
+    );
+    let mut expected_base_fee_vault_balance = U256::from(gas_fee_paid * 10000000);
+    let mut expected_coinbase_balance = U256::from(gas_fee_paid);
+    let mut expected_l1_fee_vault_balance = U256::from(tx1_diff_size + L1_FEE_OVERHEAD as u64);
+
+    assert_eq!(db_account.balance, expected_db_balance);
+    assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
+    assert_eq!(coinbase_account.balance, expected_coinbase_balance);
+    assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
+
+    // Set up the next transaction with the fork 1 activated
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height: 3,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [99u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1, // Compression discount is enabled
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, 3, SovSpecId::Fork1, l1_fee_rate);
+        let simple_tx = dev_signer
+            .sign_default_transaction_with_priority_fee(
+                TxKind::Call(Address::random()),
+                vec![],
+                1,
+                1000,
+                20000000,
+                1,
+            )
+            .unwrap();
+        evm.call(
+            CallMessage {
+                txs: vec![simple_tx],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[98u8; 32].into(), &mut working_set.accessory_state());
+
+    let db_account = evm
+        .accounts
+        .get(&dev_signer.address(), &mut working_set)
+        .unwrap();
+    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
+    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
+
+    let coinbase_account = evm
+        .accounts
+        .get(&config.coinbase, &mut working_set)
+        .unwrap();
+
+    // gas fee remains the same
+    let tx2_diff_size = 46;
+
+    expected_db_balance -=
+        U256::from(gas_fee_paid * 10000001 + 1000 + tx2_diff_size + L1_FEE_OVERHEAD as u64);
+    expected_base_fee_vault_balance += U256::from(gas_fee_paid * 10000000);
+    expected_coinbase_balance += U256::from(gas_fee_paid);
+    expected_l1_fee_vault_balance += U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
+
+    assert_eq!(db_account.balance, expected_db_balance);
+    assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
+    assert_eq!(coinbase_account.balance, expected_coinbase_balance);
+    assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
+
+    // assert comression discount
+    assert_eq!(
+        tx1_diff_size * BROTLI_COMPRESSION_PERCENTAGE as u64 / 100,
+        tx2_diff_size
+    );
+
+    assert_eq!(
+        evm.receipts
+            .iter(&mut working_set.accessory_state())
+            .map(|r| r.l1_diff_size)
+            .collect::<Vec<_>>(),
+        [255, 561, 1019, 561, tx1_diff_size, tx2_diff_size]
     );
 }
 
