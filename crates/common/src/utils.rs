@@ -85,19 +85,20 @@ pub async fn create_shutdown_signal() -> tokio::sync::mpsc::Receiver<()> {
     let (tx, rx) = mpsc::channel(1);
 
     tokio::spawn(async move {
-        let mut term_signal = signal(SignalKind::terminate()).ok();
+        let term_signal = signal(SignalKind::terminate()).ok();
 
-        tokio::select! {
-            _ = signal::ctrl_c() => {
-                let _ = tx.send(()).await;
-            }
-            _ = async {
-                if let Some(ref mut term_signal) = term_signal {
-                    term_signal.recv().await;
+        if let Some(mut term_signal) = term_signal {
+            tokio::select! {
+                _ = signal::ctrl_c() => {
+                    let _ = tx.send(()).await;
                 }
-            } => {
-                let _ = tx.send(()).await;
+                _ = term_signal.recv() => {
+                    let _ = tx.send(()).await;
+                }
             }
+        } else {
+            let _ = signal::ctrl_c().await;
+            let _ = tx.send(()).await;
         }
     });
 
