@@ -4,14 +4,37 @@
 use std::env;
 use std::str::FromStr;
 
+use serde::Serialize;
+use sov_modules_rollup_blueprint::Network;
 use tracing::Level;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 mod eth;
+mod guests;
 mod rollup;
 pub use rollup::*;
+
+/// The network currently running.
+#[derive(clap::ValueEnum, Copy, Clone, Default, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NetworkArg {
+    /// Mainnet
+    #[default]
+    Mainnet,
+    /// Testnet
+    Testnet,
+}
+
+impl From<NetworkArg> for Network {
+    fn from(value: NetworkArg) -> Self {
+        match value {
+            NetworkArg::Mainnet => Network::Mainnet,
+            NetworkArg::Testnet => Network::Testnet,
+        }
+    }
+}
 
 /// Default initialization of logging
 pub fn initialize_logging(level: Level) {

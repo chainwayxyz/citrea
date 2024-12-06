@@ -132,6 +132,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check TOML
         uses: dprint/check@v2.2
+      - name: Build guests
+        run: make build-risc0
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -163,6 +165,8 @@ jobs:
         uses: ./.github/actions/install-risc0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build guests
+        run: make build-risc0
       - name: Run cargo-udeps
         env:
           RUSTFLAGS: -A warnings

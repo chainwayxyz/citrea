@@ -15,6 +15,7 @@ use citrea_e2e::node::NodeKind;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use reth_primitives::U64;
 use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
@@ -38,7 +39,7 @@ pub async fn wait_for_zkproofs(
         match full_node
             .client
             .http_client()
-            .get_verified_batch_proofs_by_slot_height(height)
+            .get_verified_batch_proofs_by_slot_height(U64::from(height))
             .await?
         {
             Some(proofs) => return Ok(proofs),
@@ -270,7 +271,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let commitments: Vec<SequencerCommitment> = full_node
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await
             .unwrap_or_else(|_| {
                 panic!(

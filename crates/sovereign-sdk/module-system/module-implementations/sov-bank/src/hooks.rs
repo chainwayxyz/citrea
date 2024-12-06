@@ -25,8 +25,6 @@ const GAS_TOKEN_ADDRESS: &'static str;
 pub struct BankTxHook<C: Context> {
     /// The tx sender address
     pub sender: C::Address,
-    /// The sequencer address
-    pub sequencer: C::Address,
 }
 
 impl<C: Context> TxHooks for Bank<C> {
@@ -40,14 +38,14 @@ impl<C: Context> TxHooks for Bank<C> {
         working_set: &mut WorkingSet<C>,
         hook: &BankTxHook<C>,
     ) -> anyhow::Result<()> {
-        let BankTxHook { sender, sequencer } = hook;
+        let BankTxHook { sender } = hook;
         let amount = 0;
 
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
                 .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
             let from = sender;
-            let to = sequencer;
+            let to = sender;
             let coins = Coins {
                 amount,
                 token_address,
@@ -69,7 +67,7 @@ impl<C: Context> TxHooks for Bank<C> {
         if amount > 0 {
             let token_address = C::Address::from_str(GAS_TOKEN_ADDRESS)
                 .map_err(|_| anyhow::anyhow!("failed to parse gas token address"))?;
-            let from = ctx.sequencer();
+            let from = ctx.sender();
             let to = ctx.sender();
             let coins = Coins {
                 amount,

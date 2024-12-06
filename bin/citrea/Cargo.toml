@@ -50,10 +50,12 @@ borsh = { workspace = true, features = ["bytes"] }
 clap = { workspace = true }
 hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
+lazy_static = { workspace = true }
 log-panics = { workspace = true }
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }
+risc0-binfmt = { workspace = true }
 secp256k1 = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -98,8 +100,7 @@ sp1-helper = { version = "3.0.0", default-features = false }
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
-
-bench = ["hex"] # "sov-risc0-adapter/bench", "risc0/bench"]
+bench = ["hex"]
 
 [[bin]]
 name = "citrea"
