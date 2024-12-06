@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,6 +11,9 @@ use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, get_da
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_range_exists;
 use citrea_primitives::forks::FORKS;
+use citrea_primitives::utils::duration_to_seconds;
+use prometheus_client::metrics::gauge::Gauge;
+use prometheus_client::metrics::histogram::Histogram;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde::de::DeserializeOwned;
@@ -30,6 +34,11 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
+
+pub struct TelemetryTargets {
+    pub current_l1_block: Gauge,
+    pub scan_l1_block: Histogram,
+}
 
 pub(crate) struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
 where
@@ -53,6 +62,7 @@ where
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    telemetry_targets: TelemetryTargets,
     _context: PhantomData<C>,
     _state_root: PhantomData<StateRoot>,
 }
@@ -80,6 +90,7 @@ where
         prover_da_pub_key: Vec<u8>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+        telemetry_targets: TelemetryTargets,
     ) -> Self {
         Self {
             ledger_db,
@@ -89,6 +100,7 @@ where
             prover_da_pub_key,
             code_commitments_by_spec,
             l1_block_cache,
+            telemetry_targets,
             pending_l1_blocks: VecDeque::new(),
             _context: PhantomData,
             _state_root: PhantomData,
@@ -105,6 +117,7 @@ where
             self.da_service.clone(),
             l1_tx,
             self.l1_block_cache.clone(),
+            self.telemetry_targets.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
@@ -214,6 +227,10 @@ where
             .map_err(|e| {
                 error!("Could not set last scanned l1 height: {}", e);
             });
+
+        self.telemetry_targets
+            .current_l1_block
+            .set(l1_height as i64);
 
         self.pending_l1_blocks.pop_front();
     }
@@ -426,11 +443,14 @@ async fn sync_l1<Da>(
     da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    telemetry_l1_scan_block: Histogram,
 ) where
     Da: DaService,
 {
     let mut l1_height = start_l1_height;
     info!("Starting to sync from L1 height {}", l1_height);
+
+    let start = Instant::now();
 
     'block_sync: loop {
         // TODO: for a node, the da block at slot_height might not have been finalized yet
@@ -465,6 +485,10 @@ async fn sync_l1<Da>(
                 if let Err(e) = sender.send(l1_block).await {
                     error!("Could not notify about L1 block: {}", e);
                     continue 'block_sync;
+                } else {
+                    telemetry_l1_scan_block.observe(duration_to_seconds(
+                        Instant::now().saturating_duration_since(start),
+                    ));
                 }
             }
         }

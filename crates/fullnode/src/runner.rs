@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::{bail, Context as _};
 use backoff::future::retry as retry_backoff;
@@ -11,6 +12,7 @@ use citrea_common::tasks::manager::TaskManager;
 use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig, TelemetryConfig};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::duration_to_seconds;
 use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
@@ -35,7 +37,7 @@ use tokio::time::{sleep, Duration};
 use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
-use crate::da_block_handler::L1BlockHandler;
+use crate::da_block_handler::{self, L1BlockHandler};
 use crate::telemetry::{setup_telemetry, TelemetryTargets};
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
@@ -260,6 +262,8 @@ where
         l2_height: u64,
         soft_confirmation: &GetSoftConfirmationResponse,
     ) -> anyhow::Result<()> {
+        let start = Instant::now();
+
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
             soft_confirmation.da_slot_height,
@@ -341,6 +345,18 @@ where
             l2_height, self.state_root
         );
 
+        self.telemetry
+            .targets
+            .current_l2_block
+            .set(l2_height as i64);
+
+        self.telemetry
+            .targets
+            .process_soft_confirmation
+            .observe(duration_to_seconds(
+                Instant::now().saturating_duration_since(start),
+            ));
+
         Ok(())
     }
 
@@ -381,6 +397,8 @@ where
         let prover_da_pub_key = self.prover_da_pub_key.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
+        let telemetry_current_l1_block = self.telemetry.targets.current_l1_block.clone();
+        let telemetry_scan_l1_block = self.telemetry.targets.scan_l1_block.clone();
 
         self.task_manager
             .spawn(move |cancellation_token| async move {
@@ -392,6 +410,10 @@ where
                     prover_da_pub_key,
                     code_commitments_by_spec,
                     l1_block_cache.clone(),
+                    da_block_handler::TelemetryTargets {
+                        current_l1_block: telemetry_current_l1_block,
+                        scan_l1_block: telemetry_scan_l1_block,
+                    },
                 );
                 l1_block_handler
                     .run(start_l1_height, cancellation_token)
