@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient};
-use sov_rollup_interface::zk::{BatchProofCircuitOutputV2, LightClientCircuitOutput};
+use sov_rollup_interface::zk::{BatchProofCircuitOutput, LightClientCircuitOutput};
 
 pub(crate) fn create_mock_blob(
     initial_state_root: [u8; 32],
@@ -13,9 +13,10 @@ pub(crate) fn create_mock_blob(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutputV2::<MockDaSpec, [u8; 32]> {
+    let bp = BatchProofCircuitOutput::<MockDaSpec, [u8; 32]> {
         initial_state_root,
         final_state_root,
+        prev_soft_confirmation_hash: [3; 32],
         final_soft_confirmation_hash: [4; 32],
         state_diff: BTreeMap::new(),
         da_slot_hash: MockHash([5; 32]),
