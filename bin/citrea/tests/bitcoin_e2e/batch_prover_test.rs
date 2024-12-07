@@ -524,13 +524,9 @@ impl TestCase for ParallelProvingTest {
         let finalized_height = da.get_finalized_height().await?;
 
         // Retrieve proofs from fullnode
-        let proofs = wait_for_zkproofs(
-            full_node,
-            finalized_height,
-            Some(Duration::from_secs(120)),
-        )
-        .await
-        .unwrap();
+        let proofs = wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(120)))
+            .await
+            .unwrap();
         dbg!(proofs.len());
 
         Ok(())
