@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use citrea_primitives::forks::FORKS;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
@@ -17,7 +17,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::DaDataBatchProof;
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, UnsignedSoftConfirmationV1};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationError, SoftConfirmationResult,
@@ -254,7 +254,8 @@ where
                 ));
             }
         } else {
-            let digest = unsigned.to_v1_hash::<<C as Spec>::Hasher>();
+            let unsigned = UnsignedSoftConfirmationV1::from(unsigned);
+            let digest = unsigned.hash::<<C as Spec>::Hasher>();
             let hash = Into::<[u8; 32]>::into(digest);
             if soft_confirmation.hash() != hash {
                 return Err(StateTransitionError::SoftConfirmationError(
@@ -263,7 +264,7 @@ where
             }
 
             // verify signature
-            if pre_fork1_verify_soft_confirmation_signature::<C, _>(
+            if pre_fork1_verify_soft_confirmation_signature::<C>(
                 &unsigned,
                 soft_confirmation.signature(),
                 sequencer_public_key,
@@ -793,12 +794,12 @@ fn verify_soft_confirmation_signature<C: Context, Tx: Clone>(
 // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
 //   when removing this fn
 // FIXME: ^
-fn pre_fork1_verify_soft_confirmation_signature<C: Context, Tx: BorshSerialize>(
-    unsigned_soft_confirmation: &UnsignedSoftConfirmation<Tx>,
+fn pre_fork1_verify_soft_confirmation_signature<C: Context>(
+    unsigned_soft_confirmation: &UnsignedSoftConfirmationV1,
     signature: &[u8],
     sequencer_public_key: &[u8],
 ) -> Result<(), anyhow::Error> {
-    let message = borsh::to_vec(&unsigned_soft_confirmation.to_v1()).unwrap();
+    let message = borsh::to_vec(&unsigned_soft_confirmation).unwrap();
 
     let signature = C::Signature::try_from(signature)?;
 

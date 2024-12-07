@@ -33,7 +33,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
     Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateCheckpoint,
-    StateDiff, UnsignedSoftConfirmation, WorkingSet,
+    StateDiff, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
 use sov_modules_stf_blueprint::StfBlueprintTrait;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
@@ -880,7 +880,9 @@ where
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
         use digest::Digest;
-        let raw = borsh::to_vec(&soft_confirmation.to_v1()).map_err(|e| anyhow!(e))?;
+
+        let raw = borsh::to_vec(&UnsignedSoftConfirmationV1::from(soft_confirmation.clone()))
+            .map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);

@@ -12,7 +12,7 @@ use digest::{Digest, Output};
 use serde::{Deserialize, Serialize};
 
 /// Contains raw transactions and information about the soft confirmation block
-#[derive(Debug, PartialEq, BorshSerialize)]
+#[derive(Debug, PartialEq, BorshSerialize, Clone)]
 pub struct UnsignedSoftConfirmation<'txs, Tx> {
     l2_height: u64,
     da_slot_height: u64,
@@ -119,33 +119,35 @@ impl<'txs, Tx: BorshSerialize> UnsignedSoftConfirmation<'txs, Tx> {
         hasher.update(self.timestamp.to_be_bytes());
         hasher.finalize()
     }
-    /// Old version of compute_digest
-    // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
-    //   when removing this fn
-    // FIXME: ^
-    pub fn to_v1_hash<D: Digest>(&self) -> Output<D> {
-        let old = self.to_v1();
-        let raw = borsh::to_vec(&old).unwrap();
-        D::digest(raw.as_slice())
-    }
+}
 
-    /// Convert to old version of UnsignedSoftConfirmation
-    /// Used for backwards compatibility
-    /// Only applicable for pre-fork1
-    pub fn to_v1(&self) -> UnsignedSoftConfirmationV1<'txs> {
+impl<'txs, Tx: BorshSerialize> From<UnsignedSoftConfirmation<'txs, Tx>>
+    for UnsignedSoftConfirmationV1<'txs>
+{
+    fn from(value: UnsignedSoftConfirmation<'txs, Tx>) -> Self {
         UnsignedSoftConfirmationV1 {
-            l2_height: self.l2_height,
-            da_slot_height: self.da_slot_height,
-            da_slot_hash: self.da_slot_hash,
-            da_slot_txs_commitment: self.da_slot_txs_commitment,
-            blobs: self.blobs,
-            deposit_data: self.deposit_data.clone(),
-            l1_fee_rate: self.l1_fee_rate,
-            timestamp: self.timestamp,
+            l2_height: value.l2_height,
+            da_slot_height: value.da_slot_height,
+            da_slot_hash: value.da_slot_hash,
+            da_slot_txs_commitment: value.da_slot_txs_commitment,
+            blobs: value.blobs,
+            deposit_data: value.deposit_data,
+            l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
         }
     }
 }
 
+impl<'txs> UnsignedSoftConfirmationV1<'txs> {
+    /// Pre fork1 version of compute_digest
+    // TODO: Remove derive(BorshSerialize) for UnsignedSoftConfirmation
+    //   when removing this fn
+    // FIXME: ^
+    pub fn hash<D: Digest>(&self) -> Output<D> {
+        let raw = borsh::to_vec(&self).unwrap();
+        D::digest(raw.as_slice())
+    }
+}
 /// Signed version of the `UnsignedSoftConfirmation`
 /// Contains the signature and public key of the sequencer
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
