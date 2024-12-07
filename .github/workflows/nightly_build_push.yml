@@ -35,11 +35,11 @@ jobs:
 
       - name: Build Project
         run: |
-          cargo build --release
+          cargo build --features short-prefix
 
       - name: Copy binary to build-push/nightly
         run: |
-          cp target/release/citrea docker/build-push/nightly/citrea
+          cp target/debug/citrea docker/build-push/nightly/citrea
           chmod +x docker/build-push/nightly/citrea
 
       - name: Set up Docker Buildx

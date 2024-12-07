@@ -250,7 +250,7 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
     fn delete_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> Result<()>;
 
     /// Sets the latest state diff
-    fn set_state_diff(&self, state_diff: StateDiff) -> Result<()>;
+    fn set_state_diff(&self, state_diff: &StateDiff) -> Result<()>;
 
     /// Get the most recent commitment's l1 height
     fn get_l1_height_of_last_commitment(&self) -> anyhow::Result<Option<SlotNumber>>;

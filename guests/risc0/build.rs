@@ -48,7 +48,12 @@ fn main() {
 
 fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     let mut guest_pkg_to_options = HashMap::new();
-    let features = vec![];
+
+    let mut features = Vec::new();
+
+    if std::env::var("CARGO_FEATURE_SHORT_PREFIX").is_ok() {
+        features.push("short-prefix".to_string());
+    }
 
     let use_docker = if std::env::var("REPR_GUEST_BUILD").is_ok() {
         let this_package_dir = std::env!("CARGO_MANIFEST_DIR");

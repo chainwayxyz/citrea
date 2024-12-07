@@ -1927,7 +1927,6 @@ dependencies = [
  "sha2",
  "sov-db",
  "sov-mock-da",
- "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",

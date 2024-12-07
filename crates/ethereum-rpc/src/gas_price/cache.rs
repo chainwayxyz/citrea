@@ -21,6 +21,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     }
 
     /// Gets block from cache or from provider
+    #[allow(unused)]
     pub fn get_block(
         &mut self,
         block_hash: B256,
