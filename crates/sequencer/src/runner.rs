@@ -845,7 +845,7 @@ where
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
         use digest::Digest;
-        let raw = borsh::to_vec(&soft_confirmation.get_old_format()).map_err(|e| anyhow!(e))?;
+        let raw = borsh::to_vec(&soft_confirmation).map_err(|e| anyhow!(e))?;
         let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
 
         let signature = self.sov_tx_signer_priv_key.sign(&raw);
