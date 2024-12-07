@@ -40,12 +40,12 @@ impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
         context: &C,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
-        if *context.sender() == self.get_authority(working_set) {
-            self.authority.set(&address, working_set);
-            Ok(CallResponse::default())
-        } else {
-            Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized)
+        if *context.sender() != self.get_authority(working_set) {
+            return Err(SoftConfirmationModuleCallError::RuleEnforcerUnauthorized);
         }
+
+        self.authority.set(&address, working_set);
+        Ok(CallResponse::default())
     }
 
     pub(crate) fn modify_max_l2_blocks_per_l1(

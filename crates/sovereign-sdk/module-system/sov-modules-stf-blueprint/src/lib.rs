@@ -441,9 +441,6 @@ where
             current_spec,
         );
 
-        // TODO: maybe start checkpointing here
-        // TODO: compare diff and make sure removed revert and checkpoints do not braek anything
-
         let checkpoint =
             StateCheckpoint::with_witness(pre_state.clone(), state_witness, offchain_witness);
         let mut working_set = checkpoint.to_revertable();
