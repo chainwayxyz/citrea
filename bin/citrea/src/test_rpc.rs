@@ -69,7 +69,7 @@ fn test_helper(
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
         let mut ledger_db =
-            LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None)).unwrap();
+            LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
         populate_ledger(
             &mut ledger_db,
             &[1; 32],

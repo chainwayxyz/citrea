@@ -47,7 +47,7 @@ pub struct LedgerDB {
     /// The database which stores the committed ledger. Uses an optimized layout which
     /// requires transactions to be executed before being committed.
     pub(crate) db: Arc<DB>,
-    next_item_numbers: Arc<Mutex<ItemNumbers>>,
+    pub(crate) next_item_numbers: Arc<Mutex<ItemNumbers>>,
 }
 
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
@@ -103,17 +103,17 @@ impl<S: SlotData, B, T> SlotCommit<S, B, T> {
 
 impl LedgerDB {
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
-    /// The returned instance will be at the path `{path}/ledger-db`.
+    /// Will take optional column families, used for migration purposes.
+    /// The returned instance will be at the path `{path}/ledger`.
     #[instrument(level = "trace", skip_all, err)]
     pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
         let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
         let raw_options = cfg.as_raw_options(false);
-        let inner = DB::open(
-            path,
-            "ledger-db",
-            LEDGER_TABLES.iter().copied(),
-            &raw_options,
-        )?;
+        let tables = cfg
+            .column_families
+            .clone()
+            .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
+        let inner = DB::open(path, "ledger-db", tables, &raw_options)?;
 
         let next_item_numbers = ItemNumbers {
             slot_number: Self::last_version_written(&inner, SlotByNumber)?.unwrap_or_default() + 1,
@@ -128,6 +128,30 @@ impl LedgerDB {
             db: Arc::new(inner),
             next_item_numbers: Arc::new(Mutex::new(next_item_numbers)),
         })
+    }
+
+    /// Returns the handle foe the column family with the given name
+    pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
+        self.db.get_cf_handle(cf_name)
+    }
+
+    /// Insert a key-value pair into the database given a column family
+    pub fn insert_into_cf_raw(
+        &self,
+        cf_handle: &rocksdb::ColumnFamily,
+        key: &[u8],
+        value: &[u8],
+    ) -> anyhow::Result<()> {
+        self.db.put_cf(cf_handle, key, value)
+    }
+
+    /// Get an iterator for the given column family
+    pub fn get_iterator_for_cf<'a>(
+        &'a self,
+        cf_handle: &rocksdb::ColumnFamily,
+        iterator_mode: Option<rocksdb::IteratorMode>,
+    ) -> anyhow::Result<rocksdb::DBIterator<'a>> {
+        Ok(self.db.iter_cf(cf_handle, iterator_mode))
     }
 
     /// Gets all data with identifier in `range.start` to `range.end`. If `range.end` is outside

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -5,9 +6,14 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use tracing::{debug, error};
 
+use super::migrations::utils::{drop_column_family, list_column_families};
 use super::LedgerDB;
-use crate::ledger_db::SharedLedgerOps;
+use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use crate::rocks_db_config::RocksdbConfig;
+use crate::schema::tables::LEDGER_TABLES;
+
+/// Utilities for ledger db migrations
+pub mod utils;
 
 /// Alias for migration name type
 pub type MigrationName = String;
@@ -19,7 +25,11 @@ pub trait LedgerMigration {
     /// Provide an identifier for this migration
     fn identifier(&self) -> (MigrationName, MigrationVersion);
     /// Execute current migration on ledger DB
-    fn execute(&self, ledger_db: Arc<LedgerDB>) -> anyhow::Result<()>;
+    fn execute(
+        &self,
+        ledger_db: Arc<LedgerDB>,
+        tables_to_drop: &mut Vec<String>,
+    ) -> anyhow::Result<()>;
 }
 
 /// Handler for ledger DB migrations.
@@ -53,10 +63,33 @@ impl<'a> LedgerDBMigrator<'a> {
 
         debug!("Starting LedgerDB migrations...");
 
-        let original_path = &self.ledger_path;
+        let dbs_path = &self.ledger_path;
 
-        let ledger_db =
-            LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files))?;
+        if !dbs_path.join(LEDGER_DB_PATH_SUFFIX).exists() {
+            // If this is the first time the ledger db is being created, then we don't need to run migrations
+            // all migrations up to this point are considered successful
+            let ledger_db =
+                LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files, None))?;
+
+            for migration in self.migrations.iter() {
+                ledger_db
+                    .put_executed_migration(migration.identifier())
+                    .expect(
+                    "Should mark migrations as executed, otherwise, something is seriously wrong",
+                );
+            }
+            return Ok(());
+        }
+
+        let column_families_in_db = list_column_families(self.ledger_path);
+
+        let all_column_families = merge_column_families(column_families_in_db);
+
+        let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+            self.ledger_path,
+            max_open_files,
+            Some(all_column_families.clone()),
+        ))?;
 
         // Return an empty vector for executed migrations in case of an error since the iteration fails
         // because of the absence of the table.
@@ -67,24 +100,27 @@ impl<'a> LedgerDBMigrator<'a> {
 
         // Copy files over, if temp_db_path falls out of scope, the directory is removed.
         let temp_db_path = tempfile::tempdir()?;
-        copy_db_dir_recursive(original_path, temp_db_path.path())?;
+        copy_db_dir_recursive(dbs_path, temp_db_path.path())?;
 
         let new_ledger_db = Arc::new(LedgerDB::with_config(&RocksdbConfig::new(
             temp_db_path.path(),
             max_open_files,
+            Some(all_column_families.clone()),
         ))?);
+
+        let mut tables_to_drop = vec![];
 
         for migration in self.migrations {
             if !executed_migrations.contains(&migration.identifier()) {
                 debug!("Running migration: {}", migration.identifier().0);
-                if let Err(e) = migration.execute(new_ledger_db.clone()) {
+                if let Err(e) = migration.execute(new_ledger_db.clone(), &mut tables_to_drop) {
                     error!(
-                        "Error executing migration {}: {:?}",
+                        "Error executing migration {}\n: {:?}",
                         migration.identifier().0,
                         e
                     );
 
-                    // Error happend on the temporary DB, therefore,
+                    // Error happened on the temporary DB, therefore,
                     // fail the node.
                     return Err(e);
                 }
@@ -107,24 +143,49 @@ impl<'a> LedgerDBMigrator<'a> {
         }
         // Stop using the original ledger DB path, i.e drop locks
         drop(new_ledger_db);
+
+        // Now that the lock is gone drop the tables that were migrated
+        for table in tables_to_drop {
+            drop_column_family(
+                &RocksdbConfig::new(
+                    temp_db_path.path(),
+                    max_open_files,
+                    Some(all_column_families.clone()),
+                ),
+                &table,
+            )?;
+        }
+
         // Construct a backup path adjacent to original path
-        let last_part = original_path
+        let ledger_path = dbs_path.join(LEDGER_DB_PATH_SUFFIX);
+        let temp_ledger_path = temp_db_path.path().join(LEDGER_DB_PATH_SUFFIX);
+        let last_part = ledger_path
             .components()
             .last()
             .ok_or(anyhow!("Original path contains invalid construction"))?
             .as_os_str()
             .to_str()
             .ok_or(anyhow!("Could not extract path of ledger path"))?;
-        let backup_path = original_path
+
+        let backup_path = ledger_path
             .parent()
             .ok_or(anyhow!(
                 "Was not able to determine parent path of ledger DB"
             ))?
             .join(format!("{}-backup", last_part));
+
+        // Initially clear the backup path
+        clear_db_dir(&backup_path)?;
+
         // Backup original DB
-        copy_db_dir_recursive(original_path, &backup_path)?;
+        copy_db_dir_recursive(&ledger_path, &backup_path)?;
+
+        // Initially clear the original path
+        clear_db_dir(&ledger_path)?;
+        assert!(!ledger_path.exists(), "Failed to clear original path");
+
         // Copy new DB into original path
-        copy_db_dir_recursive(temp_db_path.path(), original_path)?;
+        copy_db_dir_recursive(&temp_ledger_path, &ledger_path)?;
 
         Ok(())
     }
@@ -146,6 +207,23 @@ pub fn copy_db_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
         } else {
             fs::copy(&entry_path, &target_path)?;
         }
+    }
+    Ok(())
+}
+
+fn merge_column_families(column_families_in_db: Vec<String>) -> Vec<String> {
+    let column_families: HashSet<String> = LEDGER_TABLES
+        .iter()
+        .map(|&table_name| table_name.to_string())
+        .chain(column_families_in_db)
+        .collect();
+    column_families.into_iter().collect()
+}
+
+/// Completely clears the given path
+pub fn clear_db_dir(path: &Path) -> std::io::Result<()> {
+    if path.exists() {
+        fs::remove_dir_all(path)?;
     }
     Ok(())
 }

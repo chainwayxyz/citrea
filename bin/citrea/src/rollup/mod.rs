@@ -75,6 +75,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
@@ -190,16 +191,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.storage.path.as_path(),
             citrea_fullnode::db_migrations::migrations(),
         );
+
         migrator.migrate(rollup_config.storage.db_max_open_files)?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
+
         let ledger_db = self.create_ledger_db(&rocksdb_config);
+
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
+
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
@@ -223,10 +229,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let genesis_root = prover_storage.get_root_hash(1);
 
-        let init_variant = match ledger_db.get_head_soft_confirmation()? {
+        let head_sc = ledger_db.get_head_soft_confirmation()?;
+
+        let init_variant = match head_sc {
             // At least one soft confirmation was processed
             Some((number, soft_confirmation)) => {
-                info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+                let state_root = prover_storage.get_root_hash(number.0 + 1)?;
+                info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, state_root.as_ref(), soft_confirmation.hash);
 
                 InitVariant::Initialized((
                     prover_storage.get_root_hash(number.0 + 1)?,
@@ -317,6 +326,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
@@ -439,6 +449,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
+            None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 

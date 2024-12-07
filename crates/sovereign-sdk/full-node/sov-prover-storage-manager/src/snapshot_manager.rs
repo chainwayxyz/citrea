@@ -309,7 +309,7 @@ mod tests {
 
     fn create_test_db(path: &std::path::Path) -> sov_schema_db::DB {
         let tables = vec![DUMMY_STATE_CF.to_string()];
-        let raw_options = RocksdbConfig::new(path, None).as_raw_options(false);
+        let raw_options = RocksdbConfig::new(path, None, None).as_raw_options(false);
         sov_schema_db::DB::open(path, "test_db", tables, &raw_options).unwrap()
     }
 
