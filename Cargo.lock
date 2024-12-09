@@ -7343,7 +7343,6 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
- "citrea-primitives",
  "futures",
  "hex",
  "lazy_static",

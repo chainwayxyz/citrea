@@ -28,7 +28,6 @@ tokio-stream = { version = "0.1.14", features = ["full"], optional = true }
 tokio-util = { workspace = true, optional = true }
 tracing = { workspace = true, features = ["attributes"] }
 
-citrea-primitives = { path = "../../../primitives", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 
 [dev-dependencies]
@@ -38,7 +37,6 @@ tempfile = { workspace = true }
 [features]
 default = ["native"]
 native = [
-  "dep:citrea-primitives",
   "dep:rusqlite",
   "dep:serde_json",
   "dep:tokio",
