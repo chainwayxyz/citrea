@@ -142,22 +142,19 @@ where
 
         let sequencer_commitments = extract_sequencer_commitments(
             self.da_service.clone(),
-            l1_block.clone(),
+            l1_block,
             &self.sequencer_da_pub_key,
         );
-        let zk_proofs = match extract_zk_proofs(
-            self.da_service.clone(),
-            l1_block.clone(),
-            &self.prover_da_pub_key,
-        )
-        .await
-        {
-            Ok(proofs) => proofs,
-            Err(e) => {
-                error!("Could not process L1 block: {}...skipping", e);
-                return;
-            }
-        };
+        let zk_proofs =
+            match extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key)
+                .await
+            {
+                Ok(proofs) => proofs,
+                Err(e) => {
+                    error!("Could not process L1 block: {}...skipping", e);
+                    return;
+                }
+            };
 
         if !sequencer_commitments.is_empty() {
             // If the L2 range does not exist, we break off the current process call
@@ -172,10 +169,7 @@ where
         }
 
         for zk_proof in zk_proofs.clone().iter() {
-            if let Err(e) = self
-                .process_zk_proof(l1_block.clone(), zk_proof.clone())
-                .await
-            {
+            if let Err(e) = self.process_zk_proof(l1_block, zk_proof.clone()).await {
                 match e {
                     SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
                         warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
@@ -289,7 +283,7 @@ where
 
     async fn process_zk_proof(
         &self,
-        l1_block: Da::FilteredBlock,
+        l1_block: &Da::FilteredBlock,
         proof: Proof,
     ) -> Result<(), SyncError> {
         tracing::info!(

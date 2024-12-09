@@ -72,11 +72,8 @@ where
         blob.full_data();
     });
 
-    let sequencer_commitments: Vec<SequencerCommitment> = extract_sequencer_commitments::<Da>(
-        da_service.clone(),
-        l1_block.clone(),
-        &sequencer_da_pub_key,
-    );
+    let sequencer_commitments: Vec<SequencerCommitment> =
+        extract_sequencer_commitments::<Da>(da_service.clone(), &l1_block, &sequencer_da_pub_key);
 
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::NoSeqCommitments {
