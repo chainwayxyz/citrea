@@ -36,7 +36,7 @@ fn main() {
             }
         },
         Err(std::env::VarError::NotPresent) => {
-            println!("cargo:warning=SKIP_GUEST_BUILD not set. Performing guest build.");
+            println!("cargo:warning=SKIP_GUEST_BUILD not set. Defaulting to performing guest build.");
         }
         Err(std::env::VarError::NotUnicode(_)) => {
             println!("cargo:warning=SKIP_GUEST_BUILD contains invalid Unicode. Defaulting to performing guest build.");
