@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use anyhow::Result;
 
-use crate::metrics::{SCHEMADB_ITER_BYTES, SCHEMADB_ITER_LATENCY_SECONDS};
 use crate::schema::{KeyDecoder, Schema, ValueCodec};
+use crate::telemetry::{SCHEMADB_ITER_BYTES, SCHEMADB_ITER_LATENCY_SECONDS};
 use crate::{duration_to_seconds, SchemaKey, SchemaValue};
 
 /// This defines a type that can be used to seek a [`SchemaIterator`], via
@@ -109,7 +109,10 @@ where
         let value_size_bytes = raw_value.len();
         SCHEMADB_ITER_BYTES
             .histogram
-            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
+            .get_or_create(&vec![(
+                "cf_name".to_owned(),
+                S::COLUMN_FAMILY_NAME.to_owned(),
+            )])
             .observe((raw_key.len() + raw_value.len()) as f64);
 
         let key = <S::Key as KeyDecoder<S>>::decode_key(raw_key)?;
@@ -123,7 +126,10 @@ where
         let v = Instant::now().saturating_duration_since(start);
         let _timer = SCHEMADB_ITER_LATENCY_SECONDS
             .histogram
-            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
+            .get_or_create(&vec![(
+                "cf_name".to_owned(),
+                S::COLUMN_FAMILY_NAME.to_owned(),
+            )])
             .observe(duration_to_seconds(v));
 
         Ok(Some(IteratorOutput {

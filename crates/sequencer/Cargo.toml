@@ -58,6 +58,7 @@ sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", def
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["native"] }
+sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 

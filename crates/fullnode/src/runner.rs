@@ -11,14 +11,13 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
-use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig, TelemetryConfig};
+use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::duration_to_seconds;
 use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
-use prometheus_client::registry::Registry;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
@@ -39,15 +38,9 @@ use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::{self, L1BlockHandler};
-use crate::telemetry::{setup_telemetry, TelemetryTargets};
+use crate::telemetry::Telemetry;
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
-
-pub struct Telemetry {
-    config: TelemetryConfig,
-    registry: Arc<Registry>,
-    targets: Arc<TelemetryTargets>,
-}
 
 /// Citrea's own STF runner implementation.
 pub struct CitreaFullnode<Stf, Da, Vm, C, DB>
@@ -114,7 +107,7 @@ where
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
-        telemetry_config: TelemetryConfig,
+        telemetry: Telemetry,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -137,8 +130,6 @@ where
         };
 
         let start_l2_height = ledger_db.get_next_items_numbers().soft_confirmation_number;
-
-        let (telemetry_registry, telemetry_targets) = setup_telemetry();
 
         info!("Starting L2 height: {}", start_l2_height);
 
@@ -164,11 +155,7 @@ where
             soft_confirmation_tx,
             pruning_config: runner_config.pruning_config,
             task_manager,
-            telemetry: Telemetry {
-                config: telemetry_config,
-                registry: telemetry_registry,
-                targets: telemetry_targets,
-            },
+            telemetry,
         })
     }
 

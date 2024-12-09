@@ -12,15 +12,12 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
-use citrea_common::{
-    BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, TelemetryConfig,
-};
+use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::duration_to_seconds;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use prometheus_client::registry::Registry;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
@@ -40,15 +37,9 @@ use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::{self, L1BlockHandler};
 use crate::rpc::{create_rpc_module, RpcContext};
-use crate::telemetry::{setup_telemetry, TelemetryTargets};
+use crate::telemetry::Telemetry;
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
-
-pub struct Telemetry {
-    config: TelemetryConfig,
-    registry: Arc<Registry>,
-    targets: Arc<TelemetryTargets>,
-}
 
 pub struct CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
 where
@@ -118,7 +109,7 @@ where
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
-        telemetry_config: TelemetryConfig,
+        telemetry: Telemetry,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -147,8 +138,6 @@ where
         // Last L1/L2 height before shutdown.
         let start_l2_height = last_soft_confirmation_processed_before_shutdown;
 
-        let (telemetry_registry, telemetry_targets) = setup_telemetry();
-
         Ok(Self {
             start_l2_height,
             da_service,
@@ -171,11 +160,7 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
-            telemetry: Telemetry {
-                config: telemetry_config,
-                registry: telemetry_registry,
-                targets: telemetry_targets,
-            },
+            telemetry,
         })
     }
 

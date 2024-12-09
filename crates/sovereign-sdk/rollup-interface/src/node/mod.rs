@@ -4,3 +4,5 @@
 #[cfg(feature = "native")]
 pub mod rpc;
 pub mod services;
+#[cfg(feature = "native")]
+pub mod telemetry;

@@ -2,8 +2,8 @@ use std::collections::{btree_map, BTreeMap, HashMap};
 use std::iter::Rev;
 use std::time::Instant;
 
-use crate::metrics::SCHEMADB_BATCH_PUT_LATENCY_SECONDS;
 use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
+use crate::telemetry::SCHEMADB_BATCH_PUT_LATENCY_SECONDS;
 use crate::{duration_to_seconds, Operation, Schema, SchemaKey};
 
 /// [`SchemaBatch`] holds a collection of updates that can be applied to a DB
@@ -37,7 +37,7 @@ impl SchemaBatch {
         let v = Instant::now().saturating_duration_since(start);
         let _timer = SCHEMADB_BATCH_PUT_LATENCY_SECONDS
             .histogram
-            .get_or_create(&("db_name", "unknown"))
+            .get_or_create(&vec![("db_name".to_owned(), "unknown".to_owned())])
             .observe(duration_to_seconds(v));
         Ok(())
     }

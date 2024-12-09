@@ -11,6 +11,8 @@ use crate::da::BlockHeaderTrait;
 #[cfg(feature = "native")]
 use crate::da::{DaData, DaNamespace, DaSpec, DaVerifier, SequencerCommitment};
 #[cfg(feature = "native")]
+use crate::telemetry::DaTelemetryTargets;
+#[cfg(feature = "native")]
 use crate::zk::Proof;
 
 /// This type represents a queued request to send_transaction
@@ -127,6 +129,9 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         sequencer_da_pub_key: &[u8],
     ) -> Vec<SequencerCommitment>;
+
+    /// Returns the telemetry targets type for the DA service.
+    fn telemetry_targets(&self) -> &DaTelemetryTargets;
 }
 
 /// `SlotData` is the subset of a DA layer block which is stored in the rollup's database.

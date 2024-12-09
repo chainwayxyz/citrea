@@ -15,10 +15,10 @@
 //! column family.
 
 mod iterator;
-mod metrics;
 pub mod schema;
 mod schema_batch;
 pub mod snapshot;
+pub mod telemetry;
 #[cfg(feature = "test-utils")]
 pub mod test;
 
@@ -28,13 +28,13 @@ use std::time::{Duration, Instant};
 use anyhow::format_err;
 use iterator::ScanDirection;
 pub use iterator::{RawDbReverseIterator, SchemaIterator, SeekKeyEncoder};
-use metrics::{
-    SCHEMADB_BATCH_COMMIT_BYTES, SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS, SCHEMADB_DELETES,
-    SCHEMADB_GET_BYTES, SCHEMADB_GET_LATENCY_SECONDS, SCHEMADB_PUT_BYTES,
-};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use rocksdb::{DBIterator, ReadOptions};
+use telemetry::{
+    SCHEMADB_BATCH_COMMIT_BYTES, SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS, SCHEMADB_DELETES,
+    SCHEMADB_GET_BYTES, SCHEMADB_GET_LATENCY_SECONDS, SCHEMADB_PUT_BYTES,
+};
 use thiserror::Error;
 use tracing::info;
 
@@ -146,7 +146,10 @@ impl DB {
         let result = self.inner.get_pinned_cf(cf_handle, k)?;
         SCHEMADB_GET_BYTES
             .histogram
-            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
+            .get_or_create(&vec![(
+                "cf_name".to_owned(),
+                S::COLUMN_FAMILY_NAME.to_owned(),
+            )])
             .observe(result.as_ref().map_or(0.0, |v| v.len() as f64));
 
         let result = result
@@ -156,7 +159,10 @@ impl DB {
 
         SCHEMADB_GET_LATENCY_SECONDS
             .histogram
-            .get_or_create(&("cf_name", S::COLUMN_FAMILY_NAME))
+            .get_or_create(&vec![(
+                "cf_name".to_owned(),
+                S::COLUMN_FAMILY_NAME.to_owned(),
+            )])
             .observe(duration_to_seconds(
                 Instant::now().saturating_duration_since(start),
             ));
@@ -313,13 +319,13 @@ impl DB {
                     Operation::Put { value } => {
                         SCHEMADB_PUT_BYTES
                             .histogram
-                            .get_or_create(&("cf_name", cf_name))
+                            .get_or_create(&vec![("cf_name".to_owned(), cf_name.to_string())])
                             .observe((key.len() + value.len()) as f64);
                     }
                     Operation::Delete => {
                         SCHEMADB_DELETES
                             .counter
-                            .get_or_create(&("cf_name", cf_name))
+                            .get_or_create(&vec![("cf_name".to_owned(), cf_name.to_string())])
                             .inc();
                     }
                 }
@@ -327,12 +333,12 @@ impl DB {
         }
         SCHEMADB_BATCH_COMMIT_BYTES
             .histogram
-            .get_or_create(&("db_name", self.name))
+            .get_or_create(&vec![("db_name".to_owned(), self.name.to_owned())])
             .observe(serialized_size as f64);
 
         SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
             .histogram
-            .get_or_create(&("db_name", self.name))
+            .get_or_create(&vec![("db_name".to_owned(), self.name.to_owned())])
             .observe(duration_to_seconds(
                 Instant::now().saturating_duration_since(start),
             ));

@@ -23,6 +23,7 @@ bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true }
+prometheus-client = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
@@ -39,7 +40,7 @@ serde_json = { workspace = true }
 
 [features]
 default = ["std"]
-native = ["std", "tokio", "futures", "tracing"]
+native = ["std", "tokio", "futures", "tracing", "prometheus-client"]
 fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
 testing = ["native"]
 arbitrary = ["dep:arbitrary"]

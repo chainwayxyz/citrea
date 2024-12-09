@@ -27,6 +27,7 @@ use sov_rollup_interface::da::{
     DaData, DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, SequencerCommitment,
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use sov_rollup_interface::telemetry::DaTelemetryTargets;
 use sov_rollup_interface::zk::Proof;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -113,6 +114,7 @@ pub struct BitcoinService {
     tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
+    telemetry: DaTelemetryTargets,
 }
 
 impl BitcoinService {
@@ -164,6 +166,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            telemetry: Self::setup_telemetry_targets(),
         })
     }
 
@@ -207,7 +210,12 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            telemetry: Self::setup_telemetry_targets(),
         })
+    }
+
+    fn setup_telemetry_targets() -> DaTelemetryTargets {
+        DaTelemetryTargets::default()
     }
 
     pub async fn run_da_queue(
@@ -1104,6 +1112,10 @@ impl DaService for BitcoinService {
             }
         }
         sequencer_commitments
+    }
+
+    fn telemetry_targets(&self) -> &DaTelemetryTargets {
+        &self.telemetry
     }
 }
 

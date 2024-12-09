@@ -9,5 +9,5 @@ mod deposit_data_mempool;
 mod mempool;
 mod rpc;
 mod runner;
-mod telemetry;
+pub mod telemetry;
 mod utils;

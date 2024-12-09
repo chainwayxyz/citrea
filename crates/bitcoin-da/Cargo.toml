@@ -27,6 +27,7 @@ hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
+prometheus-client = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true, optional = true }
 serde = { workspace = true }

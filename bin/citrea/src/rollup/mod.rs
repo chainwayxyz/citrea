@@ -18,6 +18,7 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::InitVariant;
 use tokio::sync::broadcast;
@@ -133,6 +134,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
+        let telemetry_config = rollup_config.telemetry;
+        let (telemetry_registry, telemetry_targets) =
+            citrea_sequencer::telemetry::setup_telemetry();
+
+        let telemetry = citrea_sequencer::telemetry::Telemetry::new(
+            telemetry_config,
+            telemetry_registry,
+            telemetry_targets,
+        );
+
         let seq = CitreaSequencer::new(
             da_service,
             prover_storage,
@@ -146,7 +157,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
-            rollup_config.telemetry,
+            telemetry,
         )
         .unwrap();
 
@@ -265,6 +276,15 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
+        let telemetry_config = rollup_config.telemetry;
+        let (telemetry_registry, telemetry_targets) = citrea_fullnode::telemetry::setup_telemetry();
+
+        let telemetry = citrea_fullnode::telemetry::Telemetry::new(
+            telemetry_config,
+            telemetry_registry,
+            telemetry_targets,
+        );
+
         let runner = CitreaFullnode::new(
             runner_config,
             rollup_config.public_keys,
@@ -278,7 +298,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
-            rollup_config.telemetry,
+            telemetry,
         )?;
 
         Ok((runner, rpc_methods))
@@ -315,6 +335,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
+        let da_telemetry_targets = da_service.telemetry_targets();
 
         let da_verifier = self.create_da_verifier();
 
@@ -404,6 +425,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
+        let telemetry_config = rollup_config.telemetry;
+        let (telemetry_registry, telemetry_targets) =
+            citrea_batch_prover::telemetry::setup_telemetry(da_telemetry_targets);
+
+        let telemetry = citrea_batch_prover::telemetry::Telemetry::new(
+            telemetry_config,
+            telemetry_registry,
+            telemetry_targets,
+        );
+
         let runner = CitreaBatchProver::new(
             runner_config,
             rollup_config.public_keys,
@@ -420,7 +451,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
-            rollup_config.telemetry,
+            telemetry,
         )?;
 
         Ok((runner, rpc_methods))

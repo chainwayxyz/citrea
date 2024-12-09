@@ -10,7 +10,7 @@ use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::utils::soft_confirmation_to_receipt;
-use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig, TelemetryConfig};
+use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
@@ -21,7 +21,6 @@ use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
-use prometheus_client::registry::Registry;
 use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
@@ -59,7 +58,7 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
-use crate::telemetry::{setup_telemetry, TelemetryTargets};
+use crate::telemetry::Telemetry;
 use crate::utils::recover_raw_transaction;
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
@@ -71,12 +70,6 @@ type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 enum L2BlockMode {
     Empty,
     NotEmpty,
-}
-
-pub struct Telemetry {
-    config: TelemetryConfig,
-    registry: Arc<Registry>,
-    targets: Arc<TelemetryTargets>,
 }
 
 pub struct CitreaSequencer<C, Da, Stf, DB>
@@ -134,7 +127,7 @@ where
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
-        telemetry_config: TelemetryConfig,
+        telemetry: Telemetry,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -167,8 +160,6 @@ where
 
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
-        let (telemetry_registry, telemetry_targets) = setup_telemetry();
-
         Ok(Self {
             da_service,
             mempool: Arc::new(pool),
@@ -190,11 +181,7 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
-            telemetry: Telemetry {
-                config: telemetry_config,
-                registry: telemetry_registry,
-                targets: telemetry_targets,
-            },
+            telemetry,
         })
     }
 

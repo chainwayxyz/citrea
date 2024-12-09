@@ -13,6 +13,7 @@ use sov_rollup_interface::da::{
     DaSpec, SequencerCommitment, Time,
 };
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier, SlotData};
+use sov_rollup_interface::telemetry::DaTelemetryTargets;
 use sov_rollup_interface::zk::Proof;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::{broadcast, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
@@ -80,6 +81,7 @@ pub struct MockDaService {
     finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     wait_attempts: usize,
     planned_fork: Arc<Mutex<Option<PlannedFork>>>,
+    telemetry: DaTelemetryTargets,
 }
 
 impl MockDaService {
@@ -110,6 +112,7 @@ impl MockDaService {
             finalized_header_sender: tx,
             wait_attempts: 100_0000,
             planned_fork: Arc::new(Mutex::new(None)),
+            telemetry: DaTelemetryTargets::default(),
         }
     }
 
@@ -530,6 +533,10 @@ impl DaService for MockDaService {
         _sequencer_da_pub_key: &[u8],
     ) -> Vec<SequencerCommitment> {
         vec![]
+    }
+
+    fn telemetry_targets(&self) -> &DaTelemetryTargets {
+        &self.telemetry
     }
 }
 
