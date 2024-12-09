@@ -6,6 +6,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
     println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD");
     println!("cargo:rerun-if-env-changed=OUT_DIR");
+    println!("cargo:rerun-if-changed=Dockerfile");
 
     match std::env::var("SKIP_GUEST_BUILD") {
         Ok(value) => match value.as_str() {
