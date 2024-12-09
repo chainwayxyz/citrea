@@ -32,8 +32,6 @@ where
         // it has implications way beyond our understanding
         // a holy line
         self.pending_transactions.clear();
-        // we have to set blob gas used to zero at the beginning of the block
-        self.blob_gas_used = 0;
 
         let mut parent_block = self
             .head
@@ -95,17 +93,11 @@ where
 
         let active_evm_spec = citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec);
 
-        let blob_excess_gas_and_price = sealed_parent_block
-            .header
-            .next_block_excess_blob_gas()
-            .or_else(|| {
-                if active_evm_spec >= SpecId::CANCUN {
-                    Some(0)
-                } else {
-                    None
-                }
-            })
-            .map(BlobExcessGasAndPrice::new);
+        let blob_excess_gas_and_price = if active_evm_spec >= SpecId::CANCUN {
+            Some(BlobExcessGasAndPrice::new(0))
+        } else {
+            None
+        };
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number + 1),
@@ -219,15 +211,17 @@ where
             blob_gas_used: if citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec)
                 >= SpecId::CANCUN
             {
-                Some(self.blob_gas_used)
+                Some(0)
             } else {
                 None
             },
-            excess_blob_gas: self
-                .block_env
-                .blob_excess_gas_and_price
-                .as_ref()
-                .map(|x| x.excess_blob_gas),
+            excess_blob_gas: if citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec)
+                >= SpecId::CANCUN
+            {
+                Some(0)
+            } else {
+                None
+            },
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,

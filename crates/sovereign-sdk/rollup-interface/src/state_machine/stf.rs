@@ -374,8 +374,6 @@ pub enum SoftConfirmationModuleCallError {
         /// The block gas limit
         block_gas_limit: u64,
     },
-    /// The EVM blob gas used exceeds the block gas limit
-    EvmBlobGasUsedExceedsBlockGasLimit,
     /// There was an error during EVM transaction execution
     EvmTransactionExecutionError,
     /// There is a system transaction where it should not be
@@ -384,6 +382,8 @@ pub enum SoftConfirmationModuleCallError {
     EvmNotEnoughFundsForL1Fee,
     /// The sov-tx was not sent by the rule enforcer authority
     RuleEnforcerUnauthorized,
+    /// The EVM transaction type is not supported
+    EvmTxTypeNotSupported(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -477,8 +477,8 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
                 write!(f, "EVM not enough funds for L1 fee")
             }
-            SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit => {
-                write!(f, "EVM blob gas used exceeds block gas limit")
+            SoftConfirmationModuleCallError::EvmTxTypeNotSupported(msg) => {
+                write!(f, "EVM tx type {} is not supported", msg)
             }
             SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => {
                 write!(f, "Rule enforcer unauthorized")

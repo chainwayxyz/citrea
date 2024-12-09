@@ -337,8 +337,8 @@ where
                                                }
                                             },
                                             // we configure mempool to never accept blob transactions
-                                            // to mitigate potential bugs in reth-mempool we should look into continue instead of panicking here
-                                            sov_modules_api::SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit => panic!("got blob tx from mempool"),
+                                            // to mitigate potential bugs in reth-mempool we should look into continue instead of panicking here                                            
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
                                             // Discard tx if it fails to execute
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
                                                 working_set_to_discard = working_set.revert().to_revertable();
