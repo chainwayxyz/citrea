@@ -27,7 +27,7 @@ hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
-prometheus-client = { workspace = true }
+prometheus-client = { workspace = true, optional = true }
 rand = { workspace = true }
 reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
@@ -51,6 +51,7 @@ native = [
   "dep:tokio",
   "dep:tokio-util",
   "dep:pin-project",
+  "dep:prometheus-client",
   "dep:tracing",
   "sov-rollup-interface/native",
   "dep:citrea-common",
