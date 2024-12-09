@@ -1844,7 +1844,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=rakanalh/telemetry-config#dbba61efe7971f1022a72e2767b9b88b0281d829"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=321c4f2#321c4f2b0bbd8ace50948b453e32986c9ddc035a"
 dependencies = [
  "anyhow",
  "async-trait",
