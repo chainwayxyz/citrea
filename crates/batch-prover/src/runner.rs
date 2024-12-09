@@ -2,7 +2,7 @@ use core::panic;
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
@@ -10,12 +10,17 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
-use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
+use citrea_common::{
+    BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig, TelemetryConfig,
+};
 use citrea_primitives::types::SoftConfirmationHash;
+use citrea_primitives::utils::duration_to_seconds;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
+use prometheus_client::registry::Registry;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
@@ -33,10 +38,17 @@ use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument};
 
-use crate::da_block_handler::L1BlockHandler;
+use crate::da_block_handler::{self, L1BlockHandler};
 use crate::rpc::{create_rpc_module, RpcContext};
+use crate::telemetry::{setup_telemetry, TelemetryTargets};
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
+
+pub struct Telemetry {
+    config: TelemetryConfig,
+    registry: Arc<Registry>,
+    targets: Arc<TelemetryTargets>,
+}
 
 pub struct CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
 where
@@ -68,6 +80,7 @@ where
     fork_manager: ForkManager,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
+    telemetry: Telemetry,
 }
 
 impl<C, Da, Vm, Stf, Ps, DB> CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
@@ -105,6 +118,7 @@ where
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
+        telemetry_config: TelemetryConfig,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -133,6 +147,8 @@ where
         // Last L1/L2 height before shutdown.
         let start_l2_height = last_soft_confirmation_processed_before_shutdown;
 
+        let (telemetry_registry, telemetry_targets) = setup_telemetry();
+
         Ok(Self {
             start_l2_height,
             da_service,
@@ -155,6 +171,11 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            telemetry: Telemetry {
+                config: telemetry_config,
+                registry: telemetry_registry,
+                targets: telemetry_targets,
+            },
         })
     }
 
@@ -255,6 +276,24 @@ where
         Ok(())
     }
 
+    pub async fn start_telemetry_server(&mut self) {
+        let telemetry_addr: SocketAddr = format!(
+            "{}:{}",
+            self.telemetry.config.bind_host, self.telemetry.config.bind_port
+        )
+        .parse()
+        .expect("Invalid telemetry address");
+        let telemetry_registry = self.telemetry.registry.clone();
+        self.task_manager.spawn(|cancellation_token| async move {
+            let _ = start_telemetry_server(
+                telemetry_addr,
+                telemetry_registry.clone(),
+                cancellation_token,
+            )
+            .await;
+        });
+    }
+
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
@@ -282,6 +321,7 @@ where
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let elfs_by_spec = self.elfs_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
+        let telemetry_current_l1_block = self.telemetry.targets.current_l1_block.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<
@@ -303,6 +343,9 @@ where
                 elfs_by_spec,
                 skip_submission_until_l1,
                 l1_block_cache.clone(),
+                da_block_handler::TelemetryTargets {
+                    current_l1_block: telemetry_current_l1_block,
+                },
             );
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
@@ -382,6 +425,8 @@ where
         l2_height: u64,
         soft_confirmation: &GetSoftConfirmationResponse,
     ) -> anyhow::Result<()> {
+        let start = Instant::now();
+
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
             soft_confirmation.da_slot_height,
@@ -473,6 +518,18 @@ where
             "New State Root after soft confirmation #{} is: {:?}",
             l2_height, self.state_root
         );
+
+        self.telemetry
+            .targets
+            .current_l2_block
+            .set(l2_height as i64);
+
+        self.telemetry
+            .targets
+            .process_soft_confirmation
+            .observe(duration_to_seconds(
+                Instant::now().saturating_duration_since(start),
+            ));
 
         Ok(())
     }

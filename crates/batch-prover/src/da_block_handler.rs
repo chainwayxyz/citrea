@@ -13,6 +13,7 @@ use citrea_common::BatchProverConfig;
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::forks::FORKS;
 use citrea_primitives::MAX_TXBODY_SIZE;
+use prometheus_client::metrics::gauge::Gauge;
 use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -41,6 +42,10 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
+pub struct TelemetryTargets {
+    pub current_l1_block: Gauge,
+}
+
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
 where
     Da: DaService,
@@ -67,6 +72,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     skip_submission_until_l1: u64,
     pending_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
+    telemetry_targets: TelemetryTargets,
     _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
@@ -100,6 +106,7 @@ where
         elfs_by_spec: HashMap<SpecId, Vec<u8>>,
         skip_submission_until_l1: u64,
         l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+        telemetry_targets: TelemetryTargets,
     ) -> Self {
         Self {
             prover_config,
@@ -112,6 +119,7 @@ where
             elfs_by_spec,
             skip_submission_until_l1,
             l1_block_cache,
+            telemetry_targets,
             pending_l1_blocks: VecDeque::new(),
             _state_root: PhantomData,
             _witness: PhantomData,
@@ -269,6 +277,10 @@ where
                     e
                 );
             }
+
+            self.telemetry_targets
+                .current_l1_block
+                .set(l1_height as i64);
 
             self.pending_l1_blocks.pop_front();
         }

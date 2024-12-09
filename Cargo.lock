@@ -1783,6 +1783,7 @@ dependencies = [
  "jsonrpsee",
  "num_cpus",
  "parking_lot",
+ "prometheus-client",
  "prover-services",
  "rand 0.8.5",
  "rayon",

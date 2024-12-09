@@ -33,6 +33,7 @@ hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }
 num_cpus = { workspace = true }
 parking_lot = { workspace = true }
+prometheus-client = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 rs_merkle = { workspace = true }

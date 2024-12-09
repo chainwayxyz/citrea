@@ -214,6 +214,7 @@ where
             .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
             .await
             .expect("Could not start sequencer");
+        sequencer.start_telemetry_server().await;
         sequencer.start_rpc_server(rpc_methods, None).await.unwrap();
 
         if let Err(e) = sequencer.run().await {
@@ -229,6 +230,7 @@ where
         .await
         .expect("Could not start batch prover");
 
+        prover.start_telemetry_server().await;
         prover
             .start_rpc_server(rpc_methods, None)
             .await
@@ -257,6 +259,7 @@ where
         .await
         .expect("Could not start full-node");
 
+        rollup.start_telemetry_server().await;
         rollup.start_rpc_server(rpc_methods, None).await;
 
         if let Err(e) = rollup.run().await {

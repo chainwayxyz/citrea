@@ -420,6 +420,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            rollup_config.telemetry,
         )?;
 
         Ok((runner, rpc_methods))
