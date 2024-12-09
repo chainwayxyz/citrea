@@ -243,7 +243,7 @@ where
         #[cfg(feature = "native")]
         {
             use crate::PendingTransaction;
-            
+
             let mut accessory_state = working_set.accessory_state();
             self.pending_head.set(&block, &mut accessory_state);
 
