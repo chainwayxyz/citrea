@@ -33,12 +33,12 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
     }
 
     pub fn cfg(&self) -> EvmChainConfig {
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let mut working_set = WorkingSet::new(self.storage.clone());
         self.evm.get_chain_config(&mut working_set)
     }
 
     pub fn last_block_tx_hashes(&self) -> RpcResult<Vec<B256>> {
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self.evm.get_block_by_number(None, None, &mut working_set)?;
         let hashes = rich_block.map(|b| b.inner.transactions);
         match hashes {
@@ -48,7 +48,7 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
     }
 
     pub fn last_block(&self) -> RpcResult<Option<Rich<Block>>> {
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self
             .evm
             .get_block_by_number(None, Some(true), &mut working_set)?;
@@ -56,7 +56,7 @@ impl<C: sov_modules_api::Context> DbProvider<C> {
     }
 
     pub fn genesis_block(&self) -> RpcResult<Option<Block>> {
-        let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+        let mut working_set = WorkingSet::new(self.storage.clone());
         let rich_block = self
             .evm
             .get_block_by_number(Some(BlockNumberOrTag::Earliest), None, &mut working_set)?
@@ -71,7 +71,7 @@ impl<C: sov_modules_api::Context> AccountReader for DbProvider<C> {
     #[doc = r" Returns `None` if the account doesn't exist."]
     fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
         let account = {
-            let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+            let mut working_set = WorkingSet::new(self.storage.clone());
             self.evm.basic_account(&address, &mut working_set)
         };
         Ok(account)
@@ -118,7 +118,7 @@ impl<C: sov_modules_api::Context> BlockReaderIdExt for DbProvider<C> {
     }
     fn latest_header(&self) -> ProviderResult<Option<SealedHeader>> {
         let latest_header = {
-            let mut working_set = WorkingSet::<C>::new(self.storage.clone());
+            let mut working_set = WorkingSet::new(self.storage.clone());
             self.evm.last_sealed_header(&mut working_set)
         };
         Ok(Some(latest_header))

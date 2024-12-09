@@ -6,16 +6,15 @@ use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::state_db::StateDB;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_schema_db::snapshot::{DbSnapshot, ReadOnlyLock, SnapshotId};
-use sov_state::ProverStorage;
+pub use sov_state::ProverStorage;
 use tracing::{debug, trace};
 
 pub use crate::snapshot_manager::SnapshotManager;
 mod snapshot_manager;
 
-/// Implementation of [`HierarchicalStorageManager`] that handles relation between snapshots
-/// And reorgs on Data Availability layer.
+/// Implementation that handles relation between snapshots
+/// And reorgs on Data Availability layer or L2 hiehgts.
 pub struct ProverStorageManager<Da: DaSpec> {
     // L1 forks representation
     // Chain: prev_block -> child_blocks
@@ -66,7 +65,8 @@ where
 
     /// Create new [`ProverStorageManager`] from state config
     pub fn new(config: sov_state::config::Config) -> anyhow::Result<Self> {
-        let rocksdb_config = RocksdbConfig::new(config.path.as_path(), config.db_max_open_files);
+        let rocksdb_config =
+            RocksdbConfig::new(config.path.as_path(), config.db_max_open_files, None);
         let state_db = StateDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
         let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config)?;
         Ok(Self::with_db_handles(state_db, native_db))
@@ -189,19 +189,11 @@ where
 
         Ok(())
     }
-}
 
-impl<Da: DaSpec> HierarchicalStorageManager<Da> for ProverStorageManager<Da>
-where
-    Da::SlotHash: Hash,
-{
-    type NativeStorage = ProverStorage<SnapshotManager>;
-    type NativeChangeSet = ProverStorage<SnapshotManager>;
-
-    fn create_storage_on_l2_height(
+    pub fn create_storage_on_l2_height(
         &mut self,
         l2_block_height: u64,
-    ) -> anyhow::Result<Self::NativeStorage> {
+    ) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         trace!(
             "Requested native storage for block at height: {:?} ",
             l2_block_height
@@ -224,14 +216,14 @@ where
         self.get_storage_with_snapshot_id(snapshot_id)
     }
 
-    fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
+    pub fn finalize_l2(&mut self, l2_block_height: u64) -> anyhow::Result<()> {
         self.finalize_by_l2_height(l2_block_height)
     }
 
-    fn save_change_set_l2(
+    pub fn save_change_set_l2(
         &mut self,
         l2_block_height: u64,
-        change_set: Self::NativeChangeSet,
+        change_set: ProverStorage<SnapshotManager>,
     ) -> anyhow::Result<()> {
         let (state_snapshot, native_snapshot) = change_set.freeze()?;
         let snapshot_id = state_snapshot.get_id();
@@ -270,10 +262,10 @@ where
         Ok(())
     }
 
-    fn create_storage_on(
+    pub fn create_storage_on(
         &mut self,
         block_header: &Da::BlockHeader,
-    ) -> anyhow::Result<Self::NativeStorage> {
+    ) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         trace!(
             "Requested native storage for block {:?}",
             block_header.hash()
@@ -328,7 +320,7 @@ where
         self.get_storage_with_snapshot_id(new_snapshot_id)
     }
 
-    fn create_finalized_storage(&mut self) -> anyhow::Result<Self::NativeStorage> {
+    pub fn create_finalized_storage(&mut self) -> anyhow::Result<ProverStorage<SnapshotManager>> {
         self.latest_snapshot_id += 1;
         let snapshot_id = self.latest_snapshot_id;
         debug!("Giving 'finalized' storage ref with id {}", snapshot_id);
@@ -350,10 +342,10 @@ where
         Ok(ProverStorage::with_db_handles(state_db, native_db))
     }
 
-    fn save_change_set(
+    pub fn save_change_set(
         &mut self,
         block_header: &Da::BlockHeader,
-        change_set: Self::NativeChangeSet,
+        change_set: ProverStorage<SnapshotManager>,
     ) -> anyhow::Result<()> {
         if !self.chain_forks.contains_key(&block_header.prev_hash()) {
             anyhow::bail!(
@@ -408,7 +400,7 @@ where
         Ok(())
     }
 
-    fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
+    pub fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
         debug!("Finalizing block: {:?}", block_header.hash());
         let current_block_hash = block_header.hash();
         let prev_block_hash = block_header.prev_hash();
@@ -422,13 +414,19 @@ where
 pub fn new_orphan_storage(
     path: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<ProverStorage<SnapshotManager>> {
-    let state_db_raw =
-        StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None))?;
+    let state_db_raw = StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(
+        path.as_ref(),
+        None,
+        None,
+    ))?;
     let state_db_sm = Arc::new(RwLock::new(SnapshotManager::orphan(state_db_raw)));
     let state_db_snapshot = DbSnapshot::<SnapshotManager>::new(0, state_db_sm.into());
     let state_db = StateDB::with_db_snapshot(state_db_snapshot)?;
-    let native_db_raw =
-        NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path.as_ref(), None))?;
+    let native_db_raw = NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(
+        path.as_ref(),
+        None,
+        None,
+    ))?;
     let native_db_sm = Arc::new(RwLock::new(SnapshotManager::orphan(native_db_raw)));
     let native_db_snapshot = DbSnapshot::<SnapshotManager>::new(0, native_db_sm.into());
     let native_db = NativeDB::with_db_snapshot(native_db_snapshot)?;
@@ -505,9 +503,11 @@ mod tests {
 
     fn build_dbs(path: &std::path::Path) -> (sov_schema_db::DB, sov_schema_db::DB) {
         let state_db =
-            StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path, None)).unwrap();
+            StateDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path, None, None))
+                .unwrap();
         let native_db =
-            NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path, None)).unwrap();
+            NativeDB::<SnapshotManager>::setup_schema_db(&RocksdbConfig::new(path, None, None))
+                .unwrap();
 
         (state_db, native_db)
     }

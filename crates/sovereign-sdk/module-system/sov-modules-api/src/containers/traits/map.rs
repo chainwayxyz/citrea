@@ -49,7 +49,7 @@ where
     /// ```
     /// use sov_modules_api::{StateMapAccessor, Context, StateMap, WorkingSet};
     ///
-    /// fn foo<C: Context>(map: StateMap<Vec<u8>, u64>, key: &[u8], ws: &mut WorkingSet<C>) -> Option<u64>
+    /// fn foo<C: Context>(map: StateMap<Vec<u8>, u64>, key: &[u8], ws: &mut WorkingSet<C::Storage>) -> Option<u64>
     /// {
     ///     // We perform the `get` with a slice, and not the `Vec`. it is so because `Vec` borrows
     ///     // `[T]`.
@@ -65,7 +65,7 @@ where
     /// ```
     /// use sov_modules_api::{StateMapAccessor, Context, StateMap, WorkingSet};
     ///
-    /// fn foo<C: Context>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], ws: &mut WorkingSet<C>) -> Option<u64>
+    /// fn foo<C: Context>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], ws: &mut WorkingSet<C::Storage>) -> Option<u64>
     /// {
     ///     map.get(&key[..], ws)
     /// }

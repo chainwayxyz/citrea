@@ -2,17 +2,22 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::BlockId;
+use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{
     address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, B256, U64,
 };
 use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use reth_rpc_types::BlockOverrides;
+use revm::primitives::SpecId::SHANGHAI;
 use revm::primitives::{hex, KECCAK_EMPTY, U256};
+use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_modules_api::{
+    Context, Module, SoftConfirmationModuleCallError, StateMapAccessor, StateVecAccessor,
+};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
@@ -26,8 +31,8 @@ use crate::smart_contracts::{
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
-    create_contract_transaction, get_evm, get_evm_config, get_evm_config_starting_base_fee,
-    publish_event_message, set_arg_message,
+    create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
+    get_evm_config, get_evm_config_starting_base_fee, publish_event_message, set_arg_message,
 };
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
@@ -410,7 +415,11 @@ fn failed_transaction_test() {
         let call_message = CallMessage {
             txs: rlp_transactions,
         };
-        evm.call(call_message, &context, working_set).unwrap();
+
+        assert_eq!(
+            evm.call(call_message, &context, working_set).unwrap_err(),
+            SoftConfirmationModuleCallError::EvmTransactionExecutionError
+        );
     }
 
     // assert one pending transaction (system transaction)
@@ -800,13 +809,15 @@ fn test_block_gas_limit() {
         Some(ETHEREUM_BLOCK_GAS_LIMIT),
     );
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, working_set) = get_evm(&config);
+
+    let mut working_set = working_set.checkpoint().to_revertable();
     let l1_fee_rate = 0;
     let l2_height = 2;
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
-        da_slot_hash: [5u8; 32],
+        da_slot_hash: [1u8; 32],
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
@@ -829,7 +840,8 @@ fn test_block_gas_limit() {
             LogsContract::default(),
         )];
 
-        for i in 0..10_000 {
+        // only 1129 of these transactions can be included in the block
+        for i in 0..3_000 {
             rlp_transactions.push(publish_event_message(
                 contract_addr,
                 &dev_signer,
@@ -838,14 +850,80 @@ fn test_block_gas_limit() {
             ));
         }
 
-        evm.call(
+        assert_eq!(
+            evm.call(
+                CallMessage {
+                    txs: rlp_transactions.clone(),
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err(),
+            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                cumulative_gas: 29997634,
+                tx_gas_used: 26388,
+                block_gas_limit: 30000000
+            }
+        );
+    }
+
+    // let's start over.
+
+    let mut working_set = working_set.revert().to_revertable();
+
+    assert_eq!(
+        evm.get_db(&mut working_set, SHANGHAI)
+            .basic(dev_signer.address())
+            .unwrap()
+            .unwrap()
+            .nonce,
+        0
+    );
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [1u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+
+        // deploy logs contract
+        let mut rlp_transactions = vec![create_contract_message(
+            &dev_signer,
+            0,
+            LogsContract::default(),
+        )];
+
+        // only 1136 of these transactions can be included in the block
+        for i in 0..1129 {
+            rlp_transactions.push(publish_event_message(
+                contract_addr,
+                &dev_signer,
+                i + 1,
+                "hello".to_string(),
+            ));
+        }
+
+        let result = evm.call(
             CallMessage {
-                txs: rlp_transactions,
+                txs: rlp_transactions.clone(),
             },
             &context,
             &mut working_set,
-        )
-        .unwrap();
+        );
+
+        assert!(result.is_ok());
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -856,11 +934,8 @@ fn test_block_gas_limit() {
         .unwrap();
 
     assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as _);
-    assert!(block.header.gas_used <= block.header.gas_limit);
-    assert!(
-        block.transactions.hashes().len() < 10_000,
-        "Some transactions should be dropped because of gas limit"
-    );
+    assert_eq!(block.header.gas_used, 29997634);
+    assert_eq!(block.transactions.hashes().len(), 1130);
 }
 
 pub(crate) fn create_contract_message_with_priority_fee<T: TestContract>(
@@ -1134,8 +1209,11 @@ fn test_l1_fee_success() {
 
 #[test]
 fn test_l1_fee_not_enough_funds() {
-    let (config, dev_signer, _) =
-        get_evm_config_starting_base_fee(U256::from_str("1000000").unwrap(), None, 1);
+    let (config, dev_signer, _) = get_evm_config_starting_base_fee(
+        U256::from_str("1142350000000").unwrap(), // only covers base fee
+        None,
+        MIN_BASE_FEE_PER_GAS as u64,
+    );
 
     let l1_fee_rate = 10000;
     let (mut evm, mut working_set) = get_evm(&config);
@@ -1161,9 +1239,15 @@ fn test_l1_fee_not_enough_funds() {
 
         let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
-        let deploy_message =
-            create_contract_message_with_fee(&dev_signer, 0, BlockHashContract::default(), 1);
+        let deploy_message = create_contract_message_with_fee_and_gas_limit(
+            &dev_signer,
+            0,
+            BlockHashContract::default(),
+            MIN_BASE_FEE_PER_GAS,
+            114235,
+        );
 
+        // 114235 gas used
         let call_result = evm.call(
             CallMessage {
                 txs: vec![deploy_message],
@@ -1172,7 +1256,12 @@ fn test_l1_fee_not_enough_funds() {
             &mut working_set,
         );
 
-        assert!(call_result.is_ok());
+        println!("{:?}", call_result);
+
+        assert_eq!(
+            call_result.unwrap_err(),
+            SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee
+        );
 
         assert_eq!(evm.receipts
             .iter(&mut working_set.accessory_state())
@@ -1247,7 +1336,7 @@ fn test_l1_fee_not_enough_funds() {
         .unwrap();
 
     // The account balance is unchanged
-    assert_eq!(db_account.balance, U256::from(1000000));
+    assert_eq!(db_account.balance, U256::from(1142350000000u64));
     assert_eq!(db_account.nonce, 0);
 
     // The coinbase balance is zero

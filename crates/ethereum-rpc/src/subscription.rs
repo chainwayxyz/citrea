@@ -138,7 +138,7 @@ pub async fn soft_confirmation_event_handler<C: sov_modules_api::Context>(
 ) {
     let evm = Evm::<C>::default();
     while let Ok(height) = soft_confirmation_rx.recv().await {
-        let mut working_set = WorkingSet::<C>::new(storage.clone());
+        let mut working_set = WorkingSet::new(storage.clone());
         let block = evm
             .get_block_by_number(
                 Some(BlockNumberOrTag::Number(height)),
@@ -151,7 +151,7 @@ pub async fn soft_confirmation_event_handler<C: sov_modules_api::Context>(
         // Only possible error is no receiver
         let _ = new_heads_tx.send(block.clone()).await;
 
-        let mut working_set = WorkingSet::<C>::new(storage.clone());
+        let mut working_set = WorkingSet::new(storage.clone());
         let logs = evm
             .get_logs_in_block_range(&mut working_set, &Filter::default(), height, height)
             .expect("Error getting logs in block range");

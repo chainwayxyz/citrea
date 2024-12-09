@@ -1,13 +1,12 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::hooks::SoftConfirmationError;
 use sov_modules_api::transaction::Transaction;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, BatchReceipt, SlotResult, SoftConfirmationResult,
-    StateTransitionFunction,
+    StateTransitionError, StateTransitionFunction,
 };
 
 /// A mock implementation of the [`StateTransitionFunction`]
@@ -76,14 +75,8 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _slot_header: &<Da as DaSpec>::BlockHeader,
         _soft_confirmation: &mut sov_modules_api::SignedSoftConfirmation<Self::Transaction>,
     ) -> Result<
-        SoftConfirmationResult<
-            Self::StateRoot,
-            Self::ChangeSet,
-            Self::TxReceiptContents,
-            Self::Witness,
-            Da,
-        >,
-        SoftConfirmationError,
+        SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>,
+        StateTransitionError,
     > {
         todo!()
     }

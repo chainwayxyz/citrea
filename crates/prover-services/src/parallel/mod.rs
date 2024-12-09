@@ -10,6 +10,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::{oneshot, Mutex};
+use tracing::{info, warn};
 
 use crate::ProofGenMode;
 
@@ -115,6 +116,11 @@ where
 
     async fn prove_all(&self, elf: Vec<u8>, proof_queue: Vec<ProofData>) -> Vec<Proof> {
         let num_threads = self.thread_pool.current_num_threads();
+        info!(
+            "Starting parallel proving of {} proofs with {} workers",
+            proof_queue.len(),
+            num_threads
+        );
 
         // Future buffer to keep track of ongoing provings
         let mut ongoing_proofs = Vec::with_capacity(num_threads);
@@ -122,15 +128,22 @@ where
         // Initialize proof workers
         for (idx, proof_data) in proof_queue.into_iter().enumerate() {
             if ongoing_proofs.len() == num_threads {
+                warn!(
+                    "Reached parallel proof limit, waiting for one of the proving tasks to finish"
+                );
                 // If no available threads, wait for one of the proofs to finish
                 let ((idx, proof), _, remaining_proofs) = future::select_all(ongoing_proofs).await;
                 proofs[idx] = proof;
                 ongoing_proofs = remaining_proofs;
             }
 
+            info!("Starting proving task {}", idx);
             let proof_fut = self.prove_one(elf.clone(), proof_data);
             ongoing_proofs.push(Box::pin(async move {
                 let proof = proof_fut.await;
+
+                info!("Finished proving task {}", idx);
+
                 (idx, proof)
             }));
         }
@@ -249,7 +262,14 @@ where
             .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
             .map(|_| Vec::default())
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        ProofGenMode::Execute => vm.run(elf, false),
-        ProofGenMode::Prove => vm.run(elf, true),
+        // If not skip or simulate, we have to drop the lock manually to allow parallel proving
+        ProofGenMode::Execute => {
+            drop(proof_mode);
+            vm.run(elf, false)
+        }
+        ProofGenMode::Prove => {
+            drop(proof_mode);
+            vm.run(elf, true)
+        }
     }
 }

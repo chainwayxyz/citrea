@@ -9,7 +9,7 @@ use reth_primitives::{address, Address, Bytes, TxKind, B256};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::{Module, WorkingSet};
+use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 use sov_state::{ProverStorage, Storage};
@@ -34,14 +34,14 @@ pub(crate) fn get_evm_with_storage(
     config: &EvmConfig,
 ) -> (
     Evm<C>,
-    WorkingSet<DefaultContext>,
+    WorkingSet<ProverStorage<SnapshotManager>>,
     ProverStorage<SnapshotManager>,
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let prover_storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(prover_storage.clone());
     let evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
+    evm.genesis(config, &mut working_set);
 
     let mut genesis_state_root = [0u8; 32];
     genesis_state_root.copy_from_slice(GENESIS_STATE_ROOT.as_ref());
@@ -52,16 +52,16 @@ pub(crate) fn get_evm_with_storage(
     );
     (evm, working_set, prover_storage)
 }
-pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
+pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
     let mut evm = Evm::<C>::default();
-    evm.genesis(config, &mut working_set).unwrap();
+    evm.genesis(config, &mut working_set);
 
     let root = commit(working_set, storage.clone());
 
-    let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
+    let mut working_set = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
     let hook_info = HookSoftConfirmationInfo {
@@ -82,7 +82,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
     evm.end_soft_confirmation_hook(&hook_info, &mut working_set);
 
     let root = commit(working_set, storage.clone());
-    let mut working_set: WorkingSet<C> = WorkingSet::new(storage.clone());
+    let mut working_set: WorkingSet<<C as Spec>::Storage> = WorkingSet::new(storage.clone());
     evm.finalize_hook(&root.into(), &mut working_set.accessory_state());
 
     // let mut genesis_state_root = [0u8; 32];
@@ -92,7 +92,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<C>) {
 }
 
 pub(crate) fn commit(
-    working_set: WorkingSet<C>,
+    working_set: WorkingSet<<C as Spec>::Storage>,
     storage: ProverStorage<SnapshotManager>,
 ) -> [u8; 32] {
     // Save checkpoint
@@ -148,6 +148,26 @@ pub(crate) fn create_contract_message_with_fee<T: TestContract>(
         )
         .unwrap()
 }
+
+pub(crate) fn create_contract_message_with_fee_and_gas_limit<T: TestContract>(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    contract: T,
+    max_fee_per_gas: u128,
+    gas_limit: u64,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction_with_fee_and_gas_limit(
+            TxKind::Create,
+            contract.byte_code(),
+            nonce,
+            0,
+            max_fee_per_gas,
+            gas_limit,
+        )
+        .unwrap()
+}
+
 pub(crate) fn create_contract_transaction<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,

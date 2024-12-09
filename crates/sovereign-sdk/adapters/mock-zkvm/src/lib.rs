@@ -3,7 +3,7 @@
 
 use std::collections::VecDeque;
 use std::io::Write;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -79,40 +79,13 @@ impl MockProof {
     }
 }
 
-#[derive(Clone)]
-struct Notifier {
-    notified: Arc<Mutex<bool>>,
-    cond: Arc<Condvar>,
-}
-
-impl Default for Notifier {
-    fn default() -> Self {
-        Self {
-            notified: Arc::new(Mutex::new(false)),
-            cond: Default::default(),
-        }
-    }
-}
-
-impl Notifier {
-    fn wait(&self) {
-        let mut notified = self.notified.lock().unwrap();
-        while !*notified {
-            notified = self.cond.wait(notified).unwrap();
-        }
-    }
-
-    fn notify(&self) {
-        let mut notified = self.notified.lock().unwrap();
-        *notified = true;
-        self.cond.notify_all();
-    }
-}
-
-/// A mock implementing the zkVM trait.
+/// MockZkvm is a mock struct which implements Zkvm and ZkvmHost traits.
+/// It has the capability to behave as if multiple proofs are running
+/// and exposes method `finish_next_proof` to emulate finishing behavior
+/// of a single proof. It is useful for testing parallel proving.
 #[derive(Clone)]
 pub struct MockZkvm {
-    worker_thread_notifier: Notifier,
+    waiting_tasks: Arc<Mutex<VecDeque<mpsc::Sender<()>>>>,
     committed_data: VecDeque<Vec<u8>>,
     is_valid: bool,
 }
@@ -124,19 +97,25 @@ impl Default for MockZkvm {
 }
 
 impl MockZkvm {
-    /// Creates a new MockZkvm
+    /// Create new instance of `MockZkvm`
     pub fn new() -> Self {
         Self {
-            worker_thread_notifier: Default::default(),
+            waiting_tasks: Default::default(),
             committed_data: Default::default(),
             is_valid: Default::default(),
         }
     }
 
-    /// Simulates zk proof generation.
-    pub fn make_proof(&self) {
-        // We notify the worket thread.
-        self.worker_thread_notifier.notify();
+    /// Notifies the next proof in FIFO order to emulate finishing behavior.
+    /// Returns whether there was any proof in the queue.
+    pub fn finish_next_proof(&self) -> bool {
+        let mut tasks = self.waiting_tasks.lock().unwrap();
+        if let Some(chan) = tasks.pop_front() {
+            chan.send(()).unwrap();
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -181,7 +160,8 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         };
 
         let data = borsh::to_vec(&proof_info).unwrap();
-        self.committed_data.push_back(data)
+
+        self.committed_data.push_back(data);
     }
 
     fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
@@ -200,14 +180,22 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         _elf: Vec<u8>,
         _with_proof: bool,
     ) -> Result<sov_rollup_interface::zk::Proof, anyhow::Error> {
-        self.worker_thread_notifier.wait();
+        let (tx, rx) = mpsc::channel();
+
+        let mut tasks = self.waiting_tasks.lock().unwrap();
+        tasks.push_back(tx);
+        drop(tasks);
+
+        // Block until finish signal arrives
+        rx.recv().unwrap();
+
         Ok(self.committed_data.pop_front().unwrap_or_default())
     }
 
     fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<T, Self::Error> {
-        let data: ProofInfo = bincode::deserialize(proof)?;
+        let data: ProofInfo = borsh::from_slice(proof)?;
 
         T::try_from_slice(&data.hint).map_err(Into::into)
     }

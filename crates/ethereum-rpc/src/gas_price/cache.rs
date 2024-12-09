@@ -21,10 +21,11 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     }
 
     /// Gets block from cache or from provider
+    #[allow(unused)]
     pub fn get_block(
         &mut self,
         block_hash: B256,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
         if let Some(block) = self.cache.get(&block_hash) {
@@ -55,7 +56,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     pub fn get_block_by_number(
         &mut self,
         block_number: u64,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> EthResult<Option<Rich<Block>>> {
         // Check if block is in cache
         if let Some(block_hash) = self.number_to_hash.get(&block_number) {
@@ -87,7 +88,7 @@ impl<C: sov_modules_api::Context> BlockCache<C> {
     pub fn get_block_with_receipts(
         &mut self,
         block_number: u64,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> EthResult<Option<(Rich<Block>, Vec<AnyTransactionReceipt>)>> {
         // if height not in cache, get hash from provider and call get_block
         let block = self.get_block_by_number(block_number, working_set)?;

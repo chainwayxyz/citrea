@@ -4,7 +4,7 @@ use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EvmState, ExecutionResult, ResultAndState,
 };
 use revm::{self, Context, Database, DatabaseCommit, EvmContext};
-use sov_modules_api::{native_error, native_trace};
+use sov_modules_api::{native_error, native_trace, SoftConfirmationModuleCallError};
 #[cfg(feature = "native")]
 use tracing::trace_span;
 
@@ -33,7 +33,7 @@ where
     }
 
     /// Sets all required parameters and executes a transaction.
-    fn transact_commit(
+    pub(crate) fn transact_commit(
         &mut self,
         tx: &TransactionSignedEcRecovered,
     ) -> Result<ExecutionResult, EVMError<DB::Error>>
@@ -65,18 +65,8 @@ where
     }
 }
 
-#[allow(dead_code)]
-pub(crate) fn execute_tx<DB: Database + DatabaseCommit, EXT: CitreaExternalExt>(
-    db: DB,
-    block_env: BlockEnv,
-    tx: &TransactionSignedEcRecovered,
-    config_env: CfgEnvWithHandlerCfg,
-    ext: &mut EXT,
-) -> Result<ExecutionResult, EVMError<DB::Error>> {
-    let mut evm = CitreaEvm::new(db, block_env, config_env, ext);
-    evm.transact_commit(tx)
-}
-
+/// Will fail on the first error.
+/// Rendering the soft confirmation invalid
 pub(crate) fn execute_multiple_tx<
     DB: Database<Error = DBError> + DatabaseCommit,
     EXT: CitreaExternalExt,
@@ -88,9 +78,9 @@ pub(crate) fn execute_multiple_tx<
     ext: &mut EXT,
     prev_gas_used: u64,
     blob_gas_used: &mut u64,
-) -> Vec<Result<ExecutionResult, EVMError<DBError>>> {
+) -> Result<Vec<ExecutionResult>, SoftConfirmationModuleCallError> {
     if txs.is_empty() {
-        return vec![];
+        return Ok(vec![]);
     }
 
     let block_gas_limit: u64 = block_env.gas_limit.saturating_to();
@@ -106,53 +96,52 @@ pub(crate) fn execute_multiple_tx<
             trace_span!("Processing tx", i = _i, signer = %tx.signer(), tx_hash = %tx.hash())
                 .entered();
 
+        if tx.signer() == SYSTEM_SIGNER {
+            native_error!("System transaction found in user txs");
+            return Err(SoftConfirmationModuleCallError::EvmMisplacedSystemTx);
+        }
+
         if tx.is_eip4844()
             // can unwrap because we checked if it's EIP-4844
             && *blob_gas_used + tx.blob_gas_used().unwrap() > MAX_DATA_GAS_PER_BLOCK
         {
             native_error!("Blob gas used exceeds block gas limit");
-            tx_results.push(Err(EVMError::Custom(format!(
-                "Blob gas used exceeds block gas limit {:?}",
-                block_gas_limit
-            ))));
-            continue;
+            return Err(SoftConfirmationModuleCallError::EvmBlobGasUsedExceedsBlockGasLimit);
         }
 
-        let result_and_state = match evm.transact(tx) {
-            Ok(result_and_state) => result_and_state,
-            Err(e) => {
-                native_error!(error = %e, "Transaction failed");
-                tx_results.push(Err(e));
-                continue;
+        let result_and_state = evm.transact(tx).map_err(|e| {
+            native_error!("Invalid tx {}. Error: {}", tx.hash(), e);
+            match e {
+                // only custom error we use is for not enough funds for L1 fee
+                EVMError::Custom(_) => SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee,
+                _ => SoftConfirmationModuleCallError::EvmTransactionExecutionError,
             }
-        };
+        })?;
 
         // Check if the transaction used more gas than the available block gas limit
-        let result = if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
+        if cumulative_gas_used + result_and_state.result.gas_used() > block_gas_limit {
             native_error!("Gas used exceeds block gas limit");
-            Err(EVMError::Custom(format!(
-                "Gas used exceeds block gas limit {:?}",
-                block_gas_limit
-            )))
-        } else if tx.signer() == SYSTEM_SIGNER {
-            Err(EVMError::Custom(format!(
-                "Invalid system transaction: {:?}",
-                hex::encode(tx.hash())
-            )))
-        } else {
-            native_trace!("Commiting tx to DB");
-            evm.commit(result_and_state.state);
-            cumulative_gas_used += result_and_state.result.gas_used();
+            return Err(
+                SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                    cumulative_gas: cumulative_gas_used,
+                    tx_gas_used: result_and_state.result.gas_used(),
+                    block_gas_limit,
+                },
+            );
+        }
 
-            if tx.is_eip4844() {
-                *blob_gas_used += tx.blob_gas_used().unwrap();
-            }
+        native_trace!("Commiting tx to DB");
+        evm.commit(result_and_state.state);
+        cumulative_gas_used += result_and_state.result.gas_used();
 
-            Ok(result_and_state.result)
-        };
-        tx_results.push(result);
+        if tx.is_eip4844() {
+            *blob_gas_used += tx.blob_gas_used().unwrap();
+        }
+
+        tx_results.push(result_and_state.result);
     }
-    tx_results
+
+    Ok(tx_results)
 }
 
 pub(crate) fn execute_system_txs<

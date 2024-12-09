@@ -18,8 +18,8 @@ sequencer-client = { path = "../sequencer-client" }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core" }
-sov-modules-rollup-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-rollup-blueprint" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
@@ -51,4 +51,5 @@ citrea-stf = { path = "../citrea-stf", features = ["native"] }
 prover-services = { path = "../prover-services" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }
+sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", features = ["mock"] }

@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec, WorkingSet};
+use sov_modules_core::{Prefix, StateCodec, StateKeyCodec, StateValueCodec, WorkingSet};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use super::traits::StateMapAccessor;
 /// A container that maps keys to values.
@@ -55,7 +56,7 @@ impl<K, V, Codec> StateMap<K, V, Codec> {
     }
 }
 
-impl<K, V, Codec, C: Context> StateMapAccessor<K, V, Codec, WorkingSet<C>> for StateMap<K, V, Codec>
+impl<K, V, Codec, S: Storage> StateMapAccessor<K, V, Codec, WorkingSet<S>> for StateMap<K, V, Codec>
 where
     Codec: StateCodec,
     Codec::KeyCodec: StateKeyCodec<K>,
@@ -84,12 +85,12 @@ where
     /// Returns an arbitrary [`StateMap`] instance.
     ///
     /// See the [`arbitrary`] crate for more information.
-    pub fn arbitrary_working_set<C>(
+    pub fn arbitrary_working_set<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<S>,
     ) -> arbitrary::Result<Self>
     where
-        C: Context,
+        S: Storage,
     {
         use arbitrary::Arbitrary;
 

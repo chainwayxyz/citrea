@@ -10,6 +10,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::telemetry::start_telemetry_server;
+use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
 use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig, TelemetryConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_primitives::utils::duration_to_seconds;
@@ -21,20 +22,20 @@ use prometheus_client::registry::Registry;
 use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
-use sov_modules_api::{Context, SignedSoftConfirmation};
+use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
 use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;
+use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::time::{sleep, Duration};
-use tokio::{select, signal};
 use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::{self, L1BlockHandler};
@@ -49,19 +50,18 @@ pub struct Telemetry {
 }
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
+pub struct CitreaFullnode<Stf, Da, Vm, C, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
-    C: Context,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
     stf: Stf,
-    storage_manager: Sm,
+    storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
     state_root: StateRoot<Stf, Da::Spec>,
     batch_hash: SoftConfirmationHash,
@@ -82,18 +82,17 @@ where
     telemetry: Telemetry,
 }
 
-impl<Stf, Sm, Da, Vm, C, DB> CitreaFullnode<Stf, Sm, Da, Vm, C, DB>
+impl<Stf, Da, Vm, C, DB> CitreaFullnode<Stf, Da, Vm, C, DB>
 where
     Da: DaService<Error = anyhow::Error>,
     Vm: ZkvmHost + Zkvm,
     <Vm as Zkvm>::CodeCommitment: Send,
-    Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
             Da::Spec,
-            PreState = Sm::NativeStorage,
-            ChangeSet = Sm::NativeChangeSet,
+            PreState = ProverStorage<SnapshotManager>,
+            ChangeSet = ProverStorage<SnapshotManager>,
         > + StfBlueprintTrait<C, Da::Spec>,
-    C: Context + Send + Sync,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
 {
     /// Creates a new `StateTransitionRunner`.
@@ -109,7 +108,7 @@ where
         da_service: Arc<Da>,
         ledger_db: DB,
         stf: Stf,
-        mut storage_manager: Sm,
+        mut storage_manager: ProverStorageManager<Da::Spec>,
         init_variant: InitVariant<Stf, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
@@ -291,8 +290,9 @@ where
                 .clone()
                 .try_into()
                 .context("Failed to parse transactions")?;
+        let current_spec = self.fork_manager.active_fork().spec_id;
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            self.fork_manager.active_fork().spec_id,
+            current_spec,
             self.sequencer_pub_key.as_slice(),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
@@ -302,8 +302,6 @@ where
             current_l1_block.header(),
             &mut signed_soft_confirmation,
         )?;
-
-        let receipt = soft_confirmation_result.soft_confirmation_receipt;
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation
@@ -321,6 +319,9 @@ where
         } else {
             None
         };
+
+        let receipt =
+            soft_confirmation_to_receipt::<C, _, Da::Spec>(signed_soft_confirmation, current_spec);
 
         self.ledger_db
             .commit_soft_confirmation(next_state_root.as_ref(), receipt, tx_bodies)?;
@@ -435,6 +436,8 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
+        let mut shutdown_signal = create_shutdown_signal().await;
+
         loop {
             select! {
                 _ = &mut l2_sync_worker => {},
@@ -449,6 +452,7 @@ where
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
                                 let remaining_l2s: Vec<(u64, GetSoftConfirmationResponse)> = l2_blocks[index..].to_vec();
                                 pending_l2_blocks.extend(remaining_l2s);
+                                break;
                             }
                         }
                         continue;
@@ -473,13 +477,15 @@ where
                         }
                     }
                 },
-                _ = signal::ctrl_c() => {
-                    info!("Shutting down");
-                    self.task_manager.abort().await;
-                    return Ok(());
-                }
+                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
             }
         }
+    }
+
+    async fn shutdown(&self) -> anyhow::Result<()> {
+        info!("Shutting down");
+        self.task_manager.abort().await;
+        Ok(())
     }
 
     /// Allows to read current state root

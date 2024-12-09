@@ -41,7 +41,7 @@ pub use sov_modules_macros::MessageCodec;
 ///        &mut self,
 ///        _msg: Self::CallMessage,
 ///        _context: &Self::Context,
-///        _working_set: &mut WorkingSet<C>,
+///        _working_set: &mut WorkingSet<C::Storage>,
 ///     ) -> Result<CallResponse, Error> {
 ///        Ok(CallResponse {})
 ///     }

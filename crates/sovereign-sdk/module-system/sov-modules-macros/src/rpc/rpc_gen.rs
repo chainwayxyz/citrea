@@ -219,7 +219,7 @@ impl RpcImplBlock {
         let rpc_impl_trait = if let Some(ref working_set_type) = self.working_set_type {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
-                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C::Storage>`
                 #async_trait_marker
                 pub trait #impl_trait_name #generics #where_clause {
                     /// Get a clean working set on top of the latest state
@@ -230,7 +230,7 @@ impl RpcImplBlock {
         } else {
             quote! {
                 /// Allows a Runtime to be converted into a functional RPC server by simply implementing the two required methods -
-                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C>`
+                /// `get_backing_impl(&self) -> MyModule` and `get_working_set(&self) -> ::sov_modules_api::WorkingSet<C::Storage>`
                 #async_trait_marker
                 pub trait #impl_trait_name #generics #where_clause {
                     #(#impl_trait_methods)*

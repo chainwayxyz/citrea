@@ -69,7 +69,7 @@ citrea-evm = { path = "../../crates/evm", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives", features = ["testing"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing"] }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing", "testing"] }
 
 alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers", "signer-local"] }
 alloy-rlp = { workspace = true }

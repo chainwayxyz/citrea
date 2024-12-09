@@ -30,7 +30,7 @@ impl<C: sov_modules_api::Context> Accounts<C> {
     pub fn get_account(
         &self,
         pub_key: C::PublicKey,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> RpcResult<Response> {
         let response = match self.accounts.get(&pub_key, working_set) {
             Some(Account { addr, nonce }) => Response::AccountExists {

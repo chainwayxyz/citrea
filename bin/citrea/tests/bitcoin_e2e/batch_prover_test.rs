@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -7,21 +8,24 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
-    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
+    TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::full_node::FullNode;
-use citrea_e2e::node::NodeKind;
+use citrea_e2e::node::{Config, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
+use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use reth_primitives::U64;
+use reth_primitives::{Address, U64};
 use sov_ledger_rpc::client::RpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
+use crate::evm::make_test_client;
 
 pub async fn wait_for_zkproofs(
     full_node: &FullNode,
@@ -438,6 +442,101 @@ impl TestCase for LocalProvingTest {
 #[ignore]
 async fn local_proving_test() -> Result<()> {
     TestCaseRunner::new(LocalProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct ParallelProvingTest;
+
+#[async_trait]
+impl TestCase for ParallelProvingTest {
+    fn test_env() -> TestCaseEnv {
+        TestCaseEnv {
+            test: vec![("RISC0_DEV_MODE", "1"), ("PARALLEL_PROOF_LIMIT", "2")],
+            ..Default::default()
+        }
+    }
+
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_sequencer: true,
+            with_batch_prover: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: 106,
+            mempool_conf: SequencerMempoolConfig {
+                max_account_slots: 1000,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await?;
+
+        // Invoke 2 sequencer commitments
+        for _ in 0..min_soft_confirmations_per_commitment * 2 {
+            // 7 txs in each block
+            for _ in 0..7 {
+                let _ = seq_test_client
+                    .send_eth(Address::random(), None, None, None, 100)
+                    .await
+                    .unwrap();
+            }
+
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for 2 commitments (4 txs) to hit DA mempool
+        da.wait_mempool_len(4, Some(Duration::from_secs(420)))
+            .await?;
+
+        // Write commitments to a finalized DA block
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height().await?;
+
+        // Wait until batch prover processes the commitments
+        batch_prover
+            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(1800)))
+            .await?;
+
+        // Write 2 batch proofs to a finalized DA block
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height().await?;
+
+        // Retrieve proofs from fullnode
+        let proofs = wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(120)))
+            .await
+            .unwrap();
+        dbg!(proofs.len());
+
+        Ok(())
+    }
+}
+
+#[ignore]
+#[tokio::test]
+async fn parallel_proving_test() -> Result<()> {
+    TestCaseRunner::new(ParallelProvingTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

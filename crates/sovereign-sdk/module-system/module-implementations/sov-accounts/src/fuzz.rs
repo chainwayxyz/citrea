@@ -72,14 +72,12 @@ where
     /// Creates an arbitrary set of accounts and stores it under `working_set`.
     pub fn arbitrary_workset(
         u: &mut Unstructured<'a>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> arbitrary::Result<Self> {
         let config: AccountConfig<C> = u.arbitrary()?;
         let accounts = Accounts::default();
 
-        accounts
-            .genesis(&config, working_set)
-            .map_err(|_| arbitrary::Error::IncorrectFormat)?;
+        accounts.genesis(&config, working_set);
 
         Ok(accounts)
     }

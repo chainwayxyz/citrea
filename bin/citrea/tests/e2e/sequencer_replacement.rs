@@ -247,7 +247,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     );
     let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
     let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(sequencer_db_dir.as_path(), None)).unwrap();
+        LedgerDB::with_config(&RocksdbConfig::new(sequencer_db_dir.as_path(), None, None)).unwrap();
     let txs = ledger_db.get_mempool_txs().unwrap();
     assert_eq!(txs.len(), 2);
     assert_eq!(txs[1].0, tx_hash.to_vec());
@@ -333,7 +333,7 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
     );
     let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
     let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(sequencer_db_dir.as_path(), None)).unwrap();
+        LedgerDB::with_config(&RocksdbConfig::new(sequencer_db_dir.as_path(), None, None)).unwrap();
     let txs = ledger_db.get_mempool_txs().unwrap();
     // should be removed from db
     assert_eq!(txs.len(), 0);

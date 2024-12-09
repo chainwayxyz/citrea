@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use sov_modules_core::{
-    AccessoryWorkingSet, Context, Prefix, StateCodec, StateKeyCodec, StateValueCodec,
-};
+use sov_modules_core::{AccessoryWorkingSet, Prefix, StateCodec, StateKeyCodec, StateValueCodec};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use super::traits::StateMapAccessor;
 
@@ -54,13 +53,13 @@ impl<K, V, Codec> AccessoryStateMap<K, V, Codec> {
     }
 }
 
-impl<'a, K, V, Codec, C> StateMapAccessor<K, V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, K, V, Codec, S> StateMapAccessor<K, V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateMap<K, V, Codec>
 where
     Codec: StateCodec,
     Codec::KeyCodec: StateKeyCodec<K>,
     Codec::ValueCodec: StateValueCodec<V>,
-    C: Context,
+    S: Storage,
 {
     /// Returns the prefix used when this [`AccessoryStateMap`] was created.
     fn prefix(&self) -> &Prefix {
@@ -84,12 +83,12 @@ where
     /// Generates an arbitrary [`AccessoryStateMap`] instance.
     ///
     /// See the [`arbitrary`] crate for more information.
-    pub fn arbitrary_working_set<C>(
+    pub fn arbitrary_working_set<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut AccessoryWorkingSet<C>,
+        working_set: &mut AccessoryWorkingSet<S>,
     ) -> arbitrary::Result<Self>
     where
-        C: Context,
+        S: Storage,
     {
         use arbitrary::Arbitrary;
 

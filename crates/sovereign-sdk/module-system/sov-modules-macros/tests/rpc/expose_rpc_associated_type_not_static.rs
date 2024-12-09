@@ -3,8 +3,8 @@ use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen, DefaultRuntime};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, MessageCodec, Module,
-    ModuleInfo, SpecId, StateValue, WorkingSet,
+    Address, CallResponse, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, Module,
+    ModuleInfo, SoftConfirmationModuleCallError, Spec, SpecId, StateValue, WorkingSet,
 };
 use sov_state::ZkStorage;
 
@@ -50,21 +50,16 @@ pub mod my_module {
         type CallMessage = D;
         type Event = ();
 
-        fn genesis(
-            &self,
-            config: &Self::Config,
-            working_set: &mut WorkingSet<C>,
-        ) -> Result<(), Error> {
+        fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
             self.data.set(config, working_set);
-            Ok(())
         }
 
         fn call(
             &mut self,
             msg: Self::CallMessage,
             _context: &Self::Context,
-            working_set: &mut WorkingSet<C>,
-        ) -> Result<CallResponse, Error> {
+            working_set: &mut WorkingSet<C::Storage>,
+        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             self.data.set(&msg, working_set);
             Ok(CallResponse::default())
         }
@@ -86,7 +81,10 @@ pub mod my_module {
             C: Context,
         {
             #[rpc_method(name = "queryValue")]
-            pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+            pub fn query_value(
+                &self,
+                working_set: &mut WorkingSet<C::Storage>,
+            ) -> RpcResult<QueryResponse> {
                 let value = self.data.get(working_set).map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
             }
@@ -116,7 +114,7 @@ fn main() {
     let working_set = &mut WorkingSet::new(storage);
     let runtime = &mut Runtime::<C, ActualSpec>::default();
     let config = GenesisConfig::new(22);
-    runtime.genesis(&config, working_set).unwrap();
+    runtime.genesis(&config, working_set);
 
     let message: u32 = 33;
     let serialized_message =

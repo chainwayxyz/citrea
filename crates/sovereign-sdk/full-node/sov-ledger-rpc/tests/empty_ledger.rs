@@ -11,7 +11,7 @@ use tempfile::tempdir;
 
 async fn rpc_server() -> (jsonrpsee::server::ServerHandle, SocketAddr) {
     let dir = tempdir().unwrap();
-    let db = LedgerDB::with_config(&RocksdbConfig::new(dir.path(), None)).unwrap();
+    let db = LedgerDB::with_config(&RocksdbConfig::new(dir.path(), None, None)).unwrap();
     let rpc_module = rpc_module::<LedgerDB, u32, u32>(db).unwrap();
 
     let server = jsonrpsee::server::ServerBuilder::default()

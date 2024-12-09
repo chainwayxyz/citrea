@@ -2,9 +2,16 @@ use std::collections::{HashMap, HashSet};
 
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::schema::types::BatchNumber;
-use sov_rollup_interface::da::SequencerCommitment;
+use sov_modules_api::{Context, Spec};
+use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
+use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
-use sov_rollup_interface::stf::StateDiff;
+use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff, TransactionDigest};
+use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
@@ -76,4 +83,61 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
         }
     }
     false
+}
+
+pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, DS: DaSpec>(
+    soft_confirmation: SignedSoftConfirmation<'_, Tx>,
+    current_spec: SpecId,
+) -> SoftConfirmationReceipt<DS> {
+    let tx_hashes = if current_spec >= SpecId::Fork1 {
+        soft_confirmation
+            .txs()
+            .iter()
+            .map(|tx| tx.compute_digest::<<C as Spec>::Hasher>().into())
+            .collect()
+    } else {
+        soft_confirmation
+            .blobs()
+            .iter()
+            .map(|raw_tx| <C as Spec>::Hasher::digest(raw_tx).into())
+            .collect()
+    };
+
+    SoftConfirmationReceipt {
+        l2_height: soft_confirmation.l2_height(),
+        hash: soft_confirmation.hash(),
+        prev_hash: soft_confirmation.prev_hash(),
+        da_slot_height: soft_confirmation.da_slot_height(),
+        da_slot_hash: soft_confirmation.da_slot_hash().into(),
+        da_slot_txs_commitment: soft_confirmation.da_slot_txs_commitment().into(),
+        l1_fee_rate: soft_confirmation.l1_fee_rate(),
+        tx_hashes,
+        deposit_data: soft_confirmation.deposit_data().to_vec(),
+        timestamp: soft_confirmation.timestamp(),
+        soft_confirmation_signature: soft_confirmation.signature().to_vec(),
+        pub_key: soft_confirmation.pub_key().to_vec(),
+    }
+}
+pub async fn create_shutdown_signal() -> tokio::sync::mpsc::Receiver<()> {
+    let (tx, rx) = mpsc::channel(1);
+
+    tokio::spawn(async move {
+        let term_signal = signal(SignalKind::terminate()).ok();
+
+        if let Some(mut term_signal) = term_signal {
+            tokio::select! {
+                _ = signal::ctrl_c() => {
+                    let _ = tx.send(()).await;
+                }
+                _ = term_signal.recv() => {
+                    let _ = tx.send(()).await;
+                }
+            }
+        } else {
+            let _ = signal::ctrl_c().await;
+            let _ = tx.send(()).await;
+        }
+    });
+
+    rx
 }

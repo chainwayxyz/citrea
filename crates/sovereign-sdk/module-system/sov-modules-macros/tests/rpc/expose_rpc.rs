@@ -1,8 +1,10 @@
 use jsonrpsee::core::RpcResult;
 pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
+use sov_modules_api::prelude::*;
 use sov_modules_api::{
-    prelude::*, CallResponse, Context, Error, Module, ModuleInfo, StateValue, WorkingSet,
+    CallResponse, Context, Module, ModuleInfo, SoftConfirmationModuleCallError, Spec, StateValue,
+    WorkingSet,
 };
 
 #[derive(ModuleInfo)]
@@ -20,17 +22,16 @@ impl<C: Context> Module for QueryModule<C> {
     type CallMessage = u8;
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.data.set(config, working_set);
-        Ok(())
     }
 
     fn call(
         &mut self,
         msg: Self::CallMessage,
         _context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<CallResponse, Error> {
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         self.data.set(&msg, working_set);
         Ok(CallResponse::default())
     }
@@ -44,7 +45,10 @@ pub struct QueryResponse {
 #[rpc_gen(client, server, namespace = "queryModule")]
 impl<C: Context> QueryModule<C> {
     #[rpc_method(name = "queryValue")]
-    pub fn query_value(&self, working_set: &mut WorkingSet<C>) -> RpcResult<QueryResponse> {
+    pub fn query_value(
+        &self,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> RpcResult<QueryResponse> {
         Ok(QueryResponse {
             value: self.data.get(working_set),
         })

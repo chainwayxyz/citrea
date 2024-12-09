@@ -11,7 +11,6 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sov_mock_da::MockBlockHeader;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::{CacheKey, CacheValue, StorageKey};
 use sov_state::{ArrayWitness, OrderedReadsAndWrites, Storage};
 

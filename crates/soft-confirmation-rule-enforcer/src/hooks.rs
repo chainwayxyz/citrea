@@ -1,5 +1,5 @@
-use sov_modules_api::hooks::{HookSoftConfirmationInfo, SoftConfirmationError};
-use sov_modules_api::{Context, DaSpec, StateValueAccessor, WorkingSet};
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::{Context, DaSpec, SoftConfirmationHookError, StateValueAccessor, WorkingSet};
 use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -22,7 +22,7 @@ where
         max_l2_blocks_per_l1: u32,
         last_da_root_hash: &mut [u8; 32],
         counter: &mut u32,
-    ) -> Result<(), SoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationHookError> {
         let da_root_hash = soft_confirmation_info.da_slot_hash();
 
         if da_root_hash == *last_da_root_hash {
@@ -31,9 +31,7 @@ where
             // Adding one more l2 block will exceed the max L2 blocks per L1
             if *counter > max_l2_blocks_per_l1 {
                 // block count per l1 block should not be more than max L2 blocks per L1
-                return Err(SoftConfirmationError::Other(
-                    "Too many soft confirmations on DA slot".to_string(),
-                ));
+                return Err(SoftConfirmationHookError::TooManySoftConfirmationsOnDaSlot);
             }
         } else {
             *counter = 1;
@@ -50,13 +48,11 @@ where
         &self,
         soft_confirmation: &HookSoftConfirmationInfo,
         last_timestamp: &mut u64,
-    ) -> Result<(), SoftConfirmationError> {
+    ) -> Result<(), SoftConfirmationHookError> {
         let current_timestamp = soft_confirmation.timestamp();
 
         if current_timestamp < *last_timestamp {
-            return Err(SoftConfirmationError::Other(
-                "Timestamp should be greater than last timestamp".to_string(),
-            ));
+            return Err(SoftConfirmationHookError::TimestampShouldBeGreater);
         }
 
         *last_timestamp = current_timestamp;
@@ -73,8 +69,8 @@ where
     pub fn begin_soft_confirmation_hook(
         &self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<(), SoftConfirmationError> {
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<(), SoftConfirmationHookError> {
         let RuleEnforcerData {
             max_l2_blocks_per_l1,
             mut last_da_root_hash,

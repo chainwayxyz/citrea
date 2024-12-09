@@ -2097,29 +2097,12 @@ dependencies = [
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
- "anyhow",
  "arbitrary",
  "borsh",
  "clap",
  "jsonrpsee",
  "proptest",
  "proptest-derive",
- "schemars",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-state",
- "thiserror",
-]
-
-[[package]]
-name = "sov-bank"
-version = "0.5.0-rc.1"
-dependencies = [
- "anyhow",
- "borsh",
- "clap",
- "jsonrpsee",
  "schemars",
  "serde",
  "serde_json",
@@ -2285,7 +2268,6 @@ dependencies = [
  "rand",
  "serde_json",
  "sov-accounts",
- "sov-bank",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-state",

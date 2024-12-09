@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_core::{AccessoryWorkingSet, Context, Prefix, StateCodec, StateValueCodec};
+use sov_modules_core::{AccessoryWorkingSet, Prefix, StateCodec, StateValueCodec};
 use sov_state::codec::BorshCodec;
+use sov_state::Storage;
 
 use crate::StateValueAccessor;
 
@@ -48,7 +49,7 @@ impl<V, Codec> AccessoryStateValue<V, Codec> {
     }
 }
 
-impl<'a, V, Codec, C: Context> StateValueAccessor<V, Codec, AccessoryWorkingSet<'a, C>>
+impl<'a, V, Codec, S: Storage> StateValueAccessor<V, Codec, AccessoryWorkingSet<'a, S>>
     for AccessoryStateValue<V, Codec>
 where
     Codec: StateCodec,

@@ -45,7 +45,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         return;
     };
 
-    let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+    let mut working_set = WorkingSet::new(ethereum.storage.clone());
     let evm = Evm::<C>::default();
     let latest_block_number: u64 = evm
         .block_number(&mut working_set)
@@ -90,7 +90,7 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     // not need to be managed by the SubscriptionManager.
     tokio::spawn(async move {
         for block_number in start_block + 1..=end_block {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
             let traces = debug_trace_by_block_number(
                 block_number,
                 None,
@@ -136,7 +136,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
     trace_idx: Option<usize>,
     ethereum: &Ethereum<C, Da>,
     evm: &Evm<C>,
-    working_set: &mut WorkingSet<C>,
+    working_set: &mut WorkingSet<C::Storage>,
     opts: Option<GethDebugTracingOptions>,
 ) -> Result<Vec<GethTrace>, ErrorObjectOwned> {
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
