@@ -461,6 +461,10 @@ mod tests {
             [runner]
             include_tx_body = true
             sequencer_client_url = "http://0.0.0.0:12346"
+
+            [telemetry]
+            bind_host = "0.0.0.0"
+            bind_port = 8001
         "#.to_owned();
 
         let config_file = create_config_from(&config);
