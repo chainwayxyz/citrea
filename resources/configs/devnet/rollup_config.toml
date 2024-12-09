@@ -28,3 +28,7 @@ max_subscriptions_per_connection = 100
 sequencer_client_url = "https://rpc.devnet.citrea.xyz"
 # set this to true if you want to include soft confirmation tx bodies
 include_tx_body = false
+
+[telemetry]
+bind_host = "0.0.0.0"
+bind_port = 8001

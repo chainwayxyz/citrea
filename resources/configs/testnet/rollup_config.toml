@@ -61,3 +61,7 @@ include_tx_body = false
 # this value should be at most equal to `batch_requests_limit` set by the RPC node
 # being used.
 # sync_blocks_count = 20
+
+[telemetry]
+bind_host = "0.0.0.0"
+bind_port = 8001
