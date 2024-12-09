@@ -184,7 +184,7 @@ where
                 self.sequencer_pub_key.clone(),
                 self.sequencer_da_pub_key.clone(),
                 self.l1_block_cache.clone(),
-                l1_block.clone(),
+                l1_block,
                 Some(GroupCommitments::Normal),
             )
             .await;
@@ -250,7 +250,7 @@ where
                         self.ledger_db.clone(),
                         self.code_commitments_by_spec.clone(),
                         self.elfs_by_spec.clone(),
-                        l1_block.clone(),
+                        l1_block,
                         sequencer_commitments,
                         inputs,
                     )
