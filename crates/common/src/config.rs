@@ -489,6 +489,7 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
+            telemetry: Default::default(),
         };
         assert_eq!(config, expected);
     }
@@ -676,6 +677,7 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
+            telemetry: Default::default(),
         };
         assert_eq!(full_node_config, expected);
     }
