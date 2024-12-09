@@ -393,7 +393,7 @@ impl FromEnv for SequencerMempoolConfig {
     }
 }
 
-/// RPC configuration.
+/// Telemetry configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TelemetryConfig {
     /// Server host.
