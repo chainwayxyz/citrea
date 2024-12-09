@@ -1853,15 +1853,16 @@ fn test_blob_tx() {
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
             .unwrap();
 
-        assert_eq!(evm.call(
-            CallMessage {
-                txs: vec![blob_message],
-            },
-            &context,
-            &mut working_set,
-        ).unwrap_err(),
-        SoftConfirmationModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string()));
-        
+        assert_eq!(
+            evm.call(
+                CallMessage {
+                    txs: vec![blob_message],
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err(),
+            SoftConfirmationModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string())
+        );
     }
-    
 }
