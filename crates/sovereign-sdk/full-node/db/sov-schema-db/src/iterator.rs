@@ -124,7 +124,7 @@ where
         }
 
         let v = Instant::now().saturating_duration_since(start);
-        let _timer = SCHEMADB_ITER_LATENCY_SECONDS
+        SCHEMADB_ITER_LATENCY_SECONDS
             .histogram
             .get_or_create(&vec![(
                 "cf_name".to_owned(),

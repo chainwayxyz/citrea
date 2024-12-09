@@ -35,7 +35,7 @@ impl SchemaBatch {
         self.insert_operation::<S>(key, put_operation);
 
         let v = Instant::now().saturating_duration_since(start);
-        let _timer = SCHEMADB_BATCH_PUT_LATENCY_SECONDS
+        SCHEMADB_BATCH_PUT_LATENCY_SECONDS
             .histogram
             .get_or_create(&vec![("db_name".to_owned(), "unknown".to_owned())])
             .observe(duration_to_seconds(v));
