@@ -502,7 +502,10 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
-            telemetry: Default::default(),
+            telemetry: TelemetryConfig {
+                bind_host: "0.0.0.0".to_owned(),
+                bind_port: 8001,
+            },
         };
         assert_eq!(config, expected);
     }
@@ -656,6 +659,8 @@ mod tests {
         std::env::set_var("INCLUDE_TX_BODY", "true");
         std::env::set_var("SEQUENCER_CLIENT_URL", "http://0.0.0.0:12346");
         std::env::set_var("PRUNING_DISTANCE", "1000");
+        std::env::set_var("TELEMETRY_BIND_HOST", "0.0.0.0");
+        std::env::set_var("TELEMETRY_BIND_PORT", "8082");
 
         let full_node_config: FullNodeConfig<sov_mock_da::MockDaConfig> =
             FullNodeConfig::from_env().unwrap();
@@ -690,7 +695,10 @@ mod tests {
                 sequencer_da_pub_key: vec![119; 32],
                 prover_da_pub_key: vec![],
             },
-            telemetry: Default::default(),
+            telemetry: TelemetryConfig {
+                bind_host: "0.0.0.0".to_owned(),
+                bind_port: 8082,
+            },
         };
         assert_eq!(full_node_config, expected);
     }
