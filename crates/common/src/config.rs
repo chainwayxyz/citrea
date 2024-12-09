@@ -394,12 +394,21 @@ impl FromEnv for SequencerMempoolConfig {
 }
 
 /// RPC configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TelemetryConfig {
     /// Server host.
     pub bind_host: String,
     /// Server port.
     pub bind_port: u16,
+}
+
+impl Default for TelemetryConfig {
+    fn default() -> Self {
+        Self {
+            bind_host: "localhost".to_owned(),
+            bind_port: 8081,
+        }
+    }
 }
 
 impl FromEnv for TelemetryConfig {
