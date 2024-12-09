@@ -1853,30 +1853,15 @@ fn test_blob_tx() {
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
             .unwrap();
 
-        evm.call(
+        assert_eq!(evm.call(
             CallMessage {
                 txs: vec![blob_message],
             },
             &context,
             &mut working_set,
-        )
-        .unwrap();
+        ).unwrap_err(),
+        SoftConfirmationModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string()));
+        
     }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
-
-    let _last_block = evm
-        .get_block_by_number(Some(BlockNumberOrTag::Latest), None, &mut working_set)
-        .unwrap()
-        .unwrap();
-
-    let receipt = evm
-        .get_block_receipts(
-            BlockId::Number(BlockNumberOrTag::Number(2)),
-            &mut working_set,
-        )
-        .unwrap()
-        .unwrap();
-
-    assert_eq!(receipt.len(), 2);
+    
 }
