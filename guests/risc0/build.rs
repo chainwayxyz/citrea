@@ -70,22 +70,10 @@ fn build() {
         use_docker: None,
     };
 
-    guest_pkg_to_options.insert(
-        "batch-proof-bitcoin",
-        opts.clone(),
-    );
-    guest_pkg_to_options.insert(
-        "batch-proof-mock",
-        opts.clone(),
-    );
-    guest_pkg_to_options.insert(
-        "light-client-proof-bitcoin",
-        opts.clone(),
-    );
-    guest_pkg_to_options.insert(
-        "light-client-proof-mock",
-        opts,
-    );
+    guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
+    guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
+    guest_pkg_to_options.insert("light-client-proof-bitcoin", opts.clone());
+    guest_pkg_to_options.insert("light-client-proof-mock", opts);
 
     embed_methods_with_options(guest_pkg_to_options);
 }
