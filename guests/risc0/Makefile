@@ -1,3 +1,5 @@
+OUT_PATH := resources/guests/risc0/
+
 .PHONY: all
 all: batch-proof-bitcoin light-client-bitcoin
 

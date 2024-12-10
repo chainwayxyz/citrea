@@ -4,6 +4,8 @@ EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
 TEST_FEATURES := --features short-prefix
+BATCH_OUT_PATH := resources/guests/risc0/
+LIGHT_OUT_PATH := resources/guests/risc0/
 
 .PHONY: help
 help: ## Display this help message
