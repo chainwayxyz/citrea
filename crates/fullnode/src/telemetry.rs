@@ -55,7 +55,7 @@ pub fn setup_telemetry() -> (Arc<Registry>, Arc<TelemetryTargets>) {
     registry.register(
         "current_l2_block",
         "The current L2 block number",
-        current_l1_block.clone(),
+        current_l2_block.clone(),
     );
 
     registry.register(
