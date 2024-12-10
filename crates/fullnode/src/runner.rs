@@ -19,7 +19,7 @@ use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
-use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -36,23 +36,25 @@ use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
 
-type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
+type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
+type StfTransaction<C, Da, RT> =
+    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Stf, Da, Vm, C, DB>
+pub struct CitreaFullnode<Da, Vm, C, DB, RT>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
-    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
+    RT: Runtime<C, Da::Spec>,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
-    stf: Stf,
+    stf: StfBlueprint<C, Da::Spec, RT>,
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
-    state_root: StateRoot<Stf, Da::Spec>,
+    state_root: StateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     sequencer_client: SequencerClient,
@@ -70,18 +72,14 @@ where
     task_manager: TaskManager<()>,
 }
 
-impl<Stf, Da, Vm, C, DB> CitreaFullnode<Stf, Da, Vm, C, DB>
+impl<Da, Vm, C, DB, RT> CitreaFullnode<Da, Vm, C, DB, RT>
 where
     Da: DaService<Error = anyhow::Error>,
     Vm: ZkvmHost + Zkvm,
     <Vm as Zkvm>::CodeCommitment: Send,
-    Stf: StateTransitionFunction<
-            Da::Spec,
-            PreState = ProverStorage<SnapshotManager>,
-            ChangeSet = ProverStorage<SnapshotManager>,
-        > + StfBlueprintTrait<C, Da::Spec>,
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
+    RT: Runtime<C, Da::Spec>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -95,9 +93,9 @@ where
         rpc_config: RpcConfig,
         da_service: Arc<Da>,
         ledger_db: DB,
-        stf: Stf,
+        stf: StfBlueprint<C, Da::Spec, RT>,
         mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<Stf, Da::Spec>,
+        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager,
         soft_confirmation_tx: broadcast::Sender<u64>,
@@ -245,7 +243,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation<Stf::Transaction> =
+        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
             soft_confirmation
                 .clone()
                 .try_into()
@@ -349,15 +347,16 @@ where
 
         self.task_manager
             .spawn(move |cancellation_token| async move {
-                let l1_block_handler = L1BlockHandler::<C, Vm, Da, Stf::StateRoot, DB>::new(
-                    ledger_db,
-                    da_service,
-                    sequencer_pub_key,
-                    sequencer_da_pub_key,
-                    prover_da_pub_key,
-                    code_commitments_by_spec,
-                    l1_block_cache.clone(),
-                );
+                let l1_block_handler =
+                    L1BlockHandler::<C, Vm, Da, StateRoot<C, Da::Spec, RT>, DB>::new(
+                        ledger_db,
+                        da_service,
+                        sequencer_pub_key,
+                        sequencer_da_pub_key,
+                        prover_da_pub_key,
+                        code_commitments_by_spec,
+                        l1_block_cache.clone(),
+                    );
                 l1_block_handler
                     .run(start_l1_height, cancellation_token)
                     .await
@@ -431,7 +430,7 @@ where
     }
 
     /// Allows to read current state root
-    pub fn get_state_root(&self) -> &Stf::StateRoot {
+    pub fn get_state_root(&self) -> &StateRoot<C, Da::Spec, RT> {
         &self.state_root
     }
 }

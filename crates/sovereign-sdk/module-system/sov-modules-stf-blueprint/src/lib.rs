@@ -122,54 +122,14 @@ pub enum SlashingReason {
     InvalidTransactionEncoding,
 }
 
-/// Trait for soft confirmation handling
-pub trait StfBlueprintTrait<C: Context, Da: DaSpec>: StateTransitionFunction<Da> {
-    /// Begin a soft confirmation
-    #[allow(clippy::too_many_arguments)]
-    fn begin_soft_confirmation(
-        &mut self,
-        sequencer_public_key: &[u8],
-        working_set: &mut WorkingSet<C::Storage>,
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        soft_confirmation_info: &HookSoftConfirmationInfo,
-    ) -> Result<(), StateTransitionError>;
-
-    /// Apply soft confirmation transactions
-    fn apply_soft_confirmation_txs(
-        &mut self,
-        soft_confirmation: HookSoftConfirmationInfo,
-        txs: &[Vec<u8>],
-        txs_new: &[Self::Transaction],
-        batch_workspace: &mut WorkingSet<C::Storage>,
-    ) -> Result<(), StateTransitionError>;
-
-    /// End a soft confirmation
-    fn end_soft_confirmation(
-        &mut self,
-        current_spec: SpecId,
-        pre_state_root: Vec<u8>,
-        sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-        batch_workspace: &mut WorkingSet<C::Storage>,
-    ) -> Result<(), StateTransitionError>;
-
-    /// Finalizes a soft confirmation
-    fn finalize_soft_confirmation(
-        &self,
-        current_spec: SpecId,
-        working_set: WorkingSet<C::Storage>,
-        pre_state: Self::PreState,
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
-    ) -> SoftConfirmationResult<Self::StateRoot, Self::ChangeSet, Self::Witness>;
-}
-
-impl<C, RT, Da> StfBlueprintTrait<C, Da> for StfBlueprint<C, Da, RT>
+impl<C, RT, Da> StfBlueprint<C, Da, RT>
 where
     C: Context,
     Da: DaSpec,
     RT: Runtime<C, Da>,
 {
-    fn begin_soft_confirmation(
+    /// Begin a soft confirmation
+    pub fn begin_soft_confirmation(
         &mut self,
         sequencer_public_key: &[u8],
         working_set: &mut WorkingSet<C::Storage>,
@@ -201,22 +161,26 @@ where
             .map_err(StateTransitionError::HookError)
     }
 
-    fn apply_soft_confirmation_txs(
+    /// Apply soft confirmation transactions
+    pub fn apply_soft_confirmation_txs(
         &mut self,
         soft_confirmation_info: HookSoftConfirmationInfo,
         txs: &[Vec<u8>],
-        txs_new: &[Self::Transaction],
+        txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
         batch_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         self.apply_sov_txs_inner(soft_confirmation_info, txs, txs_new, batch_workspace)
     }
 
-    fn end_soft_confirmation(
+    /// End a soft confirmation
+    pub fn end_soft_confirmation(
         &mut self,
         current_spec: SpecId,
         pre_state_root: Vec<u8>,
         sequencer_public_key: &[u8],
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
+        soft_confirmation: &mut SignedSoftConfirmation<
+            <Self as StateTransitionFunction<Da>>::Transaction,
+        >,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
         let unsigned = UnsignedSoftConfirmation::new(
@@ -286,12 +250,15 @@ where
         .map_err(StateTransitionError::HookError)
     }
 
-    fn finalize_soft_confirmation(
+    /// Finalizes a soft confirmation
+    pub fn finalize_soft_confirmation(
         &self,
         _current_spec: SpecId,
         working_set: WorkingSet<C::Storage>,
-        pre_state: Self::PreState,
-        soft_confirmation: &mut SignedSoftConfirmation<Self::Transaction>,
+        pre_state: <Self as StateTransitionFunction<Da>>::PreState,
+        soft_confirmation: &mut SignedSoftConfirmation<
+            <Self as StateTransitionFunction<Da>>::Transaction,
+        >,
     ) -> SoftConfirmationResult<
         <C::Storage as Storage>::Root,
         C::Storage,

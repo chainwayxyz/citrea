@@ -43,12 +43,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         sequencer_config: SequencerConfig,
     ) -> Result<
         (
-            CitreaSequencer<
-                Self::NativeContext,
-                Self::DaService,
-                StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
-                LedgerDB,
-            >,
+            CitreaSequencer<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
             RpcModule<()>,
         ),
         anyhow::Error,
@@ -164,11 +159,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<
         (
             CitreaFullnode<
-                StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
                 Self::DaService,
                 Self::Vm,
                 Self::NativeContext,
                 LedgerDB,
+                Self::NativeRuntime,
             >,
             RpcModule<()>,
         ),

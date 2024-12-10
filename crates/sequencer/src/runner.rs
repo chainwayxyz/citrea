@@ -35,7 +35,7 @@ use sov_modules_api::{
     Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, StateCheckpoint,
     StateDiff, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
 };
-use sov_modules_stf_blueprint::StfBlueprintTrait;
+use sov_modules_stf_blueprint::{Runtime as RuntimeT, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -58,18 +58,21 @@ use crate::mempool::CitreaMempool;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
-type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
+type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
+type StfTransaction<C, Da, RT> =
+    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
+
 /// Represents information about the current DA state.
 ///
 /// Contains previous height, latest finalized block and fee rate.
 type L1Data<Da> = (<Da as DaService>::FilteredBlock, u128);
 
-pub struct CitreaSequencer<C, Da, Stf, DB>
+pub struct CitreaSequencer<C, Da, DB, RT>
 where
     C: Context,
     Da: DaService,
-    Stf: StateTransitionFunction<Da::Spec> + StfBlueprintTrait<C, Da::Spec>,
     DB: SequencerLedgerOps + Send + Clone + 'static,
+    RT: RuntimeT<C, Da::Spec>,
 {
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool<C>>,
@@ -80,10 +83,10 @@ where
     storage: C::Storage,
     ledger_db: DB,
     config: SequencerConfig,
-    stf: Stf,
+    stf: StfBlueprint<C, Da::Spec, RT>,
     deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     storage_manager: ProverStorageManager<Da::Spec>,
-    state_root: StateRoot<Stf, Da::Spec>,
+    state_root: StateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -98,25 +101,21 @@ enum L2BlockMode {
     NotEmpty,
 }
 
-impl<C, Da, Stf, DB> CitreaSequencer<C, Da, Stf, DB>
+impl<C, Da, DB, RT> CitreaSequencer<C, Da, DB, RT>
 where
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
-    Stf: StateTransitionFunction<
-            Da::Spec,
-            PreState = ProverStorage<SnapshotManager>,
-            ChangeSet = ProverStorage<SnapshotManager>,
-        > + StfBlueprintTrait<C, Da::Spec, Transaction = Transaction<C>>,
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
+    RT: RuntimeT<C, Da::Spec>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
         storage: C::Storage,
         config: SequencerConfig,
-        stf: Stf,
+        stf: StfBlueprint<C, Da::Spec, RT>,
         mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<Stf, Da::Spec>,
+        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         rpc_config: RpcConfig,
@@ -337,7 +336,7 @@ where
                                                }
                                             },
                                             // we configure mempool to never accept blob transactions
-                                            // to mitigate potential bugs in reth-mempool we should look into continue instead of panicking here                                            
+                                            // to mitigate potential bugs in reth-mempool we should look into continue instead of panicking here
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
                                             // Discard tx if it fails to execute
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
@@ -830,7 +829,7 @@ where
         &mut self,
         raw_message: Vec<u8>,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> anyhow::Result<Transaction<C>> {
+    ) -> anyhow::Result<StfTransaction<C, Da::Spec, RT>> {
         // if a batch failed need to refetch nonce
         // so sticking to fetching from state makes sense
         let nonce = self.get_nonce(working_set)?;
@@ -845,9 +844,9 @@ where
     /// Signs necessary info and returns a BlockTemplate
     fn sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, Stf::Transaction>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
         let digest = soft_confirmation.compute_digest::<<C as sov_modules_api::Spec>::Hasher>();
         let hash = Into::<[u8; 32]>::into(digest);
 
@@ -876,9 +875,9 @@ where
     /// FIXME: ^
     fn pre_fork1_sign_soft_confirmation_batch<'txs>(
         &mut self,
-        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, Stf::Transaction>,
+        soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
         prev_soft_confirmation_hash: [u8; 32],
-    ) -> anyhow::Result<SignedSoftConfirmation<'txs, Stf::Transaction>> {
+    ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
         use digest::Digest;
 
         let raw = borsh::to_vec(&UnsignedSoftConfirmationV1::from(soft_confirmation.clone()))
