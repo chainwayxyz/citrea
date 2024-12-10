@@ -1657,8 +1657,9 @@ pub(crate) fn build_rpc_receipt(
         state_root: None,
         // EIP-4844 related
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
-        blob_gas_price: transaction.max_fee_per_blob_gas(),
-        blob_gas_used: transaction.blob_gas_used().map(|x| x.into()),
+        // None because eip-4844 txs are not accepted
+        blob_gas_price: None,
+        blob_gas_used: None,
         authorization_list: None,
     };
     AnyTransactionReceipt {
@@ -1822,20 +1823,14 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         latest_block.header.base_fee_per_gas.unwrap_or_default(),
         cfg.base_fee_params,
     ));
-    block_env.blob_excess_gas_and_price = latest_block
-        .header
-        .next_block_excess_blob_gas()
-        .or_else(|| {
-            if citrea_spec_id_to_evm_spec_id(
-                fork_from_block_number(FORKS, block_env.number.saturating_to()).spec_id,
-            ) >= SpecId::CANCUN
-            {
-                Some(0)
-            } else {
-                None
-            }
-        })
-        .map(BlobExcessGasAndPrice::new);
+    block_env.blob_excess_gas_and_price = if citrea_spec_id_to_evm_spec_id(
+        fork_from_block_number(FORKS, block_env.number.saturating_to()).spec_id,
+    ) >= SpecId::CANCUN
+    {
+        Some(BlobExcessGasAndPrice::new(0))
+    } else {
+        None
+    };
 
     if block_env.number > U256::from(256) {
         evm.latest_block_hashes
