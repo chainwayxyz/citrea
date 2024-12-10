@@ -277,7 +277,7 @@ impl Case for BlockchainTestCase {
 ///
 /// The reason should be documented in a comment above the file name(s).
 pub fn should_skip(path: &Path) -> bool {
-    let path_str = path.to_str().expect("Path is not valid UTF-8");
+    // let path_str = path.to_str().expect("Path is not valid UTF-8");
     let name = path.file_name().unwrap().to_str().unwrap();
     matches!(
         name,
@@ -316,11 +316,11 @@ pub fn should_skip(path: &Path) -> bool {
         | "shiftCombinations.json"
     )
     // Ignore outdated EOF tests that haven't been updated for Cancun yet.
-    || path_contains(path_str, &["EIPTests", "stEOF"])
+    // || path_contains(path_str, &["EIPTests", "stEOF"])
 }
 
 /// `str::contains` but for a path. Takes into account the OS path separator (`/` or `\`).
-fn path_contains(path_str: &str, rhs: &[&str]) -> bool {
+fn _path_contains(path_str: &str, rhs: &[&str]) -> bool {
     let rhs = rhs.join(std::path::MAIN_SEPARATOR_STR);
     path_str.contains(&rhs)
 }
