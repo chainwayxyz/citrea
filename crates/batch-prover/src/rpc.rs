@@ -168,7 +168,7 @@ where
             self.context.sequencer_pub_key.clone(),
             self.context.sequencer_da_pub_key.clone(),
             self.context.l1_block_cache.clone(),
-            l1_block,
+            &l1_block,
             group_commitments,
         )
         .await
@@ -223,7 +223,7 @@ where
             self.context.sequencer_pub_key.clone(),
             self.context.sequencer_da_pub_key.clone(),
             self.context.l1_block_cache.clone(),
-            l1_block.clone(),
+            &l1_block,
             group_commitments,
         )
         .await
@@ -240,7 +240,7 @@ where
             self.context.ledger.clone(),
             self.context.code_commitments_by_spec.clone(),
             self.context.elfs_by_spec.clone(),
-            l1_block,
+            &l1_block,
             sequencer_commitments,
             inputs,
         )
