@@ -31,14 +31,6 @@ struct Args {
     #[clap(short, long, default_value_t, value_enum)]
     network: NetworkArg,
 
-    /// Override network to run testnet directly.
-    #[arg(long)]
-    testnet: bool,
-
-    /// Override network to run devnet directly.
-    #[arg(long)]
-    devnet: bool,
-
     /// Run the development chain
     #[arg(long, conflicts_with_all = ["testnet"])]
     dev: bool,
@@ -152,11 +144,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     let mut network = args.network.into();
-    if args.testnet {
-        network = Network::Testnet;
-    } else if args.devnet {
-        network = Network::Devnet;
-    } else if args.dev {
+    if args.dev {
         network = Network::Nightly;
     }
 
