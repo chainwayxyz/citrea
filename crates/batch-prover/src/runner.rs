@@ -10,6 +10,7 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::telemetry::provers::Telemetry;
 use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
 use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
@@ -37,7 +38,6 @@ use tracing::{debug, error, info, instrument};
 
 use crate::da_block_handler::{self, L1BlockHandler};
 use crate::rpc::{create_rpc_module, RpcContext};
-use crate::telemetry::Telemetry;
 
 type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
 

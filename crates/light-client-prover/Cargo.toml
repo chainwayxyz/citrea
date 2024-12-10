@@ -28,6 +28,7 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
+prometheus-client = { workspace = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }

@@ -14,6 +14,8 @@ use tokio::net::TcpListener;
 use tokio::pin;
 use tokio_util::sync::CancellationToken;
 
+pub mod provers;
+
 /// Boxed HTTP body for responses
 type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 

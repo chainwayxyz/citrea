@@ -21,7 +21,6 @@ sov-modules-core = { path = "../sovereign-sdk/module-system/sov-modules-core" }
 sov-modules-stf-blueprint = { path = "../sovereign-sdk/module-system/sov-modules-stf-blueprint", features = ["native"] }
 sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 # 3rd-party deps

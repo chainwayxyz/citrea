@@ -431,12 +431,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let telemetry_config = rollup_config.telemetry;
         let (telemetry_registry, telemetry_targets) =
-            citrea_batch_prover::telemetry::setup_telemetry(
+            citrea_common::telemetry::provers::setup_telemetry(
                 da_telemetry_targets,
                 &proving_session_telemetry_targets,
             );
 
-        let telemetry = citrea_batch_prover::telemetry::Telemetry::new(
+        let telemetry = citrea_common::telemetry::provers::Telemetry::new(
             telemetry_config,
             telemetry_registry,
             telemetry_targets,
@@ -486,6 +486,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
         let da_verifier = self.create_da_verifier();
+        let da_telemetry_targets = da_service.telemetry_targets();
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
@@ -535,6 +536,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
+        let proving_session_telemetry_targets = ProvingSessionTelemetryTargets::default();
+
+        let telemetry_config = rollup_config.telemetry;
+        let (telemetry_registry, telemetry_targets) =
+            citrea_common::telemetry::provers::setup_telemetry(
+                da_telemetry_targets,
+                &proving_session_telemetry_targets,
+            );
+
+        let telemetry = citrea_common::telemetry::provers::Telemetry::new(
+            telemetry_config,
+            telemetry_registry,
+            telemetry_targets,
+        );
+
         let runner = CitreaLightClientProver::new(
             runner_config,
             rollup_config.public_keys,
@@ -547,6 +563,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             light_client_prover_code_commitment,
             light_client_prover_elfs,
             task_manager,
+            telemetry,
         )?;
 
         Ok(LightClientProver {

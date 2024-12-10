@@ -5,6 +5,5 @@ mod runner;
 pub use runner::*;
 mod proving;
 pub mod rpc;
-pub mod telemetry;
 
 pub use proving::GroupCommitments;

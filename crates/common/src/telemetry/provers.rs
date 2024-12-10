@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use citrea_common::TelemetryConfig;
 use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
@@ -12,10 +11,12 @@ use sov_schema_db::telemetry::{
     SCHEMADB_PUT_BYTES,
 };
 
+use crate::config::TelemetryConfig;
+
 pub struct Telemetry {
-    pub(crate) config: TelemetryConfig,
-    pub(crate) registry: Arc<Registry>,
-    pub(crate) targets: Arc<TelemetryTargets>,
+    pub config: TelemetryConfig,
+    pub registry: Arc<Registry>,
+    pub targets: Arc<TelemetryTargets>,
 }
 
 impl Telemetry {

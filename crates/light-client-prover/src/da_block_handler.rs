@@ -7,6 +7,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::FORKS;
+use prometheus_client::metrics::gauge::Gauge;
 use sequencer_client::SequencerClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
@@ -24,6 +25,10 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
+
+pub struct TelemetryTargets {
+    pub current_l1_block: Gauge,
+}
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
 where
@@ -43,6 +48,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     sequencer_client: Arc<SequencerClient>,
+    telemetry_targets: TelemetryTargets,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -63,6 +69,7 @@ where
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         sequencer_client: Arc<SequencerClient>,
+        telemetry_targets: TelemetryTargets,
     ) -> Self {
         Self {
             _prover_config: prover_config,
@@ -76,6 +83,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
             sequencer_client,
+            telemetry_targets,
         }
     }
 
@@ -290,6 +298,10 @@ where
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
             .expect("Saving last scanned l1 height to ledger db");
+
+        self.telemetry_targets
+            .current_l1_block
+            .set(l1_height as i64);
 
         Ok(())
     }

@@ -3,6 +3,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use citrea_common::tasks::manager::TaskManager;
+use citrea_common::telemetry::provers::Telemetry;
+use citrea_common::telemetry::start_telemetry_server;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
@@ -19,7 +21,7 @@ use tokio::signal;
 use tokio::sync::oneshot;
 use tracing::{error, info, instrument};
 
-use crate::da_block_handler::L1BlockHandler;
+use crate::da_block_handler::{self, L1BlockHandler};
 use crate::rpc::{create_rpc_module, RpcContext};
 
 /// Dependencies needed to run the rollup.
@@ -50,6 +52,7 @@ impl<S: RollupBlueprint> LightClientProver<S> {
         channel: Option<oneshot::Sender<SocketAddr>>,
     ) -> Result<(), anyhow::Error> {
         let mut runner = self.runner;
+        runner.start_telemetry_server().await;
         runner.start_rpc_server(self.rpc_methods, channel).await?;
 
         runner.run().await?;
@@ -76,6 +79,7 @@ where
     batch_proof_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_commitment: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
+    telemetry: Telemetry,
 }
 
 impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
@@ -98,6 +102,7 @@ where
         light_client_proof_commitment: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         task_manager: TaskManager<()>,
+        telemetry: Telemetry,
     ) -> Result<Self, anyhow::Error> {
         let sequencer_client_url = runner_config.sequencer_client_url.clone();
         Ok(Self {
@@ -113,6 +118,7 @@ where
             batch_proof_commitments_by_spec,
             light_client_proof_commitment,
             light_client_proof_elfs,
+            telemetry,
         })
     }
 
@@ -179,6 +185,24 @@ where
         Ok(())
     }
 
+    pub async fn start_telemetry_server(&mut self) {
+        let telemetry_addr: SocketAddr = format!(
+            "{}:{}",
+            self.telemetry.config.bind_host, self.telemetry.config.bind_port
+        )
+        .parse()
+        .expect("Invalid telemetry address");
+        let telemetry_registry = self.telemetry.registry.clone();
+        self.task_manager.spawn(|cancellation_token| async move {
+            let _ = start_telemetry_server(
+                telemetry_addr,
+                telemetry_registry.clone(),
+                cancellation_token,
+            )
+            .await;
+        });
+    }
+
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
@@ -197,6 +221,7 @@ where
         let light_client_proof_commitment = self.light_client_proof_commitment.clone();
         let light_client_proof_elfs = self.light_client_proof_elfs.clone();
         let sequencer_client = self.sequencer_client.clone();
+        let telemetry_current_l1_block = self.telemetry.targets.current_l1_block.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<Vm, Da, Ps, DB>::new(
@@ -209,6 +234,9 @@ where
                 light_client_proof_commitment,
                 light_client_proof_elfs,
                 Arc::new(sequencer_client),
+                da_block_handler::TelemetryTargets {
+                    current_l1_block: telemetry_current_l1_block,
+                },
             );
             l1_block_handler
                 .run(last_l1_height_scanned.0, cancellation_token)
