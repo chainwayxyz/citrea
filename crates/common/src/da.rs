@@ -42,7 +42,7 @@ pub async fn get_da_block_at_height<Da: DaService>(
 
 pub fn extract_sequencer_commitments<Da>(
     da_service: Arc<Da>,
-    l1_block: Da::FilteredBlock,
+    l1_block: &Da::FilteredBlock,
     sequencer_da_pub_key: &[u8],
 ) -> Vec<SequencerCommitment>
 where
@@ -50,7 +50,7 @@ where
 {
     let mut sequencer_commitments = da_service
         .as_ref()
-        .extract_relevant_sequencer_commitments(&l1_block, sequencer_da_pub_key)
+        .extract_relevant_sequencer_commitments(l1_block, sequencer_da_pub_key)
         .inspect_err(|e| {
             warn!("Failed to get sequencer commitments: {e}");
         })
@@ -65,10 +65,10 @@ where
 
 pub async fn extract_zk_proofs<Da: DaService>(
     da_service: Arc<Da>,
-    l1_block: Da::FilteredBlock,
+    l1_block: &Da::FilteredBlock,
     prover_da_pub_key: &[u8],
 ) -> anyhow::Result<Vec<Proof>> {
     da_service
-        .extract_relevant_zk_proofs(&l1_block, prover_da_pub_key)
+        .extract_relevant_zk_proofs(l1_block, prover_da_pub_key)
         .await
 }
