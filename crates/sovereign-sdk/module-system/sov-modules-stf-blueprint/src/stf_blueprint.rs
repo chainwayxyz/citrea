@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::vec;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -60,11 +59,11 @@ where
         txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        let txs: Vec<_> = if soft_confirmation_info.current_spec >= SpecId::Fork1 {
-            txs_new.to_vec()
+        if soft_confirmation_info.current_spec >= SpecId::Fork1 {
+            for tx in txs_new {
+                self.apply_sov_tx_inner(&soft_confirmation_info, tx, sc_workspace)?;
+            }
         } else {
-            let mut deserialized_txs = vec![];
-
             for raw_tx in txs {
                 // Stateless verification of transaction, such as signature check
                 let mut reader = std::io::Cursor::new(raw_tx);
@@ -73,49 +72,56 @@ where
                         SoftConfirmationError::NonSerializableSovTx,
                     )
                 })?;
-                deserialized_txs.push(tx);
-            }
 
-            deserialized_txs
+                self.apply_sov_tx_inner(&soft_confirmation_info, &tx, sc_workspace)?;
+            }
         };
 
-        for tx in txs {
-            tx.verify().map_err(|_| {
-                StateTransitionError::SoftConfirmationError(
-                    SoftConfirmationError::InvalidSovTxSignature,
-                )
-            })?;
-            // Checks that runtime message can be decoded from transaction.
-            // If a single message cannot be decoded, sequencer is slashed
-            let msg = RT::decode_call(tx.runtime_msg()).map_err(|_| {
-                StateTransitionError::SoftConfirmationError(
-                    SoftConfirmationError::SovTxCantBeRuntimeDecoded,
-                )
-            })?;
+        Ok(())
+    }
 
-            // Dispatching transactions
+    fn apply_sov_tx_inner(
+        &mut self,
+        soft_confirmation_info: &HookSoftConfirmationInfo,
+        tx: &Transaction<C>,
+        sc_workspace: &mut WorkingSet<C::Storage>,
+    ) -> Result<(), StateTransitionError> {
+        tx.verify().map_err(|_| {
+            StateTransitionError::SoftConfirmationError(
+                SoftConfirmationError::InvalidSovTxSignature,
+            )
+        })?;
+        // Checks that runtime message can be decoded from transaction.
+        // If a single message cannot be decoded, sequencer is slashed
+        let msg = RT::decode_call(tx.runtime_msg()).map_err(|_| {
+            StateTransitionError::SoftConfirmationError(
+                SoftConfirmationError::SovTxCantBeRuntimeDecoded,
+            )
+        })?;
 
-            // Pre dispatch hook
-            let hook = RuntimeTxHook {
-                height: soft_confirmation_info.l2_height(),
-                sequencer: tx.pub_key().clone(),
-                current_spec: soft_confirmation_info.current_spec(),
-                l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
-            };
-            let ctx = self
-                .runtime
-                .pre_dispatch_tx_hook(&tx, sc_workspace, &hook)
-                .map_err(StateTransitionError::HookError)?;
+        // Dispatching transactions
 
-            let _ = self
-                .runtime
-                .dispatch_call(msg, sc_workspace, &ctx)
-                .map_err(StateTransitionError::ModuleCallError)?;
+        // Pre dispatch hook
+        let hook = RuntimeTxHook {
+            height: soft_confirmation_info.l2_height(),
+            sequencer: tx.pub_key().clone(),
+            current_spec: soft_confirmation_info.current_spec(),
+            l1_fee_rate: soft_confirmation_info.l1_fee_rate(),
+        };
+        let ctx = self
+            .runtime
+            .pre_dispatch_tx_hook(tx, sc_workspace, &hook)
+            .map_err(StateTransitionError::HookError)?;
 
-            self.runtime
-                .post_dispatch_tx_hook(&tx, &ctx, sc_workspace)
-                .map_err(StateTransitionError::HookError)?;
-        }
+        let _ = self
+            .runtime
+            .dispatch_call(msg, sc_workspace, &ctx)
+            .map_err(StateTransitionError::ModuleCallError)?;
+
+        self.runtime
+            .post_dispatch_tx_hook(tx, &ctx, sc_workspace)
+            .map_err(StateTransitionError::HookError)?;
+
         Ok(())
     }
 
