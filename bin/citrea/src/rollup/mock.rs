@@ -27,7 +27,7 @@ use crate::{CitreaRollupBlueprint, Network};
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {
-    network: Network,
+    _network: Network,
 }
 
 impl CitreaRollupBlueprint for MockDemoRollup {}
@@ -50,7 +50,7 @@ impl RollupBlueprint for MockDemoRollup {
     >;
 
     fn new(network: Network) -> Self {
-        Self { network }
+        Self { _network: network }
     }
 
     fn create_rpc_methods(
@@ -101,75 +101,35 @@ impl RollupBlueprint for MockDemoRollup {
     }
 
     fn get_batch_proof_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
-        match self.network {
-            Network::Mainnet => BATCH_PROOF_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (_, code))| (*k, code.clone()))
-                .collect(),
-            Network::Testnet => BATCH_PROOF_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (_, code))| (*k, code.clone()))
-                .collect(),
-            Network::Nightly => BATCH_PROOF_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (_, code))| (*k, code.clone()))
-                .collect(),
-        }
+        BATCH_PROOF_LATEST_MOCK_GUESTS
+            .iter()
+            .map(|(k, (_, code))| (*k, code.clone()))
+            .collect()
     }
 
     fn get_light_client_elfs(&self) -> HashMap<SpecId, Vec<u8>> {
-        match self.network {
-            Network::Mainnet => LIGHT_CLIENT_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (_, code))| (*k, code.clone()))
-                .collect(),
-            Network::Testnet => LIGHT_CLIENT_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (_, code))| (*k, code.clone()))
-                .collect(),
-            Network::Nightly => LIGHT_CLIENT_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (_, code))| (*k, code.clone()))
-                .collect(),
-        }
+        LIGHT_CLIENT_LATEST_MOCK_GUESTS
+            .iter()
+            .map(|(k, (_, code))| (*k, code.clone()))
+            .collect()
     }
 
     fn get_batch_proof_code_commitments(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
-        match self.network {
-            Network::Mainnet => BATCH_PROOF_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (id, _))| (*k, *id))
-                .collect(),
-            Network::Testnet => BATCH_PROOF_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (id, _))| (*k, *id))
-                .collect(),
-            Network::Nightly => BATCH_PROOF_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (id, _))| (*k, *id))
-                .collect(),
-        }
+        BATCH_PROOF_LATEST_MOCK_GUESTS
+            .iter()
+            .map(|(k, (id, _))| (*k, *id))
+            .collect()
     }
 
     fn get_light_client_proof_code_commitment(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
-        match self.network {
-            Network::Mainnet => LIGHT_CLIENT_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (id, _))| (*k, *id))
-                .collect(),
-            Network::Testnet => LIGHT_CLIENT_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (id, _))| (*k, *id))
-                .collect(),
-            Network::Nightly => LIGHT_CLIENT_LATEST_MOCK_GUESTS
-                .iter()
-                .map(|(k, (id, _))| (*k, *id))
-                .collect(),
-        }
+        LIGHT_CLIENT_LATEST_MOCK_GUESTS
+            .iter()
+            .map(|(k, (id, _))| (*k, *id))
+            .collect()
     }
 
     async fn create_prover_service(

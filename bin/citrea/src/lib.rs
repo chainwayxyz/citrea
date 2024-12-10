@@ -25,6 +25,8 @@ pub enum NetworkArg {
     Mainnet,
     /// Testnet
     Testnet,
+    /// Devnet
+    Devnet,
 }
 
 impl From<NetworkArg> for Network {
@@ -32,6 +34,7 @@ impl From<NetworkArg> for Network {
         match value {
             NetworkArg::Mainnet => Network::Mainnet,
             NetworkArg::Testnet => Network::Testnet,
+            NetworkArg::Devnet => Network::Devnet,
         }
     }
 }

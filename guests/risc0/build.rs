@@ -36,7 +36,9 @@ fn main() {
             }
         },
         Err(std::env::VarError::NotPresent) => {
-            println!("cargo:warning=SKIP_GUEST_BUILD not set. Performing guest build.");
+            println!(
+                "cargo:warning=SKIP_GUEST_BUILD not set. Defaulting to performing guest build."
+            );
         }
         Err(std::env::VarError::NotUnicode(_)) => {
             println!("cargo:warning=SKIP_GUEST_BUILD contains invalid Unicode. Defaulting to performing guest build.");
@@ -66,33 +68,14 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         None
     };
 
-    guest_pkg_to_options.insert(
-        "batch-proof-bitcoin",
-        GuestOptions {
-            features: features.clone(),
-            use_docker: use_docker.clone(),
-        },
-    );
-    guest_pkg_to_options.insert(
-        "batch-proof-mock",
-        GuestOptions {
-            features: features.clone(),
-            use_docker: use_docker.clone(),
-        },
-    );
-    guest_pkg_to_options.insert(
-        "light-client-proof-bitcoin",
-        GuestOptions {
-            features: features.clone(),
-            use_docker: use_docker.clone(),
-        },
-    );
-    guest_pkg_to_options.insert(
-        "light-client-proof-mock",
-        GuestOptions {
-            features: features.clone(),
-            use_docker: use_docker.clone(),
-        },
-    );
+    let opts = GuestOptions {
+        features,
+        use_docker,
+    };
+
+    guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
+    guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
+    guest_pkg_to_options.insert("light-client-proof-bitcoin", opts.clone());
+    guest_pkg_to_options.insert("light-client-proof-mock", opts);
     guest_pkg_to_options
 }

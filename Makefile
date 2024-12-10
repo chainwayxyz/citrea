@@ -4,15 +4,21 @@ EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
 TEST_FEATURES := --features short-prefix
+BATCH_OUT_PATH := resources/guests/risc0/
+LIGHT_OUT_PATH := resources/guests/risc0/
 
 .PHONY: help
-
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: build-risc0
 build-risc0:
 	$(MAKE) -j 2 -C guests/risc0 all
+
+.PHONY: build-risc0-docker
+build-risc0-docker:
+	$(MAKE) -C guests/risc0 batch-proof-bitcoin-docker OUT_PATH=$(BATCH_OUT_PATH)
+	$(MAKE) -C guests/risc0 light-client-bitcoin-docker OUT_PATH=$(LIGHT_OUT_PATH)
 
 .PHONY: build-sp1
 build-sp1:

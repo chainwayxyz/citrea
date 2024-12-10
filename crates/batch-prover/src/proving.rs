@@ -46,7 +46,7 @@ pub(crate) async fn data_to_prove<'txs, Da, DB, StateRoot, Witness, Tx>(
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-    l1_block: <Da as DaService>::FilteredBlock,
+    l1_block: &<Da as DaService>::FilteredBlock,
     group_commitments: Option<GroupCommitments>,
 ) -> Result<
     (
@@ -65,18 +65,15 @@ where
     let l1_height = l1_block.header().height();
 
     let (mut da_data, inclusion_proof, completeness_proof) =
-        da_service.extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToBatchProver);
+        da_service.extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToBatchProver);
 
     // if we don't do this, the zk circuit can't read the sequencer commitments
     da_data.iter_mut().for_each(|blob| {
         blob.full_data();
     });
 
-    let sequencer_commitments: Vec<SequencerCommitment> = extract_sequencer_commitments::<Da>(
-        da_service.clone(),
-        l1_block.clone(),
-        &sequencer_da_pub_key,
-    );
+    let sequencer_commitments: Vec<SequencerCommitment> =
+        extract_sequencer_commitments::<Da>(da_service.clone(), l1_block, &sequencer_da_pub_key);
 
     if sequencer_commitments.is_empty() {
         return Err(L1ProcessingError::NoSeqCommitments {
@@ -210,7 +207,7 @@ pub(crate) async fn prove_l1<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
     ledger: DB,
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
-    l1_block: Da::FilteredBlock,
+    l1_block: &Da::FilteredBlock,
     sequencer_commitments: Vec<SequencerCommitment>,
     inputs: Vec<BatchProofCircuitInput<'_, StateRoot, Witness, Da::Spec, Tx>>,
 ) -> anyhow::Result<()>

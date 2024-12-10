@@ -32,6 +32,8 @@ pub enum Network {
     Mainnet,
     /// Testnet
     Testnet,
+    /// Testnet
+    Devnet,
     /// nightly
     Nightly,
 }

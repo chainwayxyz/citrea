@@ -54,6 +54,12 @@ lazy_static! {
         m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/testnet/batch-0.elf"));
         m
     };
+    pub(crate) static ref BATCH_PROOF_DEVNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
+        let mut m = HashMap::new();
+
+        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-0.elf"));
+        m
+    };
     pub(crate) static ref LIGHT_CLIENT_MAINNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
@@ -64,6 +70,12 @@ lazy_static! {
         let mut m = HashMap::new();
 
         m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/testnet/light-0.elf"));
+        m
+    };
+    pub(crate) static ref LIGHT_CLIENT_DEVNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
+        let mut m = HashMap::new();
+
+        m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/light-0.elf"));
         m
     };
 }
