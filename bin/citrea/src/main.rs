@@ -32,7 +32,7 @@ struct Args {
     network: NetworkArg,
 
     /// Run the development chain
-    #[arg(long, conflicts_with_all = ["testnet"])]
+    #[arg(long, default_value_t)]
     dev: bool,
 
     /// Path to the genesis configuration.
