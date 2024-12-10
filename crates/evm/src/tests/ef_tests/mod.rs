@@ -52,7 +52,7 @@ mod general_state_tests {
     general_state_test!(st_sload, stSLoadTest);
     general_state_test!(st_zero_calls_revert, stZeroCallsRevert);
     general_state_test!(st_zero_calls, stZeroCallsTest);
-    general_state_test!(stshanghai, Shanghai);
+    general_state_test!(st_shanghai, Shanghai);
     general_state_test!(st_attack, stAttackTest);
     general_state_test!(st_bugs, stBugs);
     general_state_test!(st_call_codes, stCallCodes);
