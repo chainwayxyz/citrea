@@ -628,7 +628,7 @@ where
                 self.telemetry
                     .targets
                     .mempool_txs
-                    .dec_by(txs_to_remove.len() as i64);
+                    .set(self.mempool.len() as i64);
 
                 let account_updates = self.get_account_updates()?;
 
