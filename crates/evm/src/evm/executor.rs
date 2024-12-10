@@ -76,7 +76,6 @@ pub(crate) fn execute_multiple_tx<
     config_env: CfgEnvWithHandlerCfg,
     ext: &mut EXT,
     prev_gas_used: u64,
-    blob_gas_used: &mut u64,
 ) -> Result<Vec<ExecutionResult>, SoftConfirmationModuleCallError> {
     if txs.is_empty() {
         return Ok(vec![]);
@@ -132,10 +131,6 @@ pub(crate) fn execute_multiple_tx<
         native_trace!("Commiting tx to DB");
         evm.commit(result_and_state.state);
         cumulative_gas_used += result_and_state.result.gas_used();
-
-        if tx.is_eip4844() {
-            *blob_gas_used += tx.blob_gas_used().unwrap();
-        }
 
         tx_results.push(result_and_state.result);
     }

@@ -101,10 +101,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[memory]
     pub(crate) block_env: BlockEnv,
 
-    /// Field that keeps track of blob gas usage
-    #[memory]
-    pub(crate) blob_gas_used: u64,
-
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.
     #[memory]
