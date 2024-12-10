@@ -7,6 +7,7 @@ use risc0_zkvm::{
     Receipt,
 };
 use sov_db::ledger_db::LedgerDB;
+use sov_rollup_interface::telemetry::ProvingSessionTelemetryTargets;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
 use tracing::{debug, info};
 
@@ -38,12 +39,16 @@ pub struct RecoveredBonsaiSession {
 pub struct Risc0BonsaiHost {
     env: Vec<u8>,
     assumptions: Vec<AssumptionReceipt>,
+    proving_session_telemetry: ProvingSessionTelemetryTargets,
     _ledger_db: LedgerDB,
 }
 
 impl Risc0BonsaiHost {
     /// Create a new Risc0Host to prove the given binary.
-    pub fn new(ledger_db: LedgerDB) -> Self {
+    pub fn new(
+        ledger_db: LedgerDB,
+        proving_session_telemetry: ProvingSessionTelemetryTargets,
+    ) -> Self {
         match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
                 "bonsai" => {
@@ -79,6 +84,7 @@ impl Risc0BonsaiHost {
         Self {
             env: Default::default(),
             assumptions: vec![],
+            proving_session_telemetry,
             _ledger_db: ledger_db,
         }
     }
@@ -136,6 +142,10 @@ impl ZkvmHost for Risc0BonsaiHost {
         tracing::info!("Starting risc0 proving");
         let ProveInfo { receipt, stats } =
             prover.prove_with_opts(env, &elf, &ProverOpts::groth16())?;
+
+        self.proving_session_telemetry
+            .cycle_count
+            .observe(stats.total_cycles as f64);
 
         tracing::info!("Execution Stats: {:?}", stats);
 

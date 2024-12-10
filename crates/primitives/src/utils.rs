@@ -4,5 +4,5 @@ use std::time::Duration;
 #[inline]
 pub fn duration_to_seconds(d: Duration) -> f64 {
     let nanos = f64::from(d.subsec_nanos()) / 1e9;
-    d.as_secs() as f64 + nanos
+    d.as_secs_f64() + nanos
 }

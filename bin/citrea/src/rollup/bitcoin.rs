@@ -24,6 +24,7 @@ use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
+use sov_rollup_interface::telemetry::ProvingSessionTelemetryTargets;
 use sov_state::{ProverStorage, ZkStorage};
 use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
@@ -261,8 +262,9 @@ impl RollupBlueprint for BitcoinRollup {
         da_service: &Arc<Self::DaService>,
         da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
+        proving_session_telemetry: ProvingSessionTelemetryTargets,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone());
+        let vm = Risc0BonsaiHost::new(ledger_db.clone(), proving_session_telemetry);
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

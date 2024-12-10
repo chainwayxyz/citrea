@@ -19,6 +19,7 @@ use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::telemetry::ProvingSessionTelemetryTargets;
 use sov_state::storage::NativeStorage;
 use sov_stf_runner::InitVariant;
 use tokio::sync::broadcast;
@@ -353,12 +354,15 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
+        let proving_session_telemetry_targets = ProvingSessionTelemetryTargets::default();
+
         let prover_service = self
             .create_prover_service(
                 prover_config.proving_mode,
                 &da_service,
                 da_verifier,
                 ledger_db.clone(),
+                proving_session_telemetry_targets.clone(),
             )
             .await;
 
@@ -427,7 +431,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let telemetry_config = rollup_config.telemetry;
         let (telemetry_registry, telemetry_targets) =
-            citrea_batch_prover::telemetry::setup_telemetry(da_telemetry_targets);
+            citrea_batch_prover::telemetry::setup_telemetry(
+                da_telemetry_targets,
+                &proving_session_telemetry_targets,
+            );
 
         let telemetry = citrea_batch_prover::telemetry::Telemetry::new(
             telemetry_config,
@@ -487,12 +494,14 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
+        let proving_session_telemetry = ProvingSessionTelemetryTargets::default();
         let prover_service = self
             .create_prover_service(
                 prover_config.proving_mode,
                 &da_service,
                 da_verifier,
                 ledger_db.clone(),
+                proving_session_telemetry,
             )
             .await;
 

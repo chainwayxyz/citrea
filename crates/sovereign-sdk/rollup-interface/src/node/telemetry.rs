@@ -16,3 +16,18 @@ impl Default for DaTelemetryTargets {
         }
     }
 }
+
+/// DA telemetry targets
+#[derive(Clone, Debug)]
+pub struct ProvingSessionTelemetryTargets {
+    /// Proving session cycles count
+    pub cycle_count: Histogram,
+}
+
+impl Default for ProvingSessionTelemetryTargets {
+    fn default() -> Self {
+        ProvingSessionTelemetryTargets {
+            cycle_count: Histogram::new(exponential_buckets(1e-6, 2.0, 22)),
+        }
+    }
+}

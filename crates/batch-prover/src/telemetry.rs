@@ -4,7 +4,7 @@ use citrea_common::TelemetryConfig;
 use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::metrics::histogram::{exponential_buckets, Histogram};
 use prometheus_client::registry::Registry;
-use sov_rollup_interface::telemetry::DaTelemetryTargets;
+use sov_rollup_interface::telemetry::{DaTelemetryTargets, ProvingSessionTelemetryTargets};
 use sov_schema_db::telemetry::{
     SCHEMADB_BATCH_COMMIT_BYTES, SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS,
     SCHEMADB_BATCH_PUT_LATENCY_SECONDS, SCHEMADB_DELETES, SCHEMADB_GET_BYTES,
@@ -40,6 +40,7 @@ pub struct TelemetryTargets {
 
 pub fn setup_telemetry(
     da_telemetry_targets: &DaTelemetryTargets,
+    proving_session_telemetry_targets: &ProvingSessionTelemetryTargets,
 ) -> (Arc<Registry>, Arc<TelemetryTargets>) {
     let mut registry = <Registry>::with_prefix("sequencer");
 
@@ -56,7 +57,7 @@ pub fn setup_telemetry(
     registry.register(
         "current_l2_block",
         "The current L2 block number",
-        current_l1_block.clone(),
+        current_l2_block.clone(),
     );
 
     registry.register(
@@ -69,6 +70,12 @@ pub fn setup_telemetry(
         "mine_da_tx",
         "The duration of mining a DA transaction",
         da_telemetry_targets.mine_da_tx.clone(),
+    );
+
+    registry.register(
+        "proving_session_cycle_count",
+        "The cycle count for proving sessions",
+        proving_session_telemetry_targets.cycle_count.clone(),
     );
 
     registry.register(

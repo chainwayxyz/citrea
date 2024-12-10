@@ -16,6 +16,7 @@ use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotMa
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
+use sov_rollup_interface::telemetry::ProvingSessionTelemetryTargets;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::sync::broadcast;
@@ -141,6 +142,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         da_service: &Arc<Self::DaService>,
         da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
+        prover_session_telemetry: ProvingSessionTelemetryTargets,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].
