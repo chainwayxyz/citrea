@@ -22,7 +22,7 @@ batch-proof-bitcoin-docker:
 		-t batch-proof-bitcoin:latest \
 		--no-cache \
 		. && \
-	cp ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/batch-proof-bitcoin/batch_proof_bitcoin ./resources/guests/risc0/docker/$(OUT_FILE)
+	cp ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/batch-proof-bitcoin/batch_proof_bitcoin $(OUT_PATH)
 
 .PHONY: light-client-bitcoin-docker
 light-client-bitcoin-docker:
@@ -35,4 +35,4 @@ light-client-bitcoin-docker:
 		-t light-client-proof-bitcoin:latest \
 		--no-cache \
 		. && \
-	cp ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/light-client-proof-bitcoin/light_client_proof_bitcoin ./resources/guests/risc0/docker/$(OUT_FILE)
+	cp ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker/light-client-proof-bitcoin/light_client_proof_bitcoin $(OUT_PATH)

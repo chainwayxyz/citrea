@@ -15,8 +15,8 @@ build-risc0:
 
 .PHONY: build-risc0-docker
 build-risc0-docker:
-	$(MAKE) -C guests/risc0 batch-proof-bitcoin-docker OUT_FILE=$(BATCH_OUT_FILE)
-	$(MAKE) -C guests/risc0 light-client-bitcoin-docker OUT_FILE=$(LIGHT_OUT_FILE)
+	$(MAKE) -C guests/risc0 batch-proof-bitcoin-docker OUT_PATH=$(BATCH_OUT_PATH)
+	$(MAKE) -C guests/risc0 light-client-bitcoin-docker OUT_PATH=$(LIGHT_OUT_PATH)
 
 .PHONY: build-sp1
 build-sp1:
