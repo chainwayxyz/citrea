@@ -53,6 +53,7 @@ pub struct BlockchainTestCase {
 }
 
 impl BlockchainTestCase {
+    #[allow(clippy::too_many_arguments)]
     fn execute_transactions(
         &self,
         evm: &mut Evm<DefaultContext>,
@@ -61,6 +62,7 @@ impl BlockchainTestCase {
         storage: ProverStorage<SnapshotManager>,
         root: &[u8; 32],
         l2_height: u64,
+        current_spec: SovSpecId,
     ) -> (
         WorkingSet<ProverStorage<SnapshotManager>>,
         ProverStorage<SnapshotManager>,
@@ -73,7 +75,7 @@ impl BlockchainTestCase {
             da_slot_height: 0,
             da_slot_txs_commitment: [0u8; 32],
             pre_state_root: root.to_vec(),
-            current_spec: SovSpecId::Genesis,
+            current_spec,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -208,6 +210,11 @@ impl Case for BlockchainTestCase {
 
                 let root = case.genesis_block_header.state_root;
 
+                let current_spec = if case.network == ForkSpec::Cancun {
+                    SovSpecId::Fork1
+                } else {
+                    SovSpecId::Genesis
+                };
                 // Decode and insert blocks, creating a chain of blocks for the test case.
                 for block in case.blocks.iter() {
                     let decoded = SealedBlock::decode(&mut block.rlp.as_ref())?;
@@ -228,6 +235,7 @@ impl Case for BlockchainTestCase {
                         storage,
                         &root,
                         l2_height,
+                        current_spec,
                     );
 
                     l2_height += 1;
