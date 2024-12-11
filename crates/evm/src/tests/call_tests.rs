@@ -957,7 +957,7 @@ pub(crate) fn create_contract_message_with_priority_fee<T: TestContract>(
         .unwrap()
 }
 
-fn set_selfdestruct_arg_message(
+pub(crate) fn set_selfdestruct_arg_message(
     contract_addr: Address,
     dev_signer: &TestSigner,
     nonce: u64,
@@ -1004,7 +1004,7 @@ pub(crate) fn send_money_to_contract_message(
         .unwrap()
 }
 
-fn selfdestruct_message(
+pub(crate) fn selfdestruct_message(
     contract_addr: Address,
     dev_signer: &TestSigner,
     nonce: u64,
