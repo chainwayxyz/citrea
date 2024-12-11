@@ -4,7 +4,7 @@ use std::time::Duration;
 use citrea_batch_prover::GroupCommitments;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
-use sov_mock_da::{MockAddress, MockDaService};
+use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 
@@ -167,6 +167,17 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
     assert_eq!(prover_proof.proof_output, full_node_proof[0].proof_output);
+
+    let proof_height = full_node_proof[0].proof_output.last_l2_height;
+    let soft_confirmation = full_node_test_client
+        .ledger_get_soft_confirmation_by_number::<MockDaSpec>(proof_height)
+        .await
+        .expect("should get soft confirmation");
+
+    assert_eq!(
+        full_node_proof[0].proof_output.final_state_root,
+        soft_confirmation.state_root
+    );
 
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
