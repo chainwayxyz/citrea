@@ -90,4 +90,5 @@ mod general_state_tests {
     general_state_test!(st_wallet, stWalletTest);
     general_state_test!(st_zero_knowledge, stZeroKnowledge);
     general_state_test!(st_zero_knowledge2, stZeroKnowledge2);
+    general_state_test!(st_transition, stTransitionTest);
 }
