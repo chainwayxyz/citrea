@@ -28,9 +28,6 @@ members = [
   "crates/sovereign-sdk/full-node/sov-ledger-rpc",
   "crates/sovereign-sdk/full-node/sov-stf-runner",
   "crates/sovereign-sdk/full-node/sov-prover-storage-manager",
-  # Utils
-  "crates/sovereign-sdk/utils/zk-cycle-macros",
-  "crates/sovereign-sdk/utils/zk-cycle-utils",
   # Module System
   "crates/sovereign-sdk/module-system/sov-modules-stf-blueprint",
   "crates/sovereign-sdk/module-system/sov-modules-rollup-blueprint",

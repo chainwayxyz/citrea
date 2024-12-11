@@ -84,7 +84,6 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	dprint check
 	cargo +nightly fmt --all --check
 	cargo check --all-targets --all-features
-	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
 
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
@@ -95,9 +94,6 @@ lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code s
 
 check-features: ## Checks that project compiles with all combinations of features.
 	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets
-
-check-fuzz: ## Checks that fuzz member compiles
-	$(MAKE) -C crates/sovereign-sdk/fuzz check
 
 check-no-std: ## Checks that project compiles without std
 	$(MAKE) -C crates/sovereign-sdk/rollup-interface $@

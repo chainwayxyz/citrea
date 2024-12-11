@@ -7702,27 +7702,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-zk-cycle-macros"
-version = "0.5.0-rc.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "risc0-zkvm",
- "risc0-zkvm-platform",
- "sov-zk-cycle-macros",
- "syn 2.0.87",
- "trybuild",
-]
-
-[[package]]
-name = "sov-zk-cycle-utils"
-version = "0.5.0-rc.1"
-dependencies = [
- "risc0-zkvm",
- "risc0-zkvm-platform",
-]
-
-[[package]]
 name = "sp1-build"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

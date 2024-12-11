@@ -2,8 +2,6 @@
 use sov_modules_core::PrivateKey;
 use sov_modules_core::{Context, Signature};
 use sov_rollup_interface::stf::TransactionDigest;
-// #[cfg(all(target_os = "zkvm", feature = "bench"))]
-// use sov_zk_cycle_macros::cycle_tracker;
 
 const EXTEND_MESSAGE_LEN: usize = 2 * core::mem::size_of::<u64>();
 
@@ -41,7 +39,6 @@ impl<C: Context> Transaction<C> {
     }
 
     /// Check whether the transaction has been signed correctly.
-    // #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn verify(&self) -> anyhow::Result<()> {
         let mut serialized_tx = Vec::with_capacity(self.runtime_msg().len() + EXTEND_MESSAGE_LEN);
 
