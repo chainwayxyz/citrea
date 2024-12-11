@@ -125,7 +125,7 @@ impl Case for BlockchainTestCase {
         // Iterate through test cases, filtering by the network type to exclude specific forks.
         self.tests
             .values()
-            .filter(|case| case.network <= ForkSpec::Cancun)
+            .filter(|case| case.network <= ForkSpec::Cancun || case.network == ForkSpec::Unknown)
             .par_bridge()
             .try_for_each(|case| {
                 let mut evm_config = EvmConfig::default();
