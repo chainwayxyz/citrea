@@ -10,7 +10,6 @@ use alloc::collections::VecDeque;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
-use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
@@ -20,9 +19,6 @@ use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 use crate::zk::CumulativeStateDiff;
-
-#[cfg(any(all(test, feature = "sha2"), feature = "fuzzing"))]
-pub mod fuzzing;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
@@ -47,38 +43,6 @@ mod sealed {
     impl Sealed for ProverConfig {}
     impl Sealed for ZkConfig {}
     impl Sealed for StandardConfig {}
-}
-
-/// A receipt for a single transaction. These receipts are stored in the rollup's database
-/// and may be queried via RPC. Receipts are generic over a type `R` which the rollup can use to
-/// store additional data, such as the status code of the transaction or the amount of gas used.s
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// A receipt showing the result of a transaction
-pub struct TransactionReceipt<R> {
-    /// The canonical hash of this transaction
-    pub tx_hash: [u8; 32],
-    /// The events output by this transaction
-    pub events: Vec<Event>,
-    /// Any additional structured data to be saved in the database and served over RPC
-    /// For example, this might contain a status code.
-    pub receipt: R,
-}
-
-/// A receipt for a batch of transactions. These receipts are stored in the rollup's database
-/// and may be queried via RPC. Batch receipts are generic over a type `BatchReceiptContents` which the rollup
-/// can use to store arbitrary typed data, like the gas used by the batch. They are also generic over a type `TxReceiptContents`,
-/// since they contain a vectors of [`TransactionReceipt`]s.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-/// A receipt giving the outcome of a batch of transactions
-pub struct BatchReceipt<BatchReceiptContents, TxReceiptContents> {
-    /// The canonical hash of this batch
-    pub hash: [u8; 32],
-    /// The canonical hash of previous batch
-    pub prev_hash: [u8; 32],
-    /// The receipts of all the transactions in this batch.
-    pub tx_receipts: Vec<TransactionReceipt<TxReceiptContents>>,
-    /// Any additional structured data to be saved in the database and served over RPC
-    pub phantom_data: PhantomData<BatchReceiptContents>,
 }
 
 /// The output of the function that applies sequencer commitments to the state in the verifier
@@ -122,25 +86,6 @@ pub struct SoftConfirmationReceipt<DS: DaSpec> {
 
 /// A diff of the state, represented as a list of key-value pairs.
 pub type StateDiff = Vec<(Vec<u8>, Option<Vec<u8>>)>;
-
-/// Result of applying a slot to current state
-/// Where:
-///  - S - generic for state root
-///  - B - generic for batch receipt contents
-///  - T - generic for transaction receipt contents
-///  - W - generic for witness
-pub struct SlotResult<S, Cs, B, T, W> {
-    /// Final state root after all blobs were applied
-    pub state_root: S,
-    /// Container for all state alterations that happened during slot execution
-    pub change_set: Cs,
-    /// Receipt for each applied batch
-    pub batch_receipts: Vec<BatchReceipt<B, T>>,
-    /// Witness after applying the whole block
-    pub witness: W,
-    /// State diff
-    pub state_diff: StateDiff,
-}
 
 /// Helper struct which contains initial and final state roots.
 pub struct StateRootTransition<Root> {
@@ -238,39 +183,6 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         genesis_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet);
-
-    /// Called at each **DA-layer block** - whether or not that block contains any
-    /// data relevant to the rollup.
-    /// If slot is started in Full Node mode, default witness should be provided.
-    /// If slot is started in Zero Knowledge mode, witness from execution should be provided.
-    ///
-    /// Applies batches of transactions to the rollup,
-    /// slashing the sequencer who proposed the blob on failure.
-    /// The blobs are contained into a slot whose data is contained within the `slot_data` parameter,
-    /// this parameter is mainly used within the begin_slot hook.
-    /// The concrete blob type is defined by the DA layer implementation,
-    /// which is why we use a generic here instead of an associated type.
-    ///
-    /// Commits state changes to the database
-    #[allow(clippy::type_complexity)]
-    #[allow(clippy::too_many_arguments)]
-    fn apply_slot<'a, I>(
-        &self,
-        current_spec: SpecId,
-        pre_state_root: &Self::StateRoot,
-        pre_state: Self::PreState,
-        witness: Self::Witness,
-        slot_header: &Da::BlockHeader,
-        blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
 
     /// Called at each **Soft confirmation block**
     /// If slot is started in Full Node mode, default witness should be provided.

@@ -1,12 +1,10 @@
-use std::marker::PhantomData;
-
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::transaction::Transaction;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    ApplySequencerCommitmentsOutput, BatchReceipt, SlotResult, SoftConfirmationResult,
-    StateTransitionError, StateTransitionFunction,
+    ApplySequencerCommitmentsOutput, SoftConfirmationResult, StateTransitionError,
+    StateTransitionFunction,
 };
 
 /// A mock implementation of the [`StateTransitionFunction`]
@@ -30,38 +28,6 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
         _params: Self::GenesisParams,
     ) -> ([u8; 0], ()) {
         ([], ())
-    }
-
-    fn apply_slot<'a, I>(
-        &self,
-        _current_spec: SpecId,
-        _pre_state_root: &[u8; 0],
-        _base_state: Self::PreState,
-        _witness: Self::Witness,
-        _slot_header: &Da::BlockHeader,
-        _blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
-    {
-        SlotResult {
-            state_root: [],
-            change_set: (),
-            batch_receipts: vec![BatchReceipt {
-                hash: [0; 32],
-                prev_hash: [0; 32],
-                tx_receipts: vec![],
-                phantom_data: PhantomData,
-            }],
-            witness: (),
-            state_diff: vec![],
-        }
     }
 
     fn apply_soft_confirmation(

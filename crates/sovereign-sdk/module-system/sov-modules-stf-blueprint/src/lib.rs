@@ -20,10 +20,9 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, UnsignedSoftConfirmationV1};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{
-    ApplySequencerCommitmentsOutput, SlotResult, SoftConfirmationError, SoftConfirmationResult,
+    ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
     StateTransitionError, StateTransitionFunction,
 };
-pub use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt};
 use sov_rollup_interface::zk::CumulativeStateDiff;
 use sov_state::Storage;
 
@@ -363,27 +362,6 @@ where
         pre_state.commit(&state_update, &accessory_log, &offchain_log);
 
         (genesis_hash, pre_state)
-    }
-
-    fn apply_slot<'a, I>(
-        &self,
-        _current_spec: SpecId,
-        _pre_state_root: &Self::StateRoot,
-        _pre_state: Self::PreState,
-        _witness: Self::Witness,
-        _slot_header: &Da::BlockHeader,
-        _blobs: I,
-    ) -> SlotResult<
-        Self::StateRoot,
-        Self::ChangeSet,
-        Self::BatchReceiptContents,
-        Self::TxReceiptContents,
-        Self::Witness,
-    >
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
-    {
-        unimplemented!();
     }
 
     fn apply_soft_confirmation(

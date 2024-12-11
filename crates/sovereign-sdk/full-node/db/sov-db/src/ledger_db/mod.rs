@@ -5,8 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::{Fork, ForkMigration};
-use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::{BatchReceipt, SoftConfirmationReceipt, StateDiff};
+use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::{Schema, SchemaBatch, SeekKeyEncoder, DB};
 use tracing::instrument;
@@ -61,44 +60,6 @@ pub struct ItemNumbers {
     pub soft_confirmation_number: u64,
     /// The batch number
     pub batch_number: u64,
-}
-
-/// All of the data to be committed to the ledger db for a single slot.
-#[derive(Debug)]
-pub struct SlotCommit<S: SlotData, B, T> {
-    slot_data: S,
-    batch_receipts: Vec<BatchReceipt<B, T>>,
-    num_txs: usize,
-    num_events: usize,
-}
-
-impl<S: SlotData, B, T> SlotCommit<S, B, T> {
-    /// Returns a reference to the commit's slot_data
-    pub fn slot_data(&self) -> &S {
-        &self.slot_data
-    }
-
-    /// Returns a reference to the commit's batch_receipts
-    pub fn batch_receipts(&self) -> &[BatchReceipt<B, T>] {
-        &self.batch_receipts
-    }
-
-    /// Create a new SlotCommit from the given slot data
-    pub fn new(slot_data: S) -> Self {
-        Self {
-            slot_data,
-            batch_receipts: vec![],
-            num_txs: 0,
-            num_events: 0,
-        }
-    }
-    /// Add a `batch` (of transactions) to the commit
-    pub fn add_batch(&mut self, batch: BatchReceipt<B, T>) {
-        self.num_txs += batch.tx_receipts.len();
-        let events_this_batch: usize = batch.tx_receipts.iter().map(|r| r.events.len()).sum();
-        self.batch_receipts.push(batch);
-        self.num_events += events_this_batch;
-    }
 }
 
 impl LedgerDB {

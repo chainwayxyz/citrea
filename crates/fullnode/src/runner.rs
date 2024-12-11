@@ -25,7 +25,6 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-pub use sov_rollup_interface::stf::BatchReceipt;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;

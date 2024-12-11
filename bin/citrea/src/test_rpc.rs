@@ -5,10 +5,11 @@ use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::types::StoredTransaction;
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::stf::{SoftConfirmationReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::SoftConfirmationReceipt;
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -100,12 +101,11 @@ fn test_helper(
     });
 }
 
-fn batch2_tx_receipts() -> (Vec<TransactionReceipt<u32>>, Vec<Vec<u8>>) {
+fn batch2_tx_receipts() -> (Vec<StoredTransaction>, Vec<Vec<u8>>) {
     let receipts = (0..260u64)
-        .map(|i| TransactionReceipt::<u32> {
-            tx_hash: sha2::Sha256::digest(i.to_string()).into(),
-            events: vec![],
-            receipt: 0,
+        .map(|i| StoredTransaction {
+            hash: sha2::Sha256::digest(i.to_string()).into(),
+            body: Some(b"tx body".to_vec()),
         })
         .collect();
     let bodies = (0..260u64).map(|_| b"tx body".to_vec()).collect();
@@ -144,7 +144,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             soft_confirmation_signature: vec![],
             hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
             prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
-            tx_hashes: batch_2_receipts.iter().map(|r| r.tx_hash).collect(),
+            tx_hashes: batch_2_receipts.iter().map(|r| r.hash).collect(),
             pub_key: vec![],
             deposit_data: vec!["c44444".as_bytes().to_vec()],
             l1_fee_rate: 0,
