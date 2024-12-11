@@ -323,8 +323,8 @@ pub fn should_skip(path: &Path) -> bool {
         | "CALLBlake2f_MaxRounds.json"
         | "shiftCombinations.json"
 
-        // VMTests/vmIOandFlowOperations does not pass the test
-        // TODO: look into it
+        // In VMTests/vmIOandFlowOperations, returns state root instead of latest state,
+        // hence we can't test it due to us using different tree than Ethereum
         | "jumpToPush.json"
     )
     // We don't support blob transactions
