@@ -9,6 +9,7 @@ mod logs_contract;
 mod payable_contract;
 mod self_destructor_contract;
 mod simple_storage_contract;
+mod transient_storage_contract;
 
 pub use blockhash_contract::BlockHashContract;
 pub use caller_contract::CallerContract;
@@ -19,6 +20,7 @@ pub use logs_contract::{AnotherLogEvent, LogEvent, LogsContract};
 pub use payable_contract::SimplePayableContract;
 pub use self_destructor_contract::SelfDestructorContract;
 pub use simple_storage_contract::SimpleStorageContract;
+pub use transient_storage_contract::TransientStorageContract;
 
 /// Trait for testing smart contracts.
 pub trait TestContract: Default {

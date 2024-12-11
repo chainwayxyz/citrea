@@ -993,7 +993,7 @@ fn set_arg_transaction(
         .unwrap()
 }
 
-fn send_money_to_contract_message(
+pub(crate) fn send_money_to_contract_message(
     contract_addr: Address,
     signer: &TestSigner,
     nonce: u64,
@@ -1735,6 +1735,7 @@ fn test_call_with_block_overrides() {
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    l2_height += 1;
 
     // Create empty EVM blocks
     for _i in 0..10 {

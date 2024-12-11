@@ -1,5 +1,6 @@
 mod call_tests;
 mod ef_tests;
+mod fork_tests;
 mod genesis_tests;
 mod hooks_tests;
 mod queries;
