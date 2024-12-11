@@ -20,6 +20,7 @@ use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_modules_api::{Context, SignedSoftConfirmation, SlotData, Spec};
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::fork::ForkManager;
@@ -36,23 +37,26 @@ use tracing::{debug, error, info, instrument};
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc::{create_rpc_module, RpcContext};
 
-type StateRoot<ST, Da> = <ST as StateTransitionFunction<Da>>::StateRoot;
+type StfStateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
+type StfTransaction<C, Da, RT> =
+    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
+type StfWitness<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Witness;
 
-pub struct CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
+pub struct CitreaBatchProver<C, Da, Vm, Ps, DB, RT>
 where
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Da::Spec>,
     Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
+    RT: Runtime<C, Da::Spec>,
 {
     start_l2_height: u64,
     da_service: Arc<Da>,
-    stf: Stf,
+    stf: StfBlueprint<C, Da::Spec, RT>,
     storage_manager: ProverStorageManager<Da::Spec>,
     ledger_db: DB,
-    state_root: StateRoot<Stf, Da::Spec>,
+    state_root: StfStateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     prover_service: Arc<Ps>,
@@ -70,18 +74,14 @@ where
     task_manager: TaskManager<()>,
 }
 
-impl<C, Da, Vm, Stf, Ps, DB> CitreaBatchProver<C, Da, Vm, Stf, Ps, DB>
+impl<C, Da, Vm, Ps, DB, RT> CitreaBatchProver<C, Da, Vm, Ps, DB, RT>
 where
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService<Error = anyhow::Error> + Send + 'static,
     Vm: ZkvmHost + 'static,
-    Stf: StateTransitionFunction<
-        Da::Spec,
-        PreState = ProverStorage<SnapshotManager>,
-        ChangeSet = ProverStorage<SnapshotManager>,
-    >,
     Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: BatchProverLedgerOps + Clone + 'static,
+    RT: Runtime<C, Da::Spec>,
 {
     /// Creates a new `StateTransitionRunner`.
     ///
@@ -95,9 +95,9 @@ where
         rpc_config: RpcConfig,
         da_service: Arc<Da>,
         ledger_db: DB,
-        stf: Stf,
+        stf: StfBlueprint<C, Da::Spec, RT>,
         mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<Stf, Da::Spec>,
+        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         prover_service: Arc<Ps>,
         prover_config: BatchProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
@@ -162,7 +162,16 @@ where
     #[allow(clippy::type_complexity)]
     fn create_rpc_context(
         &self,
-    ) -> RpcContext<C, Da, Ps, Vm, DB, Stf::StateRoot, Stf::Witness, Stf::Transaction> {
+    ) -> RpcContext<
+        C,
+        Da,
+        Ps,
+        Vm,
+        DB,
+        StfStateRoot<C, Da::Spec, RT>,
+        StfWitness<C, Da::Spec, RT>,
+        StfTransaction<C, Da::Spec, RT>,
+    > {
         RpcContext {
             ledger: self.ledger_db.clone(),
             da_service: self.da_service.clone(),
@@ -289,9 +298,9 @@ where
                 Da,
                 Ps,
                 DB,
-                Stf::StateRoot,
-                Stf::Witness,
-                Stf::Transaction,
+                StfStateRoot<C, Da::Spec, RT>,
+                StfWitness<C, Da::Spec, RT>,
+                StfTransaction<C, Da::Spec, RT>,
             >::new(
                 prover_config,
                 prover_service,
@@ -404,7 +413,7 @@ where
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
 
-        let mut signed_soft_confirmation: SignedSoftConfirmation<Stf::Transaction> =
+        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
             soft_confirmation
                 .clone()
                 .try_into()
@@ -478,7 +487,7 @@ where
     }
 
     /// Allows to read current state root
-    pub fn get_state_root(&self) -> &Stf::StateRoot {
+    pub fn get_state_root(&self) -> &StfStateRoot<C, Da::Spec, RT> {
         &self.state_root
     }
 }
