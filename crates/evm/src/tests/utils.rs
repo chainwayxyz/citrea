@@ -132,6 +132,18 @@ pub fn create_contract_message<T: TestContract>(
         .sign_default_transaction(TxKind::Create, contract.byte_code(), nonce, 0)
         .unwrap()
 }
+
+pub fn create_contract_message_with_bytecode(
+    dev_signer: &TestSigner,
+    nonce: u64,
+    bytecode: Vec<u8>,
+    value: Option<u128>,
+) -> RlpEvmTransaction {
+    dev_signer
+        .sign_default_transaction(TxKind::Create, bytecode, nonce, value.unwrap_or_default())
+        .unwrap()
+}
+
 pub(crate) fn create_contract_message_with_fee<T: TestContract>(
     dev_signer: &TestSigner,
     nonce: u64,

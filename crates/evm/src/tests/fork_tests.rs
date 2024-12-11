@@ -1,49 +1,28 @@
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use alloy_eips::BlockId;
-use citrea_primitives::MIN_BASE_FEE_PER_GAS;
-use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{
-    address, b256, Address, BlockNumberOrTag, Bytes, Log, LogData, TxKind, B256, U64,
-};
-use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::BlockOverrides;
-use revm::interpreter::instructions::contract;
-use revm::primitives::SpecId::SHANGHAI;
-use revm::primitives::{hex, KECCAK_EMPTY, U256};
-use revm::Database;
+use reth_primitives::{address, Address, TxKind};
+use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{
-    Context, Module, SoftConfirmationModuleCallError, StateMapAccessor, StateVecAccessor,
-};
+use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
 use crate::call::CallMessage;
-use crate::evm::primitive_types::Receipt;
 use crate::evm::DbAccount;
-use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
 use crate::smart_contracts::{
-    BlockHashContract, InfiniteLoopContract, LogsContract, McopyContract, SelfDestructorContract,
-    SimpleStorageContract, TestContract, TransientStorageContract,
+    BlobBaseFeeContract, McopyContract, SelfDestructorContract, SelfdestructingConstructorContract,
+    TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{
-    config_push_contracts, create_contract_message, create_contract_message_with_fee,
-    create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
-    get_evm_config, get_evm_config_starting_base_fee, publish_event_message, set_arg_message,
-};
-use crate::tests::DEFAULT_CHAIN_ID;
-use crate::{
-    AccountData, EvmConfig, RlpEvmTransaction, BASE_FEE_VAULT, L1_FEE_VAULT, PRIORITY_FEE_VAULT,
-};
+use crate::tests::utils::{create_contract_message, get_evm, get_evm_config};
+use crate::RlpEvmTransaction;
 type C = DefaultContext;
 
 use super::call_tests::{
     selfdestruct_message, send_money_to_contract_message, set_selfdestruct_arg_message,
 };
+use super::utils::create_contract_message_with_bytecode;
 
 fn claim_gift_from_transient_storage_contract_transaction(
     contract_addr: Address,
@@ -60,6 +39,22 @@ fn call_mcopy(contract_addr: Address, dev_signer: &TestSigner, nonce: u64) -> Rl
     let contract = McopyContract::default();
     dev_signer
         .sign_default_transaction(TxKind::Call(contract_addr), contract.call_mcopy(), nonce, 0)
+        .unwrap()
+}
+
+fn store_blob_base_fee_transaction(
+    contract_addr: Address,
+    dev_signer: &TestSigner,
+    nonce: u64,
+) -> RlpEvmTransaction {
+    let contract = BlobBaseFeeContract::default();
+    dev_signer
+        .sign_default_transaction(
+            TxKind::Call(contract_addr),
+            contract.store_blob_base_fee(),
+            nonce,
+            0,
+        )
         .unwrap()
 }
 
@@ -153,7 +148,7 @@ fn test_cancun_transient_storage_activation() {
         .collect();
 
     // Last tx should have failed because cancun is not activated
-    assert_eq!(receipts.last().unwrap().receipt.success, false);
+    assert!(!receipts.last().unwrap().receipt.success);
 
     // Now trying with CANCUN spec on the next block
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -194,7 +189,7 @@ fn test_cancun_transient_storage_activation() {
         .collect();
 
     // Last tx should have passed
-    assert_eq!(receipts.last().unwrap().receipt.success, true);
+    assert!(receipts.last().unwrap().receipt.success);
 
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
@@ -221,7 +216,7 @@ fn test_cancun_transient_storage_activation() {
         .collect();
 
     // This tx should fail as the contract has already been claimed
-    assert_eq!(receipts.last().unwrap().receipt.success, false);
+    assert!(!receipts.last().unwrap().receipt.success);
 }
 
 #[test]
@@ -292,7 +287,7 @@ fn test_cancun_mcopy_activation() {
         .collect();
 
     // Last tx should have failed because cancun is not activated
-    assert_eq!(receipts.last().unwrap().receipt.success, false);
+    assert!(!receipts.last().unwrap().receipt.success);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -336,7 +331,7 @@ fn test_cancun_mcopy_activation() {
         .collect();
 
     // Last tx should have failed because cancun is not activated
-    assert_eq!(receipts.last().unwrap().receipt.success, true);
+    assert!(receipts.last().unwrap().receipt.success);
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
@@ -345,6 +340,7 @@ fn test_cancun_mcopy_activation() {
     assert_eq!(storage_value, U256::from(80));
 }
 
+// tests first part of https://eips.ethereum.org/EIPS/eip-6780
 #[test]
 fn test_self_destruct_restriction() {
     let contract_balance: u64 = 1000000000000000;
@@ -528,6 +524,7 @@ fn test_self_destruct_restriction() {
     // After cancun activated here SELFDESTRUCT will recover all funds to the target
     // but not delete the account, except when called in the same transaction as creation
     // In this case the contract does not have a selfdestruct in the same transaction as creation
+    // https://eips.ethereum.org/EIPS/eip-6780
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
         da_slot_hash: [5u8; 32],
@@ -574,10 +571,10 @@ fn test_self_destruct_restriction() {
     assert!(receipts[0].receipt.success);
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
-    assert!(matches!(
-        evm.accounts.get(&new_contract_address, &mut working_set),
-        Some(_)
-    ));
+    assert!(evm
+        .accounts
+        .get(&new_contract_address, &mut working_set)
+        .is_some());
 
     let contract_info = evm
         .accounts
@@ -613,4 +610,198 @@ fn test_self_destruct_restriction() {
 
     // the to address balance should be equal to double contract balance now that two selfdestructs have been called
     assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
+}
+
+// tests second part (last one) of https://eips.ethereum.org/EIPS/eip-6780
+#[test]
+fn test_self_destructing_constructor() {
+    let contract_balance: u128 = 1000000000000000;
+
+    // address used in selfdestruct
+    let die_to_address = address!("11115497b157177315e1204f52e588b393111111");
+
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
+    let l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    let contract = SelfdestructingConstructorContract::default();
+
+    let constructed_bytecode = contract.construct(die_to_address);
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+
+        // deploy selfdestruct contract
+        let rlp_transactions = vec![create_contract_message_with_bytecode(
+            &dev_signer,
+            0,
+            constructed_bytecode,
+            Some(contract_balance),
+        )];
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transactions,
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let contract_info = evm.accounts.get(&contract_addr, &mut working_set);
+    // Contract should not exist as it is created and selfdestructed in the same transaction
+    assert!(contract_info.is_none());
+
+    let die_to_contract_info = evm.accounts.get(&die_to_address, &mut working_set);
+
+    // die_to_address should have the contract balance
+    assert!(die_to_contract_info.is_some());
+
+    assert_eq!(
+        die_to_contract_info.unwrap().balance,
+        U256::from(contract_balance)
+    );
+}
+
+#[test]
+fn test_blob_base_fee_should_return_1() {
+    let (config, dev_signer, contract_addr) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let (mut evm, mut working_set) = get_evm(&config);
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    // Deploy transient storage contract
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+
+        let deploy_message =
+            create_contract_message(&dev_signer, 0, BlobBaseFeeContract::default());
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
+
+    for i in 0..10 {
+        evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+        evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+        l2_height += 1;
+    }
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let call_tx = store_blob_base_fee_transaction(contract_addr, &dev_signer, 1);
+
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    l2_height += 1;
+
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    // Last tx should have failed because cancun is not activated
+    assert_eq!(receipts.last().unwrap().receipt.success, false);
+
+    // Now trying with CANCUN spec on the next block
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let call_tx = store_blob_base_fee_transaction(contract_addr, &dev_signer, 2);
+
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    l2_height += 1;
+
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    // Last tx should have passed
+    assert!(receipts.last().unwrap().receipt.success);
+
+    let db_account = DbAccount::new(contract_addr);
+    let storage_value = db_account
+        .storage
+        .get(&U256::ZERO, &mut working_set)
+        .unwrap();
+
+    assert_eq!(storage_value, U256::from(1));
 }
