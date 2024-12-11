@@ -324,7 +324,9 @@ where
             sequencer_public_key: batch_proof_output.sequencer_public_key,
             sequencer_da_public_key: batch_proof_output.sequencer_da_public_key,
             preproven_commitments: batch_proof_output.preproven_commitments.clone(),
-            validity_condition: vec![],
+            prev_soft_confirmation_hash: batch_proof_output.prev_soft_confirmation_hash,
+            final_soft_confirmation_hash: batch_proof_output.final_soft_confirmation_hash,
+            last_l2_height: batch_proof_output.last_l2_height,
         };
 
         let l1_hash = batch_proof_output.da_slot_hash.into();

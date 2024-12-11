@@ -353,7 +353,9 @@ where
             sequencer_public_key: circuit_output.sequencer_public_key,
             sequencer_da_public_key: circuit_output.sequencer_da_public_key,
             preproven_commitments: circuit_output.preproven_commitments,
-            validity_condition: vec![],
+            prev_soft_confirmation_hash: circuit_output.prev_soft_confirmation_hash,
+            final_soft_confirmation_hash: circuit_output.final_soft_confirmation_hash,
+            last_l2_height: circuit_output.last_l2_height,
         };
         let l1_height = ledger_db
             .get_l1_height_of_l1_hash(slot_hash)?
