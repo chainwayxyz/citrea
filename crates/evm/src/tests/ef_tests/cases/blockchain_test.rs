@@ -185,6 +185,7 @@ impl Case for BlockchainTestCase {
                     &EvmChainConfig {
                         chain_id: evm_config.chain_id,
                         limit_contract_code_size: evm_config.limit_contract_code_size,
+                        // TODO: Putting this todo because I am not sure what to do with this?
                         spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
                         coinbase: case.genesis_block_header.coinbase,
                         block_gas_limit: case.genesis_block_header.gas_limit.to(),
