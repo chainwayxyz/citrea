@@ -322,6 +322,8 @@ pub fn should_skip(path: &Path) -> bool {
     )
     // We don't support blob transactions
     || path_contains(path_str, &["Cancun", "stEIP4844-blobtransactions"])
+    || path_contains(path_str, &["Pyspecs", "cancun", "eip4844_blobs"])
+    || path_contains(path_str, &["Pyspecs", "cancun", "eip7516_blobgasfee"])
 }
 
 /// `str::contains` but for a path. Takes into account the OS path separator (`/` or `\`).

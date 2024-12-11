@@ -92,4 +92,5 @@ mod general_state_tests {
     general_state_test!(st_zero_knowledge2, stZeroKnowledge2);
     general_state_test!(st_transition, stTransitionTest);
     general_state_test!(st_vm, VMTests);
+    general_state_test!(st_pyspecs, Pyspecs);
 }
