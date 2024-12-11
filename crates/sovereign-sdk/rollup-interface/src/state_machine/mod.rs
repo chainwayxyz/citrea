@@ -11,8 +11,6 @@ pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub mod optimistic;
-
 /// A marker trait for general addresses.
 pub trait BasicAddress:
     Eq

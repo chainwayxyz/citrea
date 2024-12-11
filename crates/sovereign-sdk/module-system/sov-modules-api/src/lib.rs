@@ -203,10 +203,6 @@ pub mod prelude {
     pub use super::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 }
 
-pub mod optimistic {
-    pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
-}
-
 pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
