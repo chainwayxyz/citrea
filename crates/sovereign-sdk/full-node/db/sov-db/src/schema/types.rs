@@ -149,6 +149,10 @@ pub struct StoredBatchProofOutput {
     pub initial_state_root: Vec<u8>,
     /// The state of the rollup after the transition
     pub final_state_root: Vec<u8>,
+    /// The hash of the last soft confirmation before the state transition
+    pub prev_soft_confirmation_hash: [u8; 32],
+    /// The hash of the last soft confirmation in the state transition
+    pub final_soft_confirmation_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
@@ -162,8 +166,8 @@ pub struct StoredBatchProofOutput {
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
-    /// Validity condition. Removed in the newer version.
-    pub validity_condition: Vec<u8>,
+    /// The last processed l2 height in the processed sequencer commitments.
+    pub last_l2_height: u64,
 }
 
 /// The on-disk format for a proof. Stores the tx id of the proof sent to da, proof data and state transition
@@ -216,6 +220,9 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             sequencer_public_key: value.sequencer_public_key,
             sequencer_commitments_range: value.sequencer_commitments_range,
             preproven_commitments: value.preproven_commitments,
+            prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
+            final_soft_confirmation_hash: value.final_soft_confirmation_hash,
+            last_l2_height: value.last_l2_height,
         }
     }
 }

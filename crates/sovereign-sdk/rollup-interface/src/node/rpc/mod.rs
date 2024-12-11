@@ -296,6 +296,12 @@ pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup after the transition
     #[serde(with = "hex::serde")]
     pub final_state_root: Vec<u8>,
+    /// The hash of the last soft confirmation before the state transition
+    #[serde(with = "hex::serde")]
+    pub prev_soft_confirmation_hash: [u8; 32],
+    /// The hash of the last soft confirmation in the state transition
+    #[serde(with = "hex::serde")]
+    pub final_soft_confirmation_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     #[serde(
         serialize_with = "custom_serialize_btreemap",
@@ -316,6 +322,8 @@ pub struct BatchProofOutputRpcResponse {
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
+    /// The last processed l2 height in the processed sequencer commitments.
+    pub last_l2_height: u64,
 }
 
 /// Custom serialization for BTreeMap
