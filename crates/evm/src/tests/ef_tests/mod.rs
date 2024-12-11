@@ -90,15 +90,4 @@ mod general_state_tests {
     general_state_test!(st_wallet, stWalletTest);
     general_state_test!(st_zero_knowledge, stZeroKnowledge);
     general_state_test!(st_zero_knowledge2, stZeroKnowledge2);
-
-    // Failing
-    // general_state_test!(vm_tests, VMTests);
-    // general_state_test!(st_bad_opcode, stBadOpcode);
-    // general_state_test!(st_create2, stCreate2);
-    // general_state_test!(st_create, stCreateTest);
-    // general_state_test!(st_quadratic_complexity, stQuadraticComplexityTest);
-    //general_state_test!(st_recursive_create, stRecursiveCreate);
-    // general_state_test!(st_stack, stStackTests);
 }
-
-// TODO: Add ValidBlocks and InvalidBlocks tests
