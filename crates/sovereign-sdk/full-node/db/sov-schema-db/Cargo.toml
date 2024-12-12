@@ -18,8 +18,6 @@ anyhow = { workspace = true, default-features = true }
 byteorder = { workspace = true, default-features = true, optional = true }
 once_cell = { workspace = true, default-features = true }
 prometheus = { workspace = true }
-proptest = { workspace = true, optional = true, default-features = true }
-proptest-derive = { workspace = true, optional = true }
 rocksdb = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true, default-features = true }
@@ -33,4 +31,3 @@ sov-schema-db = { path = ".", features = ["test-utils"] }
 [features]
 default = []
 test-utils = ["dep:byteorder"]
-arbitrary = ["dep:proptest", "dep:proptest-derive"]

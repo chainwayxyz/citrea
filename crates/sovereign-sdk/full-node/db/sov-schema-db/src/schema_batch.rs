@@ -117,24 +117,3 @@ where
         self.inner.as_mut().and_then(|inner| inner.next())
     }
 }
-
-#[cfg(feature = "arbitrary")]
-impl proptest::arbitrary::Arbitrary for SchemaBatch {
-    type Parameters = &'static [ColumnFamilyName];
-    fn arbitrary_with(columns: Self::Parameters) -> Self::Strategy {
-        use proptest::prelude::any;
-        use proptest::strategy::Strategy;
-
-        proptest::collection::vec(any::<BTreeMap<SchemaKey, Operation>>(), columns.len())
-            .prop_map::<SchemaBatch, _>(|vec_vec_write_ops| {
-                let mut rows = HashMap::new();
-                for (col, write_op) in columns.iter().zip(vec_vec_write_ops.into_iter()) {
-                    rows.insert(*col, write_op);
-                }
-                SchemaBatch { last_writes: rows }
-            })
-            .boxed()
-    }
-
-    type Strategy = proptest::strategy::BoxedStrategy<Self>;
-}

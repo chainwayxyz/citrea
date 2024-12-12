@@ -376,7 +376,6 @@ pub type SchemaKey = Vec<u8>;
 /// Readability alias for a value in the DB.
 pub type SchemaValue = Vec<u8>;
 
-#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 /// Represents operation written to the database
 pub enum Operation {
