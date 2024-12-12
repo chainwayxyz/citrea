@@ -1,7 +1,7 @@
 error[E0310]: the parameter type `S` may not live long enough
-  --> tests/rpc/expose_rpc_associated_type_not_static.rs:97:1
+  --> tests/rpc/expose_rpc_associated_type_not_static.rs:96:1
    |
-97 | #[expose_rpc]
+96 | #[expose_rpc]
    | ^^^^^^^^^^^^^
    | |
    | the parameter type `S` must be valid for the static lifetime...
@@ -10,5 +10,5 @@ error[E0310]: the parameter type `S` may not live long enough
    = note: this error originates in the attribute macro `expose_rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider adding an explicit lifetime bound
    |
-100| struct Runtime<C: Context, S: TestSpec + 'static> {
+99 | struct Runtime<C: Context, S: TestSpec + 'static> {
    |                                        +++++++++
