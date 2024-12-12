@@ -59,7 +59,7 @@ impl SequencerClient {
             .client
             .request(
                 "ledger_getSoftConfirmationRange",
-                rpc_params![(range.start(), range.end())],
+                rpc_params![range.start(), range.end()],
             )
             .await;
 

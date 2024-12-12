@@ -52,10 +52,11 @@ where
 
     fn get_soft_confirmation_range(
         &self,
-        range: (U64, U64),
+        start: U64,
+        end: U64,
     ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>> {
         self.ledger
-            .get_soft_confirmations_range(range.0.to(), range.1.to())
+            .get_soft_confirmations_range(start.to(), end.to())
             .map_err(to_ledger_rpc_error)
     }
 

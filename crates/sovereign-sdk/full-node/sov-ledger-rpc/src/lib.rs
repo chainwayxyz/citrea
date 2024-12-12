@@ -64,7 +64,8 @@ pub trait LedgerRpc {
     #[blocking]
     fn get_soft_confirmation_range(
         &self,
-        range: (U64, U64),
+        start: U64,
+        end: U64,
     ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>>;
 
     /// Gets a single event by number.
