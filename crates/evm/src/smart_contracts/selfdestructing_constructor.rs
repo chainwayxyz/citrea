@@ -44,10 +44,7 @@ impl SelfdestructingConstructorContract {
         let mut v = self.byte_code();
 
         v.extend_from_slice(
-            &SelfdestructingConstructor::constructorCall {
-                recipient,
-            }
-            .abi_encode(),
+            &SelfdestructingConstructor::constructorCall { recipient }.abi_encode(),
         );
 
         v

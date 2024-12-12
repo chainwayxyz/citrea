@@ -1,5 +1,4 @@
-use alloy_primitives::Address;
-use alloy_sol_types::{sol, SolCall, SolConstructor, SolValue};
+use alloy_sol_types::{sol, SolCall};
 
 use super::TestContract;
 

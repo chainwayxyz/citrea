@@ -11,7 +11,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 use crate::call::CallMessage;
 use crate::evm::DbAccount;
 use crate::smart_contracts::{
-    BlobBaseFeeContract, McopyContract, SelfDestructorContract, SelfdestructingConstructorContract,
+    BlobBaseFeeContract, McopyContract, SelfdestructingConstructorContract,
     TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
@@ -19,9 +19,7 @@ use crate::tests::utils::{create_contract_message, get_evm, get_evm_config};
 use crate::RlpEvmTransaction;
 type C = DefaultContext;
 
-use super::call_tests::{
-    selfdestruct_message, send_money_to_contract_message, set_selfdestruct_arg_message,
-};
+use super::call_tests::send_money_to_contract_message;
 use super::utils::create_contract_message_with_bytecode;
 
 fn claim_gift_from_transient_storage_contract_transaction(
@@ -129,13 +127,12 @@ fn test_cancun_transient_storage_activation() {
         let call_tx =
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 2);
 
-        let result = evm
-            .call(
-                CallMessage { txs: vec![call_tx] },
-                &context,
-                &mut working_set,
-            )
-            .unwrap();
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -170,13 +167,12 @@ fn test_cancun_transient_storage_activation() {
         let call_tx =
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 3);
 
-        let result = evm
-            .call(
-                CallMessage { txs: vec![call_tx] },
-                &context,
-                &mut working_set,
-            )
-            .unwrap();
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -197,18 +193,15 @@ fn test_cancun_transient_storage_activation() {
         let call_tx =
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 4);
 
-        let result = evm
-            .call(
-                CallMessage { txs: vec![call_tx] },
-                &context,
-                &mut working_set,
-            )
-            .unwrap();
+        evm.call(
+            CallMessage { txs: vec![call_tx] },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
-
-    l2_height += 1;
 
     let receipts: Vec<_> = evm
         .receipts
@@ -318,15 +311,8 @@ fn test_cancun_mcopy_activation() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    l2_height += 1;
-
     let receipts: Vec<_> = evm
         .receipts
-        .iter(&mut working_set.accessory_state())
-        .collect();
-
-    let txs: Vec<_> = evm
-        .transactions
         .iter(&mut working_set.accessory_state())
         .collect();
 
@@ -457,7 +443,7 @@ fn test_blob_base_fee_should_return_1() {
 
     l2_height += 1;
 
-    for i in 0..10 {
+    for _ in 0..10 {
         evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
         evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
@@ -486,7 +472,7 @@ fn test_blob_base_fee_should_return_1() {
         .collect();
 
     // Last tx should have failed because cancun is not activated
-    assert_eq!(receipts.last().unwrap().receipt.success, false);
+    assert!(!receipts.last().unwrap().receipt.success);
 
     // Now trying with CANCUN spec on the next block
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -516,7 +502,6 @@ fn test_blob_base_fee_should_return_1() {
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
-    l2_height += 1;
 
     let receipts: Vec<_> = evm
         .receipts
