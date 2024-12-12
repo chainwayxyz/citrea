@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use reth_primitives::{address, Address, TxKind};
+use reth_primitives::{address, keccak256, Address, TxKind};
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -396,6 +396,22 @@ fn test_self_destructing_constructor() {
         die_to_contract_info.unwrap().balance,
         U256::from(contract_balance)
     );
+
+    // after destruction codes should also be removed
+    // calculated with
+    // `solc --combined-json bin-runtime SelfdestructingConstructor.sol``
+    let contract_runtime_bytecode_str = "60806040525f5ffdfea26469706673582212203744a38e5d136aea11a6095d6338eb5db0faba76bc0f7ee3aea38556128d0e9764736f6c634300081c0033";
+    let contract_runtime_bytecode = hex::decode(contract_runtime_bytecode_str).unwrap();
+
+    let contract_code_hash = keccak256(contract_runtime_bytecode.as_slice());
+
+    let code = evm.code.get(&contract_code_hash, &mut working_set);
+    assert!(code.is_none());
+
+    let off_chain_code = evm
+        .offchain_code
+        .get(&contract_code_hash, &mut working_set.offchain_state());
+    assert!(off_chain_code.is_none());
 }
 
 #[test]
