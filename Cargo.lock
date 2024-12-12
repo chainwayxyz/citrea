@@ -7626,8 +7626,6 @@ dependencies = [
  "digest 0.10.7",
  "futures",
  "hex",
- "proptest",
- "proptest-derive",
  "serde",
  "serde_json",
  "thiserror",
