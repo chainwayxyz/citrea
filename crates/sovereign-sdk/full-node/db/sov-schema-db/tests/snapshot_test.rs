@@ -43,7 +43,7 @@ fn snapshot_lifecycle() {
         manager.add_snapshot(snapshot_2.into());
     }
 
-    // Snapshot 3: gets empty result, event value is in some previous snapshots
+    // Snapshot 3: gets empty result value is in some previous snapshots
     let snapshot_3 = DbSnapshot::new(2, ReadOnlyLock::new(manager.clone()));
     assert_eq!(None, snapshot_3.read::<S>(&key).unwrap());
 }

@@ -20,7 +20,6 @@ impl<C: Context> Module for QueryModule<C> {
     type Context = C;
     type Config = u8;
     type CallMessage = u8;
-    type Event = ();
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.data.set(config, working_set);

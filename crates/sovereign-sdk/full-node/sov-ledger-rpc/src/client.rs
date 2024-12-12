@@ -42,7 +42,7 @@ pub trait Rpc {
         range: (U64, U64),
     ) -> RpcResult<Vec<Option<SoftConfirmationResponse>>>;
 
-    /// Gets a single event by number.
+    /// Gets a single soft confirmation by number.
     #[method(name = "getSoftConfirmationStatus")]
     async fn get_soft_confirmation_status(
         &self,

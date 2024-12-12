@@ -166,8 +166,6 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
     type CallMessage = call::CallMessage;
 
-    type Event = ();
-
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.init_module(config, working_set)
     }

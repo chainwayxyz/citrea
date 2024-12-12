@@ -4,14 +4,11 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LightClientProofOutputRpcResponse,
-    LightClientProofResponse, SoftConfirmationResponse, TxIdentifier, TxResponse,
-    VerifiedBatchProofResponse,
+    LightClientProofResponse, SoftConfirmationResponse, TxResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
-use sov_rollup_interface::stf::EventKey;
 use sov_rollup_interface::zk::{BatchProofInfo, CumulativeStateDiff, Proof};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
@@ -357,29 +354,6 @@ impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
             phantom_data: PhantomData,
         })
     }
-}
-
-/// An identifier that specifies a single event
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub enum EventIdentifier {
-    /// A unique identifier for an event consisting of a [`TxIdentifier`] and an offset into that transaction's event list
-    TxIdAndIndex((TxIdentifier, u64)),
-    /// A unique identifier for an event consisting of a [`TxIdentifier`] and an event key
-    TxIdAndKey((TxIdentifier, EventKey)),
-    /// The monotonically increasing number of the event, ordered by the DA layer For example, if the first tx
-    /// contains 7 events, tx 2 contains 11 events, and tx 3 contains 7 txs,
-    /// the last event in tx 3 would have number 25. The counter never resets.
-    Number(EventNumber),
-}
-
-/// An identifier for a group of related events
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub enum EventGroupIdentifier {
-    /// All of the events which occurred in a particular transaction
-    TxId(TxIdentifier),
-    /// All events which a particular key
-    /// (typically, these events will have been emitted by several different transactions)
-    Key(Vec<u8>),
 }
 
 macro_rules! u64_wrapper {
