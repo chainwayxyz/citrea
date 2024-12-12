@@ -12,11 +12,14 @@ use std::time::Duration;
 
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
+use citrea_primitives::forks::FORKS;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{Address, BlockNumberOrTag, U256};
 use sov_mock_da::{MockAddress, MockDaService};
+use sov_modules_api::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::spec::SpecId;
 use tokio::task::JoinHandle;
 
 use crate::evm::{init_test_rollup, make_test_client};
@@ -645,9 +648,17 @@ async fn test_offchain_contract_storage() {
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // reach the block at which the fork will be activated
-    for _ in 3..=100 {
-        sequencer_client.send_publish_batch_request().await;
+    for _ in 3..=10000 {
+        sequencer_client.spam_publish_batch_request().await.unwrap();
     }
+
+    wait_for_l2_block(&sequencer_client, 10000, Some(Duration::from_secs(300))).await;
+    let seq_height = sequencer_client.eth_block_number().await;
+
+    let seq_fork = fork_from_block_number(FORKS, seq_height);
+
+    // Assert we are at fork1
+    assert_eq!(seq_fork.spec_id, SpecId::Fork1);
 
     // This should access the `code` and copy code over to `offchain_code` in EVM
     let code = sequencer_client
