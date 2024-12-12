@@ -226,7 +226,7 @@ fn test_get_soft_confirmation() {
     regular_test_helper(payload, &expected);
 
     // Get range of soft confirmations
-    let payload = jsonrpc_req!("ledger_getSoftConfirmationRange", [1, 2]);
+    let payload = jsonrpc_req!("ledger_getSoftConfirmationRange", [(1, 2)]);
 
     let txs = batch2_tx_receipts()
         .1
