@@ -401,7 +401,7 @@ fn test_self_destruct_restriction() {
         .get(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
-    // Test if we managed to send money to ocntract
+    // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
     let db_contract = DbAccount::new(contract_addr);
@@ -520,6 +520,13 @@ fn test_self_destruct_restriction() {
 
     l2_height += 1;
 
+    let contract_info = evm
+        .accounts
+        .get(&new_contract_address, &mut working_set)
+        .expect("contract address should exist");
+
+    let new_contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
+
     // Activate fork1
     // After cancun activated here SELFDESTRUCT will recover all funds to the target
     // but not delete the account, except when called in the same transaction as creation
@@ -560,8 +567,6 @@ fn test_self_destruct_restriction() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    l2_height += 1;
-
     let receipts = evm
         .receipts
         .iter(&mut working_set.accessory_state())
@@ -571,36 +576,19 @@ fn test_self_destruct_restriction() {
     assert!(receipts[0].receipt.success);
 
     // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
-    assert!(evm
-        .accounts
-        .get(&new_contract_address, &mut working_set)
-        .is_some());
-
     let contract_info = evm
         .accounts
         .get(&new_contract_address, &mut working_set)
         .expect("contract address should exist");
 
-    let receipts = evm
-        .receipts
-        .iter(&mut working_set.accessory_state())
-        .collect::<Vec<_>>();
-
-    // the tx should be a success
-    assert!(receipts[0].receipt.success);
-
-    // the to address balance should be equal to contract balance
-    assert_eq!(die_to_acc.balance, U256::from(contract_balance));
-
-    let db_account = DbAccount::new(new_contract_address);
-
-    // the storage should not be empty
+    // Test if we managed to send money to contract
+    assert_eq!(contract_info.nonce, 0);
     assert_eq!(
-        db_account.storage.get(&U256::from(0), &mut working_set),
-        Some(U256::from(123))
+        contract_info.code_hash.unwrap(),
+        new_contract_code_hash_before_destruct
     );
 
-    // Test if we managed to send money to ocntract
+    // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(0));
 
     let die_to_contract = evm
@@ -610,6 +598,14 @@ fn test_self_destruct_restriction() {
 
     // the to address balance should be equal to double contract balance now that two selfdestructs have been called
     assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
+
+    let db_account = DbAccount::new(new_contract_address);
+
+    // the storage should not be empty
+    assert_eq!(
+        db_account.storage.get(&U256::from(0), &mut working_set),
+        Some(U256::from(123))
+    );
 }
 
 // tests second part (last one) of https://eips.ethereum.org/EIPS/eip-6780

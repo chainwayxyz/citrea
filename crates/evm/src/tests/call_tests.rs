@@ -576,7 +576,7 @@ fn self_destruct_test() {
         .get(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
-    // Test if we managed to send money to ocntract
+    // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
     let db_contract = DbAccount::new(contract_addr);
