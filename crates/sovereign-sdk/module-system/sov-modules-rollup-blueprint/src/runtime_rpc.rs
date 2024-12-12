@@ -1,6 +1,6 @@
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, Spec};
-use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
+use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_prover_storage_manager::{ProverStorage, SnapshotManager};
 use sov_rollup_interface::services::da::DaService;
 
@@ -21,11 +21,9 @@ where
 
     // ledger rpc.
     {
-        rpc_methods.merge(sov_ledger_rpc::server::rpc_module::<
-            LedgerDB,
-            SequencerOutcome<<C as Spec>::Address>,
-            TxEffect,
-        >(ledger_db.clone())?)?;
+        rpc_methods.merge(sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(
+            ledger_db.clone(),
+        ))?;
     }
 
     Ok(rpc_methods)

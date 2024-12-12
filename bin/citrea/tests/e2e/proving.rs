@@ -143,7 +143,8 @@ async fn full_node_verify_proof_and_store() {
 
     let prover_proof = prover_node_test_client
         .ledger_get_batch_proofs_by_slot_height(3)
-        .await[0]
+        .await
+        .unwrap()[0]
         .clone();
 
     // The proof will be in l1 block #4 because prover publishes it after the commitment and
@@ -182,14 +183,12 @@ async fn full_node_verify_proof_and_store() {
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
         .await
-        .unwrap()
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(status, SoftConfirmationStatus::Proven);
@@ -331,7 +330,8 @@ async fn test_batch_prover_prove_rpc() {
 
     let prover_proof = prover_node_test_client
         .ledger_get_batch_proofs_by_slot_height(3)
-        .await[0]
+        .await
+        .unwrap()[0]
         .clone();
 
     // The proof will be in l1 block #4 because prover publishes it after the commitment and
@@ -359,14 +359,12 @@ async fn test_batch_prover_prove_rpc() {
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
         .await
-        .unwrap()
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(status, SoftConfirmationStatus::Proven);

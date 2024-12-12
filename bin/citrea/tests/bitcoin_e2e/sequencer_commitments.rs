@@ -17,7 +17,7 @@ use citrea_primitives::TO_BATCH_PROOF_PREFIX;
 use reth_primitives::U64;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlobReaderTrait, DaData};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::time::sleep;

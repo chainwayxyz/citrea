@@ -189,7 +189,8 @@ async fn test_all_flow() {
 
     let prover_proof = prover_node_test_client
         .ledger_get_batch_proofs_by_slot_height(3)
-        .await[0]
+        .await
+        .unwrap()[0]
         .clone();
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
@@ -225,14 +226,12 @@ async fn test_all_flow() {
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
         .await
-        .unwrap()
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(status, SoftConfirmationStatus::Proven);
@@ -283,7 +282,8 @@ async fn test_all_flow() {
 
     let prover_proof_data = prover_node_test_client
         .ledger_get_batch_proofs_by_slot_height(5)
-        .await[0]
+        .await
+        .unwrap()[0]
         .clone();
 
     wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
@@ -329,7 +329,6 @@ async fn test_all_flow() {
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(status, SoftConfirmationStatus::Proven);
@@ -410,7 +409,6 @@ async fn test_ledger_get_head_soft_confirmation() {
     let head_soft_confirmation_height = seq_test_client
         .ledger_get_head_soft_confirmation_height()
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(head_soft_confirmation_height, 2);
 
