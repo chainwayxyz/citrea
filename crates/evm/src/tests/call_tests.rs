@@ -517,8 +517,9 @@ fn failed_transaction_test() {
 }
 
 // tests first part of https://eips.ethereum.org/EIPS/eip-6780
+// test self destruct behaviour before cancun and after cancun
 #[test]
-fn test_self_destruct_restriction() {
+fn self_destruct_test() {
     let contract_balance: u64 = 1000000000000000;
 
     // address used in selfdestruct
