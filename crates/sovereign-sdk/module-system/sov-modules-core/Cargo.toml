@@ -14,15 +14,12 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
-arbitrary = { workspace = true, optional = true }
 bech32 = { workspace = true }
 borsh = { workspace = true }
 derive_more = { workspace = true, features = ["display", "into"] }
 digest = { workspace = true }
 hex = { workspace = true }
 jmt = { workspace = true, optional = true }
-proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
@@ -44,13 +41,6 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
 
 [features]
 default = ["std"]
-arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "proptest/default",
-    "std",
-]
 native = []
 std = [
     "anyhow/default",

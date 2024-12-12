@@ -84,10 +84,6 @@ impl AsRef<Vec<u8>> for AlignedVec {
         borsh::BorshSerialize
     )
 )]
-#[cfg_attr(
-    feature = "arbitrary",
-    derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
-)]
 pub struct Prefix {
     prefix: AlignedVec,
 }
@@ -220,36 +216,5 @@ impl From<ModulePrefix> for Prefix {
     fn from(prefix: ModulePrefix) -> Self {
         let combined_prefix = prefix.combine_prefix();
         Prefix::new(combined_prefix)
-    }
-}
-
-#[cfg(feature = "arbitrary")]
-mod arbitrary_impls {
-    use arbitrary::{Arbitrary, Unstructured};
-    use proptest::arbitrary::any;
-    use proptest::strategy::{BoxedStrategy, Strategy};
-
-    use super::*;
-
-    impl<'a> Arbitrary<'a> for AlignedVec {
-        fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-            u.arbitrary().map(|v: Vec<u8>| {
-                // we re-allocate so the capacity is also guaranteed to be aligned
-                Self::new(v[..(v.len() / Self::ALIGNMENT) * Self::ALIGNMENT].to_vec())
-            })
-        }
-    }
-
-    impl proptest::arbitrary::Arbitrary for AlignedVec {
-        type Parameters = ();
-        type Strategy = BoxedStrategy<Self>;
-
-        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-            any::<Vec<u8>>()
-                .prop_map(|v| {
-                    Self::new(v[..(v.len() / Self::ALIGNMENT) * Self::ALIGNMENT].to_vec())
-                })
-                .boxed()
-        }
     }
 }

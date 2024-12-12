@@ -5070,17 +5070,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "proptest-derive"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf16337405ca084e9c78985114633b6827711d22b9e6ef6c6c0d665eb3f0b6e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "prost"
 version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7506,7 +7495,6 @@ name = "sov-modules-core"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "bech32 0.9.1",
  "borsh",
  "derive_more",
@@ -7514,7 +7502,6 @@ dependencies = [
  "hex",
  "jmt",
  "proptest",
- "proptest-derive",
  "schemars",
  "serde",
  "serde_json",
@@ -7642,12 +7629,10 @@ name = "sov-state"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "bcs",
  "borsh",
  "jmt",
  "proptest",
- "proptest-derive",
  "serde",
  "sha2",
  "sov-db",
