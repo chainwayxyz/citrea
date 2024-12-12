@@ -516,6 +516,8 @@ fn failed_transaction_test() {
     assert_eq!(block.transactions.end, 3);
 }
 
+// tests first part of https://eips.ethereum.org/EIPS/eip-6780
+// test self destruct behaviour before cancun and after cancun
 #[test]
 fn self_destruct_test() {
     let contract_balance: u64 = 1000000000000000;
@@ -576,7 +578,7 @@ fn self_destruct_test() {
         .get(&contract_addr, &mut working_set)
         .expect("contract address should exist");
 
-    // Test if we managed to send money to ocntract
+    // Test if we managed to send money to contract
     assert_eq!(contract_info.balance, U256::from(contract_balance));
 
     let db_contract = DbAccount::new(contract_addr);
@@ -627,6 +629,9 @@ fn self_destruct_test() {
         .unwrap();
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
 
     // we now delete destructed accounts from storage
     assert_eq!(evm.accounts.get(&contract_addr, &mut working_set), None);
@@ -657,6 +662,142 @@ fn self_destruct_test() {
 
     // the keys should be empty
     assert_eq!(db_account.keys.len(&mut working_set), 0);
+    let new_contract_address = address!("e04dd177927f4293a16f9c3f990b45afebc0e12c");
+    // Now deploy selfdestruct contract again
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+
+        // deploy selfdestruct contract
+        // send some money to the selfdestruct contract
+        // set some variable in the contract
+        let rlp_transactions = vec![
+            create_contract_message(&dev_signer, 4, SelfDestructorContract::default()),
+            send_money_to_contract_message(
+                new_contract_address,
+                &dev_signer,
+                5,
+                contract_balance as u128,
+            ),
+            set_selfdestruct_arg_message(new_contract_address, &dev_signer, 6, 123),
+        ];
+
+        evm.call(
+            CallMessage {
+                txs: rlp_transactions,
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    l2_height += 1;
+
+    let contract_info = evm
+        .accounts
+        .get(&new_contract_address, &mut working_set)
+        .expect("contract address should exist");
+
+    let new_contract_code_hash_before_destruct = contract_info.code_hash.unwrap();
+    let new_contract_code_before_destruct = evm
+        .code
+        .get(&new_contract_code_hash_before_destruct, &mut working_set);
+
+    // Activate fork1
+    // After cancun activated here SELFDESTRUCT will recover all funds to the target
+    // but not delete the account, except when called in the same transaction as creation
+    // In this case the contract does not have a selfdestruct in the same transaction as creation
+    // https://eips.ethereum.org/EIPS/eip-6780
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        // selfdestruct to die to address with someone other than the creator of the contract
+        evm.call(
+            CallMessage {
+                txs: vec![selfdestruct_message(
+                    new_contract_address,
+                    &dev_signer,
+                    7,
+                    die_to_address,
+                )],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let receipts = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect::<Vec<_>>();
+
+    // the tx should be a success
+    assert!(receipts[0].receipt.success);
+
+    // after cancun the funds go but account is not destructed if if selfdestruct is not called in creation
+    let contract_info = evm
+        .accounts
+        .get(&new_contract_address, &mut working_set)
+        .expect("contract address should exist");
+
+    // Test if we managed to send money to contract
+    assert_eq!(contract_info.nonce, 1);
+    assert_eq!(
+        contract_info.code_hash.unwrap(),
+        new_contract_code_hash_before_destruct
+    );
+
+    // Both on-chain state and off-chain state code should exist
+    let code = evm
+        .code
+        .get(&new_contract_code_hash_before_destruct, &mut working_set);
+    assert_eq!(code, new_contract_code_before_destruct);
+
+    let off_chain_code = evm.offchain_code.get(
+        &new_contract_code_hash_before_destruct,
+        &mut working_set.offchain_state(),
+    );
+    assert_eq!(off_chain_code, new_contract_code_before_destruct);
+
+    // Test if we managed to send money to contract
+    assert_eq!(contract_info.balance, U256::from(0));
+
+    let die_to_contract = evm
+        .accounts
+        .get(&die_to_address, &mut working_set)
+        .expect("die to address should exist");
+
+    // the to address balance should be equal to double contract balance now that two selfdestructs have been called
+    assert_eq!(die_to_contract.balance, U256::from(2 * contract_balance));
+
+    let db_account = DbAccount::new(new_contract_address);
+
+    // the storage should not be empty
+    assert_eq!(
+        db_account.storage.get(&U256::from(0), &mut working_set),
+        Some(U256::from(123))
+    );
 }
 
 #[test]
@@ -957,7 +1098,7 @@ pub(crate) fn create_contract_message_with_priority_fee<T: TestContract>(
         .unwrap()
 }
 
-fn set_selfdestruct_arg_message(
+pub(crate) fn set_selfdestruct_arg_message(
     contract_addr: Address,
     dev_signer: &TestSigner,
     nonce: u64,
@@ -993,7 +1134,7 @@ fn set_arg_transaction(
         .unwrap()
 }
 
-fn send_money_to_contract_message(
+pub(crate) fn send_money_to_contract_message(
     contract_addr: Address,
     signer: &TestSigner,
     nonce: u64,
@@ -1004,7 +1145,7 @@ fn send_money_to_contract_message(
         .unwrap()
 }
 
-fn selfdestruct_message(
+pub(crate) fn selfdestruct_message(
     contract_addr: Address,
     dev_signer: &TestSigner,
     nonce: u64,
@@ -1735,6 +1876,7 @@ fn test_call_with_block_overrides() {
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    l2_height += 1;
 
     // Create empty EVM blocks
     for _i in 0..10 {
