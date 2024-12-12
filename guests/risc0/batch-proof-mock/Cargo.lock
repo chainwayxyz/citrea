@@ -2823,7 +2823,6 @@ dependencies = [
  "hex",
  "proptest",
  "serde",
- "sha2",
  "thiserror",
 ]
 
