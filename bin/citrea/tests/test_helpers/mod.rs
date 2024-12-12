@@ -208,7 +208,6 @@ pub async fn wait_for_l2_block(client: &TestClient, num: u64, timeout: Option<Du
         let latest_block = client
             .ledger_get_head_soft_confirmation_height()
             .await
-            .unwrap()
             .expect("Expected height to be Some");
 
         if latest_block >= num {

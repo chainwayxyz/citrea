@@ -19,7 +19,7 @@ use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use reth_primitives::{Address, U64};
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use tokio::time::sleep;

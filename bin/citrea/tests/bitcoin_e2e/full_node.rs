@@ -4,7 +4,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
 

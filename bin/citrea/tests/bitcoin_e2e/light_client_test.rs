@@ -13,7 +13,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use reth_primitives::U64;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::LedgerRpcClient;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
