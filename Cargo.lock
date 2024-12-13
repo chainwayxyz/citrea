@@ -1730,7 +1730,6 @@ dependencies = [
  "lazy_static",
  "log",
  "log-panics",
- "proptest",
  "prover-services",
  "regex",
  "reqwest",
@@ -2831,7 +2830,6 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "parking_lot",
- "proptest",
  "reth-primitives",
  "reth-rpc-eth-types",
  "reth-rpc-types",
@@ -5072,17 +5070,6 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
-]
-
-[[package]]
-name = "proptest-derive"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf16337405ca084e9c78985114633b6827711d22b9e6ef6c6c0d665eb3f0b6e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -7370,12 +7357,9 @@ dependencies = [
 name = "sov-accounts"
 version = "0.5.0-rc.1"
 dependencies = [
- "arbitrary",
  "borsh",
  "clap",
  "jsonrpsee",
- "proptest",
- "proptest-derive",
  "schemars",
  "serde",
  "serde_json",
@@ -7391,7 +7375,6 @@ name = "sov-db"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "bincode",
  "borsh",
  "byteorder",
@@ -7399,8 +7382,6 @@ dependencies = [
  "hex",
  "jmt",
  "num_cpus",
- "proptest",
- "proptest-derive",
  "rand 0.8.5",
  "rlimit",
  "rocksdb",
@@ -7467,7 +7448,6 @@ name = "sov-modules-api"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "bech32 0.9.1",
  "bincode",
  "borsh",
@@ -7478,8 +7458,6 @@ dependencies = [
  "hex",
  "jmt",
  "jsonrpsee",
- "proptest",
- "proptest-derive",
  "rand 0.8.5",
  "schemars",
  "serde",
@@ -7502,7 +7480,6 @@ name = "sov-modules-core"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "bech32 0.9.1",
  "borsh",
  "derive_more",
@@ -7510,7 +7487,6 @@ dependencies = [
  "hex",
  "jmt",
  "proptest",
- "proptest-derive",
  "schemars",
  "serde",
  "serde_json",
@@ -7604,7 +7580,6 @@ name = "sov-rollup-interface"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "async-trait",
  "borsh",
  "bytes",
@@ -7626,8 +7601,6 @@ dependencies = [
  "byteorder",
  "once_cell",
  "prometheus",
- "proptest",
- "proptest-derive",
  "rocksdb",
  "sov-schema-db",
  "tempfile",
@@ -7641,12 +7614,10 @@ name = "sov-state"
 version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
- "arbitrary",
  "bcs",
  "borsh",
  "jmt",
  "proptest",
- "proptest-derive",
  "serde",
  "sha2",
  "sov-db",

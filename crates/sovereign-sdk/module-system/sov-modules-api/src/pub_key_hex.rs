@@ -81,17 +81,6 @@ impl TryFrom<&PublicKeyHex> for DefaultPublicKey {
     }
 }
 
-// TODO: Check this and it's relevance with gas_oracle_test
-#[cfg(feature = "arbitrary")]
-impl<'a> arbitrary::Arbitrary<'a> for PublicKeyHex {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        use sov_modules_core::PrivateKey;
-        let public_key =
-            crate::default_signature::private_key::DefaultPrivateKey::arbitrary(u)?.pub_key();
-        Ok(PublicKeyHex::from(&public_key))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use sov_modules_core::PrivateKey;
