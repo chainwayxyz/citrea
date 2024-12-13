@@ -16,7 +16,6 @@ members = [
   "crates/pruning",
   "crates/risc0",
   "crates/sequencer",
-  "crates/sequencer-client",
   "crates/soft-confirmation-rule-enforcer",
   # "crates/sp1",
   # Sovereign sdk

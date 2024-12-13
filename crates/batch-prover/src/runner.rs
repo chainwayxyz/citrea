@@ -14,16 +14,19 @@ use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt}
 use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use sequencer_client::{GetSoftConfirmationResponse, SequencerClient};
+use reth_primitives::U64;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{Context, SignedSoftConfirmation, SlotData, Spec};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -60,7 +63,7 @@ where
     batch_hash: SoftConfirmationHash,
     rpc_config: RpcConfig,
     prover_service: Arc<Ps>,
-    sequencer_client: SequencerClient,
+    sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
@@ -143,7 +146,8 @@ where
             batch_hash: prev_batch_hash,
             rpc_config,
             prover_service,
-            sequencer_client: SequencerClient::new(runner_config.sequencer_client_url),
+            sequencer_client: HttpClientBuilder::default()
+                .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             phantom: std::marker::PhantomData,
@@ -279,7 +283,7 @@ where
 
         let start_l1_height = match last_scanned_l1_height {
             Some(height) => height.0,
-            None => get_initial_slot_height::<Da::Spec>(&self.sequencer_client).await,
+            None => get_initial_slot_height(&self.sequencer_client).await,
         };
 
         let ledger_db = self.ledger_db.clone();
@@ -325,13 +329,12 @@ where
         let sequencer_client = self.sequencer_client.clone();
         let sync_blocks_count = self.sync_blocks_count;
 
-        let l2_sync_worker =
-            sync_l2::<Da>(start_l2_height, sequencer_client, l2_tx, sync_blocks_count);
+        let l2_sync_worker = sync_l2(start_l2_height, sequencer_client, l2_tx, sync_blocks_count);
         tokio::pin!(l2_sync_worker);
 
         // Store L2 blocks and make sure they are processed in order.
         // Otherwise, processing N+1 L2 block before N would emit prev_hash mismatch.
-        let mut pending_l2_blocks: VecDeque<(u64, GetSoftConfirmationResponse)> = VecDeque::new();
+        let mut pending_l2_blocks = VecDeque::new();
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
@@ -349,7 +352,7 @@ where
                             if let Err(e) = self.process_l2_block(*l2_height, l2_block).await {
                                 error!("Could not process L2 block: {}", e);
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
-                                let remaining_l2s: Vec<(u64, GetSoftConfirmationResponse)> = l2_blocks[index..].to_vec();
+                                let remaining_l2s = l2_blocks[index..].to_vec();
                                 pending_l2_blocks.extend(remaining_l2s);
                             }
                         }
@@ -389,7 +392,7 @@ where
     async fn process_l2_block(
         &mut self,
         l2_height: u64,
-        soft_confirmation: &GetSoftConfirmationResponse,
+        soft_confirmation: &SoftConfirmationResponse,
     ) -> anyhow::Result<()> {
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
@@ -492,14 +495,12 @@ where
     }
 }
 
-async fn sync_l2<Da>(
+async fn sync_l2(
     start_l2_height: u64,
-    sequencer_client: SequencerClient,
-    sender: mpsc::Sender<Vec<(u64, GetSoftConfirmationResponse)>>,
+    sequencer_client: HttpClient,
+    sender: mpsc::Sender<Vec<(u64, SoftConfirmationResponse)>>,
     sync_blocks_count: u64,
-) where
-    Da: DaService,
-{
+) {
     let mut l2_height = start_l2_height;
     info!("Starting to sync from L2 height {}", l2_height);
     loop {
@@ -510,44 +511,44 @@ async fn sync_l2<Da>(
             .build();
 
         let inner_client = &sequencer_client;
-        let soft_confirmations: Vec<GetSoftConfirmationResponse> =
-            match retry_backoff(exponential_backoff.clone(), || async move {
-                let soft_confirmations = inner_client
-                    .get_soft_confirmation_range::<Da::Spec>(
-                        l2_height..=l2_height + sync_blocks_count - 1,
-                    )
-                    .await;
+        let soft_confirmations = match retry_backoff(exponential_backoff.clone(), || async move {
+            let soft_confirmations = inner_client
+                .get_soft_confirmation_range(
+                    U64::from(l2_height),
+                    U64::from(l2_height + sync_blocks_count - 1),
+                )
+                .await;
 
-                match soft_confirmations {
-                    Ok(soft_confirmations) => {
-                        Ok(soft_confirmations.into_iter().flatten().collect::<Vec<_>>())
-                    }
-                    Err(e) => match e.downcast_ref::<JsonrpseeError>() {
-                        Some(JsonrpseeError::Transport(e)) => {
-                            let error_msg = format!(
-                                "Soft Confirmation: connection error during RPC call: {:?}",
-                                e
-                            );
-                            debug!(error_msg);
-                            Err(backoff::Error::Transient {
-                                err: error_msg,
-                                retry_after: None,
-                            })
-                        }
-                        _ => Err(backoff::Error::Transient {
-                            err: format!("Soft Confirmation: unknown error from RPC call: {:?}", e),
+            match soft_confirmations {
+                Ok(soft_confirmations) => {
+                    Ok(soft_confirmations.into_iter().flatten().collect::<Vec<_>>())
+                }
+                Err(e) => match e {
+                    JsonrpseeError::Transport(e) => {
+                        let error_msg = format!(
+                            "Soft Confirmation: connection error during RPC call: {:?}",
+                            e
+                        );
+                        debug!(error_msg);
+                        Err(backoff::Error::Transient {
+                            err: error_msg,
                             retry_after: None,
-                        }),
-                    },
-                }
-            })
-            .await
-            {
-                Ok(soft_confirmations) => soft_confirmations,
-                Err(_) => {
-                    continue;
-                }
-            };
+                        })
+                    }
+                    _ => Err(backoff::Error::Transient {
+                        err: format!("Soft Confirmation: unknown error from RPC call: {:?}", e),
+                        retry_after: None,
+                    }),
+                },
+            }
+        })
+        .await
+        {
+            Ok(soft_confirmations) => soft_confirmations,
+            Err(_) => {
+                continue;
+            }
+        };
 
         if soft_confirmations.is_empty() {
             debug!(
@@ -559,7 +560,7 @@ async fn sync_l2<Da>(
             continue;
         }
 
-        let soft_confirmations: Vec<(u64, GetSoftConfirmationResponse)> = (l2_height
+        let soft_confirmations: Vec<(u64, SoftConfirmationResponse)> = (l2_height
             ..l2_height + soft_confirmations.len() as u64)
             .zip(soft_confirmations)
             .collect();
@@ -572,9 +573,9 @@ async fn sync_l2<Da>(
     }
 }
 
-async fn get_initial_slot_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
+async fn get_initial_slot_height(client: &HttpClient) -> u64 {
     loop {
-        match client.get_soft_confirmation::<Da>(1).await {
+        match client.get_soft_confirmation_by_number(U64::from(1)).await {
             Ok(Some(batch)) => return batch.da_slot_height,
             _ => {
                 // sleep 1

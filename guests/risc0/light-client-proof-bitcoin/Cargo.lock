@@ -807,6 +807,7 @@ dependencies = [
  "bincode",
  "borsh",
  "hex",
+ "reth-primitives",
  "sov-modules-api",
  "sov-rollup-interface",
 ]
