@@ -28,7 +28,7 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, optional = true, features = ["http-client", "server", "client"] }
-reth-primitives = { workspace = true }
+reth-primitives = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
@@ -51,6 +51,7 @@ native = [
   "dep:anyhow",
   "dep:async-trait",
   "dep:jsonrpsee",
+  "dep:reth-primitives",
   "dep:tokio",
   "dep:tokio-util",
   "dep:tower",
