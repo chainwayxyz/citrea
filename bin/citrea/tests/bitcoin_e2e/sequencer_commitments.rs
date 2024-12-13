@@ -204,7 +204,7 @@ struct SequencerSendCommitmentsToDaTest;
 impl TestCase for SequencerSendCommitmentsToDaTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 12,
+            min_soft_confirmations_per_commitment: FINALITY_DEPTH * 2,
             ..Default::default()
         }
     }
@@ -246,13 +246,6 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         // Publish one more L2 block and send commitment
         sequencer.client.send_publish_batch_request().await?;
 
-        sequencer
-            .wait_for_l2_height(
-                min_soft_confirmations_per_commitment + FINALITY_DEPTH - 1,
-                None,
-            )
-            .await?;
-
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
 
@@ -261,7 +254,10 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
         let start_l2_block = 1;
-        let end_l2_block = 19;
+        let end_l2_block = sequencer
+            .client
+            .ledger_get_head_soft_confirmation_height()
+            .await?;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
@@ -269,12 +265,6 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
         }
-        sequencer
-            .wait_for_l2_height(
-                end_l2_block + min_soft_confirmations_per_commitment + FINALITY_DEPTH - 2,
-                None,
-            )
-            .await?;
 
         // Wait for blob tx to hit the mempool
         da.wait_mempool_len(2, None).await?;
@@ -282,7 +272,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
         da.generate(FINALITY_DEPTH).await?;
 
         let start_l2_block = end_l2_block + 1;
-        let end_l2_block = end_l2_block + 12;
+        let end_l2_block = end_l2_block + min_soft_confirmations_per_commitment;
 
         self.check_sequencer_commitment(sequencer, da, start_l2_block, end_l2_block)
             .await?;
