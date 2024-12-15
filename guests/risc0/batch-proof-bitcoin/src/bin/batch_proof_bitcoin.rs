@@ -6,12 +6,46 @@ use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::fork::Fork;
+use sov_modules_api::SpecId;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
+
+const SEQUENCER_PUBLIC_KEY: [u8; 32] = match option_env!("SEQUENCER_PUBLIC_KEY") {
+    Some(hex_pub_key) => {
+        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 32-byte hex string"),
+        }
+    }
+    // TODO: what to do here?
+    None => [0; 32],
+};
+
+const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match option_env!("SEQUENCER_DA_PUBLIC_KEY") {
+    Some(hex_pub_key) => {
+        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+            // TODO: maybe verify the first byte?
+            Ok(pub_key) => pub_key,
+            Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
+        }
+    }
+    // TODO: what to do here?
+    None => [0; 33],
+};
+
+const FORKS: &[Fork] = match option_env!("FORKS") {
+    Some(forks_str) => {
+        let mut forks = [Fork { spec_id: SpecId::Genesis, activation_height: 0 }; 100];
+        todo!()
+    }
+    // TODO: what to do here?
+    None => &[],
+};
 
 pub fn main() {
     let guest = Risc0Guest::new();
