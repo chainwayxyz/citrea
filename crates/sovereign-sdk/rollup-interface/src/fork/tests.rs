@@ -81,6 +81,7 @@ fn test_fork_parse_utf8() {
     assert!(Fork::parse_colon_separated_utf8(b"1:").is_none());
     assert!(Fork::parse_colon_separated_utf8(b"01:123").is_none());
     assert!(Fork::parse_colon_separated_utf8(b"1:01234").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"256:123").is_none());
     assert!(Fork::parse_colon_separated_utf8(b"5:123").is_none());
     assert!(Fork::parse_colon_separated_utf8(b"ab:cd").is_none());
     assert!(Fork::parse_colon_separated_utf8(b"1:123a").is_none());
