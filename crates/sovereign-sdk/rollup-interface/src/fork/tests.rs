@@ -1,5 +1,3 @@
-use core::u64;
-
 use anyhow::anyhow;
 
 use super::ForkManager;
@@ -77,20 +75,17 @@ fn test_fork_parse_utf8() {
     test_success_fork_parse_utf8(b"0:110", 0, 110);
     test_success_fork_parse_utf8(format!("1:{}", max64).as_bytes(), 1, u64::MAX);
 
-    assert!(matches!(Fork::parse_colon_separated_utf8(b""), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b":"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b":123"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"1:"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"01:123"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"1:01234"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"5:123"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"ab:cd"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"1:123a"), None));
-    assert!(matches!(Fork::parse_colon_separated_utf8(b"12345"), None));
-    assert!(matches!(
-        Fork::parse_colon_separated_utf8(format!("1:{}", max64plusone).as_bytes()),
-        None
-    ));
+    assert!(Fork::parse_colon_separated_utf8(b"").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b":").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b":123").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"1:").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"01:123").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"1:01234").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"5:123").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"ab:cd").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"1:123a").is_none());
+    assert!(Fork::parse_colon_separated_utf8(b"12345").is_none());
+    assert!(Fork::parse_colon_separated_utf8(format!("1:{}", max64plusone).as_bytes()).is_none());
 }
 
 fn test_success_fork_parse_utf8(bytes: &[u8], exp_spec: u8, exp_height: u64) {
