@@ -34,9 +34,9 @@ impl Fork {
     /// Example:
     /// ```
     /// use sov_rollup_interface::fork::Fork;
-    /// const FORK: Option<Fork> = Fork::parse_colon_separated_utf8(b"0:1000");
+    /// const FORK: Option<Fork> = Fork::from_colon_separated_utf8(b"0:1000");
     /// ```
-    pub const fn parse_colon_separated_utf8(bytes: &[u8]) -> Option<Fork> {
+    pub const fn from_colon_separated_utf8(bytes: &[u8]) -> Option<Fork> {
         pub const fn is_digit(v: u8) -> bool {
             v >= b'0' && v <= b'9'
         }
