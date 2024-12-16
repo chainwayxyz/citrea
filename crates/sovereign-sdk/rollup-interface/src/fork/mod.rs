@@ -205,9 +205,11 @@ pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)
     Some((forks, count))
 }
 
-pub const fn verify_forks(forks: &[Fork], count: usize) -> bool {
+/// Verifies the order of forks. `size` is needed here due to being in const environment,
+/// size of the fork might not be known beforehand.
+pub const fn verify_forks(forks: &[Fork], size: usize) -> bool {
     let mut i = 0;
-    while i < count {
+    while i < size {
         let fork = forks[i];
         if i == 0 {
             // Validate genesis fork
