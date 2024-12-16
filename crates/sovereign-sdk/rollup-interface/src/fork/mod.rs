@@ -141,6 +141,22 @@ impl Fork {
     }
 }
 
+/// Parse fork list from utf8 string. Format should be `{spec_id as u8}:{activation_height},{spec_id2 as u8}:{activation_height2}`.
+/// Since this is a constant fn, it returns a stack allocated array with 100 const size, and a second return value as the count
+/// of valid forks within this array
+/// 
+/// Example:
+/// ```
+/// use sov_rollup_interface::fork::{parse_fork_list_utf8, Fork};
+/// const FORKS: Option<([Fork; 100], usize)> = parse_fork_list_utf8("0:1000,1:5000,2:100000");
+/// 
+/// fn main() {
+///     let forks: &[Fork] = match &FORKS {
+///         Some((forks, count)) => &forks[0..*count],
+///         None => &[],
+///     };
+/// }
+/// ```
 pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 100], usize)> {
     let mut forks = [Fork::new(SpecId::Genesis, 0); 100];
     Some((forks, 1))
