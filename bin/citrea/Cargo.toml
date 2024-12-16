@@ -26,7 +26,6 @@ citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
-sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
@@ -52,6 +51,9 @@ hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lazy_static = { workspace = true }
 log-panics = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true, default-features = true }
+metrics-util = { workspace = true }
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }

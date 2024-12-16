@@ -1,7 +1,9 @@
 use std::collections::{btree_map, BTreeMap, HashMap};
 use std::iter::Rev;
+use std::time::Instant;
 
-use crate::metrics::SCHEMADB_BATCH_PUT_LATENCY_SECONDS;
+use metrics::histogram;
+
 use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
 use crate::{Operation, Schema, SchemaKey};
 
@@ -26,14 +28,17 @@ impl SchemaBatch {
         key: &impl KeyCodec<S>,
         value: &impl ValueCodec<S>,
     ) -> anyhow::Result<()> {
-        let _timer = SCHEMADB_BATCH_PUT_LATENCY_SECONDS
-            .with_label_values(&["unknown"])
-            .start_timer();
+        let start = Instant::now();
         let key = key.encode_key()?;
         let put_operation = Operation::Put {
             value: value.encode_value()?,
         };
         self.insert_operation::<S>(key, put_operation);
+        histogram!("schemadb_batch_put_latency_seconds").record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         Ok(())
     }
 

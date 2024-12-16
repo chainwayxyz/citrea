@@ -26,6 +26,7 @@ crypto-bigint = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
+metrics = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }
 reqwest = { workspace = true, optional = true }
@@ -49,6 +50,7 @@ native = [
   "dep:backoff",
   "dep:tokio",
   "dep:tokio-util",
+  "dep:metrics",
   "dep:pin-project",
   "dep:tracing",
   "sov-rollup-interface/native",

@@ -2,6 +2,7 @@ use core::result::Result::Ok;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::time::Instant;
 
 use bitcoin::blockdata::opcodes::all::{OP_ENDIF, OP_IF};
 use bitcoin::blockdata::opcodes::OP_FALSE;
@@ -13,6 +14,7 @@ use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
 use bitcoin::secp256k1::{Secp256k1, SecretKey, XOnlyPublicKey};
 use bitcoin::{Address, Amount, Network, Transaction};
+use metrics::histogram;
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -119,7 +121,7 @@ pub fn create_batchproof_type_0(
         .push_slice(PushBytesBuf::try_from(body).expect("Cannot push sequencer commitment"))
         .push_opcode(OP_ENDIF);
 
-    println!("reveal_script_builder: {:?}", reveal_script_builder);
+    let start = Instant::now();
     // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
     let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
     loop {
@@ -209,6 +211,12 @@ pub fn create_batchproof_type_0(
                         network,
                     ),
                     commit_tx_address
+                );
+
+                histogram!("mine_da_transaction").record(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
                 );
 
                 return Ok(BatchProvingTxs {

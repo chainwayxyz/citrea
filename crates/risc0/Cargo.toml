@@ -17,6 +17,7 @@ bincode = { workspace = true }
 bonsai-sdk = { workspace = true, optional = true }
 borsh = { workspace = true }
 hex = { workspace = true }
+metrics = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 serde = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
@@ -28,6 +29,7 @@ default = []
 native = [
   "dep:bonsai-sdk",
   "dep:sov-db",
+  "dep:metrics",
   "risc0-zkvm/prove",
   "sov-rollup-interface/native",
 ]

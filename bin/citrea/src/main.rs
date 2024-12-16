@@ -1,6 +1,8 @@
 use core::fmt::Debug as DebugTrait;
+use std::net::SocketAddr;
+use std::time::Duration;
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup, NetworkArg,
@@ -11,11 +13,13 @@ use citrea_common::{
 };
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_util::MetricKindMask;
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{Network, RollupBlueprint};
 use sov_state::storage::NativeStorage;
-use tracing::{error, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 #[cfg(test)]
 mod test_rpc;
@@ -201,6 +205,26 @@ where
         None => FullNodeConfig::from_env()
             .context("Failed to read rollup configuration from the environment")?,
     };
+
+    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
+        let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
+        let bind_port = rollup_config.telemetry.bind_port.as_ref().unwrap();
+        let telemetry_addr: SocketAddr = format!("{}:{}", bind_host, bind_port)
+            .parse()
+            .map_err(|_| anyhow!("Invalid telemetry address"))?;
+
+        debug!("Starting telemetry server on: {}", telemetry_addr);
+
+        let builder = PrometheusBuilder::new().with_http_listener(telemetry_addr);
+        builder
+            .idle_timeout(
+                MetricKindMask::GAUGE | MetricKindMask::HISTOGRAM,
+                Some(Duration::from_secs(30)),
+            )
+            .install()
+            .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;
+    }
+
     let rollup_blueprint = S::new(network);
 
     if let Some(sequencer_config) = sequencer_config {

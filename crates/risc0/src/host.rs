@@ -1,6 +1,7 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use metrics::histogram;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{
     compute_image_id, default_prover, AssumptionReceipt, ExecutorEnvBuilder, ProveInfo, ProverOpts,
@@ -136,6 +137,8 @@ impl ZkvmHost for Risc0BonsaiHost {
         tracing::info!("Starting risc0 proving");
         let ProveInfo { receipt, stats } =
             prover.prove_with_opts(env, &elf, &ProverOpts::groth16())?;
+
+        histogram!("proving_session_cycle_count").record(stats.total_cycles as f64);
 
         tracing::info!("Execution Stats: {:?}", stats);
 

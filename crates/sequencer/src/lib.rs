@@ -3,6 +3,7 @@ pub mod db_migrations;
 mod db_provider;
 mod deposit_data_mempool;
 mod mempool;
+mod metrics;
 mod rpc;
 mod runner;
 mod utils;

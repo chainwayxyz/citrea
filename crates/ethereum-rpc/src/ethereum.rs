@@ -3,11 +3,11 @@ use std::sync::{Arc, Mutex};
 #[cfg(feature = "local")]
 use citrea_evm::DevSigner;
 use citrea_evm::Evm;
+use jsonrpsee::http_client::HttpClient;
 use reth_primitives::U256;
 use reth_rpc_types::trace::geth::GethTrace;
 use rustc_version_runtime::version;
 use schnellru::{ByLength, LruMap};
-use sequencer_client::SequencerClient;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
@@ -38,7 +38,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) eth_signer: DevSigner,
     pub(crate) storage: C::Storage,
     pub(crate) ledger_db: LedgerDB,
-    pub(crate) sequencer_client: Option<SequencerClient>,
+    pub(crate) sequencer_client: Option<HttpClient>,
     pub(crate) web3_client_version: String,
     pub(crate) trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
     pub(crate) subscription_manager: Option<SubscriptionManager>,
@@ -53,7 +53,7 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
         ledger_db: LedgerDB,
-        sequencer_client: Option<SequencerClient>,
+        sequencer_client: Option<HttpClient>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Self {
         let evm = Evm::<C>::default();

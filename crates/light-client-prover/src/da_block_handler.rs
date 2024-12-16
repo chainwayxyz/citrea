@@ -7,9 +7,11 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::FORKS;
-use sequencer_client::SequencerClient;
+use jsonrpsee::http_client::HttpClient;
+use reth_primitives::U64;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
@@ -24,6 +26,8 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
+
+use crate::metrics::LIGHT_CLIENT_METRICS;
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
 where
@@ -42,7 +46,7 @@ where
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    sequencer_client: Arc<SequencerClient>,
+    sequencer_client: Arc<HttpClient>,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -62,7 +66,7 @@ where
         batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
-        sequencer_client: Arc<SequencerClient>,
+        sequencer_client: Arc<HttpClient>,
     ) -> Self {
         Self {
             _prover_config: prover_config,
@@ -194,7 +198,7 @@ where
             None => {
                 let soft_confirmation = self
                     .sequencer_client
-                    .get_soft_confirmation::<Da::Spec>(1)
+                    .get_soft_confirmation_by_number(U64::from(1))
                     .await?
                     .unwrap();
                 let initial_l1_height = soft_confirmation.da_slot_height;
@@ -290,6 +294,8 @@ where
         self.ledger_db
             .set_last_scanned_l1_height(SlotNumber(l1_block.header().height()))
             .expect("Saving last scanned l1 height to ledger db");
+
+        LIGHT_CLIENT_METRICS.current_l1_block.set(l1_height as f64);
 
         Ok(())
     }

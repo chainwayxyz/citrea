@@ -23,20 +23,19 @@ pub mod snapshot;
 pub mod test;
 
 use std::path::Path;
+use std::time::Instant;
 
+use ::metrics::{gauge, histogram};
 use anyhow::format_err;
 use iterator::ScanDirection;
 pub use iterator::{RawDbReverseIterator, SchemaIterator, SeekKeyEncoder};
-use metrics::{
-    SCHEMADB_BATCH_COMMIT_BYTES, SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS, SCHEMADB_DELETES,
-    SCHEMADB_GET_BYTES, SCHEMADB_GET_LATENCY_SECONDS, SCHEMADB_PUT_BYTES,
-};
 pub use rocksdb;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
 use rocksdb::{DBIterator, ReadOptions};
 use thiserror::Error;
 use tracing::info;
 
+pub use crate::metrics::SCHEMADB_METRICS;
 pub use crate::schema::Schema;
 use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
 pub use crate::schema_batch::{SchemaBatch, SchemaBatchIterator};
@@ -137,22 +136,27 @@ impl DB {
     }
 
     fn _get<S: Schema>(&self, schema_key: &impl KeyCodec<S>) -> anyhow::Result<Option<S::Value>> {
-        let _timer = SCHEMADB_GET_LATENCY_SECONDS
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
-            .start_timer();
+        let start = Instant::now();
 
         let k = schema_key.encode_key()?;
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
 
         let result = self.inner.get_pinned_cf(cf_handle, k)?;
-        SCHEMADB_GET_BYTES
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
-            .observe(result.as_ref().map_or(0.0, |v| v.len() as f64));
 
-        result
+        histogram!("schemadb_get_bytes", "cf_name" => S::COLUMN_FAMILY_NAME)
+            .record(result.as_ref().map_or(0.0, |v| v.len() as f64));
+
+        let result = result
             .map(|raw_value| <S::Value as ValueCodec<S>>::decode_value(&raw_value))
             .transpose()
-            .map_err(|err| err.into())
+            .map_err(|err| err.into());
+
+        histogram!("schemadb_get_latency_seconds", "cf_name" => S::COLUMN_FAMILY_NAME).record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
+        result
     }
 
     /// Writes single record.
@@ -282,9 +286,8 @@ impl DB {
     }
 
     fn _write_schemas(&self, batch: SchemaBatch) -> anyhow::Result<()> {
-        let _timer = SCHEMADB_BATCH_COMMIT_LATENCY_SECONDS
-            .with_label_values(&[self.name])
-            .start_timer();
+        let start = Instant::now();
+
         let mut db_batch = rocksdb::WriteBatch::default();
         for (cf_name, rows) in batch.last_writes.iter() {
             let cf_handle = self.get_cf_handle(cf_name)?;
@@ -304,19 +307,22 @@ impl DB {
             for (key, operation) in rows {
                 match operation {
                     Operation::Put { value } => {
-                        SCHEMADB_PUT_BYTES
-                            .with_label_values(&[cf_name])
-                            .observe((key.len() + value.len()) as f64);
+                        histogram!("schemadb_put_bytes").record((key.len() + value.len()) as f64);
                     }
                     Operation::Delete => {
-                        SCHEMADB_DELETES.with_label_values(&[cf_name]).inc();
+                        gauge!("schemadb_deletes", "cf_name" => cf_name.to_owned()).increment(1)
                     }
                 }
             }
         }
-        SCHEMADB_BATCH_COMMIT_BYTES
-            .with_label_values(&[self.name])
-            .observe(serialized_size as f64);
+
+        histogram!("schemadb_batch_commit_bytes").record(serialized_size as f64);
+
+        histogram!("schemadb_batch_commit_latency_seconds", "db_name" => self.name).record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
 
         Ok(())
     }
