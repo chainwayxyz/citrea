@@ -646,11 +646,11 @@ async fn test_offchain_contract_storage() {
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // reach the block at which the fork will be activated
-    for _ in 3..=10000 {
+    for _ in 3..=1000 {
         sequencer_client.spam_publish_batch_request().await.unwrap();
     }
 
-    wait_for_l2_block(&sequencer_client, 10000, Some(Duration::from_secs(300))).await;
+    wait_for_l2_block(&sequencer_client, 1000, Some(Duration::from_secs(300))).await;
     let seq_height = sequencer_client.eth_block_number().await;
 
     let seq_fork = fork_from_block_number(FORKS, seq_height);
