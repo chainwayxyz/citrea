@@ -17,12 +17,12 @@ anyhow = { workspace = true }
 borsh = { workspace = true }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
+citrea-sequencer = { path = "../sequencer" }
 futures = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 parking_lot = { workspace = true }
 rustc_version_runtime = { workspace = true }
 schnellru = "0.2.1"
-sequencer-client = { path = "../sequencer-client" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -36,11 +36,11 @@ reth-rpc-types-compat = { workspace = true }
 
 # Sovereign-SDK deps
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
+sov-ledger-rpc = { path = "../sovereign-sdk/full-node/sov-ledger-rpc", features = ["client"] }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["native"] }
 
 [dev-dependencies]
-proptest = { workspace = true }
 tokio = { workspace = true }
 
 [features]

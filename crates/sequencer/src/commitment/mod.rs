@@ -1,5 +1,6 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::anyhow;
 use futures::channel::mpsc::UnboundedReceiver;
@@ -18,6 +19,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use self::controller::CommitmentController;
+use crate::metrics::SEQUENCER_METRICS;
 
 mod controller;
 
@@ -128,6 +130,10 @@ where
             .map(|sb| sb.hash)
             .collect::<Vec<[u8; 32]>>();
 
+        SEQUENCER_METRICS
+            .commitment_blocks_count
+            .set(soft_confirmation_hashes.len() as f64);
+
         let commitment = self.get_commitment(commitment_info, soft_confirmation_hashes)?;
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
@@ -145,6 +151,7 @@ where
             l2_start.0, l2_end.0,
         );
 
+        let start = Instant::now();
         let ledger_db = self.ledger_db.clone();
         let handle_da_response = async move {
             let result: anyhow::Result<()> = async move {
@@ -152,6 +159,12 @@ where
                     .await
                     .map_err(|_| anyhow!("DA service is dead!"))?
                     .map_err(|_| anyhow!("Send transaction cannot fail"))?;
+
+                SEQUENCER_METRICS.send_commitment_execution.record(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
 
                 ledger_db
                     .set_last_commitment_l2_height(l2_end)

@@ -12,6 +12,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
+use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::zk::{BatchProofInfo, CumulativeStateDiff};
 
 /// A struct containing enough information to uniquely specify single batch.
@@ -81,6 +82,44 @@ pub struct SoftConfirmationResponse {
     pub l1_fee_rate: u128,
     /// Sequencer's block timestamp.
     pub timestamp: u64,
+}
+
+impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for SignedSoftConfirmation<'txs, Tx>
+where
+    Tx: Clone + BorshDeserialize,
+{
+    type Error = borsh::io::Error;
+    fn try_from(val: SoftConfirmationResponse) -> Result<Self, Self::Error> {
+        let parsed_txs = val
+            .txs
+            .iter()
+            .flatten()
+            .map(|tx| {
+                let body = &tx.tx;
+                borsh::from_slice::<Tx>(body)
+            })
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let res = SignedSoftConfirmation::new(
+            val.l2_height,
+            val.hash,
+            val.prev_hash,
+            val.da_slot_height,
+            val.da_slot_hash,
+            val.da_slot_txs_commitment,
+            val.l1_fee_rate,
+            val.txs
+                .unwrap_or_default()
+                .into_iter()
+                .map(|tx| tx.tx)
+                .collect(),
+            parsed_txs.into(),
+            val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
+            val.soft_confirmation_signature,
+            val.pub_key,
+            val.timestamp,
+        );
+        Ok(res)
+    }
 }
 
 /// The response to a JSON-RPC request for sequencer commitments on a DA Slot.

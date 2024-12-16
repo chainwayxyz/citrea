@@ -33,6 +33,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::errors::L1ProcessingError;
+use crate::metrics::BATCH_PROVER_METRICS;
 use crate::proving::{data_to_prove, extract_and_store_proof, prove_l1, GroupCommitments};
 
 type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
@@ -269,6 +270,8 @@ where
                     e
                 );
             }
+
+            BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
             self.pending_l1_blocks.pop_front();
         }

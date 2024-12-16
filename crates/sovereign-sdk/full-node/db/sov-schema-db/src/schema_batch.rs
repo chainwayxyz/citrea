@@ -1,7 +1,9 @@
 use std::collections::{btree_map, BTreeMap, HashMap};
 use std::iter::Rev;
+use std::time::Instant;
 
-use crate::metrics::SCHEMADB_BATCH_PUT_LATENCY_SECONDS;
+use metrics::histogram;
+
 use crate::schema::{ColumnFamilyName, KeyCodec, ValueCodec};
 use crate::{Operation, Schema, SchemaKey};
 
@@ -26,14 +28,17 @@ impl SchemaBatch {
         key: &impl KeyCodec<S>,
         value: &impl ValueCodec<S>,
     ) -> anyhow::Result<()> {
-        let _timer = SCHEMADB_BATCH_PUT_LATENCY_SECONDS
-            .with_label_values(&["unknown"])
-            .start_timer();
+        let start = Instant::now();
         let key = key.encode_key()?;
         let put_operation = Operation::Put {
             value: value.encode_value()?,
         };
         self.insert_operation::<S>(key, put_operation);
+        histogram!("schemadb_batch_put_latency_seconds").record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
         Ok(())
     }
 
@@ -116,25 +121,4 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.as_mut().and_then(|inner| inner.next())
     }
-}
-
-#[cfg(feature = "arbitrary")]
-impl proptest::arbitrary::Arbitrary for SchemaBatch {
-    type Parameters = &'static [ColumnFamilyName];
-    fn arbitrary_with(columns: Self::Parameters) -> Self::Strategy {
-        use proptest::prelude::any;
-        use proptest::strategy::Strategy;
-
-        proptest::collection::vec(any::<BTreeMap<SchemaKey, Operation>>(), columns.len())
-            .prop_map::<SchemaBatch, _>(|vec_vec_write_ops| {
-                let mut rows = HashMap::new();
-                for (col, write_op) in columns.iter().zip(vec_vec_write_ops.into_iter()) {
-                    rows.insert(*col, write_op);
-                }
-                SchemaBatch { last_writes: rows }
-            })
-            .boxed()
-    }
-
-    type Strategy = proptest::strategy::BoxedStrategy<Self>;
 }

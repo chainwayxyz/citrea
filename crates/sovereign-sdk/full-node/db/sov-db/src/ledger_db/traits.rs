@@ -268,6 +268,8 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 /// Test ledger operations
 #[cfg(test)]
 pub trait TestLedgerOps {
+    /// Fetch the test values
     fn get_values(&self) -> anyhow::Result<Vec<(u64, (u64, u64))>>;
+    /// Insert the test values
     fn put_value(&self, key: u64, value: (u64, u64)) -> anyhow::Result<()>;
 }

@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -30,6 +31,8 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
+
+use crate::metrics::FULLNODE_METRICS;
 
 pub(crate) struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
 where
@@ -134,6 +137,7 @@ where
             .front()
             .expect("Just checked pending L1 blocks is not empty");
         let l1_height = l1_block.header().height();
+        info!("Processing L1 block at height: {}", l1_height);
 
         // Set the l1 height of the l1 hash
         self.ledger_db
@@ -164,6 +168,7 @@ where
                 sequencer_commitments[0].l2_start_block_number,
                 sequencer_commitments[sequencer_commitments.len() - 1].l2_end_block_number,
             ) {
+                warn!("L1 commitment received, but L2 range is not synced yet...");
                 return;
             }
         }
@@ -208,6 +213,8 @@ where
             .map_err(|e| {
                 error!("Could not set last scanned l1 height: {}", e);
             });
+
+        FULLNODE_METRICS.current_l1_block.set(l1_height as f64);
 
         self.pending_l1_blocks.pop_front();
     }
@@ -428,6 +435,8 @@ async fn sync_l1<Da>(
     let mut l1_height = start_l1_height;
     info!("Starting to sync from L1 height {}", l1_height);
 
+    let start = Instant::now();
+
     'block_sync: loop {
         // TODO: for a node, the da block at slot_height might not have been finalized yet
         // should wait for it to be finalized
@@ -458,6 +467,11 @@ async fn sync_l1<Da>(
 
             if block_number > l1_height {
                 l1_height = block_number;
+                FULLNODE_METRICS.scan_l1_block.record(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
                 if let Err(e) = sender.send(l1_block).await {
                     error!("Could not notify about L1 block: {}", e);
                     continue 'block_sync;

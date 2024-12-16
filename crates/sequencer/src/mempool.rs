@@ -130,4 +130,8 @@ impl<C: sov_modules_api::Context> CitreaMempool<C> {
         self.0
             .best_transactions_with_attributes(best_transactions_attributes)
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
 }

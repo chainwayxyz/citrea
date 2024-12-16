@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::vec;
 
 use anyhow::{anyhow, bail};
@@ -55,6 +55,7 @@ use crate::commitment::CommitmentService;
 use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
+use crate::metrics::SEQUENCER_METRICS;
 use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
@@ -255,6 +256,8 @@ where
         soft_confirmation_info: HookSoftConfirmationInfo,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(Vec<RlpEvmTransaction>, Vec<TxHash>)> {
+        let start = Instant::now();
+
         let silent_subscriber = tracing_subscriber::registry().with(LevelFilter::OFF);
 
         tracing::subscriber::with_default(silent_subscriber, || {
@@ -365,6 +368,11 @@ where
                                 working_set_to_discard = working_set.checkpoint().to_revertable();
                                 all_txs.push(rlp_tx);
                             }
+                            SEQUENCER_METRICS.dry_run_execution.record(
+                                Instant::now()
+                                    .saturating_duration_since(start)
+                                    .as_secs_f64(),
+                            );
 
                             Ok((all_txs, l1_fee_failed_txs))
                         }
@@ -391,6 +399,7 @@ where
         l1_fee_rate: u128,
         l2_block_mode: L2BlockMode,
     ) -> anyhow::Result<(u64, u64, StateDiff)> {
+        let start = Instant::now();
         let da_height = da_block.header().height();
         let (l2_height, l1_height) = match self
             .ledger_db
@@ -590,6 +599,7 @@ where
                 txs_to_remove.extend(l1_fee_failed_txs);
 
                 self.mempool.remove_transactions(txs_to_remove.clone());
+                SEQUENCER_METRICS.mempool_txs.set(self.mempool.len() as f64);
 
                 let account_updates = self.get_account_updates()?;
 
@@ -602,6 +612,13 @@ where
                 if let Err(e) = self.ledger_db.remove_mempool_txs(txs) {
                     warn!("Failed to remove txs from mempool: {:?}", e);
                 }
+
+                SEQUENCER_METRICS.block_production_execution.record(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
+                SEQUENCER_METRICS.current_l2_block.set(l2_height as f64);
 
                 Ok((
                     l2_height,
@@ -709,6 +726,7 @@ where
 
                         missed_da_blocks_count = self.da_blocks_missed(last_finalized_height, last_used_l1_height);
                     }
+                    SEQUENCER_METRICS.current_l1_block.set(last_finalized_height as f64);
                 },
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means

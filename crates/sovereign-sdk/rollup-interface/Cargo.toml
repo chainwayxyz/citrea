@@ -16,7 +16,6 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
-arbitrary = { workspace = true, optional = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
@@ -36,7 +35,6 @@ serde_json = { workspace = true }
 default = ["std"]
 native = ["std", "tokio", "futures", "tracing"]
 testing = ["native"]
-arbitrary = ["dep:arbitrary"]
 std = [
   "anyhow/default",
   "borsh/default",
