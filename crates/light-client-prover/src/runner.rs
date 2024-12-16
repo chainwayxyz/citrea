@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use citrea_common::da::get_initial_slot_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -149,7 +148,7 @@ where
         let last_l1_height_scanned = match self.ledger_db.get_last_scanned_l1_height()? {
             Some(l1_height) => l1_height,
             // If not found, start from the first L2 block's L1 height
-            None => SlotNumber(get_initial_slot_height(&self.sequencer_client).await),
+            None => SlotNumber(self.prover_config.initial_da_height),
         };
 
         let prover_config = self.prover_config.clone();

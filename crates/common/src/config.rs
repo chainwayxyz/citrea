@@ -253,6 +253,8 @@ pub struct LightClientProverConfig {
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions
     pub enable_recovery: bool,
+    /// The starting DA block to sync from
+    pub initial_da_height: u64,
 }
 
 impl Default for BatchProverConfig {
@@ -271,6 +273,7 @@ impl Default for LightClientProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            initial_da_height: 1,
         }
     }
 }
@@ -291,6 +294,7 @@ impl FromEnv for LightClientProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", std::env::var("PROVING_MODE")?))?,
             proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
+            initial_da_height: std::env::var("INITIAL_DA_HEIGHT")?.parse()?,
         })
     }
 }
