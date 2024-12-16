@@ -13,7 +13,7 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 use crate::call::CallMessage;
 use crate::evm::DbAccount;
 use crate::smart_contracts::{
-    BlobBaseFeeContract, KZGPointEvaluationContract, McopyContract,
+    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract,
     SelfdestructingConstructorContract, SimpleStorageContract, TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
@@ -66,7 +66,7 @@ fn call_kzg_point_evaluation_transaction(
     nonce: u64,
     input: Bytes,
 ) -> RlpEvmTransaction {
-    let contract = KZGPointEvaluationContract::default();
+    let contract = KZGPointEvaluationCallerContract::default();
     dev_signer
         .sign_default_transaction(
             TxKind::Call(contract_addr),
@@ -586,7 +586,7 @@ fn test_kzg_point_eval_should_revert() {
         let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let deploy_message =
-            create_contract_message(&dev_signer, 0, KZGPointEvaluationContract::default());
+            create_contract_message(&dev_signer, 0, KZGPointEvaluationCallerContract::default());
 
         evm.call(
             CallMessage {
@@ -689,7 +689,7 @@ fn test_offchain_contract_storage_evm() {
         let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let deploy_message =
-            create_contract_message(&dev_signer, 0, KZGPointEvaluationContract::default());
+            create_contract_message(&dev_signer, 0, KZGPointEvaluationCallerContract::default());
 
         evm.call(
             CallMessage {

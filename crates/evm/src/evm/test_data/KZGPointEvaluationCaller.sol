@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract KZGPointEvaluation {
+contract KZGPointEvaluationCaller {
     /// @notice Calls the 0x0A precompile to perform point evaluation
     /// @param input A 192-byte input representing the polynomial versioned hash, commitment, point, and proof
     function verifyPointEvaluation(
