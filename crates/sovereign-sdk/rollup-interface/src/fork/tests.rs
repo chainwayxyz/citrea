@@ -97,15 +97,18 @@ fn assert_fork_parse_utf8(bytes: &[u8], exp_spec: u8, exp_height: u64) {
 
 #[test]
 fn test_fork_parse_list() {
-    assert_fork_parse_list("", &[]);
-    assert_fork_parse_list("0:123", &[(0, 123)]);
-    assert_fork_parse_list("0:123,1:456", &[(0, 123), (1, 456)]);
-    assert_fork_parse_list("0:123,1:456,", &[(0, 123), (1, 456)]);
-    assert_fork_parse_list("0:1,1:2,2:3", &[(0, 1), (1, 2), (2, 3)]);
+    assert_fork_parse_list("0:0", &[(0, 0)]);
+    assert_fork_parse_list("0:0,1:456", &[(0, 0), (1, 456)]);
+    assert_fork_parse_list("0:0,1:1,2:2", &[(0, 0), (1, 1), (2, 2)]);
 
+    assert!(parse_fork_list_utf8("").is_none());
     assert!(parse_fork_list_utf8("0123").is_none());
     assert!(parse_fork_list_utf8("01:123").is_none());
     assert!(parse_fork_list_utf8("0:123 1:456").is_none());
+    assert!(parse_fork_list_utf8("0:123,1:456,").is_none());
+    assert!(parse_fork_list_utf8("1:123").is_none());
+    assert!(parse_fork_list_utf8("0:0,2:456,1:789").is_none());
+    assert!(parse_fork_list_utf8("0:0,1:456,2:123").is_none());
 }
 
 fn assert_fork_parse_list(s: &str, exp_list: &[(u8, u64)]) {

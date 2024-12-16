@@ -144,12 +144,12 @@ impl Fork {
 /// Parse fork list from utf8 string. Format should be `{spec_id as u8}:{activation_height},{spec_id2 as u8}:{activation_height2}`.
 /// Since this is a constant fn, it returns a stack allocated array with 50 const size, and a second return value as the count
 /// of valid forks within this array
-/// 
+///
 /// Example:
 /// ```
 /// use sov_rollup_interface::fork::{parse_fork_list_utf8, Fork};
 /// const FORKS: Option<([Fork; 50], usize)> = parse_fork_list_utf8("0:1000,1:5000,2:100000");
-/// 
+///
 /// fn main() {
 ///     let forks: &[Fork] = match &FORKS {
 ///         Some((forks, count)) => &forks[0..*count],
@@ -158,12 +158,16 @@ impl Fork {
 /// }
 /// ```
 pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)> {
+    if forks_str.is_empty() {
+        return None;
+    }
+
     let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
     let mut count = 0;
 
     let mut bytes = forks_str.as_bytes();
     let mut i = 0;
-    while !bytes.is_empty() && i < bytes.len() {
+    while i < bytes.len() {
         if bytes[i] != b',' {
             i += 1;
             continue;
@@ -188,12 +192,31 @@ pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)
     }
 
     // Add the last one
-    if !bytes.is_empty() {
-        let Some(fork) = Fork::from_colon_separated_utf8(bytes) else {
-            return None;
-        };
-        forks[count] = fork;
-        count += 1;
+    let Some(fork) = Fork::from_colon_separated_utf8(bytes) else {
+        return None;
+    };
+    forks[count] = fork;
+    count += 1;
+
+    // Validate forks
+    let mut j = 0;
+    while j < count {
+        let fork = forks[j];
+        if j == 0 {
+            // Validate genesis fork
+            if fork.spec_id as u8 != 0 || fork.activation_height != 0 {
+                return None;
+            }
+        } else {
+            // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
+            if (fork.spec_id as u8).wrapping_sub(forks[j - 1].spec_id as u8) != 1
+                || fork.activation_height <= forks[j - 1].activation_height
+            {
+                return None;
+            }
+        }
+
+        j += 1;
     }
 
     Some((forks, count))
