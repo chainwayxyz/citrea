@@ -256,13 +256,19 @@ where
             error!("Error: {}", e);
         }
     } else if let Some(light_client_prover_config) = light_client_prover_config {
-        let prover = CitreaRollupBlueprint::create_new_light_client_prover(
+        let (mut prover, rpc_methods) = CitreaRollupBlueprint::create_new_light_client_prover(
             &rollup_blueprint,
             rollup_config,
             light_client_prover_config,
         )
         .await
         .expect("Could not start light client prover");
+
+        prover
+            .start_rpc_server(rpc_methods, None)
+            .await
+            .expect("Failed to start rpc server");
+
         if let Err(e) = prover.run().await {
             error!("Error: {}", e);
         }

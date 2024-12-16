@@ -107,7 +107,7 @@ pub async fn start_rollup(
         rollup.run().instrument(span).await.unwrap();
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
-        let rollup = CitreaRollupBlueprint::create_new_light_client_prover(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_light_client_prover(
             &mock_demo_rollup,
             rollup_config.clone(),
             light_client_prover_config,
@@ -115,11 +115,14 @@ pub async fn start_rollup(
         .instrument(span.clone())
         .await
         .unwrap();
+
         rollup
-            .run_and_report_rpc_port(Some(rpc_reporting_channel))
-            .instrument(span)
+            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
+            .instrument(span.clone())
             .await
             .unwrap();
+
+        rollup.run().instrument(span).await.unwrap();
     } else {
         let span = info_span!("FullNode");
         let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_rollup(

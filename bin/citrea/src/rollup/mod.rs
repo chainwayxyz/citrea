@@ -6,7 +6,7 @@ use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::CitreaFullnode;
-use citrea_light_client_prover::runner::{CitreaLightClientProver, LightClientProver};
+use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::FORKS;
 use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
@@ -424,7 +424,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: LightClientProverConfig,
-    ) -> Result<LightClientProver<Self>, anyhow::Error>
+    ) -> Result<
+        (
+            CitreaLightClientProver<Self::DaService, Self::Vm, Self::ProverService, LedgerDB>,
+            RpcModule<()>,
+        ),
+        anyhow::Error,
+    >
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -501,9 +507,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             task_manager,
         )?;
 
-        Ok(LightClientProver {
-            runner,
-            rpc_methods,
-        })
+        Ok((runner, rpc_methods))
     }
 }
