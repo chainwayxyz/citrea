@@ -14,50 +14,43 @@ use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
 
-const SEQUENCER_PUBLIC_KEY: [u8; 32] = match option_env!("SEQUENCER_PUBLIC_KEY") {
-    Some(hex_pub_key) => {
-        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-            Ok(pub_key) => pub_key,
-            Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 32-byte hex string"),
-        }
+const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
+    let hex_pub_key = env!("SEQUENCER_PUBLIC_KEY");
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 32-byte hex string"),
     }
-    // TODO: what to do here?
-    None => [0; 32],
 };
 
-const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match option_env!("SEQUENCER_DA_PUBLIC_KEY") {
-    Some(hex_pub_key) => {
-        match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-            // TODO: maybe verify the first byte?
-            Ok(pub_key) => pub_key,
-            Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
-        }
+const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+    let hex_pub_key = env!("SEQUENCER_DA_PUBLIC_KEY");
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        // TODO: maybe verify the first byte?
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
     }
-    // TODO: what to do here?
-    None => [0; 33],
 };
 
 // Temporary variable to allow FORKS static reference to be valid
-const TEMP_FORKS: Option<([Fork; 50], usize)> = match option_env!("FORKS") {
-    Some(forks_str) => match parse_fork_list_utf8(forks_str) {
+const TEMP_FORKS: ([Fork; 50], usize) = {
+    let forks_str = env!("FORKS");
+
+    match parse_fork_list_utf8(forks_str) {
         Some((forks, count)) => {
             if count == 0 {
                 panic!("FORKS can not be empty");
             }
-            Some((forks, count))
+            (forks, count)
         }
         None => panic!("FORKS must be valid comma separated list"),
-    },
-    // TODO: what to do here?
-    None => None,
+    }
 };
 
-const FORKS: &[Fork] = match &TEMP_FORKS {
-    Some((forks, count)) => {
-        forks.split_at(*count).0
-    }
-    // TODO: what to do here?
-    None => &[],
+const FORKS: &[Fork] = {
+    let (temp_forks, count) = &TEMP_FORKS;
+    temp_forks.split_at(*count).0
 };
 
 pub fn main() {
