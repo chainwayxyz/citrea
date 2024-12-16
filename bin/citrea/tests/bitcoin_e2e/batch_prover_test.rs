@@ -290,9 +290,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         let finalized_height = da.get_finalized_height().await?;
 
         // Wait for the full node to see all process verify and store all batch proofs
-        full_node
-            .wait_for_l1_height(batch_proof_l1_height, None)
-            .await?;
+        full_node.wait_for_l1_height(finalized_height, None).await?;
         let proofs = wait_for_zkproofs(full_node, finalized_height, None)
             .await
             .unwrap();
