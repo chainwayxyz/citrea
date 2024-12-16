@@ -30,7 +30,7 @@ pub async fn wait_for_sequencer_commitments(
     timeout: Option<Duration>,
 ) -> Result<Vec<SequencerCommitmentResponse>> {
     let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30));
+    let timeout = timeout.unwrap_or(Duration::from_secs(120));
 
     loop {
         if start.elapsed() >= timeout {

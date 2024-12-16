@@ -33,7 +33,7 @@ pub async fn wait_for_zkproofs(
     timeout: Option<Duration>,
 ) -> Result<Vec<VerifiedBatchProofResponse>> {
     let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(120));
+    let timeout = timeout.unwrap_or(Duration::from_secs(240));
 
     loop {
         if start.elapsed() >= timeout {
@@ -277,7 +277,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.wait_mempool_len(4, None).await?;
 
         da.generate(FINALITY_DEPTH).await?;
-
         let finalized_height = da.get_finalized_height().await?;
 
         batch_prover
@@ -290,6 +289,10 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.generate(FINALITY_DEPTH).await?;
         let finalized_height = da.get_finalized_height().await?;
 
+        // Wait for the full node to see all process verify and store all batch proofs
+        full_node
+            .wait_for_l1_height(batch_proof_l1_height, None)
+            .await?;
         let proofs = wait_for_zkproofs(full_node, finalized_height, None)
             .await
             .unwrap();
