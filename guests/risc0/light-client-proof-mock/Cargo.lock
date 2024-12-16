@@ -1448,6 +1448,7 @@ dependencies = [
  "citrea-light-client-prover",
  "citrea-primitives",
  "citrea-risc0-adapter",
+ "const-hex",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-mock-da",

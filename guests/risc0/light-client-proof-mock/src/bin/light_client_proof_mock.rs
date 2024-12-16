@@ -6,6 +6,33 @@ use sov_rollup_interface::zk::ZkvmGuest;
 
 risc0_zkvm::guest::entry!(main);
 
+const L2_GENESIS_ROOT: [u8; 32] = {
+    let hex_root = env!("L2_GENESIS_ROOT");
+
+    match const_hex::const_decode_to_array(hex_root.as_bytes()) {
+        Ok(root) => root,
+        Err(_) => panic!("L2_GENESIS_ROOT must be valid 32-byte hex string"),
+    }
+};
+
+const BATCH_PROOF_METHOD_ID: [u8; 32] = {
+    let hex_method_id = env!("BATCH_PROOF_METHOD_ID");
+
+    match const_hex::const_decode_to_array(hex_method_id.as_bytes()) {
+        Ok(method_id) => method_id,
+        Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
+    }
+};
+
+const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
+    let hex_pub_key = env!("BATCH_PROVER_DA_PUBLIC_KEY");
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("BATCH_PROVER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
+    }
+};
+
 pub fn main() {
     let guest = Risc0Guest::new();
 

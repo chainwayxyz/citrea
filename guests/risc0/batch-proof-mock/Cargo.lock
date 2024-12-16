@@ -557,6 +557,7 @@ dependencies = [
  "citrea-primitives",
  "citrea-risc0-adapter",
  "citrea-stf",
+ "const-hex",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-mock-da",

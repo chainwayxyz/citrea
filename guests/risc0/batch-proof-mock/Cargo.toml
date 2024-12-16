@@ -14,6 +14,7 @@ anyhow = "1.0"
 citrea-primitives = { path = "../../../crates/primitives" }
 citrea-risc0-adapter = { path = "../../../crates/risc0" }
 citrea-stf = { path = "../../../crates/citrea-stf" }
+const-hex = "1.12"
 sov-mock-da = { path = "../../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-modules-api = { path = "../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
