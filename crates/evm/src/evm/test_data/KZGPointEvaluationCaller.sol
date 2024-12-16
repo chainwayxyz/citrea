@@ -1,26 +1,26 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
 
-contract KZGPointEvaluationCaller {
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+contract KZGPointEvaluation {
     /// @notice Calls the 0x0A precompile to perform point evaluation
     /// @param input A 192-byte input representing the polynomial versioned hash, commitment, point, and proof
     function verifyPointEvaluation(
         bytes calldata input // 192 bytes
     ) external returns (bool success) {
         require(input.length == 192, "Invalid input size");
-
+        bytes memory out;
+        (success, out) = address(10).staticcall(input);
+        // Write the 32 bytes of out to first storage slot
         assembly {
-            // Copy the 192-byte input data from calldata to memory at position 0
-            calldatacopy(0, input.offset, 192)
-
-            // Call the precompile at address 0x0A (0x0A is the precompile address)
-            let result := staticcall(gas(), 0x0A, 0, 192, 0, 0)
-
-            // Set the success flag based on the precompile result
-            success := result
-
-            // Store the result (success) in the contract's storage at slot 0
-            sstore(0, success)
+            sstore(0, mload(add(out, 64)))
+        }
+        require(success);
+        // Read the first storage slot and assert it to be 52435875175126190479447740508185965837690552500527637822603658699938581184513
+        assembly {
+            if iszero(eq(sload(0), 52435875175126190479447740508185965837690552500527637822603658699938581184513)) {
+                revert(0, 0)
+            }
         }
     }
 }
