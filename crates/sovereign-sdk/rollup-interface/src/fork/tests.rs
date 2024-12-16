@@ -97,7 +97,23 @@ fn assert_fork_parse_utf8(bytes: &[u8], exp_spec: u8, exp_height: u64) {
 
 #[test]
 fn test_fork_parse_list() {
-    assert!(parse_fork_list_utf8("").is_none());
+    assert_fork_parse_list("", &[]);
+    assert_fork_parse_list("0:123", &[(0, 123)]);
+    assert_fork_parse_list("0:123,1:456", &[(0, 123), (1, 456)]);
+    assert_fork_parse_list("0:123,1:456,", &[(0, 123), (1, 456)]);
+    assert_fork_parse_list("0:1,1:2,2:3", &[(0, 1), (1, 2), (2, 3)]);
+
+    assert!(parse_fork_list_utf8("0123").is_none());
+    assert!(parse_fork_list_utf8("01:123").is_none());
+    assert!(parse_fork_list_utf8("0:123 1:456").is_none());
 }
 
-fn assert_fork_parse_list() {}
+fn assert_fork_parse_list(s: &str, exp_list: &[(u8, u64)]) {
+    let (forks, count) = parse_fork_list_utf8(s).unwrap();
+    assert_eq!(exp_list.len(), count);
+
+    for (fork, exp_fork) in forks[0..count].iter().zip(exp_list) {
+        assert_eq!(fork.spec_id as u8, exp_fork.0);
+        assert_eq!(fork.activation_height, exp_fork.1);
+    }
+}

@@ -158,34 +158,42 @@ impl Fork {
 /// }
 /// ```
 pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)> {
-    if forks_str.is_empty() {
-        return None;
-    }
-
     let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
     let mut count = 0;
 
     let mut bytes = forks_str.as_bytes();
     let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b',' {
-            let (fork_utf8, remaining_bytes) = bytes.split_at(i);
-
-            let Some(fork) = Fork::from_colon_separated_utf8(fork_utf8) else {
-                return None;
-            };
-
-            // Ignore comma
-            let Some((_, remaining_bytes)) = remaining_bytes.split_first() else {
-                return None;
-            };
-            bytes = remaining_bytes;
-
-            forks[count] = fork;
-            count += 1;
+    while !bytes.is_empty() && i < bytes.len() {
+        if bytes[i] != b',' {
+            i += 1;
+            continue;
         }
 
-        i += 1;
+        let (fork_utf8, remaining_bytes) = bytes.split_at(i);
+
+        let Some(fork) = Fork::from_colon_separated_utf8(fork_utf8) else {
+            return None;
+        };
+
+        // Ignore comma
+        let Some((_, remaining_bytes)) = remaining_bytes.split_first() else {
+            return None;
+        };
+        bytes = remaining_bytes;
+
+        forks[count] = fork;
+        count += 1;
+
+        i = 0;
+    }
+
+    // Add the last one
+    if !bytes.is_empty() {
+        let Some(fork) = Fork::from_colon_separated_utf8(bytes) else {
+            return None;
+        };
+        forks[count] = fork;
+        count += 1;
     }
 
     Some((forks, count))
