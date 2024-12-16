@@ -254,12 +254,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(
-            full_node,
-            batch_proof_l1_height,
-            Some(Duration::from_secs(30)),
-        )
-        .await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
         assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
@@ -394,12 +389,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(
-            full_node,
-            batch_proof_l1_height,
-            Some(Duration::from_secs(30)),
-        )
-        .await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
         assert_eq!(batch_proofs.len(), 1);
 
         // Wait for light client prover to process batch proofs.

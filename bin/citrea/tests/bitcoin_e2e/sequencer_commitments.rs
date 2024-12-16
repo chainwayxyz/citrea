@@ -102,7 +102,10 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         assert_eq!(commitments.len(), 1);
 
         assert_eq!(commitments[0].l2_start_block_number, 1);
-        assert_eq!(commitments[0].l2_end_block_number, 4);
+        assert_eq!(
+            commitments[0].l2_end_block_number,
+            min_soft_confirmations_per_commitment
+        );
 
         assert_eq!(commitments[0].found_in_l1, finalized_height);
 
@@ -172,7 +175,10 @@ impl TestCase for LedgerGetCommitmentsTest {
         assert_eq!(commitments.len(), 1);
 
         assert_eq!(commitments[0].l2_start_block_number, 1);
-        assert_eq!(commitments[0].l2_end_block_number, 4);
+        assert_eq!(
+            commitments[0].l2_end_block_number,
+            min_soft_confirmations_per_commitment
+        );
 
         assert_eq!(commitments[0].found_in_l1, finalized_height);
 
