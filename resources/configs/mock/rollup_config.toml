@@ -23,3 +23,7 @@ max_subscriptions_per_connection = 100
 include_tx_body = false
 sequencer_client_url = "http://0.0.0.0:12345"
 # pruning_config.distance = 10
+
+[telemetry]
+bind_host = "0.0.0.0"
+bind_port = 8002
