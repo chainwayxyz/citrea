@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::get_da_block_at_height;
+use citrea_common::da::{get_da_block_at_height, get_initial_slot_height};
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
 use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
@@ -580,19 +580,6 @@ async fn sync_l2(
 
         if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
-        }
-    }
-}
-
-async fn get_initial_slot_height(client: &HttpClient) -> u64 {
-    loop {
-        match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(batch)) => return batch.da_slot_height,
-            _ => {
-                // sleep 1
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                continue;
-            }
         }
     }
 }

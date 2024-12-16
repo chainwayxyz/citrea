@@ -2,15 +2,14 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use citrea_common::da::get_initial_slot_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::U64;
 use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::SlotNumber;
-use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
@@ -186,7 +185,7 @@ where
         let last_l1_height_scanned = match self.ledger_db.get_last_scanned_l1_height()? {
             Some(l1_height) => l1_height,
             // If not found, start from the first L2 block's L1 height
-            None => SlotNumber(get_initial_da_height(&self.sequencer_client).await),
+            None => SlotNumber(get_initial_slot_height(&self.sequencer_client).await),
         };
 
         let prover_config = self.prover_config.clone();
@@ -248,18 +247,5 @@ where
         let rpc = create_rpc_module(rpc_context);
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
-    }
-}
-
-async fn get_initial_da_height(client: &HttpClient) -> u64 {
-    loop {
-        match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(batch)) => return batch.da_slot_height,
-            _ => {
-                // sleep 1
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                continue;
-            }
-        }
     }
 }
