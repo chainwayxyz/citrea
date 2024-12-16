@@ -255,7 +255,6 @@ fn test_cancun_mcopy_activation() {
         timestamp: 0,
     };
 
-    // Deploy transient storage contract
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
@@ -457,7 +456,6 @@ fn test_blob_base_fee_should_return_1() {
         timestamp: 0,
     };
 
-    // Deploy transient storage contract
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
@@ -579,7 +577,6 @@ fn test_kzg_point_eval_should_revert() {
         timestamp: 0,
     };
 
-    // Deploy transient storage contract
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
@@ -682,7 +679,6 @@ fn test_offchain_contract_storage_evm() {
         timestamp: 0,
     };
 
-    // Deploy transient storage contract
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
