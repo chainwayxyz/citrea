@@ -2001,7 +2001,6 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
- "sov-modules-rollup-blueprint",
  "sov-rollup-interface",
  "sov-stf-runner",
  "tempfile",
