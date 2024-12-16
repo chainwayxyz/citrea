@@ -134,7 +134,7 @@ impl Case for BlockchainTestCase {
                 let mut evm_config = EvmConfig::default();
                 config_push_contracts(&mut evm_config, None);
                 // Set this base fee based on what's set in genesis.
-                let header = crate::primitive_types::Header {
+                let header = crate::primitive_types::DoNotUseHeader {
                     parent_hash: case.genesis_block_header.parent_hash,
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: evm_config.coinbase,

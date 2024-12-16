@@ -100,7 +100,7 @@ fn end_soft_confirmation_hook_sets_head() {
     assert_eq!(
         head,
         Block {
-            header: crate::primitive_types::Header {
+            header: crate::primitive_types::DoNotUseHeader {
                 parent_hash: B256::from(hex!(
                     "42b2df14615729c49a449b8f42c1a9eb4b9b62fb6a70464eabfa362cd1d20f75"
                 )),

@@ -27,7 +27,7 @@ pub struct RlpEvmTransaction {
 /// In the future, before mainnet, we will be using alloy_consensus::Header encode() and decode() functions to have backwards compatible encoding and decoding
 /// Ethereum Block header
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-pub struct Header {
+pub struct DoNotUseHeader {
     /// The Keccak 256-bit hash of the parent
     /// block’s header, in its entirety; formally Hp.
     pub parent_hash: B256,
@@ -105,8 +105,8 @@ pub struct Header {
     pub extra_data: Bytes,
 }
 
-impl From<Header> for AlloyHeader {
-    fn from(value: Header) -> Self {
+impl From<DoNotUseHeader> for AlloyHeader {
+    fn from(value: DoNotUseHeader) -> Self {
         Self {
             parent_hash: value.parent_hash,
             ommers_hash: value.ommers_hash,
@@ -133,7 +133,7 @@ impl From<Header> for AlloyHeader {
     }
 }
 
-impl From<AlloyHeader> for Header {
+impl From<AlloyHeader> for DoNotUseHeader {
     fn from(value: AlloyHeader) -> Self {
         Self {
             parent_hash: value.parent_hash,
@@ -221,7 +221,7 @@ impl Block<AlloyHeader> {
     }
 }
 
-impl Block<Header> {
+impl Block<DoNotUseHeader> {
     pub(crate) fn seal(self) -> SealedBlock {
         let alloy_header = AlloyHeader::from(self.header);
         let sealed = alloy_header.seal_slow();
@@ -235,8 +235,8 @@ impl Block<Header> {
     }
 }
 
-impl From<Block<Header>> for Block<AlloyHeader> {
-    fn from(value: Block<Header>) -> Self {
+impl From<Block<DoNotUseHeader>> for Block<AlloyHeader> {
+    fn from(value: Block<DoNotUseHeader>) -> Self {
         Self {
             header: value.header.into(),
             l1_fee_rate: value.l1_fee_rate,
@@ -246,7 +246,7 @@ impl From<Block<Header>> for Block<AlloyHeader> {
     }
 }
 
-impl From<Block<AlloyHeader>> for Block<Header> {
+impl From<Block<AlloyHeader>> for Block<DoNotUseHeader> {
     fn from(value: Block<AlloyHeader>) -> Self {
         Self {
             header: value.header.into(),
