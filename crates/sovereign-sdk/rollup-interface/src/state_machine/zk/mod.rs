@@ -173,10 +173,10 @@ pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec, Tx: Clon
     /// DA block headers the soft confirmations was constructed on.
     pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
     /// Sequencer soft confirmation public key.
-    /// **DO NOT USE THIS FIELD**
+    /// **DO NOT USE THIS FIELD IN POST FORK1 GUEST**
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public_key: Vec<u8>,
-    /// **DO NOT USE THIS FIELD**
+    /// **DO NOT USE THIS FIELD IN POST FORK1 GUEST**
     pub sequencer_da_public_key: Vec<u8>,
     /// The range of sequencer commitments that are being processed.
     /// The range is inclusive.
