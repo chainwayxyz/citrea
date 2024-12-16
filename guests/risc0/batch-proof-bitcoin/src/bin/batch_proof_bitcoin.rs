@@ -38,7 +38,7 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match option_env!("SEQUENCER_DA_PUBLIC
 };
 
 // Temporary variable to allow FORKS static reference to be valid
-const TEMP_FORKS: Option<([Fork; 100], usize)> = match option_env!("FORKS") {
+const TEMP_FORKS: Option<([Fork; 50], usize)> = match option_env!("FORKS") {
     Some(forks_str) => match parse_fork_list_utf8(forks_str) {
         Some((forks, count)) => {
             if count == 0 {
