@@ -163,5 +163,30 @@ pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)
     }
 
     let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
-    Some((forks, 1))
+    let mut count = 0;
+
+    let mut bytes = forks_str.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b',' {
+            let (fork_utf8, remaining_bytes) = bytes.split_at(i);
+
+            let Some(fork) = Fork::from_colon_separated_utf8(fork_utf8) else {
+                return None;
+            };
+
+            // Ignore comma
+            let Some((_, remaining_bytes)) = remaining_bytes.split_first() else {
+                return None;
+            };
+            bytes = remaining_bytes;
+
+            forks[count] = fork;
+            count += 1;
+        }
+
+        i += 1;
+    }
+
+    Some((forks, count))
 }
