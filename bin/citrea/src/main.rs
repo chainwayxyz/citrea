@@ -206,23 +206,24 @@ where
             .context("Failed to read rollup configuration from the environment")?,
     };
 
-    let telemetry_addr: SocketAddr = format!(
-        "{}:{}",
-        rollup_config.telemetry.bind_host, rollup_config.telemetry.bind_port
-    )
-    .parse()
-    .map_err(|_| anyhow!("Invalid telemetry address"))?;
+    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
+        let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
+        let bind_port = rollup_config.telemetry.bind_port.as_ref().unwrap();
+        let telemetry_addr: SocketAddr = format!("{}:{}", bind_host, bind_port)
+            .parse()
+            .map_err(|_| anyhow!("Invalid telemetry address"))?;
 
-    debug!("Starting telemetry server on: {}", telemetry_addr);
+        debug!("Starting telemetry server on: {}", telemetry_addr);
 
-    let builder = PrometheusBuilder::new().with_http_listener(telemetry_addr);
-    builder
-        .idle_timeout(
-            MetricKindMask::GAUGE | MetricKindMask::HISTOGRAM,
-            Some(Duration::from_secs(30)),
-        )
-        .install()
-        .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;
+        let builder = PrometheusBuilder::new().with_http_listener(telemetry_addr);
+        builder
+            .idle_timeout(
+                MetricKindMask::GAUGE | MetricKindMask::HISTOGRAM,
+                Some(Duration::from_secs(30)),
+            )
+            .install()
+            .map_err(|_| anyhow!("failed to install Prometheus recorder"))?;
+    }
 
     let rollup_blueprint = S::new(network);
 

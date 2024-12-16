@@ -413,25 +413,27 @@ impl FromEnv for SequencerMempoolConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TelemetryConfig {
     /// Server host.
-    pub bind_host: String,
+    pub bind_host: Option<String>,
     /// Server port.
-    pub bind_port: u16,
+    pub bind_port: Option<u16>,
 }
 
 impl Default for TelemetryConfig {
     fn default() -> Self {
         Self {
-            bind_host: "0.0.0.0".to_owned(),
-            bind_port: 8081,
+            bind_host: Some("0.0.0.0".to_owned()),
+            bind_port: Some(8081),
         }
     }
 }
 
 impl FromEnv for TelemetryConfig {
     fn from_env() -> anyhow::Result<Self> {
+        let bind_host = std::env::var("TELEMETRY_BIND_HOST").ok();
+        let bind_port = std::env::var("TELEMETRY_BIND_PORT").ok();
         Ok(Self {
-            bind_host: std::env::var("TELEMETRY_BIND_HOST")?,
-            bind_port: std::env::var("TELEMETRY_BIND_PORT")?.parse()?,
+            bind_host,
+            bind_port: bind_port.map(|p| p.parse()).transpose()?,
         })
     }
 }
@@ -519,8 +521,8 @@ mod tests {
                 prover_da_pub_key: vec![],
             },
             telemetry: TelemetryConfig {
-                bind_host: "0.0.0.0".to_owned(),
-                bind_port: 8001,
+                bind_host: Some("0.0.0.0".to_owned()),
+                bind_port: Some(8001),
             },
         };
         assert_eq!(config, expected);
@@ -712,10 +714,31 @@ mod tests {
                 prover_da_pub_key: vec![],
             },
             telemetry: TelemetryConfig {
-                bind_host: "0.0.0.0".to_owned(),
-                bind_port: 8082,
+                bind_host: Some("0.0.0.0".to_owned()),
+                bind_port: Some(8082),
             },
         };
         assert_eq!(full_node_config, expected);
+    }
+
+    #[test]
+    fn test_optional_telemetry_config_from_env() {
+        let telemetry_config = TelemetryConfig::from_env().unwrap();
+
+        let expected = TelemetryConfig {
+            bind_host: None,
+            bind_port: None,
+        };
+        assert_eq!(telemetry_config, expected);
+
+        std::env::set_var("TELEMETRY_BIND_HOST", "0.0.0.0");
+        std::env::set_var("TELEMETRY_BIND_PORT", "5000");
+        let telemetry_config = TelemetryConfig::from_env().unwrap();
+
+        let expected = TelemetryConfig {
+            bind_host: Some("0.0.0.0".to_owned()),
+            bind_port: Some(5000),
+        };
+        assert_eq!(telemetry_config, expected);
     }
 }
