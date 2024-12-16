@@ -140,3 +140,8 @@ impl Fork {
         })
     }
 }
+
+pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 100], usize)> {
+    let mut forks = [Fork::new(SpecId::Genesis, 0); 100];
+    Some((forks, 1))
+}

@@ -6,8 +6,7 @@ use citrea_risc0_adapter::guest::Risc0Guest;
 use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::fork::Fork;
-use sov_modules_api::SpecId;
+use sov_modules_api::fork::{parse_fork_list_utf8, Fork};
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
@@ -38,10 +37,24 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match option_env!("SEQUENCER_DA_PUBLIC
     None => [0; 33],
 };
 
-const FORKS: &[Fork] = match option_env!("FORKS") {
-    Some(forks_str) => {
-        let mut forks = [Fork { spec_id: SpecId::Genesis, activation_height: 0 }; 100];
-        todo!()
+// Temporary variable to allow FORKS static reference to be valid
+const TEMP_FORKS: Option<([Fork; 100], usize)> = match option_env!("FORKS") {
+    Some(forks_str) => match parse_fork_list_utf8(forks_str) {
+        Some((forks, count)) => {
+            if count == 0 {
+                panic!("FORKS can not be empty");
+            }
+            Some((forks, count))
+        }
+        None => panic!("FORKS must be valid comma separated list"),
+    },
+    // TODO: what to do here?
+    None => None,
+};
+
+const FORKS: &[Fork] = match &TEMP_FORKS {
+    Some((forks, count)) => {
+        forks.split_at(*count).0
     }
     // TODO: what to do here?
     None => &[],
