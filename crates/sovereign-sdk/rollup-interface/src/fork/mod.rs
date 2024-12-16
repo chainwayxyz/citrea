@@ -210,7 +210,7 @@ pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)
         } else {
             // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
             if (fork.spec_id as u8).wrapping_sub(forks[j - 1].spec_id as u8) != 1
-                || fork.activation_height <= forks[j - 1].activation_height
+                || fork.activation_height < forks[j - 1].activation_height
             {
                 return None;
             }
