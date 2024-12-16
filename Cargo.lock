@@ -1874,7 +1874,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=efde07d#efde07d66183948e1a4d6ee6ab0d364fd2b5d05c"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?branch=rakanalh/light-client-initial-da-height#fb78e37535402dc6cdad270e45a3224555c9ff9d"
 dependencies = [
  "anyhow",
  "async-trait",
