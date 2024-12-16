@@ -421,8 +421,8 @@ pub struct TelemetryConfig {
 impl Default for TelemetryConfig {
     fn default() -> Self {
         Self {
-            bind_host: Some("0.0.0.0".to_owned()),
-            bind_port: Some(8081),
+            bind_host: None,
+            bind_port: None,
         }
     }
 }
