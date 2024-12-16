@@ -13,10 +13,6 @@
 //! - `TxNumber -> (TxHash,Tx)`
 //! - `TxHash -> TxNumber`
 //!
-//! Event Tables:
-//! - `(EventKey, TxNumber) -> EventNumber`
-//! - `EventNumber -> (EventKey, EventValue)`
-//!
 //! JMT Tables:
 //! - `KeyHash -> Key`
 //! - `(Key, Version) -> JmtValue`

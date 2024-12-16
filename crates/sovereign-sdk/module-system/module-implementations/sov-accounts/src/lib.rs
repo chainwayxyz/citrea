@@ -55,8 +55,6 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
 
     type CallMessage = ();
 
-    type Event = ();
-
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.init_module(config, working_set)
     }

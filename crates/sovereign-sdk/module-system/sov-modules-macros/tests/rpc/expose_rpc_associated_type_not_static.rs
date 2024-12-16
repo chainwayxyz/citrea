@@ -48,7 +48,6 @@ pub mod my_module {
         type Context = C;
         type Config = D;
         type CallMessage = D;
-        type Event = ();
 
         fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
             self.data.set(config, working_set);

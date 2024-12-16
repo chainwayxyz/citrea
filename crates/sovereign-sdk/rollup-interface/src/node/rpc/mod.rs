@@ -9,57 +9,12 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(feature = "native")]
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
-#[cfg(feature = "native")]
-use crate::stf::EventKey;
 use crate::zk::{BatchProofInfo, CumulativeStateDiff};
 
 /// A struct containing enough information to uniquely specify single batch.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SlotIdAndOffset {
-    /// The [`SlotIdentifier`] of the slot containing this batch.
-    pub slot_id: SlotIdentifier,
-    /// The offset into the slot at which this tx is located.
-    /// Index 0 is the first batch in the slot.
-    pub offset: u64,
-}
-
-/// A struct containing enough information to uniquely specify single transaction.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchIdAndOffset {
-    /// The [`BatchIdentifier`] of the batch containing this transaction.
-    pub batch_id: BatchIdentifier,
-    /// The offset into the batch at which this tx is located.
-    /// Index 0 is the first transaction in the batch.
-    pub offset: u64,
-}
-
-/// A struct containing enough information to uniquely specify single event.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TxIdAndOffset {
-    /// The [`TxIdentifier`] of the transaction containing this event.
-    pub tx_id: TxIdentifier,
-    /// The offset into the tx's events at which this event is located.
-    /// Index 0 is the first event from this tx.
-    pub offset: u64,
-}
-
-/// A struct containing enough information to uniquely specify single event.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TxIdAndKey {
-    /// The [`TxIdentifier`] of the transaction containing this event.
-    pub tx_id: TxIdentifier,
-    /// The key of the event.
-    pub key: EventKey,
-}
 
 /// An identifier that specifies a single soft confirmation
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -69,69 +24,6 @@ pub enum SoftConfirmationIdentifier {
     Number(u64),
     /// The hex-encoded hash of the soft confirmation
     Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
-}
-
-/// An identifier that specifies a single batch
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
-pub enum BatchIdentifier {
-    /// The hex-encoded hash of the batch, as computed by the DA layer.
-    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
-    /// An offset into a particular slot (i.e. the 3rd batch in slot 5).
-    SlotIdAndOffset(SlotIdAndOffset),
-    /// The monotonically increasing number of the batch, ordered by the DA layer For example, if the genesis slot
-    /// contains 0 batches, slot 1 contains 2 txs, and slot 3 contains 3 txs,
-    /// the last batch in block 3 would have number 5. The counter never resets.
-    Number(u64),
-}
-
-/// An identifier that specifies a single transaction.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
-pub enum TxIdentifier {
-    /// The hex encoded hash of the transaction.
-    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
-    /// An offset into a particular batch (i.e. the 3rd transaction in batch 5).
-    BatchIdAndOffset(BatchIdAndOffset),
-    /// The monotonically increasing number of the tx, ordered by the DA layer For example, if genesis
-    /// contains 0 txs, batch 1 contains 8 txs, and batch 3 contains 7 txs,
-    /// the last tx in batch 3 would have number 15. The counter never resets.
-    Number(u64),
-}
-
-/// An identifier that specifies a single event.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
-pub enum EventIdentifier {
-    /// An offset into a particular transaction (i.e. the 3rd event in transaction number 5).
-    TxIdAndOffset(TxIdAndOffset),
-    /// A particular event key from a particular transaction.
-    TxIdAndKey(TxIdAndKey),
-    /// The monotonically increasing number of the event, ordered by the DA layer For example, if the first tx
-    /// contains 7 events, tx 2 contains 11 events, and tx 3 contains 7 txs,
-    /// the last event in tx 3 would have number 25. The counter never resets.
-    Number(u64),
-}
-
-/// An identifier for a group of related events
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
-pub enum EventGroupIdentifier {
-    /// Fetch all events from a particular transaction.
-    TxId(TxIdentifier),
-    /// Fetch all events (i.e. from all transactions) with a particular key.
-    Key(Vec<u8>),
-}
-
-/// An identifier that specifies a single slot.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, rename_all = "camelCase")]
-pub enum SlotIdentifier {
-    /// The hex encoded hash of the slot (i.e. the da layer's block hash).
-    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
-    /// The monotonically increasing number of the slot, ordered by the DA layer but starting from 0
-    /// at the *rollup's* genesis.
-    Number(u64),
 }
 
 /// A type that represents a transaction hash bytes.
@@ -453,13 +345,13 @@ pub trait LedgerRpcProvider {
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a single soft confirmation by hash.
-    fn get_soft_confirmation_by_hash<T: DeserializeOwned>(
+    fn get_soft_confirmation_by_hash(
         &self,
         hash: &[u8; 32],
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;
 
     /// Get a single soft confirmation by number.
-    fn get_soft_confirmation_by_number<T: DeserializeOwned>(
+    fn get_soft_confirmation_by_number(
         &self,
         number: u64,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error>;

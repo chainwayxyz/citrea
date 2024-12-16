@@ -29,17 +29,12 @@ thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
-# Proptest should be a dev-dependency, but those can't be optional
-proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
-
 [dev-dependencies]
 serde_json = { workspace = true }
 
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures", "tracing"]
-fuzzing = ["proptest", "proptest-derive", "std"]
 testing = ["native"]
 arbitrary = ["dep:arbitrary"]
 std = [
@@ -49,7 +44,6 @@ std = [
   "bytes",
   "digest/default",
   "hex/default",
-  "proptest?/default",
   "serde/default",
   "thiserror",
 ]

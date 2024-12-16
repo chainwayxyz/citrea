@@ -14,7 +14,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use reth_primitives::U64;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
 use super::get_citrea_path;

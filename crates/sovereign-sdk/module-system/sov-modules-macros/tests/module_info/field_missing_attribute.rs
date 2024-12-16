@@ -18,8 +18,6 @@ impl<C: Context> Module for TestStruct<C> {
 
     type CallMessage = ();
 
-    type Event = ();
-
     fn call(
         &mut self,
         _message: Self::CallMessage,

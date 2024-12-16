@@ -53,8 +53,6 @@ impl<C: Context, Da: DaSpec> sov_modules_api::Module for SoftConfirmationRuleEnf
 
     type CallMessage = CallMessage<C>;
 
-    type Event = ();
-
     fn call(
         &mut self,
         message: Self::CallMessage,

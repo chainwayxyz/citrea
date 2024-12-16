@@ -42,7 +42,7 @@ pub trait SharedLedgerOps {
         l2_height: BatchNumber,
     ) -> Result<()>;
 
-    /// Get the next slot, block, transaction, and event numbers
+    /// Get the next slot, block, transaction numbers
     fn get_next_items_numbers(&self) -> ItemNumbers;
 
     /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
