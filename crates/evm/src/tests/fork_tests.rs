@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::thread::sleep;
 
 use reth_primitives::{address, keccak256, Address, Bytes, TxKind};
+use revm::interpreter::opcode::eof_printer::print_eof_code;
 use revm::primitives::U256;
 use sha2::Digest;
 use sov_modules_api::default_context::DefaultContext;
@@ -13,11 +14,11 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 use crate::call::CallMessage;
 use crate::evm::DbAccount;
 use crate::smart_contracts::{
-    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract,
+    BlobBaseFeeContract, KZGPointEvaluationCallerContract, McopyContract, SelfDestructorContract,
     SelfdestructingConstructorContract, SimpleStorageContract, TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{create_contract_message, get_evm, get_evm_config};
+use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, set_arg_message};
 use crate::RlpEvmTransaction;
 type C = DefaultContext;
 
@@ -685,7 +686,7 @@ fn test_offchain_contract_storage_evm() {
         let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
 
         let deploy_message =
-            create_contract_message(&dev_signer, 0, KZGPointEvaluationCallerContract::default());
+            create_contract_message(&dev_signer, 0, SimpleStorageContract::default());
 
         evm.call(
             CallMessage {
@@ -759,7 +760,7 @@ fn test_offchain_contract_storage_evm() {
         let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let deploy_message =
-            create_contract_message(&dev_signer, 1, SimpleStorageContract::default());
+            create_contract_message(&dev_signer, 1, SelfDestructorContract::default());
 
         evm.call(
             CallMessage {
@@ -769,10 +770,10 @@ fn test_offchain_contract_storage_evm() {
             &mut working_set,
         )
         .unwrap();
-        sleep(std::time::Duration::from_secs(2));
     }
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+    l2_height += 1;
 
     let new_contract_address = address!("d26ff5586e488e65d86bcc3f0fe31551e381a596");
 
@@ -787,4 +788,46 @@ fn test_offchain_contract_storage_evm() {
 
     let evm_code = evm.code.get(&code_hash, &mut working_set);
     assert!(evm_code.is_none());
+
+    // make tx on the contract that was deployed before fork1 and see that you can read it from offchain storage afterwards
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [5u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+
+        let call_message = set_arg_message(contract_addr, &dev_signer, 2, 99);
+
+        evm.call(
+            CallMessage {
+                txs: vec![call_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    // Now I should be able to read the contract from offchain storage
+    let contract_info = evm.accounts.get(&contract_addr, &mut working_set);
+    let code_hash = contract_info.unwrap().code_hash.unwrap();
+
+    let offchain_code = evm
+        .offchain_code
+        .get(&code_hash, &mut working_set.offchain_state());
+
+    assert!(offchain_code.is_some());
 }
