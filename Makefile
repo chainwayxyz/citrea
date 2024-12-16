@@ -39,6 +39,7 @@ clean: ## Cleans compiled
 	@cargo clean
 
 clean-node: ## Cleans local dbs needed for sequencer and nodes
+	rm -rf resources/dbs/da-db
 	rm -rf resources/dbs/sequencer-db
 	rm -rf resources/dbs/batch-prover-db
 	rm -rf resources/dbs/light-client-prover-db

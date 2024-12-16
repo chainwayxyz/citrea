@@ -410,21 +410,12 @@ impl FromEnv for SequencerMempoolConfig {
 }
 
 /// Telemetry configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TelemetryConfig {
     /// Server host.
     pub bind_host: Option<String>,
     /// Server port.
     pub bind_port: Option<u16>,
-}
-
-impl Default for TelemetryConfig {
-    fn default() -> Self {
-        Self {
-            bind_host: Some("0.0.0.0".to_owned()),
-            bind_port: Some(8081),
-        }
-    }
 }
 
 impl FromEnv for TelemetryConfig {
