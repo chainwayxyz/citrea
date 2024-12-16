@@ -198,26 +198,33 @@ pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)
     forks[count] = fork;
     count += 1;
 
-    // Validate forks
-    let mut j = 0;
-    while j < count {
-        let fork = forks[j];
-        if j == 0 {
-            // Validate genesis fork
-            if fork.spec_id as u8 != 0 || fork.activation_height != 0 {
-                return None;
-            }
-        } else {
-            // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
-            if (fork.spec_id as u8).wrapping_sub(forks[j - 1].spec_id as u8) != 1
-                || fork.activation_height < forks[j - 1].activation_height
-            {
-                return None;
-            }
-        }
-
-        j += 1;
+    if !verify_forks(&forks, count) {
+        return None;
     }
 
     Some((forks, count))
+}
+
+pub const fn verify_forks(forks: &[Fork], count: usize) -> bool {
+    let mut i = 0;
+    while i < count {
+        let fork = forks[i];
+        if i == 0 {
+            // Validate genesis fork
+            if fork.spec_id as u8 != 0 || fork.activation_height != 0 {
+                return false;
+            }
+        } else {
+            // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
+            if (fork.spec_id as u8).wrapping_sub(forks[i - 1].spec_id as u8) != 1
+                || fork.activation_height < forks[i - 1].activation_height
+            {
+                return false;
+            }
+        }
+
+        i += 1;
+    }
+
+    true
 }
