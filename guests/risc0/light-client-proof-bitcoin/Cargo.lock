@@ -1921,9 +1921,11 @@ dependencies = [
 name = "sov-state"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-rlp",
  "anyhow",
  "bcs",
  "borsh",
+ "bytes",
  "jmt",
  "serde",
  "sha2",

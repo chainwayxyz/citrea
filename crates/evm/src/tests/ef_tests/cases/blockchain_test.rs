@@ -202,7 +202,7 @@ impl Case for BlockchainTestCase {
                 );
                 evm.head.set(&block, &mut working_set);
                 evm.pending_head
-                    .set(&block, &mut working_set.accessory_state());
+                    .set(&block.into(), &mut working_set.accessory_state());
                 evm.finalize_hook(
                     &case.genesis_block_header.state_root.0.into(),
                     &mut working_set.accessory_state(),

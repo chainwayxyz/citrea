@@ -41,7 +41,6 @@ use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
-use sov_rollup_interface::spec::SpecId as CitreaSpecId;
 
 use crate::call::get_cfg_env;
 use crate::conversions::{create_tx_env, sealed_block_to_block_env};
@@ -262,16 +261,9 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 };
 
                 // if hash is known, but we don't have the block, fail
-                let citrea_spec_id = fork_from_block_number(FORKS, block_number).spec_id;
-                if citrea_spec_id >= CitreaSpecId::Fork1 {
-                    self.blocks_rlp
-                        .get(block_number as usize, &mut working_set.accessory_state())
-                        .expect("Block must be set")
-                } else {
-                    self.blocks
-                        .get(block_number as usize, &mut working_set.accessory_state())
-                        .expect("Block must be set")
-                }
+                self.blocks
+                    .get(block_number as usize, &mut working_set.accessory_state())
+                    .expect("Block must be set")
             }
             BlockId::Number(block_number) => {
                 match self.get_sealed_block_by_number(Some(block_number), working_set)? {

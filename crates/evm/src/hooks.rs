@@ -1,4 +1,5 @@
-use alloy_primitives::{Bloom, Bytes, B256, U256};
+use alloy_consensus::Header as AlloyHeader;
+use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -35,13 +36,31 @@ where
         // we have to set blob gas used to zero at the beginning of the block
         self.blob_gas_used = 0;
 
-        let mut parent_block = self
-            .head
-            .get(working_set)
-            .expect("Head block should always be set");
+        let current_spec = soft_confirmation_info.current_spec;
+
+        let mut parent_block = if current_spec >= CitreaSpecId::Fork1 {
+            match self.head_rlp.get(working_set) {
+                Some(block) => block.clone().into(),
+                None => self
+                    .head
+                    .get(working_set)
+                    .expect("Head block should always be set")
+                    .clone(),
+            }
+        } else {
+            self.head
+                .get(working_set)
+                .expect("Head block should always be set")
+                .clone()
+        };
 
         parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
-        self.head.set(&parent_block, working_set);
+
+        if current_spec >= CitreaSpecId::Fork1 {
+            self.head_rlp.set(&parent_block.clone().into(), working_set);
+        } else {
+            self.head.set(&parent_block, working_set);
+        }
 
         let sealed_parent_block = parent_block.clone().seal();
         let last_block_hash = sealed_parent_block.header.hash();
@@ -158,11 +177,26 @@ where
     ) {
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
-        let parent_block = self
-            .head
-            .get(working_set)
-            .expect("Head block should always be set")
-            .seal();
+        let current_spec = soft_confirmation_info.current_spec;
+
+        let parent_block = if current_spec >= CitreaSpecId::Fork1 {
+            match self.head_rlp.get(working_set) {
+                Some(block) => block.seal(),
+                None => {
+                    let block: Block<AlloyHeader> = self
+                        .head
+                        .get(working_set)
+                        .expect("Head block should always be set")
+                        .into();
+                    block.seal()
+                }
+            }
+        } else {
+            self.head
+                .get(working_set)
+                .expect("Head block should always be set")
+                .seal()
+        };
 
         let expected_block_number = parent_block.header.number + 1;
         assert_eq!(
@@ -191,7 +225,7 @@ where
             .map(|tx| tx.receipt.receipt.clone().with_bloom())
             .collect();
 
-        let header = crate::primitive_types::Header {
+        let header = AlloyHeader {
             parent_hash: parent_block.header.hash(),
             timestamp: self.block_env.timestamp.saturating_to(),
             number: self.block_env.number.saturating_to(),
@@ -211,7 +245,7 @@ where
             gas_limit: self.block_env.gas_limit.saturating_to(),
             gas_used,
             mix_hash: self.block_env.prevrandao.unwrap_or_default(),
-            nonce: 0,
+            nonce: B64::ZERO,
             base_fee_per_gas: Some(self.block_env.basefee.saturating_to()),
             extra_data: Bytes::default(),
             // EIP-4844 related fields
@@ -241,7 +275,11 @@ where
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 
-        self.head.set(&block, working_set);
+        if current_spec >= CitreaSpecId::Fork1 {
+            self.head_rlp.set(&block, working_set);
+        } else {
+            self.head.set(&block.clone().into(), working_set);
+        }
 
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
@@ -250,11 +288,8 @@ where
         {
             use crate::PendingTransaction;
             let mut accessory_state = working_set.accessory_state();
-            if soft_confirmation_info.current_spec >= CitreaSpecId::Fork1 {
-                self.pending_head_rlp.set(&block, &mut accessory_state);
-            } else {
-                self.pending_head.set(&block, &mut accessory_state);
-            }
+
+            self.pending_head.set(&block, &mut accessory_state);
 
             let mut tx_index = start_tx_index;
             for PendingTransaction {

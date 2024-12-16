@@ -2,7 +2,10 @@ use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, Sealable, B256, B64, U256};
 use lazy_static::lazy_static;
 use rand::Rng;
-use reth_primitives::{Header, Signature, TransactionSigned, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
+use reth_primitives::{
+    Header, Signature, TransactionSigned, TransactionSignedNoHash, EMPTY_OMMER_ROOT_HASH,
+    KECCAK_EMPTY,
+};
 use revm::primitives::BlockEnv;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
@@ -81,10 +84,10 @@ fn end_soft_confirmation_hook_sets_head() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     evm.pending_transactions
-        .push(create_pending_transaction(B256::from([1u8; 32]), 1));
+        .push(create_pending_transaction(1, 0));
 
     evm.pending_transactions
-        .push(create_pending_transaction(B256::from([2u8; 32]), 2));
+        .push(create_pending_transaction(2, 1));
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     let head = evm.head.get(&mut working_set).unwrap();
@@ -93,7 +96,7 @@ fn end_soft_confirmation_hook_sets_head() {
         .get(&mut working_set.accessory_state())
         .unwrap();
 
-    assert_eq!(head, pending_head);
+    assert_eq!(head, pending_head.into());
     assert_eq!(
         head,
         Block {
@@ -154,10 +157,10 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
-    let tx1 = create_pending_transaction(B256::from([1u8; 32]), 1);
+    let tx1 = create_pending_transaction(1, 0);
     evm.pending_transactions.push(tx1.clone());
 
-    let tx2 = create_pending_transaction(B256::from([2u8; 32]), 2);
+    let tx2 = create_pending_transaction(2, 1);
     evm.pending_transactions.push(tx2.clone());
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
@@ -207,24 +210,29 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     assert_eq!(evm.pending_transactions.len(), 0);
 }
 
-fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
+fn create_pending_transaction(index: u64, nonce: u64) -> PendingTransaction {
+    let tx = TransactionSignedNoHash {
+        signature: Signature::new(U256::ZERO, U256::ZERO, false.into()),
+        transaction: reth_primitives::Transaction::Eip1559(alloy_consensus::TxEip1559 {
+            chain_id: DEFAULT_CHAIN_ID,
+            nonce,
+            gas_limit: 1000u64,
+            max_fee_per_gas: 2000u64 as u128,
+            max_priority_fee_per_gas: 3000u64 as u128,
+            to: alloy_primitives::TxKind::Call(Address::from([3u8; 20])),
+            value: U256::from(4000u128),
+            access_list: alloy_rpc_types::AccessList::default(),
+            input: Bytes::from([4u8; 20]),
+        }),
+    };
+
     PendingTransaction {
         transaction: TransactionSignedAndRecovered {
             signer: Address::from([1u8; 20]),
             signed_transaction: TransactionSigned {
-                hash,
-                signature: Signature::new(U256::ZERO, U256::ZERO, false.into()),
-                transaction: reth_primitives::Transaction::Eip1559(alloy_consensus::TxEip1559 {
-                    chain_id: DEFAULT_CHAIN_ID,
-                    nonce: 1u64,
-                    gas_limit: 1000u64,
-                    max_fee_per_gas: 2000u64 as u128,
-                    max_priority_fee_per_gas: 3000u64 as u128,
-                    to: alloy_primitives::TxKind::Call(Address::from([3u8; 20])),
-                    value: U256::from(4000u128),
-                    access_list: alloy_rpc_types::AccessList::default(),
-                    input: Bytes::from([4u8; 20]),
-                }),
+                hash: tx.hash(),
+                signature: tx.signature,
+                transaction: tx.transaction,
             },
             block_number: 1,
         },
@@ -273,9 +281,9 @@ fn finalize_hook_creates_final_block() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     evm.pending_transactions
-        .push(create_pending_transaction(B256::from([1u8; 32]), 1));
+        .push(create_pending_transaction(1, 0));
     evm.pending_transactions
-        .push(create_pending_transaction(B256::from([2u8; 32]), 2));
+        .push(create_pending_transaction(2, 1));
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
 
     let root_hash = [99u8; 32];

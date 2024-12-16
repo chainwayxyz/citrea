@@ -3,9 +3,7 @@ use std::ops::Range;
 use alloy_primitives::{Address, BlockNumber, Bloom, Bytes, Sealable, B256, B64, U256};
 use alloy_rlp::bytes::BufMut;
 use alloy_rlp::{Decodable, Encodable};
-use reth_primitives::transaction::serde_bincode_compat as reth_tx_serde_bincode_compat;
 use reth_primitives::{Header as AlloyHeader, SealedHeader, TransactionSigned};
-use reth_primitives_traits::serde_bincode_compat as reth_serde_bincode_compat;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -163,23 +161,41 @@ impl From<AlloyHeader> for Header {
     }
 }
 
-#[serde_as]
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct TransactionSignedAndRecovered {
     /// Signer of the transaction
     pub(crate) signer: Address,
     /// Signed transaction
-    #[serde_as(as = "reth_tx_serde_bincode_compat::TransactionSigned")]
     pub(crate) signed_transaction: TransactionSigned,
     /// Block the transaction was added to
     pub(crate) block_number: u64,
 }
 
+impl Encodable for TransactionSignedAndRecovered {
+    fn encode(&self, out: &mut dyn BufMut) {
+        self.signer.encode(out);
+        self.signed_transaction.encode(out);
+        self.block_number.encode(out);
+    }
+}
+
+impl Decodable for TransactionSignedAndRecovered {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let signer = Decodable::decode(buf)?;
+        let signed_transaction = Decodable::decode(buf)?;
+        let block_number = Decodable::decode(buf)?;
+        Ok(Self {
+            signer,
+            signed_transaction,
+            block_number,
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Block {
+pub(crate) struct Block<H> {
     /// Block header.
-    // #[serde_as(as = "serde_bincode_compat::Header")]
-    pub(crate) header: Header,
+    pub(crate) header: H,
 
     /// L1 fee rate.
     pub(crate) l1_fee_rate: u128,
@@ -191,7 +207,21 @@ pub(crate) struct Block {
     pub(crate) transactions: Range<u64>,
 }
 
-impl Block {
+impl Block<AlloyHeader> {
+    pub(crate) fn seal(self) -> SealedBlock {
+        let alloy_header = self.header;
+        let sealed = alloy_header.seal_slow();
+        let (header, seal) = sealed.into_parts();
+        SealedBlock {
+            header: SealedHeader::new(header, seal),
+            l1_fee_rate: self.l1_fee_rate,
+            l1_hash: self.l1_hash,
+            transactions: self.transactions,
+        }
+    }
+}
+
+impl Block<Header> {
     pub(crate) fn seal(self) -> SealedBlock {
         let alloy_header = AlloyHeader::from(self.header);
         let sealed = alloy_header.seal_slow();
@@ -205,11 +235,32 @@ impl Block {
     }
 }
 
+impl From<Block<Header>> for Block<AlloyHeader> {
+    fn from(value: Block<Header>) -> Self {
+        Self {
+            header: value.header.into(),
+            l1_fee_rate: value.l1_fee_rate,
+            l1_hash: value.l1_hash,
+            transactions: value.transactions,
+        }
+    }
+}
+
+impl From<Block<AlloyHeader>> for Block<Header> {
+    fn from(value: Block<AlloyHeader>) -> Self {
+        Self {
+            header: value.header.into(),
+            l1_fee_rate: value.l1_fee_rate,
+            l1_hash: value.l1_hash,
+            transactions: value.transactions,
+        }
+    }
+}
+
 #[serde_as]
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SealedBlock {
     /// Block header.
-    #[serde_as(as = "reth_serde_bincode_compat::SealedHeader")]
     pub(crate) header: SealedHeader<AlloyHeader>,
 
     /// L1 fee rate.
@@ -222,9 +273,9 @@ pub(crate) struct SealedBlock {
     pub(crate) transactions: Range<u64>,
 }
 
-impl Encodable for Block {
+impl Encodable for Block<AlloyHeader> {
     fn encode(&self, out: &mut dyn BufMut) {
-        let header: AlloyHeader = self.header.clone().into();
+        let header: AlloyHeader = self.header.clone();
         header.encode(out);
         self.l1_fee_rate.encode(out);
         self.l1_hash.encode(out);
@@ -233,7 +284,7 @@ impl Encodable for Block {
     }
 }
 
-impl Decodable for Block {
+impl Decodable for Block<AlloyHeader> {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let header: AlloyHeader = Decodable::decode(buf)?;
         let l1_fee_rate = Decodable::decode(buf)?;
@@ -241,7 +292,7 @@ impl Decodable for Block {
         let start = Decodable::decode(buf)?;
         let end = Decodable::decode(buf)?;
         Ok(Self {
-            header: header.into(),
+            header,
             l1_fee_rate,
             l1_hash,
             transactions: Range { start, end },
@@ -281,4 +332,28 @@ pub(crate) struct Receipt {
     pub(crate) gas_used: u128,
     pub(crate) log_index_start: u64,
     pub(crate) l1_diff_size: u64,
+}
+
+impl Encodable for Receipt {
+    fn encode(&self, out: &mut dyn BufMut) {
+        self.receipt.encode(out);
+        self.gas_used.encode(out);
+        self.log_index_start.encode(out);
+        self.l1_diff_size.encode(out);
+    }
+}
+
+impl Decodable for Receipt {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let receipt = Decodable::decode(buf)?;
+        let gas_used = Decodable::decode(buf)?;
+        let log_index_start = Decodable::decode(buf)?;
+        let l1_diff_size = Decodable::decode(buf)?;
+        Ok(Self {
+            receipt,
+            gas_used,
+            log_index_start,
+            l1_diff_size,
+        })
+    }
 }
