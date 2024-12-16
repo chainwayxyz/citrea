@@ -15,23 +15,13 @@ alloy-eips = { workspace = true }
 anyhow = { workspace = true }
 brotli = { workspace = true }
 reth-primitives = { workspace = true }
-serde = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Sov SDK deps
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 
 [features]
-native = [
-  "dep:serde",
-  "dep:tokio",
-  "dep:tracing",
-  "sov-rollup-interface/native",
-]
 testing = [
-  "native",
   "short-prefix",
 ]
 short-prefix = []
