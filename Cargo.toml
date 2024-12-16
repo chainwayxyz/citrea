@@ -123,22 +123,25 @@ revm = { version = "12.1", features = ["serde"], default-features = false }
 # forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
 revm-primitives = { version = "8", default-features = false }
 revm-inspectors = { version = "=0.5.5", default-features = false }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-errors = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false, features = ["jsonrpsee-types"] }
-reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-node-api = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
-reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "a206eb3690e5a51d3c797fed2a6ed722e36863eb", default-features = false }
+
+# temporarily moving reth crates to a fork where reth-revm is updated to not depend on revm/c-kzg
+# once reth is updated check back if we can use the paradigmxyz/reth version
+reth-primitives = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-chainspec = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-errors = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-rpc-types = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-rpc-eth-types = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-rpc-eth-api = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-rpc-types-compat = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-node-api = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-transaction-pool = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-provider = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-tasks = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-db = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-trie = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-rpc = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
+reth-stages = { git = "https://github.com/eyusufatik/reth", rev = "19e733d1e69f3dd1900234141618be64284ade95", default-features = false }
 
 alloy-trie = { version = "0.3.8", default-features = false }
 alloy-rlp = { version = "0.3.8", default-features = false }

@@ -210,7 +210,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbcba3ca07cf7975f15d871b721fb18031eec8bce51103907f6dcce00b255d98"
 dependencies = [
  "serde",
- "winnow 0.6.13",
+ "winnow 0.6.20",
 ]
 
 [[package]]
@@ -2255,7 +2255,7 @@ checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 [[package]]
 name = "reth-codecs"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2271,7 +2271,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -2282,7 +2282,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-forks"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -2299,7 +2299,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -2321,7 +2321,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives-traits"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2341,7 +2341,7 @@ dependencies = [
 [[package]]
 name = "reth-static-file-types"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -2352,7 +2352,7 @@ dependencies = [
 [[package]]
 name = "reth-trie-common"
 version = "1.0.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=a206eb3690e5a51d3c797fed2a6ed722e36863eb#a206eb3690e5a51d3c797fed2a6ed722e36863eb"
+source = "git+https://github.com/eyusufatik/reth?rev=19e733d1e69f3dd1900234141618be64284ade95#19e733d1e69f3dd1900234141618be64284ade95"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -3463,9 +3463,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.13"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59b5e5f6c299a3c7890b876a2a587f3115162487e704907d9b6cd29473052ba1"
+checksum = "36c1fec1a2bb5866f07c25f68c26e565c4c200aebb96d7e55710c19d3e8ac49b"
 
 [[package]]
 name = "wyz"
