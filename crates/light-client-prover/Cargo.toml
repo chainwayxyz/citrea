@@ -21,6 +21,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner", optional = true }
 
 # 3rd-party deps
+alloy-primitives = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 bincode = { workspace = true }
@@ -31,7 +32,6 @@ metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = true, optional = true }
 reth-primitives = { workspace = true, optional = true }
-alloy-primitives = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
