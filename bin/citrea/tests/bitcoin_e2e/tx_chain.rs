@@ -304,6 +304,9 @@ impl TestCase for TestProverTransactionChaining {
             .wait_for_l1_height(finalized_height, None)
             .await?;
 
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
+
         da.generate(1).await?;
         let block_height = da.get_block_count().await?;
 
@@ -343,6 +346,9 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(1).await?;
         let block_height = da.get_block_count().await?;
@@ -385,6 +391,9 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(1).await?;
         let block_height = da.get_block_count().await?;

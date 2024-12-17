@@ -30,11 +30,11 @@ pub fn get_forks() -> &'static Forks {
                         },
                         Fork {
                             spec_id: SpecId::Fork1,
-                            activation_height: 10000,
+                            activation_height: 1000,
                         },
                         Fork {
                             spec_id: SpecId::Fork2,
-                            activation_height: 20000,
+                            activation_height: 2000,
                         },
                     ])
                     .expect("Forks are ordered"),

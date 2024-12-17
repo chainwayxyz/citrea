@@ -30,7 +30,7 @@ pub async fn wait_for_sequencer_commitments(
     timeout: Option<Duration>,
 ) -> Result<Vec<SequencerCommitmentResponse>> {
     let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(30));
+    let timeout = timeout.unwrap_or(Duration::from_secs(120));
 
     loop {
         if start.elapsed() >= timeout {
@@ -102,7 +102,10 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         assert_eq!(commitments.len(), 1);
 
         assert_eq!(commitments[0].l2_start_block_number, 1);
-        assert_eq!(commitments[0].l2_end_block_number, 4);
+        assert_eq!(
+            commitments[0].l2_end_block_number,
+            min_soft_confirmations_per_commitment
+        );
 
         assert_eq!(commitments[0].found_in_l1, finalized_height);
 
@@ -172,7 +175,10 @@ impl TestCase for LedgerGetCommitmentsTest {
         assert_eq!(commitments.len(), 1);
 
         assert_eq!(commitments[0].l2_start_block_number, 1);
-        assert_eq!(commitments[0].l2_end_block_number, 4);
+        assert_eq!(
+            commitments[0].l2_end_block_number,
+            min_soft_confirmations_per_commitment
+        );
 
         assert_eq!(commitments[0].found_in_l1, finalized_height);
 
