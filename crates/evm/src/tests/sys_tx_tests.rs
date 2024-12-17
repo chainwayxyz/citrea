@@ -9,7 +9,9 @@ use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
+use sov_modules_api::{
+    Context, Module, SoftConfirmationModuleCallError, StateMapAccessor, StateVecAccessor,
+};
 use sov_rollup_interface::spec::SpecId;
 
 use crate::call::CallMessage;
@@ -167,14 +169,8 @@ fn test_sys_bitcoin_light_client() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -296,14 +292,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -337,6 +326,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
+    let mut working_set = working_set.checkpoint().to_revertable();
     l2_height += 1;
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -353,15 +343,28 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+
+        let pending_cumulative_from_sum: u128 = evm
+            .pending_transactions
+            .iter()
+            .map(|tx| tx.receipt.gas_used)
+            .sum();
+
+        let pending_cumulative_gas_used = evm
+            .pending_transactions
+            .iter()
+            .last()
+            .unwrap()
+            .cumulative_gas_used();
+
+        // sanity check
+        assert_eq!(
+            pending_cumulative_from_sum,
+            pending_cumulative_gas_used as u128
         );
 
-        let sys_tx_gas_usage = evm.get_pending_txs_cumulative_gas_used(&mut working_set);
+        let sys_tx_gas_usage = pending_cumulative_gas_used;
         assert_eq!(sys_tx_gas_usage, 80620);
 
         let mut rlp_transactions = Vec::new();
@@ -382,15 +385,93 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             ));
         }
 
-        evm.call(
-            CallMessage {
-                txs: rlp_transactions,
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
+        assert_eq!(
+            evm.call(
+                CallMessage {
+                    txs: rlp_transactions,
+                },
+                &context,
+                &mut working_set,
+            )
+            .unwrap_err(),
+            SoftConfirmationModuleCallError::EvmGasUsedExceedsBlockGasLimit {
+                cumulative_gas: 29978224,
+                tx_gas_used: 26388,
+                block_gas_limit: 30000000
+            }
+        );
     }
+
+    // let's start over
+    let mut working_set = working_set.revert().to_revertable();
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [10u8; 32],
+        da_slot_height: 2,
+        da_slot_txs_commitment: [43u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SpecId::Genesis,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+
+        let pending_cumulative_from_sum: u128 = evm
+            .pending_transactions
+            .iter()
+            .map(|tx| tx.receipt.gas_used)
+            .sum();
+
+        let pending_cumulative_gas_used = evm
+            .pending_transactions
+            .iter()
+            .last()
+            .unwrap()
+            .cumulative_gas_used();
+
+        // sanity check
+        assert_eq!(
+            pending_cumulative_from_sum,
+            pending_cumulative_gas_used as u128
+        );
+
+        let sys_tx_gas_usage = pending_cumulative_gas_used;
+        assert_eq!(sys_tx_gas_usage, 80620);
+
+        let mut rlp_transactions = Vec::new();
+
+        // Check: Given now we also push bridge contract, is the following calculation correct?
+
+        // the amount of gas left is 30_000_000 - 80620 = 29_919_380
+        // send barely enough gas to reach the limit
+        // one publish event message is 26388 gas
+        // 29919380 / 26388 = 1133.82
+        // so there cannot be more than 1133 messages
+        for i in 0..1133 {
+            rlp_transactions.push(publish_event_message(
+                contract_addr,
+                &dev_signer,
+                i + 1,
+                "hello".to_string(),
+            ));
+        }
+
+        assert!(evm
+            .call(
+                CallMessage {
+                    txs: rlp_transactions,
+                },
+                &context,
+                &mut working_set,
+            )
+            .is_ok());
+    }
+
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
@@ -540,14 +621,7 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -673,14 +747,7 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -719,13 +786,7 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(
-        sender_address,
-        sequencer_address,
-        l2_height,
-        SpecId::Genesis,
-        l1_fee_rate,
-    );
+    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,

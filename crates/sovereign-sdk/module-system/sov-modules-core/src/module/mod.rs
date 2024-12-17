@@ -5,8 +5,9 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::stf::SoftConfirmationModuleCallError;
 
-use crate::common::{ModuleError, ModulePrefix};
+use crate::common::ModulePrefix;
 use crate::storage::WorkingSet;
 
 mod dispatch;
@@ -35,12 +36,12 @@ pub trait Module {
     type Event: Debug + BorshSerialize + BorshDeserialize;
 
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
+    /// Genesis functions can't return error, they must panic
     fn genesis(
         &self,
         _config: &Self::Config,
-        _working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ModuleError> {
-        Ok(())
+        _working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    ) {
     }
 
     /// Call allows interaction with the module and invokes state changes.
@@ -49,8 +50,8 @@ pub trait Module {
         &mut self,
         _message: Self::CallMessage,
         _context: &Self::Context,
-        _working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<CallResponse, ModuleError>;
+        _working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    ) -> Result<CallResponse, SoftConfirmationModuleCallError>;
 }
 
 /// A [`Module`] that has a well-defined and known [JSON
@@ -98,8 +99,8 @@ pub trait Genesis {
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ModuleError>;
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    );
 }
 
 impl<T> Genesis for T
@@ -113,8 +114,8 @@ where
     fn genesis(
         &self,
         config: &Self::Config,
-        working_set: &mut WorkingSet<Self::Context>,
-    ) -> Result<(), ModuleError> {
+        working_set: &mut WorkingSet<<Self::Context as Spec>::Storage>,
+    ) {
         <Self as Module>::genesis(self, config, working_set)
     }
 }

@@ -3,8 +3,8 @@ use sov_modules_api::cli::JsonStringArg;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::{CliWallet, CliWalletArg, DefaultRuntime};
 use sov_modules_api::{
-    CallResponse, Context, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleInfo,
-    StateValue, WorkingSet,
+    CallResponse, Context, DispatchCall, Genesis, MessageCodec, Module, ModuleInfo,
+    SoftConfirmationModuleCallError, Spec, StateValue, WorkingSet,
 };
 
 pub mod first_test_module {
@@ -39,20 +39,14 @@ pub mod first_test_module {
         type CallMessage = MyStruct;
         type Event = ();
 
-        fn genesis(
-            &self,
-            _config: &Self::Config,
-            _working_set: &mut WorkingSet<C>,
-        ) -> Result<(), Error> {
-            Ok(())
-        }
+        fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<C::Storage>) {}
 
         fn call(
             &mut self,
             _msg: Self::CallMessage,
             _context: &Self::Context,
-            _working_set: &mut WorkingSet<C>,
-        ) -> Result<CallResponse, Error> {
+            _working_set: &mut WorkingSet<C::Storage>,
+        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             Ok(CallResponse::default())
         }
     }
@@ -90,20 +84,14 @@ pub mod second_test_module {
         type CallMessage = MyEnum;
         type Event = ();
 
-        fn genesis(
-            &self,
-            _config: &Self::Config,
-            _working_set: &mut WorkingSet<Ctx>,
-        ) -> Result<(), Error> {
-            Ok(())
-        }
+        fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<Ctx::Storage>) {}
 
         fn call(
             &mut self,
             _msg: Self::CallMessage,
             _context: &Self::Context,
-            _working_set: &mut WorkingSet<Ctx>,
-        ) -> Result<CallResponse, Error> {
+            _working_set: &mut WorkingSet<Ctx::Storage>,
+        ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
             Ok(CallResponse::default())
         }
     }

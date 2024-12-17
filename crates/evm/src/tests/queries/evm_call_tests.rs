@@ -8,15 +8,17 @@ use jsonrpsee::core::RpcResult;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use revm::primitives::U256;
+use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
 
-use super::C;
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::Evm;
+
+type C = DefaultContext;
 
 #[test]
 fn call_contract_without_value() {
@@ -317,7 +319,7 @@ fn test_eip1559_fields_call() {
 
 fn eth_call_eip1559(
     evm: &Evm<C>,
-    working_set: &mut WorkingSet<C>,
+    working_set: &mut WorkingSet<<C as Spec>::Storage>,
     signer: &TestSigner,
     max_fee_per_gas: Option<u128>,
     max_priority_fee_per_gas: Option<u128>,

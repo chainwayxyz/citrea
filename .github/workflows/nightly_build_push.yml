@@ -13,13 +13,6 @@ env:
 jobs:
   linux_amd64_binary_extraction:
     runs-on: ubicloud-standard-30
-    strategy:
-      matrix:
-        include:
-          - ci_test_mode: 1
-            ci_test_mode_value: "-ci"
-          - ci_test_mode: 0
-            ci_test_mode_value: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,14 +34,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
-        env:
-          CI_TEST_MODE: ${{ matrix.ci_test_mode }}
         run: |
-          cargo build --release
+          cargo build --features short-prefix
 
       - name: Copy binary to build-push/nightly
         run: |
-          cp target/release/citrea docker/build-push/nightly/citrea
+          cp target/debug/citrea docker/build-push/nightly/citrea
           chmod +x docker/build-push/nightly/citrea
 
       - name: Set up Docker Buildx
@@ -68,7 +59,7 @@ jobs:
         with:
           file: ./docker/build-push/nightly/Dockerfile
           context: ./docker/build-push/nightly
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea-test:${{ env.IMAGE_TAG }}${{ matrix.ci_test_mode_value }}
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea-test:${{ env.IMAGE_TAG }}
           platforms: linux/amd64
           push: true
           load: false

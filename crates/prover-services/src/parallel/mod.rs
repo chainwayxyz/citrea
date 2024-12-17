@@ -10,6 +10,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::{oneshot, Mutex};
+use tracing::{info, warn};
 
 use crate::ProofGenMode;
 
@@ -113,8 +114,13 @@ where
         )
     }
 
-    async fn prove_all(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
+    async fn prove_all(&self, elf: Vec<u8>, proof_queue: Vec<ProofData>) -> Vec<Proof> {
         let num_threads = self.thread_pool.current_num_threads();
+        info!(
+            "Starting parallel proving of {} proofs with {} workers",
+            proof_queue.len(),
+            num_threads
+        );
 
         // Future buffer to keep track of ongoing provings
         let mut ongoing_proofs = Vec::with_capacity(num_threads);
@@ -122,15 +128,22 @@ where
         // Initialize proof workers
         for (idx, proof_data) in proof_queue.into_iter().enumerate() {
             if ongoing_proofs.len() == num_threads {
+                warn!(
+                    "Reached parallel proof limit, waiting for one of the proving tasks to finish"
+                );
                 // If no available threads, wait for one of the proofs to finish
                 let ((idx, proof), _, remaining_proofs) = future::select_all(ongoing_proofs).await;
                 proofs[idx] = proof;
                 ongoing_proofs = remaining_proofs;
             }
 
-            let proof_fut = self.prove_one(proof_data);
+            info!("Starting proving task {}", idx);
+            let proof_fut = self.prove_one(elf.clone(), proof_data);
             ongoing_proofs.push(Box::pin(async move {
                 let proof = proof_fut.await;
+
+                info!("Finished proving task {}", idx);
+
                 (idx, proof)
             }));
         }
@@ -144,7 +157,7 @@ where
         proofs
     }
 
-    async fn prove_one(&self, (input, assumptions): ProofData) -> Proof {
+    async fn prove_one(&self, elf: Vec<u8>, (input, assumptions): ProofData) -> Proof {
         let mut vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
         let proof_mode = self.proof_mode.clone();
@@ -157,7 +170,7 @@ where
         let (tx, rx) = oneshot::channel();
         self.thread_pool.spawn(move || {
             let proof =
-                make_proof(vm, zk_storage, proof_mode).expect("Proof creation must not fail");
+                make_proof(vm, elf, zk_storage, proof_mode).expect("Proof creation must not fail");
             let _ = tx.send(proof);
         });
 
@@ -188,7 +201,7 @@ where
         proof_queue.push(proof_data);
     }
 
-    async fn prove(&self) -> anyhow::Result<Vec<Proof>> {
+    async fn prove(&self, elf: Vec<u8>) -> anyhow::Result<Vec<Proof>> {
         let mut proof_queue = self.proof_queue.lock().await;
         if let ProofGenMode::Skip = *self.proof_mode.lock().await {
             tracing::debug!("Skipped proving {} proofs", proof_queue.len());
@@ -205,7 +218,7 @@ where
         let proof_queue = std::mem::take(&mut *proof_queue);
 
         // Prove all
-        Ok(self.prove_all(proof_queue).await)
+        Ok(self.prove_all(elf, proof_queue).await)
     }
 
     async fn submit_proofs(
@@ -232,6 +245,7 @@ where
 
 fn make_proof<Da, Vm, Stf>(
     mut vm: Vm,
+    elf: Vec<u8>,
     zk_storage: Stf::PreState,
     proof_mode: Arc<Mutex<ProofGenMode<Da, Vm, Stf>>>,
 ) -> Result<Proof, anyhow::Error>
@@ -248,7 +262,14 @@ where
             .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
             .map(|_| Vec::default())
             .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        ProofGenMode::Execute => vm.run(false),
-        ProofGenMode::Prove => vm.run(true),
+        // If not skip or simulate, we have to drop the lock manually to allow parallel proving
+        ProofGenMode::Execute => {
+            drop(proof_mode);
+            vm.run(elf, false)
+        }
+        ProofGenMode::Prove => {
+            drop(proof_mode);
+            vm.run(elf, true)
+        }
     }
 }

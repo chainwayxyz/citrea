@@ -104,7 +104,7 @@ impl<C: sov_modules_api::Context> FeeHistoryCache<C> {
         &mut self,
         start_block: u64,
         end_block: u64,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> Vec<FeeHistoryEntry> {
         let mut result = Vec::new();
         let mut empty_blocks = Vec::new();

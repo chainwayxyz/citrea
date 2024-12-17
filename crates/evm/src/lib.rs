@@ -36,9 +36,9 @@ use alloy_primitives::{Address, TxHash, B256};
 use evm::db::EvmDb;
 pub use revm::primitives::SpecId as EvmSpecId;
 use revm::primitives::{BlockEnv, U256};
-#[cfg(feature = "native")]
-use sov_modules_api::{AccessoryWorkingSet, StateVecAccessor};
-use sov_modules_api::{Error, ModuleInfo, SpecId as CitreaSpecId, WorkingSet};
+use sov_modules_api::{
+    ModuleInfo, SoftConfirmationModuleCallError, SpecId as CitreaSpecId, WorkingSet,
+};
 use sov_state::codec::{BcsCodec, RlpCodec};
 
 #[cfg(feature = "native")]
@@ -99,10 +99,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[memory]
     pub(crate) block_env: BlockEnv,
 
-    /// Field that keeps track of blob gas usage
-    #[memory]
-    pub(crate) blob_gas_used: u64,
-
     /// Transactions that will be added to the current block.
     /// Valid transactions are added to the vec on every call message.
     #[memory]
@@ -127,20 +123,6 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used by the EVM to calculate the `blockhash` opcode.
     #[state(rename = "h")]
     pub(crate) latest_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
-
-    /// Native pending transactions. Used to store transactions that are not yet included in the block.
-    /// We use this in the sequencer to see which txs did not fail
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) native_pending_transactions:
-        sov_modules_api::AccessoryStateVec<PendingTransaction, RlpCodec>,
-
-    /// Transaction's hash that failed to pay the L1 fee.
-    /// Used to prevent DOS attacks.
-    /// The vector is cleared in `finalize_hook`.
-    #[cfg(feature = "native")]
-    #[state]
-    pub(crate) l1_fee_failed_txs: sov_modules_api::AccessoryStateVec<TxHash, BcsCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
@@ -187,24 +169,24 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
     type Event = ();
 
-    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C>) -> Result<(), Error> {
-        Ok(self.init_module(config, working_set)?)
+    fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
+        self.init_module(config, working_set)
     }
 
     fn call(
         &mut self,
         msg: Self::CallMessage,
         context: &Self::Context,
-        working_set: &mut WorkingSet<C>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
-        Ok(self.execute_call(msg.txs, context, working_set)?)
+        working_set: &mut WorkingSet<C::Storage>,
+    ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
+        self.execute_call(msg.txs, context, working_set)
     }
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
     pub(crate) fn get_db<'a>(
         &self,
-        working_set: &'a mut WorkingSet<C>,
+        working_set: &'a mut WorkingSet<C::Storage>,
         current_spec: EvmSpecId,
     ) -> EvmDb<'a, C> {
         EvmDb::new(
@@ -215,25 +197,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             working_set,
             current_spec,
         )
-    }
-
-    /// Returns transaction hashes that failed to pay the L1 fee.
-    #[cfg(feature = "native")]
-    pub fn get_l1_fee_failed_txs(
-        &self,
-        accessory_working_set: &mut AccessoryWorkingSet<C>,
-    ) -> Vec<TxHash> {
-        self.l1_fee_failed_txs.iter(accessory_working_set).collect()
-    }
-
-    /// Returns the list of pending EVM transactions
-    #[cfg(feature = "native")]
-    pub fn get_last_pending_transaction(
-        &self,
-        accessory_working_set: &mut WorkingSet<C>,
-    ) -> Option<PendingTransaction> {
-        self.native_pending_transactions
-            .last(&mut accessory_working_set.accessory_state())
     }
 }
 

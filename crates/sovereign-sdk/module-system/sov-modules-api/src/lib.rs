@@ -10,6 +10,7 @@ mod pub_key_hex;
 
 pub use sov_rollup_interface::fork;
 pub use sov_rollup_interface::spec::SpecId;
+pub use sov_rollup_interface::stf::{SoftConfirmationHookError, SoftConfirmationModuleCallError};
 
 #[cfg(feature = "macros")]
 mod reexport_macros;
@@ -186,33 +187,24 @@ pub use clap;
 pub use sov_modules_core::PrivateKey;
 pub use sov_modules_core::{
     archival_state, runtime, AccessoryWorkingSet, Address, AddressBech32, CallResponse, Context,
-    DispatchCall, EncodeCall, Genesis, KernelModule, KernelWorkingSet, Module,
-    ModuleCallJsonSchema, ModuleError, ModuleError as Error, ModuleInfo, ModulePrefix, PublicKey,
-    Signature, Spec, StateCheckpoint, StateReaderAndWriter, VersionedWorkingSet, WorkingSet,
+    DispatchCall, EncodeCall, Genesis, Module, ModuleCallJsonSchema, ModuleInfo, ModulePrefix,
+    PublicKey, Signature, Spec, StateCheckpoint, StateReaderAndWriter, WorkingSet,
 };
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::soft_confirmation::{
-    SignedSoftConfirmation, UnsignedSoftConfirmation,
+    SignedSoftConfirmation, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1,
 };
 pub use sov_rollup_interface::stf::{Event, StateDiff};
-pub use sov_rollup_interface::zk::{BatchProofCircuitOutputV2, Zkvm};
+pub use sov_rollup_interface::zk::{BatchProofCircuitOutput, Zkvm};
 pub use sov_rollup_interface::{digest, BasicAddress, RollupAddress};
 
 pub mod prelude {
     pub use super::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 }
 
-pub mod optimistic {
-    pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
-}
-
 pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
-}
-
-pub mod storage {
-    pub use sov_rollup_interface::storage::HierarchicalStorageManager;
 }
 
 struct ModuleVisitor<'a, C: Context> {

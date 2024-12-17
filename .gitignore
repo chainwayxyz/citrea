@@ -1,7 +1,7 @@
 demo-rollup-readme.sh
 *.db
 /target
-
+resources/dbs/
 .idea/
 target-path*
 
@@ -16,6 +16,7 @@ resources/dbs/sequencer-db/
 resources/dbs/full-node-db/
 resources/dbs/batch-prover-db/
 resources/dbs/light-client-prover-db/
+resources/dbs/
 resources/bitcoin/inscription_txs/
 /.vscode/*
 

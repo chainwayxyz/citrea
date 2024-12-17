@@ -16,7 +16,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use sov_rollup_interface::da::{DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
 use test_utils::{
     generate_mock_txs, get_citrea_path, get_default_service, get_mock_false_signature_txs_block,
@@ -57,7 +57,7 @@ impl TestCase for BitcoinServiceTest {
 
         // Extracts relevant batch proof blobs with proof correctly
         {
-            let (txs, inclusion_proof, completeness_proof) =
+            let (mut txs, inclusion_proof, completeness_proof) =
                 service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
             assert_eq!(inclusion_proof.wtxids.len(), 29);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
@@ -70,6 +70,10 @@ impl TestCase for BitcoinServiceTest {
                 "expected completeness proof to have at least 4 txs, it has {}",
                 completeness_proof.len()
             );
+
+            txs.iter_mut().for_each(|t| {
+                t.full_data();
+            });
 
             // Since only one of the transactions has a malformed sender, we have to find the
             // tx that is not malformed, and get its public key
@@ -94,7 +98,7 @@ impl TestCase for BitcoinServiceTest {
 
         // Extracts relevant light client proof blobs with proof correctly
         {
-            let (txs, inclusion_proof, completeness_proof) =
+            let (mut txs, inclusion_proof, completeness_proof) =
                 service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
             assert_eq!(inclusion_proof.wtxids.len(), 29);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
@@ -107,6 +111,10 @@ impl TestCase for BitcoinServiceTest {
                 "expected completeness proof to have at least 4 txs, it has {}",
                 completeness_proof.len()
             );
+
+            txs.iter_mut().for_each(|t| {
+                t.full_data();
+            });
 
             // Ensure that the produced outputs are verifiable by the verifier
             assert_eq!(

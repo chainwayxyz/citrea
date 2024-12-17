@@ -52,7 +52,8 @@ mod general_state_tests {
     general_state_test!(st_sload, stSLoadTest);
     general_state_test!(st_zero_calls_revert, stZeroCallsRevert);
     general_state_test!(st_zero_calls, stZeroCallsTest);
-    general_state_test!(stshanghai, Shanghai);
+    general_state_test!(st_shanghai, Shanghai);
+    general_state_test!(st_cancun, Cancun);
     general_state_test!(st_attack, stAttackTest);
     general_state_test!(st_bugs, stBugs);
     general_state_test!(st_call_codes, stCallCodes);
@@ -89,15 +90,7 @@ mod general_state_tests {
     general_state_test!(st_wallet, stWalletTest);
     general_state_test!(st_zero_knowledge, stZeroKnowledge);
     general_state_test!(st_zero_knowledge2, stZeroKnowledge2);
-
-    // Failing
-    // general_state_test!(vm_tests, VMTests);
-    // general_state_test!(st_bad_opcode, stBadOpcode);
-    // general_state_test!(st_create2, stCreate2);
-    // general_state_test!(st_create, stCreateTest);
-    // general_state_test!(st_quadratic_complexity, stQuadraticComplexityTest);
-    //general_state_test!(st_recursive_create, stRecursiveCreate);
-    // general_state_test!(st_stack, stStackTests);
+    general_state_test!(st_transition, stTransitionTest);
+    general_state_test!(st_vm, VMTests);
+    general_state_test!(st_pyspecs, Pyspecs);
 }
-
-// TODO: Add ValidBlocks and InvalidBlocks tests

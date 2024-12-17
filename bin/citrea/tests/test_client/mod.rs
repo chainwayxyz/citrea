@@ -21,6 +21,8 @@ use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{BlockId, BlockNumberOrTag};
 use sequencer_client::GetSoftConfirmationResponse;
+use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::HexHash;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,
@@ -572,10 +574,7 @@ impl TestClient {
         hash: [u8; 32],
     ) -> Result<Option<Vec<SequencerCommitmentResponse>>, Box<dyn std::error::Error>> {
         self.http_client
-            .request(
-                "ledger_getSequencerCommitmentsOnSlotByHash",
-                rpc_params![hash],
-            )
+            .get_sequencer_commitments_on_slot_by_hash(HexHash(hash))
             .await
             .map_err(|e| e.into())
     }

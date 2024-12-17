@@ -15,7 +15,7 @@ async fn test_pruner_simple_run() {
     let (sender, receiver) = broadcast::channel(1);
     let cancellation_token = CancellationToken::new();
 
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None)).unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
     let pruner = Pruner::new(PruningConfig { distance: 5 }, 0, receiver, ledger_db);
 
     tokio::spawn(pruner.run(cancellation_token.clone()));

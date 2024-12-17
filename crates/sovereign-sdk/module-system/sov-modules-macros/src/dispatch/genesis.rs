@@ -35,19 +35,19 @@ impl GenesisMacro {
 
         // Implements the Genesis trait
         Ok(quote::quote! {
-            #genesis_config
+                #genesis_config
 
-            impl #impl_generics sov_modules_api::Genesis for #ident #type_generics #where_clause {
-                type Context = #generic_param;
-                type Config = GenesisConfig #type_generics;
+                impl #impl_generics sov_modules_api::Genesis for #ident #type_generics #where_clause {
+                    type Context = #generic_param;
+                    type Config = GenesisConfig #type_generics;
 
-                fn genesis(&self, config: &Self::Config, working_set: &mut sov_modules_api::WorkingSet<<Self as sov_modules_api::Genesis>::Context>) -> core::result::Result<(), sov_modules_api::Error> {
-                    #genesis_fn_body
-                    Ok(())
+                    fn genesis(&self, config: &Self::Config, working_set: &mut sov_modules_api::WorkingSet<<<Self as sov_modules_api::Genesis>::Context as Spec>::Storage>) {
+                        #genesis_fn_body
+                    }
                 }
             }
-        }
-        .into())
+            .into()
+        )
     }
 
     fn make_genesis_fn_body(fields: &[StructNamedField]) -> proc_macro2::TokenStream {
@@ -69,12 +69,12 @@ impl GenesisMacro {
 
         quote::quote! {
                 let modules: ::std::vec::Vec<(&dyn ::sov_modules_api::ModuleInfo<Context = <Self as sov_modules_api::Genesis>::Context>, usize)> = ::std::vec![#(#idents),*];
-                let sorted_modules = ::sov_modules_api::sort_values_by_modules_dependencies(modules)?;
+                let sorted_modules = ::sov_modules_api::sort_values_by_modules_dependencies(modules).expect("Failed to sort modules");
                 for module in sorted_modules {
                      match module {
                          #(#matches)*
-                         _ => Err(::sov_modules_api::Error::ModuleError(::anyhow::Error::msg(format!("Module not found: {:?}", module)))),
-                     }?
+                         _ => { panic!("Module not found: {:?}", module) },
+                     }
                 }
         }
     }

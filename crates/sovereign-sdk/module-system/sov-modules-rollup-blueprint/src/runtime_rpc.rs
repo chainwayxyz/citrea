@@ -1,18 +1,19 @@
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::{Context, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, SequencerOutcome, TxEffect};
+use sov_prover_storage_manager::{ProverStorage, SnapshotManager};
 use sov_rollup_interface::services::da::DaService;
 
 /// Register rollup's default rpc methods.
 pub fn register_rpc<RT, C, Da>(
-    storage: &<C as Spec>::Storage,
+    storage: &ProverStorage<SnapshotManager>,
     ledger_db: &LedgerDB,
     _da_service: &Da,
     _sequencer: C::Address,
 ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>
 where
     RT: RuntimeTrait<C, <Da as DaService>::Spec> + Send + Sync + 'static,
-    C: Context,
+    C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
 {
     // runtime rpc.

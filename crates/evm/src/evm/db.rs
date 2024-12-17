@@ -37,7 +37,7 @@ pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
     pub(crate) offchain_code: sov_modules_api::OffchainStateMap<B256, Bytecode, BcsCodec>,
     pub(crate) last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
-    pub(crate) working_set: &'a mut WorkingSet<C>,
+    pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
     pub(crate) current_spec: SpecId,
 }
 
@@ -47,7 +47,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
         code: sov_modules_api::StateMap<B256, Bytecode, BcsCodec>,
         offchain_code: sov_modules_api::OffchainStateMap<B256, Bytecode, BcsCodec>,
         last_block_hashes: sov_modules_api::StateMap<U256, B256, BcsCodec>,
-        working_set: &'a mut WorkingSet<C>,
+        working_set: &'a mut WorkingSet<C::Storage>,
         current_spec: SpecId,
     ) -> Self {
         Self {

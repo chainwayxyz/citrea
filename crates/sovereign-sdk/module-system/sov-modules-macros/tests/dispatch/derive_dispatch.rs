@@ -4,7 +4,7 @@ use modules::{first_test_module, second_test_module};
 use sov_modules_api::default_context::ZkDefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
 use sov_modules_api::{
-    Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo, SpecId,
+    Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo, Spec, SpecId,
 };
 use sov_state::ZkStorage;
 
@@ -27,10 +27,9 @@ fn main() {
     let storage = ZkStorage::new();
     let mut working_set = &mut sov_modules_api::WorkingSet::new(storage);
     let config = GenesisConfig::new((), (), ());
-    runtime.genesis(&config, working_set).unwrap();
+    runtime.genesis(&config, working_set);
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
-    let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context = ZkDefaultContext::new(sender, sequencer, 1, SpecId::Genesis, 0);
+    let context = ZkDefaultContext::new(sender, 1, SpecId::Genesis, 0);
 
     let value = 11;
     {

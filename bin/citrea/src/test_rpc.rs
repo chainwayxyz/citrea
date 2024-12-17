@@ -5,10 +5,11 @@ use reqwest::header::CONTENT_TYPE;
 use sha2::Digest;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::types::StoredTransaction;
 use sov_mock_da::MockDaSpec;
 #[cfg(test)]
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::stf::{Event, SoftConfirmationReceipt, TransactionReceipt};
+use sov_rollup_interface::stf::SoftConfirmationReceipt;
 
 struct TestExpect {
     payload: serde_json::Value,
@@ -42,7 +43,7 @@ async fn queries_test_runner(test_queries: Vec<TestExpect>, rpc_config: RpcConfi
 fn populate_ledger(
     ledger_db: &mut LedgerDB,
     state_root: &[u8],
-    soft_confirmation_receipts: Vec<SoftConfirmationReceipt<u32, MockDaSpec>>,
+    soft_confirmation_receipts: Vec<SoftConfirmationReceipt<MockDaSpec>>,
     tx_bodies: Vec<Vec<Vec<u8>>>,
 ) {
     for (soft_confirmation_receipt, tx_bodies) in
@@ -56,7 +57,7 @@ fn populate_ledger(
 
 fn test_helper(
     test_queries: Vec<TestExpect>,
-    soft_confirmation_receipts: Vec<SoftConfirmationReceipt<u32, MockDaSpec>>,
+    soft_confirmation_receipts: Vec<SoftConfirmationReceipt<MockDaSpec>>,
     tx_bodies: Vec<Vec<Vec<u8>>>,
 ) {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -69,7 +70,7 @@ fn test_helper(
         // Initialize the ledger database, which stores blocks, transactions, events, etc.
         let tmpdir = tempfile::tempdir().unwrap();
         let mut ledger_db =
-            LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None)).unwrap();
+            LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
         populate_ledger(
             &mut ledger_db,
             &[1; 32],
@@ -100,12 +101,11 @@ fn test_helper(
     });
 }
 
-fn batch2_tx_receipts() -> (Vec<TransactionReceipt<u32>>, Vec<Vec<u8>>) {
+fn batch2_tx_receipts() -> (Vec<StoredTransaction>, Vec<Vec<u8>>) {
     let receipts = (0..260u64)
-        .map(|i| TransactionReceipt::<u32> {
-            tx_hash: sha2::Sha256::digest(i.to_string()).into(),
-            events: vec![],
-            receipt: 0,
+        .map(|i| StoredTransaction {
+            hash: sha2::Sha256::digest(i.to_string()).into(),
+            body: Some(b"tx body".to_vec()),
         })
         .collect();
     let bodies = (0..260u64).map(|_| b"tx body".to_vec()).collect();
@@ -124,20 +124,9 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             soft_confirmation_signature: vec![],
             hash: ::sha2::Sha256::digest(b"batch_receipt").into(),
             prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt").into(),
-            tx_receipts: vec![
-                TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx1").into(),
-                    events: vec![],
-                    receipt: 0,
-                },
-                TransactionReceipt::<u32> {
-                    tx_hash: ::sha2::Sha256::digest(b"tx2").into(),
-                    events: vec![
-                        Event::new("event1_key", "event1_value"),
-                        Event::new("event2_key", "event2_value"),
-                    ],
-                    receipt: 1,
-                },
+            tx_hashes: vec![
+                ::sha2::Sha256::digest(b"tx1").into(),
+                ::sha2::Sha256::digest(b"tx2").into(),
             ],
             pub_key: vec![],
             deposit_data: vec![
@@ -155,7 +144,7 @@ fn regular_test_helper(payload: serde_json::Value, expected: &serde_json::Value)
             soft_confirmation_signature: vec![],
             hash: ::sha2::Sha256::digest(b"batch_receipt2").into(),
             prev_hash: ::sha2::Sha256::digest(b"prev_batch_receipt2").into(),
-            tx_receipts: batch_2_receipts,
+            tx_hashes: batch_2_receipts.iter().map(|r| r.hash).collect(),
             pub_key: vec![],
             deposit_data: vec!["c44444".as_bytes().to_vec()],
             l1_fee_rate: 0,

@@ -66,9 +66,9 @@ impl<'a> StructDef<'a> {
                 fn dispatch_call(
                     &mut self,
                     decodable: Self::Decodable,
-                    working_set: &mut ::sov_modules_api::WorkingSet<Self::Context>,
+                    working_set: &mut ::sov_modules_api::WorkingSet<<Self::Context as Spec>::Storage>,
                     context: &Self::Context,
-                ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::Error> {
+                ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::SoftConfirmationModuleCallError> {
 
                     match decodable {
                         #(#match_legs)*
@@ -134,7 +134,6 @@ impl DispatchCallMacro {
             #call_enum
 
             #create_dispatch_impl
-        }
-        .into())
+        }.into())
     }
 }

@@ -107,7 +107,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     rpc.register_blocking_method("eth_gasPrice", move |_, ethereum, _| {
         let price = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
 
             let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set);
 
@@ -119,7 +119,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     rpc.register_blocking_method("eth_maxFeePerGas", move |_, ethereum, _| {
         let max_fee_per_gas = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
 
             let (base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set);
 
@@ -131,7 +131,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
     rpc.register_blocking_method("eth_maxPriorityFeePerGas", move |_, ethereum, _| {
         let max_priority_fee = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
 
             let (_base_fee, suggested_tip) = ethereum.max_fee_per_gas(&mut working_set);
 
@@ -152,7 +152,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         let block_count = usize::from(block_count) as u64;
 
         let fee_history = {
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
 
             ethereum.gas_price_oracle.fee_history(
                 block_count,
@@ -190,7 +190,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     //     }
 
     //     let raw_evm_tx = {
-    //         let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+    //         let mut working_set = WorkingSet::new(ethereum.storage.clone());
 
     //         // set nonce if none
     //         if transaction_request.nonce.is_none() {
@@ -399,7 +399,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
 
             let block_hash: B256 = params.next()?;
             let evm = Evm::<C>::default();
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
             let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
             let block_number =
@@ -422,7 +422,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let block_number: BlockNumberOrTag = params.next()?;
             let opts: Option<GethDebugTracingOptions> = params.optional_next()?;
 
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
             let evm = Evm::<C>::default();
             let latest_block_number: u64 = evm.block_number(&mut working_set)?.saturating_to();
 
@@ -453,7 +453,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
             let tx_hash: B256 = params.next()?;
 
             let evm = Evm::<C>::default();
-            let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+            let mut working_set = WorkingSet::new(ethereum.storage.clone());
 
             let tx = evm
                 .get_transaction_by_hash(tx_hash, &mut working_set)
@@ -557,7 +557,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     _ => {
                         // if mempool_only is not true ask evm first then sequencer
                         let evm = Evm::<C>::default();
-                        let mut working_set = WorkingSet::<C>::new(ethereum.storage.clone());
+                        let mut working_set = WorkingSet::new(ethereum.storage.clone());
                         match evm.get_transaction_by_hash(hash, &mut working_set) {
                             Ok(Some(tx)) => Ok(Some(tx)),
                             Ok(None) => {

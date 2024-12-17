@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, Spec};
 use sov_rollup_interface::spec::SpecId;
 
@@ -26,8 +25,7 @@ fn begin_soft_confirmation_hook_checks_max_l2_blocks_per_l1() {
     )
     .unwrap();
 
-    let sequencer_address = generate_address::<C>("sequencer");
-    let context = C::new(sender_address, sequencer_address, 1, SpecId::Genesis, 0);
+    let context = C::new(sender_address, 1, SpecId::Genesis, 0);
 
     let _ = soft_confirmation_rule_enforcer
         .call(call_message, &context, &mut working_set)
@@ -77,7 +75,7 @@ fn begin_soft_confirmation_hook_checks_timestamp() {
     assert!(res.is_err());
 
     assert_eq!(
-        "Other error: Timestamp should be greater than last timestamp",
+        "Timestamp should be greater",
         format!("{}", res.unwrap_err())
     );
 

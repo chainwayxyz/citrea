@@ -24,7 +24,7 @@ use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{BatchProofCircuitOutputV2, Proof, ZkvmHost};
+use sov_rollup_interface::zk::{BatchProofCircuitOutput, Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -142,22 +142,19 @@ where
 
         let sequencer_commitments = extract_sequencer_commitments(
             self.da_service.clone(),
-            l1_block.clone(),
+            l1_block,
             &self.sequencer_da_pub_key,
         );
-        let zk_proofs = match extract_zk_proofs(
-            self.da_service.clone(),
-            l1_block.clone(),
-            &self.prover_da_pub_key,
-        )
-        .await
-        {
-            Ok(proofs) => proofs,
-            Err(e) => {
-                error!("Could not process L1 block: {}...skipping", e);
-                return;
-            }
-        };
+        let zk_proofs =
+            match extract_zk_proofs(self.da_service.clone(), l1_block, &self.prover_da_pub_key)
+                .await
+            {
+                Ok(proofs) => proofs,
+                Err(e) => {
+                    error!("Could not process L1 block: {}...skipping", e);
+                    return;
+                }
+            };
 
         if !sequencer_commitments.is_empty() {
             // If the L2 range does not exist, we break off the current process call
@@ -172,10 +169,7 @@ where
         }
 
         for zk_proof in zk_proofs.clone().iter() {
-            if let Err(e) = self
-                .process_zk_proof(l1_block.clone(), zk_proof.clone())
-                .await
-            {
+            if let Err(e) = self.process_zk_proof(l1_block, zk_proof.clone()).await {
                 match e {
                     SyncError::MissingL2(msg, start_l2_height, end_l2_height) => {
                         warn!("Could not completely process ZK proofs. Missing L2 blocks {:?} - {:?}. msg = {}", start_l2_height, end_l2_height, msg);
@@ -289,19 +283,19 @@ where
 
     async fn process_zk_proof(
         &self,
-        l1_block: Da::FilteredBlock,
+        l1_block: &Da::FilteredBlock,
         proof: Proof,
     ) -> Result<(), SyncError> {
         tracing::info!(
             "Processing zk proof at height: {}",
             l1_block.header().height()
         );
-        tracing::debug!("ZK proof: {:?}", proof);
+        tracing::trace!("ZK proof: {:?}", proof);
 
         // TODO: select output version based on spec
         let batch_proof_output = Vm::extract_output::<
             <Da as DaService>::Spec,
-            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         .expect("Proof should be deserializable");
         if batch_proof_output.sequencer_da_public_key != self.sequencer_da_pub_key
@@ -330,6 +324,9 @@ where
             sequencer_public_key: batch_proof_output.sequencer_public_key,
             sequencer_da_public_key: batch_proof_output.sequencer_da_public_key,
             preproven_commitments: batch_proof_output.preproven_commitments.clone(),
+            prev_soft_confirmation_hash: batch_proof_output.prev_soft_confirmation_hash,
+            final_soft_confirmation_hash: batch_proof_output.final_soft_confirmation_hash,
+            last_l2_height: batch_proof_output.last_l2_height,
         };
 
         let l1_hash = batch_proof_output.da_slot_hash.into();

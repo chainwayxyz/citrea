@@ -24,7 +24,6 @@ digest = { workspace = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true }
 serde = { workspace = true }
-sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 # TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
 tokio = { workspace = true, optional = true }
@@ -40,7 +39,7 @@ serde_json = { workspace = true }
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures", "tracing"]
-fuzzing = ["proptest", "proptest-derive", "sha2", "std"]
+fuzzing = ["proptest", "proptest-derive", "std"]
 testing = ["native"]
 arbitrary = ["dep:arbitrary"]
 std = [
@@ -52,6 +51,5 @@ std = [
   "hex/default",
   "proptest?/default",
   "serde/default",
-  "sha2?/default",
   "thiserror",
 ]

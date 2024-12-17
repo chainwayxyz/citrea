@@ -44,9 +44,7 @@ pub use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::macros::DefaultRuntime;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
-#[cfg(feature = "native")]
-use sov_modules_api::Spec;
-use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec};
+use sov_modules_api::{Context, DispatchCall, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
 
 #[cfg(feature = "native")]
@@ -79,7 +77,7 @@ where
     type GenesisPaths = GenesisPaths;
 
     #[cfg(feature = "native")]
-    fn rpc_methods(storage: <C as Spec>::Storage) -> jsonrpsee::RpcModule<()> {
+    fn rpc_methods(storage: C::Storage) -> jsonrpsee::RpcModule<()> {
         get_rpc_methods::<C, Da>(storage)
     }
 

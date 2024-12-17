@@ -1,5 +1,6 @@
 //! An implementation of the eth gas price oracle, used for providing gas price estimates based on
 //! previous blocks.
+#![allow(unused)]
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
@@ -144,7 +145,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         mut block_count: u64,
         newest_block: BlockNumberOrTag,
         reward_percentiles: Option<Vec<f64>>,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> EthResult<FeeHistory> {
         if block_count == 0 {
             return Ok(FeeHistory::default());
@@ -238,7 +239,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
     }
 
     /// Suggests a gas price estimate based on recent blocks, using the configured percentile.
-    pub fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C>) -> EthResult<u128> {
+    pub fn suggest_tip_cap(&self, working_set: &mut WorkingSet<C::Storage>) -> EthResult<u128> {
         let header = &self
             .provider
             .get_block_by_number(None, None, working_set)
@@ -326,7 +327,7 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         &self,
         block_hash: B256,
         limit: usize,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) -> EthResult<Option<(B256, Vec<u128>)>> {
         // check the cache (this will hit the disk if the block is not cached)
         let block_hit = {

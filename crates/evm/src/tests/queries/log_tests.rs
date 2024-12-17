@@ -88,14 +88,8 @@ fn log_filter_test_at_block_hash() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         // deploy logs contract
         // call the contract function
@@ -303,14 +297,8 @@ fn log_filter_test_with_range() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         // deploy selfdestruct contract
         // call the contract function
@@ -371,14 +359,8 @@ fn log_filter_test_with_range() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
         // call the contract function
         evm.call(
             CallMessage {
@@ -441,14 +423,8 @@ fn test_log_limits() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let sequencer_address = generate_address::<C>("sequencer");
-        let context = C::new(
-            sender_address,
-            sequencer_address,
-            l2_height,
-            SpecId::Genesis,
-            l1_fee_rate,
-        );
+
+        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(

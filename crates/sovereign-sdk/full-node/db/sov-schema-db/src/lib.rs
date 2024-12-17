@@ -32,8 +32,8 @@ use metrics::{
     SCHEMADB_GET_BYTES, SCHEMADB_GET_LATENCY_SECONDS, SCHEMADB_PUT_BYTES,
 };
 pub use rocksdb;
-use rocksdb::ReadOptions;
 pub use rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
+use rocksdb::{DBIterator, ReadOptions};
 use thiserror::Error;
 use tracing::info;
 
@@ -75,6 +75,12 @@ impl DB {
     /// Returns the path of the DB.
     pub fn path(&self) -> &Path {
         self.inner.path()
+    }
+
+    /// Lists column families in the DB.
+    pub fn list_column_families(&self) -> Vec<String> {
+        rocksdb::DB::list_cf(&rocksdb::Options::default(), self.path())
+            .expect("Should list column families")
     }
 
     /// Open RocksDB with the provided column family descriptors.
@@ -227,6 +233,32 @@ impl DB {
         self.iter_with_direction::<S>(read_options, ScanDirection::Forward)
     }
 
+    /// Drops a column family from the database.
+    pub fn drop_cf(&mut self, cf_name: &str) -> anyhow::Result<()> {
+        Ok(self.inner.drop_cf(cf_name)?)
+    }
+
+    /// Inserts a key value pair to a column family.
+    pub fn put_cf(
+        &self,
+        cf_handle: &rocksdb::ColumnFamily,
+        key: &[u8],
+        value: &[u8],
+    ) -> anyhow::Result<()> {
+        self.inner.put_cf(cf_handle, key, value)?;
+        Ok(())
+    }
+
+    /// Returns an iterator over a column family
+    pub fn iter_cf<'a>(
+        &'a self,
+        cf_handle: &rocksdb::ColumnFamily,
+        iter_mode: Option<rocksdb::IteratorMode>,
+    ) -> DBIterator<'a> {
+        self.inner
+            .iterator_cf(cf_handle, iter_mode.unwrap_or(rocksdb::IteratorMode::Start))
+    }
+
     /// Returns a [`RawDbReverseIterator`] which allows to iterate over raw values, backwards
     pub fn raw_iter<S: Schema>(&self) -> anyhow::Result<RawDbReverseIterator> {
         let cf_handle = self.get_cf_handle(S::COLUMN_FAMILY_NAME)?;
@@ -289,7 +321,8 @@ impl DB {
         Ok(())
     }
 
-    fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
+    /// Returns the handle for a rocksdb column family.
+    pub fn get_cf_handle(&self, cf_name: &str) -> anyhow::Result<&rocksdb::ColumnFamily> {
         self.inner.cf_handle(cf_name).ok_or_else(|| {
             format_err!(
                 "DB::cf_handle not found for column family name: {}",

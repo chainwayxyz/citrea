@@ -26,15 +26,13 @@ where
     pub fn begin_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) {
         // just to be sure, we clear the pending transactions
         // do not ever think about removing this line
         // it has implications way beyond our understanding
         // a holy line
         self.pending_transactions.clear();
-        // we have to set blob gas used to zero at the beginning of the block
-        self.blob_gas_used = 0;
 
         let current_spec = soft_confirmation_info.current_spec;
 
@@ -114,17 +112,11 @@ where
 
         let active_evm_spec = citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec);
 
-        let blob_excess_gas_and_price = sealed_parent_block
-            .header
-            .next_block_excess_blob_gas()
-            .or_else(|| {
-                if active_evm_spec >= SpecId::CANCUN {
-                    Some(0)
-                } else {
-                    None
-                }
-            })
-            .map(BlobExcessGasAndPrice::new);
+        let blob_excess_gas_and_price = if active_evm_spec >= SpecId::CANCUN {
+            Some(BlobExcessGasAndPrice::new(0))
+        } else {
+            None
+        };
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number + 1),
@@ -173,7 +165,7 @@ where
     pub fn end_soft_confirmation_hook(
         &mut self,
         soft_confirmation_info: &HookSoftConfirmationInfo,
-        working_set: &mut WorkingSet<C>,
+        working_set: &mut WorkingSet<C::Storage>,
     ) {
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
@@ -253,15 +245,17 @@ where
             blob_gas_used: if citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec)
                 >= SpecId::CANCUN
             {
-                Some(self.blob_gas_used)
+                Some(0)
             } else {
                 None
             },
-            excess_blob_gas: self
-                .block_env
-                .blob_excess_gas_and_price
-                .as_ref()
-                .map(|x| x.excess_blob_gas),
+            excess_blob_gas: if citrea_spec_id_to_evm_spec_id(soft_confirmation_info.current_spec)
+                >= SpecId::CANCUN
+            {
+                Some(0)
+            } else {
+                None
+            },
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
@@ -287,6 +281,7 @@ where
         #[cfg(feature = "native")]
         {
             use crate::PendingTransaction;
+
             let mut accessory_state = working_set.accessory_state();
 
             self.pending_head.set(&block, &mut accessory_state);
@@ -309,9 +304,6 @@ where
                 tx_index += 1
             }
             self.pending_transactions.clear();
-
-            self.native_pending_transactions
-                .clear(&mut working_set.accessory_state());
         }
     }
 
@@ -327,8 +319,8 @@ where
     #[cfg_attr(not(feature = "native"), allow(unused_variables))]
     pub fn finalize_hook(
         &self,
-        root_hash: &<<C as Spec>::Storage as Storage>::Root,
-        accessory_working_set: &mut AccessoryWorkingSet<C>,
+        root_hash: &<C::Storage as Storage>::Root,
+        accessory_working_set: &mut AccessoryWorkingSet<C::Storage>,
     ) {
         #[cfg(feature = "native")]
         {
@@ -362,8 +354,6 @@ where
                 accessory_working_set,
             );
             self.pending_head.delete(accessory_working_set);
-
-            self.l1_fee_failed_txs.clear(accessory_working_set);
         }
     }
 }

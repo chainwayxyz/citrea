@@ -3,17 +3,36 @@ EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
+TEST_FEATURES := --features short-prefix
+BATCH_OUT_PATH := resources/guests/risc0/
+LIGHT_OUT_PATH := resources/guests/risc0/
 
 .PHONY: help
-
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+.PHONY: build-risc0
+build-risc0:
+	$(MAKE) -j 2 -C guests/risc0 all
+
+.PHONY: build-risc0-docker
+build-risc0-docker:
+	$(MAKE) -C guests/risc0 batch-proof-bitcoin-docker OUT_PATH=$(BATCH_OUT_PATH)
+	$(MAKE) -C guests/risc0 light-client-bitcoin-docker OUT_PATH=$(LIGHT_OUT_PATH)
+
+.PHONY: build-sp1
+build-sp1:
+	$(MAKE) -C guests/sp1 all
 
 .PHONY: build
 build: ## Build the project
 	@cargo build
 
-build-release: ## Build the project in release mode
+.PHONY: build-test
+build-test: ## Build the project
+	@cargo build $(TEST_FEATURES)
+
+build-release: build-risc0 build-sp1 ## Build the project in release mode
 	@cargo build --release
 
 clean: ## Cleans compiled
@@ -36,7 +55,7 @@ clean-all: clean clean-node clean-txs
 test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
-test: build $(EF_TESTS_DIR) ## Runs test suite using next test
+test: build-test $(EF_TESTS_DIR) ## Runs test suite using next test
 	RISC0_DEV_MODE=1 cargo nextest run --workspace --all-features --no-fail-fast $(filter-out $@,$(MAKECMDGOALS))
 
 install-dev-tools:  ## Installs all necessary cargo helpers
@@ -65,7 +84,6 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	dprint check
 	cargo +nightly fmt --all --check
 	cargo check --all-targets --all-features
-	$(MAKE) check-fuzz
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
 
 lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
@@ -77,9 +95,6 @@ lint-fix:  ## dprint fmt, cargo fmt, fix and clippy. Skip clippy on guest code s
 check-features: ## Checks that project compiles with all combinations of features.
 	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets
 
-check-fuzz: ## Checks that fuzz member compiles
-	$(MAKE) -C crates/sovereign-sdk/fuzz check
-
 check-no-std: ## Checks that project compiles without std
 	$(MAKE) -C crates/sovereign-sdk/rollup-interface $@
 	$(MAKE) -C crates/sovereign-sdk/module-system/sov-modules-core $@
@@ -90,7 +105,7 @@ find-unused-deps: ## Prints unused dependencies for project. Note: requires nigh
 find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
-coverage: build $(EF_TESTS_DIR) ## Coverage in lcov format
+coverage: build-test $(EF_TESTS_DIR) ## Coverage in lcov format
 	cargo llvm-cov --locked --lcov --output-path lcov.info nextest --workspace --all-features
 
 coverage-html: ## Coverage in HTML format

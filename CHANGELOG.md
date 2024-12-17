@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.5 (2024-12-9)
+- 100 wei constant priority fee suggestion from nodes. ([#1561](https://github.com/chainwayxyz/citrea/pull/1561))
+- Sequencer checks compressed diff size of a commitment before commiting. ([#1349](https://github.com/chainwayxyz/citrea/pull/1349) and [#1557](https://github.com/chainwayxyz/citrea/pull/1557))
+- `prover_prove` RPC method now available. ([#1335](https://github.com/chainwayxyz/citrea/pull/1335))
+- Prover can now prove locally. ([#1326](https://github.com/chainwayxyz/citrea/pull/1326))
+- Prover, sequencer and node configs can now be passed through environment variables. ([#1320](https://github.com/chainwayxyz/citrea/pull/1320))
+- Fix Bitcoin DA adapter fee estimation infinite loop bug. ([#1330](https://github.com/chainwayxyz/citrea/pull/1330))
+
 ## v0.5.4 (2024-10-11)
 - Fixed gas estimation for when a tx has gas limit < block gas limit but with the L1 fee overhead the gas estimation is returned > block gas limit. Preventing transactions from landing on chain. ([#1323](https://github.com/chainwayxyz/citrea/pull/1323))
 - Better use of `tokio::spawn_blocking` in Bitcoin DA adapter. ([#1321](https://github.com/chainwayxyz/citrea/pull/1321) [#1324](https://github.com/chainwayxyz/citrea/pull/1324))

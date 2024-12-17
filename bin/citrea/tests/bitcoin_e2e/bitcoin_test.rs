@@ -13,6 +13,7 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
+use reth_primitives::U64;
 use sov_ledger_rpc::client::RpcClient;
 use tokio::time::sleep;
 
@@ -68,6 +69,9 @@ impl TestCase for BitcoinReorgTest {
         let original_chain_hash = da0.get_block_hash(original_chain_height).await?;
         let block = da0.get_block(&original_chain_hash).await?;
         assert_eq!(block.txdata.len(), 3); // Coinbase + seq commit/reveal txs
+
+        // Buffer to wait for monitoring to update status to confirmed
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let da1_generated_blocks = 2;
         da1.generate(da1_generated_blocks).await?;
@@ -126,7 +130,7 @@ impl TestCase for BitcoinReorgTest {
         let original_commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await?
             .unwrap_or_default();
 
@@ -328,7 +332,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let commitments = batch_prover
             .client
             .http_client()
-            .get_sequencer_commitments_on_slot_by_number(finalized_height)
+            .get_sequencer_commitments_on_slot_by_number(U64::from(finalized_height))
             .await?
             .unwrap();
 

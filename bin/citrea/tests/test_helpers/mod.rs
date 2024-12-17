@@ -14,6 +14,7 @@ use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
+use sov_modules_rollup_blueprint::{Network, RollupBlueprint as _};
 use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
@@ -48,7 +49,7 @@ pub async fn start_rollup(
     // Fake receipts are receipts without the proof, they only include the journal, which makes them suitable for testing and development
     std::env::set_var("RISC0_DEV_MODE", "1");
 
-    let mock_demo_rollup = MockDemoRollup {};
+    let mock_demo_rollup = MockDemoRollup::new(Network::Testnet);
 
     if sequencer_config.is_some() && rollup_prover_config.is_some() {
         panic!("Both sequencer and batch prover config cannot be set at the same time");
@@ -68,7 +69,7 @@ pub async fn start_rollup(
                 .pub_key()
         );
         let span = info_span!("Sequencer");
-        let sequencer = CitreaRollupBlueprint::create_new_sequencer(
+        let (mut sequencer, rpc_methods) = CitreaRollupBlueprint::create_new_sequencer(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config.clone(),
@@ -77,14 +78,17 @@ pub async fn start_rollup(
         .instrument(span.clone())
         .await
         .unwrap();
+
         sequencer
-            .run_and_report_rpc_port(Some(rpc_reporting_channel))
-            .instrument(span)
+            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
+            .instrument(span.clone())
             .await
             .unwrap();
+
+        sequencer.run().instrument(span).await.unwrap();
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
-        let rollup = CitreaRollupBlueprint::create_new_batch_prover(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_batch_prover(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config,
@@ -93,11 +97,14 @@ pub async fn start_rollup(
         .instrument(span.clone())
         .await
         .unwrap();
+
         rollup
-            .run_and_report_rpc_port(Some(rpc_reporting_channel))
-            .instrument(span)
+            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
+            .instrument(span.clone())
             .await
             .unwrap();
+
+        rollup.run().instrument(span).await.unwrap();
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
         let rollup = CitreaRollupBlueprint::create_new_light_client_prover(
@@ -115,7 +122,7 @@ pub async fn start_rollup(
             .unwrap();
     } else {
         let span = info_span!("FullNode");
-        let rollup = CitreaRollupBlueprint::create_new_rollup(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_rollup(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config.clone(),
@@ -123,11 +130,13 @@ pub async fn start_rollup(
         .instrument(span.clone())
         .await
         .unwrap();
+
         rollup
-            .run_and_report_rpc_port(Some(rpc_reporting_channel))
-            .instrument(span)
-            .await
-            .unwrap();
+            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
+            .instrument(span.clone())
+            .await;
+
+        rollup.run().instrument(span).await.unwrap();
     }
 }
 
