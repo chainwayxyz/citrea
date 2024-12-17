@@ -21,7 +21,7 @@ use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{BlockId, BlockNumberOrTag};
 use sequencer_client::GetSoftConfirmationResponse;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::client::LedgerRpcClient;
 use sov_ledger_rpc::HexHash;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
@@ -497,9 +497,9 @@ impl TestClient {
     >(
         &self,
         num: u64,
-    ) -> Option<GetSoftConfirmationResponse> {
+    ) -> Option<SoftConfirmationResponse> {
         self.http_client
-            .request("ledger_getSoftConfirmationByNumber", rpc_params![num])
+            .get_soft_confirmation_by_number(U64::from(num))
             .await
             .unwrap()
     }
@@ -507,21 +507,15 @@ impl TestClient {
     pub(crate) async fn ledger_get_soft_confirmation_status(
         &self,
         soft_confirmation_receipt: u64,
-    ) -> Result<Option<SoftConfirmationStatus>, Box<dyn std::error::Error>> {
-        self.http_client
-            .request(
-                "ledger_getSoftConfirmationStatus",
-                rpc_params![soft_confirmation_receipt],
-            )
-            .await
-            .map_err(|e| e.into())
+    ) -> Result<SoftConfirmationStatus, Box<dyn std::error::Error>> {
+        Ok(self
+            .http_client
+            .get_soft_confirmation_status(U64::from(soft_confirmation_receipt))
+            .await?)
     }
 
     pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
-        self.http_client
-            .request("ledger_getLastScannedL1Height", rpc_params![])
-            .await
-            .unwrap()
+        self.http_client.get_last_scanned_l1_height().await.unwrap()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_number(
@@ -529,10 +523,7 @@ impl TestClient {
         height: u64,
     ) -> anyhow::Result<Option<Vec<SequencerCommitmentResponse>>> {
         self.http_client
-            .request(
-                "ledger_getSequencerCommitmentsOnSlotByNumber",
-                rpc_params![height],
-            )
+            .get_sequencer_commitments_on_slot_by_number(U64::from(height))
             .await
             .map_err(|e| e.into())
     }
@@ -540,9 +531,9 @@ impl TestClient {
     pub(crate) async fn ledger_get_batch_proofs_by_slot_height(
         &self,
         height: u64,
-    ) -> Vec<BatchProofResponse> {
+    ) -> Option<Vec<BatchProofResponse>> {
         self.http_client
-            .request("ledger_getBatchProofsBySlotHeight", rpc_params![height])
+            .get_batch_proofs_by_slot_height(U64::from(height))
             .await
             .unwrap()
     }
@@ -552,21 +543,18 @@ impl TestClient {
         height: u64,
     ) -> Option<Vec<VerifiedBatchProofResponse>> {
         self.http_client
-            .request(
-                "ledger_getVerifiedBatchProofsBySlotHeight",
-                rpc_params![height],
-            )
+            .get_verified_batch_proofs_by_slot_height(U64::from(height))
             .await
-            .ok()
+            .unwrap()
     }
 
     pub(crate) async fn ledger_get_last_verified_batch_proof(
         &self,
     ) -> Option<LastVerifiedBatchProofResponse> {
         self.http_client
-            .request("ledger_getLastVerifiedBatchProof", rpc_params![])
+            .get_last_verified_batch_proof()
             .await
-            .ok()
+            .unwrap()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_hash(
@@ -583,16 +571,16 @@ impl TestClient {
         &self,
     ) -> Result<Option<SoftConfirmationResponse>, Box<dyn std::error::Error>> {
         self.http_client
-            .request("ledger_getHeadSoftConfirmation", rpc_params![])
+            .get_head_soft_confirmation()
             .await
             .map_err(|e| e.into())
     }
 
     pub(crate) async fn ledger_get_head_soft_confirmation_height(
         &self,
-    ) -> Result<Option<u64>, Box<dyn std::error::Error>> {
+    ) -> Result<u64, Box<dyn std::error::Error>> {
         self.http_client
-            .request("ledger_getHeadSoftConfirmationHeight", rpc_params![])
+            .get_head_soft_confirmation_height()
             .await
             .map_err(|e| e.into())
     }

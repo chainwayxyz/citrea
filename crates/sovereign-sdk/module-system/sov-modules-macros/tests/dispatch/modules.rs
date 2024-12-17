@@ -22,18 +22,10 @@ pub mod first_test_module {
         }
     }
 
-    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq)]
-    pub enum Event {
-        FirstModuleEnum1(u64),
-        FirstModuleEnum2,
-        FirstModuleEnum3(Vec<u8>),
-    }
-
     impl<C: Context> Module for FirstTestStruct<C> {
         type Context = C;
         type Config = ();
         type CallMessage = u8;
-        type Event = Event;
 
         fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
             self.state_in_first_struct.set(&1, working_set);
@@ -69,16 +61,10 @@ pub mod second_test_module {
         }
     }
 
-    #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq)]
-    pub enum Event {
-        SecondModuleEnum,
-    }
-
     impl<Ctx: Context> Module for SecondTestStruct<Ctx> {
         type Context = Ctx;
         type Config = ();
         type CallMessage = u8;
-        type Event = Event;
 
         fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx::Storage>) {
             self.state_in_second_struct.set(&2, working_set);
@@ -130,7 +116,6 @@ pub mod third_test_module {
         type Context = Ctx;
         type Config = ();
         type CallMessage = OtherGeneric;
-        type Event = ();
 
         fn genesis(&self, _config: &Self::Config, working_set: &mut WorkingSet<Ctx::Storage>) {
             self.state_in_third_struct

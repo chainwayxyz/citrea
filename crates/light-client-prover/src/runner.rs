@@ -4,13 +4,11 @@ use std::sync::Arc;
 
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
-use sequencer_client::SequencerClient;
-use sov_db::ledger_db::{LedgerDB, LightClientProverLedgerOps, SharedLedgerOps};
+use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::SlotNumber;
-use sov_modules_api::DaSpec;
-use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -21,41 +19,6 @@ use tracing::{error, info, instrument};
 
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc::{create_rpc_module, RpcContext};
-
-/// Dependencies needed to run the rollup.
-pub struct LightClientProver<S: RollupBlueprint> {
-    /// The State Transition Runner.
-    #[allow(clippy::type_complexity)]
-    pub runner: CitreaLightClientProver<S::DaService, S::Vm, S::ProverService, LedgerDB>,
-    /// Rpc methods for the rollup.
-    pub rpc_methods: jsonrpsee::RpcModule<()>,
-}
-
-impl<S: RollupBlueprint> LightClientProver<S> {
-    /// Runs the rollup.
-    #[instrument(level = "trace", skip_all, err, ret(level = "error"))]
-    pub async fn run(self) -> Result<(), anyhow::Error> {
-        self.run_and_report_rpc_port(None).await
-    }
-
-    /// Only run the rpc.
-    pub async fn run_rpc(mut self) -> Result<(), anyhow::Error> {
-        self.runner.start_rpc_server(self.rpc_methods, None).await?;
-        Ok(())
-    }
-
-    /// Runs the rollup. Reports rpc port to the caller using the provided channel.
-    pub async fn run_and_report_rpc_port(
-        self,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-    ) -> Result<(), anyhow::Error> {
-        let mut runner = self.runner;
-        runner.start_rpc_server(self.rpc_methods, channel).await?;
-
-        runner.run().await?;
-        Ok(())
-    }
-}
 
 pub struct CitreaLightClientProver<Da, Vm, Ps, DB>
 where
@@ -69,7 +32,7 @@ where
     rpc_config: RpcConfig,
     da_service: Arc<Da>,
     ledger_db: DB,
-    sequencer_client: SequencerClient,
+    sequencer_client: HttpClient,
     prover_service: Arc<Ps>,
     prover_config: LightClientProverConfig,
     task_manager: TaskManager<()>,
@@ -106,7 +69,7 @@ where
             rpc_config,
             da_service,
             ledger_db,
-            sequencer_client: SequencerClient::new(sequencer_client_url),
+            sequencer_client: HttpClientBuilder::default().build(sequencer_client_url)?,
             prover_service,
             prover_config,
             task_manager,
@@ -185,7 +148,7 @@ where
         let last_l1_height_scanned = match self.ledger_db.get_last_scanned_l1_height()? {
             Some(l1_height) => l1_height,
             // If not found, start from the first L2 block's L1 height
-            None => SlotNumber(get_initial_da_height::<Da::Spec>(&self.sequencer_client).await),
+            None => SlotNumber(self.prover_config.initial_da_height),
         };
 
         let prover_config = self.prover_config.clone();
@@ -247,18 +210,5 @@ where
         let rpc = create_rpc_module(rpc_context);
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
-    }
-}
-
-async fn get_initial_da_height<Da: DaSpec>(client: &SequencerClient) -> u64 {
-    loop {
-        match client.get_soft_confirmation::<Da>(1).await {
-            Ok(Some(batch)) => return batch.da_slot_height,
-            _ => {
-                // sleep 1
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                continue;
-            }
-        }
     }
 }

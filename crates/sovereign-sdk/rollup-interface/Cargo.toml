@@ -16,7 +16,6 @@ resolver = "2"
 
 [dependencies]
 anyhow = { workspace = true }
-arbitrary = { workspace = true, optional = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
@@ -29,19 +28,13 @@ thiserror = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
-# Proptest should be a dev-dependency, but those can't be optional
-proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
-
 [dev-dependencies]
 serde_json = { workspace = true }
 
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures", "tracing"]
-fuzzing = ["proptest", "proptest-derive", "std"]
 testing = ["native"]
-arbitrary = ["dep:arbitrary"]
 std = [
   "anyhow/default",
   "borsh/default",
@@ -49,7 +42,6 @@ std = [
   "bytes",
   "digest/default",
   "hex/default",
-  "proptest?/default",
   "serde/default",
   "thiserror",
 ]

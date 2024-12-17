@@ -1,10 +1,7 @@
 //! Runtime state machine definitions.
 
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
 use core::{fmt, mem};
-
-use sov_rollup_interface::stf::Event;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
@@ -378,7 +375,6 @@ impl<S: Storage> StateCheckpoint<S> {
             delta: RevertableWriter::new(self.delta, None),
             offchain_delta: RevertableWriter::new(self.offchain_delta, None),
             accessory_delta: RevertableWriter::new(self.accessory_delta, None),
-            events: Default::default(),
             archival_working_set: None,
             archival_accessory_working_set: None,
             archival_offchain_working_set: None,
@@ -423,7 +419,6 @@ pub struct WorkingSet<S: Storage> {
     delta: RevertableWriter<Delta<S>>,
     accessory_delta: RevertableWriter<AccessoryDelta<S>>,
     offchain_delta: RevertableWriter<OffchainDelta<S>>,
-    events: Vec<Event>,
     archival_working_set: Option<ArchivalJmtWorkingSet<S>>,
     archival_offchain_working_set: Option<ArchivalOffchainWorkingSet<S>>,
     archival_accessory_working_set: Option<ArchivalAccessoryWorkingSet<S>>,
@@ -501,22 +496,6 @@ impl<S: Storage> WorkingSet<S> {
             accessory_delta: self.accessory_delta.revert(),
             offchain_delta: self.offchain_delta.revert(),
         }
-    }
-
-    /// Adds an event to the working set.
-    pub fn add_event(&mut self, key: &str, value: &str) {
-        self.events.push(Event::new(key, value));
-    }
-
-    /// Extracts all events from this working set.
-    pub fn take_events(&mut self) -> Vec<Event> {
-        mem::take(&mut self.events)
-    }
-
-    /// Returns an immutable slice of all events that have been previously
-    /// written to this working set.
-    pub fn events(&self) -> &[Event] {
-        &self.events
     }
 
     /// Fetches given value and provides a proof of it presence/absence.

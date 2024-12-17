@@ -1911,7 +1911,6 @@ dependencies = [
  "bytes",
  "digest",
  "hex",
- "proptest",
  "serde",
  "thiserror",
 ]

@@ -13,11 +13,14 @@ use std::time::Duration;
 use alloy_primitives::{Address, U256};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
+use citrea_primitives::forks::FORKS;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
+use sov_modules_api::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::spec::SpecId;
 use tokio::task::JoinHandle;
 
 use crate::evm::{init_test_rollup, make_test_client};
@@ -190,7 +193,8 @@ async fn test_all_flow() {
 
     let prover_proof = prover_node_test_client
         .ledger_get_batch_proofs_by_slot_height(3)
-        .await[0]
+        .await
+        .unwrap()[0]
         .clone();
 
     // the proof will be in l1 block #4 because prover publishes it after the commitment and in mock da submitting proof and commitments creates a new block
@@ -226,14 +230,12 @@ async fn test_all_flow() {
     full_node_test_client
         .ledger_get_soft_confirmation_status(5)
         .await
-        .unwrap()
         .unwrap();
 
     for i in 1..=4 {
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(status, SoftConfirmationStatus::Proven);
@@ -284,7 +286,8 @@ async fn test_all_flow() {
 
     let prover_proof_data = prover_node_test_client
         .ledger_get_batch_proofs_by_slot_height(5)
-        .await[0]
+        .await
+        .unwrap()[0]
         .clone();
 
     wait_for_proof(&full_node_test_client, 6, Some(Duration::from_secs(120))).await;
@@ -330,7 +333,6 @@ async fn test_all_flow() {
         let status = full_node_test_client
             .ledger_get_soft_confirmation_status(i)
             .await
-            .unwrap()
             .unwrap();
 
         assert_eq!(status, SoftConfirmationStatus::Proven);
@@ -411,7 +413,6 @@ async fn test_ledger_get_head_soft_confirmation() {
     let head_soft_confirmation_height = seq_test_client
         .ledger_get_head_soft_confirmation_height()
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(head_soft_confirmation_height, 2);
 
@@ -646,9 +647,17 @@ async fn test_offchain_contract_storage() {
     assert_eq!(code.to_vec()[..runtime_code.len()], runtime_code.to_vec());
 
     // reach the block at which the fork will be activated
-    for _ in 3..=100 {
-        sequencer_client.send_publish_batch_request().await;
+    for _ in 3..=1000 {
+        sequencer_client.spam_publish_batch_request().await.unwrap();
     }
+
+    wait_for_l2_block(&sequencer_client, 1000, Some(Duration::from_secs(300))).await;
+    let seq_height = sequencer_client.eth_block_number().await;
+
+    let seq_fork = fork_from_block_number(FORKS, seq_height);
+
+    // Assert we are at fork1
+    assert_eq!(seq_fork.spec_id, SpecId::Fork1);
 
     // This should access the `code` and copy code over to `offchain_code` in EVM
     let code = sequencer_client

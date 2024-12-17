@@ -35,7 +35,6 @@ pub use sov_modules_macros::MessageCodec;
 ///     type Context = C;
 ///     type Config = PhantomData<C>;
 ///     type CallMessage = ();
-///     type Event = ();
 ///     
 ///     fn call(
 ///        &mut self,

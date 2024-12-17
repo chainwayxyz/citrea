@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+  - job_name: 'sequencer'
+    static_configs:
+      - targets: ['host.docker.internal:8001']
+  - job_name: 'fullnode'
+    static_configs:
+      - targets: ['host.docker.internal:8002']
+  - job_name: 'batch-prover'
+    static_configs:
+      - targets: ['host.docker.internal:8003']
+  - job_name: 'light-client'
+    static_configs:
+      - targets: ['host.docker.internal:8004']

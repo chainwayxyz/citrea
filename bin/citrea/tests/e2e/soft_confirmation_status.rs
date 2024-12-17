@@ -44,7 +44,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationStatus::Trusted, status_node.unwrap());
+        assert_eq!(SoftConfirmationStatus::Trusted, status_node);
     }
 
     // Wait for DA block #2 containing the commitment
@@ -58,7 +58,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node);
     }
 
     seq_task.abort();
@@ -117,7 +117,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node);
     }
 
     // Check that these L2 blocks are bounded on different L1 block
@@ -148,7 +148,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
 
-        assert_eq!(SoftConfirmationStatus::Finalized, status_node.unwrap());
+        assert_eq!(SoftConfirmationStatus::Finalized, status_node);
     }
 
     let status_node = full_node_test_client

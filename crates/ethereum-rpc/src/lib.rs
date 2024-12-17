@@ -12,17 +12,19 @@ use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{Evm, Filter};
+use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
 pub use gas_price::gas_oracle::GasPriceOracleConfig;
+use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::EthApiError;
-use sequencer_client::SequencerClient;
 use serde_json::json;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_modules_api::WorkingSet;
@@ -78,7 +80,7 @@ pub fn get_ethereum_rpc<C: sov_modules_api::Context, Da: DaService>(
         eth_signer,
         storage,
         ledger_db,
-        sequencer_client_url.map(SequencerClient::new),
+        sequencer_client_url.map(|url| HttpClientBuilder::default().build(url).unwrap()),
         soft_confirmation_rx,
     ));
 
@@ -516,7 +518,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                     .sequencer_client
                     .as_ref()
                     .unwrap()
-                    .send_raw_tx(data)
+                    .eth_send_raw_transaction(data)
                     .await;
 
                 match tx_hash {
@@ -544,7 +546,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                             .sequencer_client
                             .as_ref()
                             .unwrap()
-                            .get_tx_by_hash(hash, Some(true))
+                            .eth_get_transaction_by_hash(hash, Some(true))
                             .await
                         {
                             Ok(tx) => Ok(tx),
@@ -566,7 +568,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                                     .sequencer_client
                                     .as_ref()
                                     .unwrap()
-                                    .get_tx_by_hash(hash, Some(true))
+                                    .eth_get_transaction_by_hash(hash, Some(true))
                                     .await
                                 {
                                     Ok(tx) => Ok(tx),
@@ -597,7 +599,11 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 // sequencer client should send latest l2 height
                 // da service should send latest finalized l1 block header
                 let (sequencer_response, da_response) = join!(
-                    ethereum.sequencer_client.as_ref().unwrap().block_number(),
+                    ethereum
+                        .sequencer_client
+                        .as_ref()
+                        .unwrap()
+                        .get_head_soft_confirmation_height(),
                     ethereum.da_service.get_last_finalized_block_header()
                 );
                 // handle sequencer response

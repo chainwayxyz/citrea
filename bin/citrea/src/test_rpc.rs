@@ -82,8 +82,7 @@ fn test_helper(
             .await
             .unwrap();
         let addr = server.local_addr().unwrap();
-        let server_rpc_module =
-            sov_ledger_rpc::server::rpc_module::<LedgerDB, u32, u32>(ledger_db).unwrap();
+        let server_rpc_module = sov_ledger_rpc::server::create_rpc_module::<LedgerDB>(ledger_db);
         let _server_handle = server.start(server_rpc_module);
 
         let rpc_config = RpcConfig {

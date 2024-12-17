@@ -13,7 +13,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use reth_primitives::U64;
-use sov_ledger_rpc::client::RpcClient;
+use sov_ledger_rpc::LedgerRpcClient;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -53,6 +53,7 @@ impl TestCase for LightClientProvingTest {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
+            initial_da_height: 171,
             ..Default::default()
         }
     }
@@ -187,6 +188,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
+            initial_da_height: 171,
             ..Default::default()
         }
     }
@@ -254,12 +256,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(
-            full_node,
-            batch_proof_l1_height,
-            Some(Duration::from_secs(30)),
-        )
-        .await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
         assert_eq!(batch_proofs.len(), 2);
 
         // Wait for light client prover to process batch proofs.
@@ -394,12 +391,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         full_node
             .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
             .await?;
-        let batch_proofs = wait_for_zkproofs(
-            full_node,
-            batch_proof_l1_height,
-            Some(Duration::from_secs(30)),
-        )
-        .await?;
+        let batch_proofs = wait_for_zkproofs(full_node, batch_proof_l1_height, None).await?;
         assert_eq!(batch_proofs.len(), 1);
 
         // Wait for light client prover to process batch proofs.

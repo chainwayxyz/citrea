@@ -3,7 +3,7 @@ use bitcoin::{Amount, Transaction};
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, FINALITY_DEPTH};
-use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -275,6 +275,13 @@ impl TestCase for TestProverTransactionChaining {
         }
     }
 
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: FINALITY_DEPTH * 2,
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
         let batch_prover = f.batch_prover.as_mut().unwrap();
@@ -296,6 +303,9 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(1).await?;
         let block_height = da.get_block_count().await?;
@@ -336,6 +346,9 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(1).await?;
         let block_height = da.get_block_count().await?;
@@ -378,6 +391,9 @@ impl TestCase for TestProverTransactionChaining {
         batch_prover
             .wait_for_l1_height(finalized_height, None)
             .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(2, None).await?;
 
         da.generate(1).await?;
         let block_height = da.get_block_count().await?;

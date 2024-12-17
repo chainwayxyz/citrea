@@ -20,6 +20,7 @@ hex = { workspace = true }
 hyper = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lru = { workspace = true }
+reth-primitives = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -30,6 +31,7 @@ tracing = { workspace = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
+sov-ledger-rpc = { path = "../sovereign-sdk/full-node/sov-ledger-rpc", features = ["client"] }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api" }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }

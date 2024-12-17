@@ -1,9 +1,10 @@
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use anyhow::Result;
+use metrics::histogram;
 
-use crate::metrics::{SCHEMADB_ITER_BYTES, SCHEMADB_ITER_LATENCY_SECONDS};
 use crate::schema::{KeyDecoder, Schema, ValueCodec};
 use crate::{SchemaKey, SchemaValue};
 
@@ -96,9 +97,7 @@ where
     }
 
     fn next_impl(&mut self) -> Result<Option<IteratorOutput<S::Key, S::Value>>> {
-        let _timer = SCHEMADB_ITER_LATENCY_SECONDS
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
-            .start_timer();
+        let start = Instant::now();
 
         if !self.db_iter.valid() {
             self.db_iter.status()?;
@@ -108,9 +107,9 @@ where
         let raw_key = self.db_iter.key().expect("db_iter.key() failed.");
         let raw_value = self.db_iter.value().expect("db_iter.value() failed.");
         let value_size_bytes = raw_value.len();
-        SCHEMADB_ITER_BYTES
-            .with_label_values(&[S::COLUMN_FAMILY_NAME])
-            .observe((raw_key.len() + raw_value.len()) as f64);
+
+        histogram!("schemadb_iter_bytes", "cf_name" => S::COLUMN_FAMILY_NAME)
+            .record((raw_key.len() + raw_value.len()) as f64);
 
         let key = <S::Key as KeyDecoder<S>>::decode_key(raw_key)?;
         let value = <S::Value as ValueCodec<S>>::decode_value(raw_value)?;
@@ -119,6 +118,12 @@ where
             ScanDirection::Forward => self.db_iter.next(),
             ScanDirection::Backward => self.db_iter.prev(),
         }
+
+        histogram!("schemadb_iter_latency_seconds", "cf_name" => S::COLUMN_FAMILY_NAME).record(
+            Instant::now()
+                .saturating_duration_since(start)
+                .as_secs_f64(),
+        );
 
         Ok(Some(IteratorOutput {
             key,

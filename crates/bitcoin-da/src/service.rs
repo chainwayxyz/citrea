@@ -60,7 +60,7 @@ use crate::spec::{BitcoinSpec, RollupParams};
 use crate::verifier::BitcoinVerifier;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
-pub const FINALITY_DEPTH: u64 = 8; // blocks
+pub const FINALITY_DEPTH: u64 = 30; // blocks
 const POLLING_INTERVAL: u64 = 10; // seconds
 
 /// Runtime configuration for the DA service

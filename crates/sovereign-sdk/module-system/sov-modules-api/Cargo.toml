@@ -14,7 +14,6 @@ resolver = "2"
 [dependencies]
 jsonrpsee = { workspace = true, optional = true }
 anyhow = { workspace = true }
-arbitrary = { workspace = true, optional = true }
 digest = { workspace = true }
 sov-state = { path = "../sov-state" }
 sov-modules-core = { path = "../sov-modules-core" }
@@ -23,8 +22,6 @@ sov-modules-macros = { path = "../sov-modules-macros", optional = true, default-
 sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manager", optional = true }
 serde = { workspace = true }
 borsh = { workspace = true }
-proptest = { workspace = true, optional = true }
-proptest-derive = { workspace = true, optional = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
 bech32 = { workspace = true }
@@ -51,15 +48,6 @@ sov-prover-storage-manager = { path = "../../full-node/sov-prover-storage-manage
 
 
 [features]
-arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "native",
-    "sov-rollup-interface/arbitrary",
-    "proptest/default",
-    "sov-state/arbitrary",
-]
 bench = []
 default = ["native", "macros"]
 native = [

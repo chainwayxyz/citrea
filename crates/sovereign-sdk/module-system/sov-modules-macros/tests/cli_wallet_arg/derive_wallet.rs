@@ -37,7 +37,6 @@ pub mod first_test_module {
         type Context = C;
         type Config = ();
         type CallMessage = MyStruct;
-        type Event = ();
 
         fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<C::Storage>) {}
 
@@ -82,7 +81,6 @@ pub mod second_test_module {
         type Context = Ctx;
         type Config = ();
         type CallMessage = MyEnum;
-        type Event = ();
 
         fn genesis(&self, _config: &Self::Config, _working_set: &mut WorkingSet<Ctx::Storage>) {}
 

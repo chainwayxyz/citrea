@@ -42,7 +42,7 @@ pub trait SharedLedgerOps {
         l2_height: BatchNumber,
     ) -> Result<()>;
 
-    /// Get the next slot, block, transaction, and event numbers
+    /// Get the next slot, block, transaction numbers
     fn get_next_items_numbers(&self) -> ItemNumbers;
 
     /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
@@ -268,6 +268,8 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 /// Test ledger operations
 #[cfg(test)]
 pub trait TestLedgerOps {
+    /// Fetch the test values
     fn get_values(&self) -> anyhow::Result<Vec<(u64, (u64, u64))>>;
+    /// Insert the test values
     fn put_value(&self, key: u64, value: (u64, u64)) -> anyhow::Result<()>;
 }

@@ -26,7 +26,6 @@ citrea-sequencer = { path = "../../crates/sequencer" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
 prover-services = { path = "../../crates/prover-services" }
-sequencer-client = { path = "../../crates/sequencer-client" }
 
 # Sovereign-SDK deps
 soft-confirmation-rule-enforcer = { path = "../../crates/soft-confirmation-rule-enforcer" }
@@ -52,6 +51,9 @@ hex = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lazy_static = { workspace = true }
 log-panics = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true, default-features = true }
+metrics-util = { workspace = true }
 reth-primitives = { workspace = true }
 reth-transaction-pool = { workspace = true }
 risc0-binfmt = { workspace = true }
@@ -68,7 +70,7 @@ citrea-evm = { path = "../../crates/evm", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives", features = ["testing"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
-sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["fuzzing", "testing"] }
+sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["testing"] }
 
 alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers", "signer-local"] }
 alloy-rlp = { workspace = true }
@@ -77,7 +79,6 @@ alloy-rpc-types-trace = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
-proptest = { workspace = true }
 reqwest = { workspace = true }
 rs_merkle = { workspace = true }
 serde_json = { workspace = true }

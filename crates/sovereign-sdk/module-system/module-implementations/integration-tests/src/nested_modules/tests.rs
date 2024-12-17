@@ -1,6 +1,6 @@
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Context, Event, ModulePrefix, StateMap, WorkingSet};
+use sov_modules_api::{Context, ModulePrefix, StateMap, WorkingSet};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_state::{Storage, ZkStorage};
 
@@ -17,16 +17,6 @@ fn nested_module_call_test() {
         execute_module_logic::<DefaultContext>(&mut working_set);
         test_state_update::<DefaultContext>(&mut working_set);
     }
-    assert_eq!(
-        working_set.events(),
-        &vec![
-            Event::new("module C", "execute"),
-            Event::new("module A", "update"),
-            Event::new("module B", "update"),
-            Event::new("module A", "update"),
-            Event::new("module A", "update"),
-        ]
-    );
 
     let (log, mut witness) = working_set.checkpoint().freeze();
     prover_storage

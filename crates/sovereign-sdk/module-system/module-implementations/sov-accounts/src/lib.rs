@@ -1,5 +1,3 @@
-#[cfg(all(feature = "arbitrary", feature = "native"))]
-mod fuzz;
 mod genesis;
 mod hooks;
 pub use genesis::*;
@@ -33,7 +31,6 @@ pub struct Account<C: Context> {
 /// A module responsible for managing accounts on the rollup.
 #[cfg_attr(feature = "native", derive(sov_modules_api::ModuleCallJsonSchema))]
 #[derive(ModuleInfo, Clone)]
-#[cfg_attr(feature = "arbitrary", derive(Debug))]
 pub struct Accounts<C: Context> {
     /// The address of the sov-accounts module.
     #[address]
@@ -54,8 +51,6 @@ impl<C: Context> sov_modules_api::Module for Accounts<C> {
     type Config = AccountConfig<C>;
 
     type CallMessage = ();
-
-    type Event = ();
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.init_module(config, working_set)

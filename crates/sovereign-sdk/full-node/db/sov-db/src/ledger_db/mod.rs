@@ -52,7 +52,6 @@ pub struct LedgerDB {
 /// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
 /// the respective heights at the start or end of slot processing.
 #[derive(Default, Clone, Debug)]
-#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 pub struct ItemNumbers {
     /// The slot number
     pub slot_number: u64,
@@ -253,7 +252,7 @@ impl SharedLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Get the next slot, block, transaction, and event numbers
+    /// Get the next slot, block, transaction numbers
     #[instrument(level = "trace", skip(self), ret)]
     fn get_next_items_numbers(&self) -> ItemNumbers {
         self.next_item_numbers.lock().unwrap().clone()

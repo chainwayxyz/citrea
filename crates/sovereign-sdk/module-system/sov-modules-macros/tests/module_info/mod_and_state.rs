@@ -26,8 +26,6 @@ pub mod first_test_module {
 
         type CallMessage = ();
 
-        type Event = ();
-
         fn call(
             &mut self,
             _message: Self::CallMessage,
@@ -63,8 +61,6 @@ mod second_test_module {
         type Config = ();
 
         type CallMessage = ();
-
-        type Event = ();
 
         fn call(
             &mut self,
