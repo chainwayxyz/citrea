@@ -84,6 +84,20 @@ impl Forks {
         Some(Self { forks, count })
     }
 
+    pub fn from_slice(slice: &[Fork]) -> Self {
+        if slice.len() > 50 {
+            panic!("Never gonna have 50 forks...");
+        }
+
+        let mut forks = [Fork::default(); 50];
+        forks[0..slice.len()].copy_from_slice(slice);
+
+        Self {
+            forks,
+            count: slice.len(),
+        }
+    }
+
     pub const fn inner(&self) -> &[Fork] {
         self.forks.split_at(self.count).0
     }
@@ -116,7 +130,7 @@ impl<'de> Deserialize<'de> for Forks {
         }
 
         // Initialize the fixed-size array and count
-        let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
+        let mut forks = [Fork::default(); 50];
         let count = forks_vec.len();
 
         // Copy the deserialized forks into the fixed array
@@ -138,6 +152,15 @@ pub struct Fork {
 impl PartialEq for Fork {
     fn eq(&self, other: &Self) -> bool {
         self.spec_id == other.spec_id && self.activation_height == other.activation_height
+    }
+}
+
+impl Default for Fork {
+    fn default() -> Self {
+        Self {
+            spec_id: SpecId::Genesis,
+            activation_height: 0,
+        }
     }
 }
 
