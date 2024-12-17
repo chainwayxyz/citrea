@@ -12,9 +12,11 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
+alloy-rlp = { workspace = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc", "bytes"] }
+bytes = { workspace = true }
 bcs = { workspace = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }

@@ -21,6 +21,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Returns the sealed head block.
     pub fn last_sealed_header(&self, working_set: &mut WorkingSet<C>) -> SealedHeader {
+        if let Some(rlp_block) = self.blocks.last(&mut working_set.accessory_state()) {
+            return rlp_block.header;
+        }
+
         self.blocks
             .last(&mut working_set.accessory_state())
             .unwrap()

@@ -39,6 +39,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-rlp"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da0822426598f95e45dd1ea32a738dac057529a709ee645fcc516ffa4cbde08f"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2263,10 +2272,12 @@ dependencies = [
 name = "sov-state"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-rlp",
  "anyhow",
  "arbitrary",
  "bcs",
  "borsh",
+ "bytes",
  "jmt",
  "proptest",
  "proptest-derive",

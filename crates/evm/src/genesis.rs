@@ -208,7 +208,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.cfg.set(&chain_cfg, working_set);
 
-        let header = crate::primitive_types::Header {
+        let header = crate::primitive_types::DoNotUseHeader {
             parent_hash: B256::default(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: config.coinbase,
@@ -249,7 +249,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         #[cfg(feature = "native")]
         self.pending_head
-            .set(&block, &mut working_set.accessory_state());
+            .set(&block.into(), &mut working_set.accessory_state());
 
         Ok(())
     }

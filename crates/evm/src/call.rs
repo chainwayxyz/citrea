@@ -135,6 +135,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<CallResponse> {
         // use of `self.block_env` is allowed here
 
+        // TODO: should not include non deserilizable transactions
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .filter_map(|tx| match tx.try_into() {
