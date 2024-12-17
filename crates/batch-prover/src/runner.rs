@@ -73,7 +73,7 @@ where
     elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
-    fork_manager: ForkManager,
+    fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
 }
@@ -106,7 +106,7 @@ where
         prover_config: BatchProverConfig,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         elfs_by_spec: HashMap<SpecId, Vec<u8>>,
-        fork_manager: ForkManager,
+        fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {

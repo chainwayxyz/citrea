@@ -70,7 +70,7 @@ where
     code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
-    fork_manager: ForkManager,
+    fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     pruning_config: Option<PruningConfig>,
     task_manager: TaskManager<()>,
@@ -101,7 +101,7 @@ where
         mut storage_manager: ProverStorageManager<Da::Spec>,
         init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        fork_manager: ForkManager,
+        fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {

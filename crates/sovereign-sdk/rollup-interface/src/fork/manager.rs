@@ -4,14 +4,14 @@ use alloc::vec::Vec;
 
 use super::{Fork, ForkMigration};
 
-pub struct ForkManager {
-    forks: &'static [Fork],
+pub struct ForkManager<'a> {
+    forks: &'a [Fork],
     active_fork_idx: usize,
     migration_handlers: Vec<Box<dyn ForkMigration + Sync + Send>>,
 }
 
-impl ForkManager {
-    pub fn new(forks: &'static [Fork], current_l2_height: u64) -> Self {
+impl<'a> ForkManager<'a> {
+    pub fn new(forks: &'a [Fork], current_l2_height: u64) -> Self {
         // FORKS from citrea-primitives are checked at compile time to be sorted.
 
         let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&current_l2_height));

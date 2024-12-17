@@ -92,7 +92,7 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
-    fork_manager: ForkManager,
+    fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
 }
@@ -120,7 +120,7 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         rpc_config: RpcConfig,
-        fork_manager: ForkManager,
+        fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
     ) -> anyhow::Result<Self> {
