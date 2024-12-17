@@ -101,6 +101,12 @@ impl Forks {
     pub const fn inner(&self) -> &[Fork] {
         self.forks.split_at(self.count).0
     }
+
+    pub fn fork_from_block_number(&self, block_number: u64) -> Fork {
+        let inner = self.inner();
+        let pos = fork_pos_from_block_number(inner, block_number);
+        inner[pos]
+    }
 }
 
 impl Serialize for Forks {
@@ -292,7 +298,7 @@ impl Fork {
 
 /// Verifies the order of forks. `size` is needed here due to being in const environment,
 /// size of the fork might not be known beforehand.
-pub const fn verify_forks(forks: &[Fork], size: usize) -> bool {
+pub(crate) const fn verify_forks(forks: &[Fork], size: usize) -> bool {
     let mut i = 0;
     while i < size {
         let fork = forks[i];
@@ -314,4 +320,15 @@ pub const fn verify_forks(forks: &[Fork], size: usize) -> bool {
     }
 
     true
+}
+
+/// Simple search for the fork to which a specific block number belongs.
+/// This assumes that the list of forks is sorted by block number in ascending fashion.
+pub(crate) fn fork_pos_from_block_number(forks: &[Fork], block_number: u64) -> usize {
+    let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&block_number));
+    let active_fork_idx = match pos {
+        Ok(idx) => idx,
+        Err(idx) => idx.saturating_sub(1),
+    };
+    active_fork_idx
 }

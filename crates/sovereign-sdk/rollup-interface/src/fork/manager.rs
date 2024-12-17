@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use super::{Fork, ForkMigration};
+use super::{fork_pos_from_block_number, Fork, ForkMigration};
 
 pub struct ForkManager<'a> {
     forks: &'a [Fork],
@@ -13,12 +13,7 @@ pub struct ForkManager<'a> {
 impl<'a> ForkManager<'a> {
     pub fn new(forks: &'a [Fork], current_l2_height: u64) -> Self {
         // FORKS from citrea-primitives are checked at compile time to be sorted.
-
-        let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&current_l2_height));
-        let active_fork_idx = match pos {
-            Ok(idx) => idx,
-            Err(idx) => idx.saturating_sub(1),
-        };
+        let active_fork_idx = fork_pos_from_block_number(forks, current_l2_height);
 
         Self {
             forks,
@@ -62,10 +57,4 @@ impl<'a> ForkManager<'a> {
 
         Ok(())
     }
-}
-
-/// Simple search for the fork to which a specific block number blongs.
-/// This assumes that the list of forks is sorted by block number in ascending fashion.
-pub fn fork_from_block_number(forks: &'static [Fork], block_number: u64) -> Fork {
-    ForkManager::new(forks, block_number).active_fork()
 }
