@@ -31,7 +31,6 @@ jsonrpsee = { workspace = true, optional = true, features = ["http-client", "ser
 metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = true, optional = true }
-reth-primitives = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
@@ -57,7 +56,6 @@ native = [
   "dep:metrics",
   "dep:metrics-derive",
   "dep:once_cell",
-  "dep:reth-primitives",
   "dep:tokio",
   "dep:tokio-util",
   "dep:tower",
