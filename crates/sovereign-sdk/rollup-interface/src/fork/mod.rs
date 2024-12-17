@@ -10,6 +10,8 @@ pub use migration::*;
 
 use crate::spec::SpecId;
 
+/// Forks is a helper struct fork managing list of forks.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Forks {
     forks: [Fork; 50],
     count: usize,
