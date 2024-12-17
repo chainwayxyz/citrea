@@ -191,8 +191,8 @@ pub fn create_default_rollup_config(
         telemetry: Default::default(),
         forks: Forks::from_slice(&[
             Fork::new(SpecId::Genesis, 0),
-            Fork::new(SpecId::Fork1, 10000),
-            Fork::new(SpecId::Fork2, 20000),
+            Fork::new(SpecId::Fork1, 1000),
+            Fork::new(SpecId::Fork2, 2000),
         ])
         .unwrap(),
     }
