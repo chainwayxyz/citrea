@@ -7,7 +7,7 @@ mod hooks;
 #[cfg(feature = "native")]
 mod provider_functions;
 
-use alloy_rlp::{bytes, Decodable, Encodable};
+use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
@@ -47,7 +47,9 @@ use crate::evm::primitive_types::{Block, DoNotUseHeader, Receipt, TransactionSig
 use crate::evm::system_events::SystemEvent;
 pub use crate::EvmConfig;
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Debug, serde::Serialize, serde::Deserialize, RlpEncodable, RlpDecodable, PartialEq, Eq,
+)]
 /// Pending EVM transaction
 pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
@@ -63,24 +65,6 @@ impl PendingTransaction {
     /// Returns the cumulative gas used for this transaction
     pub fn cumulative_gas_used(&self) -> u64 {
         self.receipt.receipt.cumulative_gas_used
-    }
-}
-
-impl Encodable for PendingTransaction {
-    fn encode(&self, out: &mut dyn bytes::BufMut) {
-        self.transaction.encode(out);
-        self.receipt.encode(out);
-    }
-}
-
-impl Decodable for PendingTransaction {
-    fn decode(rlp: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
-        let transaction = TransactionSignedAndRecovered::decode(rlp)?;
-        let receipt = Receipt::decode(rlp)?;
-        Ok(Self {
-            transaction,
-            receipt,
-        })
     }
 }
 

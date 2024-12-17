@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use alloy_primitives::{Address, BlockNumber, Bloom, Bytes, Sealable, B256, B64, U256};
 use alloy_rlp::bytes::BufMut;
-use alloy_rlp::{Decodable, Encodable};
+use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 use reth_primitives::{Header as AlloyHeader, SealedHeader, TransactionSigned};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -161,7 +161,17 @@ impl From<AlloyHeader> for DoNotUseHeader {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    RlpEncodable,
+    RlpDecodable,
+    Default,
+    Eq,
+)]
 pub(crate) struct TransactionSignedAndRecovered {
     /// Signer of the transaction
     pub(crate) signer: Address,
@@ -169,27 +179,6 @@ pub(crate) struct TransactionSignedAndRecovered {
     pub(crate) signed_transaction: TransactionSigned,
     /// Block the transaction was added to
     pub(crate) block_number: u64,
-}
-
-impl Encodable for TransactionSignedAndRecovered {
-    fn encode(&self, out: &mut dyn BufMut) {
-        self.signer.encode(out);
-        self.signed_transaction.encode(out);
-        self.block_number.encode(out);
-    }
-}
-
-impl Decodable for TransactionSignedAndRecovered {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let signer = Decodable::decode(buf)?;
-        let signed_transaction = Decodable::decode(buf)?;
-        let block_number = Decodable::decode(buf)?;
-        Ok(Self {
-            signer,
-            signed_transaction,
-            block_number,
-        })
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
@@ -275,6 +264,16 @@ pub(crate) struct SealedBlock {
 
 impl Encodable for Block<AlloyHeader> {
     fn encode(&self, out: &mut dyn BufMut) {
+        let mut rlp_head = alloy_rlp::Header {
+            list: true,
+            payload_length: 0,
+        };
+        rlp_head.payload_length += self.header.length();
+        rlp_head.payload_length += self.l1_fee_rate.length();
+        rlp_head.payload_length += self.l1_hash.length();
+        rlp_head.payload_length += self.transactions.start.length();
+        rlp_head.payload_length += self.transactions.end.length();
+        rlp_head.encode(out);
         let header: AlloyHeader = self.header.clone();
         header.encode(out);
         self.l1_fee_rate.encode(out);
@@ -286,11 +285,28 @@ impl Encodable for Block<AlloyHeader> {
 
 impl Decodable for Block<AlloyHeader> {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let header: AlloyHeader = Decodable::decode(buf)?;
-        let l1_fee_rate = Decodable::decode(buf)?;
-        let l1_hash = Decodable::decode(buf)?;
-        let start = Decodable::decode(buf)?;
-        let end = Decodable::decode(buf)?;
+        let b = &mut &**buf;
+        let rlp_head = alloy_rlp::Header::decode(b)?;
+        if !rlp_head.list {
+            return Err(alloy_rlp::Error::UnexpectedString);
+        }
+        let started_len = b.len();
+
+        let header = AlloyHeader::decode(b)?;
+        let l1_fee_rate = Decodable::decode(b)?;
+        let l1_hash = Decodable::decode(b)?;
+        let start = Decodable::decode(b)?;
+        let end = Decodable::decode(b)?;
+
+        let consumed = started_len - b.len();
+        if consumed != rlp_head.payload_length {
+            return Err(alloy_rlp::Error::ListLengthMismatch {
+                expected: rlp_head.payload_length,
+                got: consumed,
+            });
+        }
+        *buf = *b;
+
         Ok(Self {
             header,
             l1_fee_rate,
@@ -302,7 +318,18 @@ impl Decodable for Block<AlloyHeader> {
 
 impl Encodable for SealedBlock {
     fn encode(&self, out: &mut dyn BufMut) {
-        self.header.encode(out);
+        let mut rlp_head = alloy_rlp::Header {
+            list: true,
+            payload_length: 0,
+        };
+        rlp_head.payload_length += self.header.length();
+        rlp_head.payload_length += self.l1_fee_rate.length();
+        rlp_head.payload_length += self.l1_hash.length();
+        rlp_head.payload_length += self.transactions.start.length();
+        rlp_head.payload_length += self.transactions.end.length();
+        rlp_head.encode(out);
+        let header: SealedHeader = self.header.clone();
+        header.encode(out);
         self.l1_fee_rate.encode(out);
         self.l1_hash.encode(out);
         self.transactions.start.encode(out);
@@ -312,11 +339,28 @@ impl Encodable for SealedBlock {
 
 impl Decodable for SealedBlock {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let header = Decodable::decode(buf)?;
-        let l1_fee_rate = Decodable::decode(buf)?;
-        let l1_hash = Decodable::decode(buf)?;
-        let start = Decodable::decode(buf)?;
-        let end = Decodable::decode(buf)?;
+        let b = &mut &**buf;
+        let rlp_head = alloy_rlp::Header::decode(b)?;
+        if !rlp_head.list {
+            return Err(alloy_rlp::Error::UnexpectedString);
+        }
+        let started_len = b.len();
+
+        let header = SealedHeader::decode(b)?;
+        let l1_fee_rate = Decodable::decode(b)?;
+        let l1_hash = Decodable::decode(b)?;
+        let start = Decodable::decode(b)?;
+        let end = Decodable::decode(b)?;
+
+        let consumed = started_len - b.len();
+        if consumed != rlp_head.payload_length {
+            return Err(alloy_rlp::Error::ListLengthMismatch {
+                expected: rlp_head.payload_length,
+                got: consumed,
+            });
+        }
+        *buf = *b;
+
         Ok(Self {
             header,
             l1_fee_rate,
@@ -326,34 +370,20 @@ impl Decodable for SealedBlock {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    RlpEncodable,
+    RlpDecodable,
+    Default,
+    Eq,
+)]
 pub(crate) struct Receipt {
     pub(crate) receipt: reth_primitives::Receipt,
     pub(crate) gas_used: u128,
     pub(crate) log_index_start: u64,
     pub(crate) l1_diff_size: u64,
-}
-
-impl Encodable for Receipt {
-    fn encode(&self, out: &mut dyn BufMut) {
-        self.receipt.encode(out);
-        self.gas_used.encode(out);
-        self.log_index_start.encode(out);
-        self.l1_diff_size.encode(out);
-    }
-}
-
-impl Decodable for Receipt {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let receipt = Decodable::decode(buf)?;
-        let gas_used = Decodable::decode(buf)?;
-        let log_index_start = Decodable::decode(buf)?;
-        let l1_diff_size = Decodable::decode(buf)?;
-        Ok(Self {
-            receipt,
-            gas_used,
-            log_index_start,
-            l1_diff_size,
-        })
-    }
 }
