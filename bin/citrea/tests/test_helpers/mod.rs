@@ -13,7 +13,8 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
-use sov_modules_api::PrivateKey;
+use sov_modules_api::fork::{Fork, Forks};
+use sov_modules_api::{PrivateKey, SpecId};
 use sov_modules_rollup_blueprint::{Network, RollupBlueprint as _};
 use sov_rollup_interface::da::{BlobReaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -185,6 +186,11 @@ pub fn create_default_rollup_config(
             db_path: da_path.to_path_buf(),
         },
         telemetry: Default::default(),
+        forks: Forks::from_slice(&[
+            Fork::new(SpecId::Genesis, 0),
+            Fork::new(SpecId::Fork1, 10000),
+            Fork::new(SpecId::Fork2, 20000),
+        ]),
     }
 }
 

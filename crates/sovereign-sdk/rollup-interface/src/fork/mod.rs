@@ -136,6 +136,10 @@ impl<'de> Deserialize<'de> for Forks {
         // Copy the deserialized forks into the fixed array
         forks[..count].copy_from_slice(&forks_vec);
 
+        if !verify_forks(&forks, count) {
+            return Err(de::Error::custom("Forks are not ordered correctly"));
+        }
+
         Ok(Forks { forks, count })
     }
 }

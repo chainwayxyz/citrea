@@ -61,3 +61,12 @@ include_tx_body = false
 # this value should be at most equal to `batch_requests_limit` set by the RPC node
 # being used.
 # sync_blocks_count = 20
+
+[[forks]]
+spec_id = "Genesis"
+activation_height = 0
+
+[[forks]]
+spec_id = "Fork1"
+# TODO: set this properly
+activation_height = 999999999

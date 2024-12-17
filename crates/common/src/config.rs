@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use citrea_pruning::PruningConfig;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::fork::Forks;
 use sov_stf_runner::ProverGuestRunConfig;
 
 pub trait FromEnv: Sized {
@@ -215,6 +216,8 @@ pub struct FullNodeConfig<BitcoinServiceConfig> {
     /// Telemetry configuration
     #[serde(default)]
     pub telemetry: TelemetryConfig,
+    /// Fork configuration
+    pub forks: Forks,
 }
 
 impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
@@ -226,6 +229,7 @@ impl<DaC: FromEnv> FromEnv for FullNodeConfig<DaC> {
             da: DaC::from_env()?,
             public_keys: RollupPublicKeys::from_env()?,
             telemetry: TelemetryConfig::from_env()?,
+            forks: Forks::from_env()?,
         })
     }
 }
@@ -292,6 +296,13 @@ impl FromEnv for LightClientProverConfig {
             proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
         })
+    }
+}
+
+impl FromEnv for Forks {
+    fn from_env() -> anyhow::Result<Self> {
+        let forks = std::env::var("FORKS")?;
+        Ok(Forks::from_utf8(&forks).ok_or(anyhow::anyhow!("Invalid FORKS env variable"))?)
     }
 }
 
@@ -433,6 +444,8 @@ impl FromEnv for TelemetryConfig {
 mod tests {
     use std::io::Write;
 
+    use sov_modules_api::fork::Fork;
+    use sov_modules_api::SpecId;
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -474,6 +487,14 @@ mod tests {
             [telemetry]
             bind_host = "0.0.0.0"
             bind_port = 8001
+
+            [[forks]]
+            spec_id = "Genesis"
+            activation_height = 0
+
+            [[forks]]
+            spec_id = "Fork1"
+            activation_height = 1000
         "#.to_owned();
 
         let config_file = create_config_from(&config);
@@ -515,6 +536,10 @@ mod tests {
                 bind_host: Some("0.0.0.0".to_owned()),
                 bind_port: Some(8001),
             },
+            forks: Forks::from_slice(&[
+                Fork::new(SpecId::Genesis, 0),
+                Fork::new(SpecId::Fork1, 1000),
+            ]),
         };
         assert_eq!(config, expected);
     }
@@ -671,6 +696,7 @@ mod tests {
 
         std::env::set_var("TELEMETRY_BIND_HOST", "0.0.0.0");
         std::env::set_var("TELEMETRY_BIND_PORT", "8082");
+        std::env::set_var("FORKS", "0:0,1:1000");
         let full_node_config: FullNodeConfig<sov_mock_da::MockDaConfig> =
             FullNodeConfig::from_env().unwrap();
 
@@ -708,6 +734,10 @@ mod tests {
                 bind_host: Some("0.0.0.0".to_owned()),
                 bind_port: Some(8082),
             },
+            forks: Forks::from_slice(&[
+                Fork::new(SpecId::Genesis, 0),
+                Fork::new(SpecId::Fork1, 1000),
+            ]),
         };
         assert_eq!(full_node_config, expected);
     }
