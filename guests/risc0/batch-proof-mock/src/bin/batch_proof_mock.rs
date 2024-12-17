@@ -3,7 +3,7 @@ use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;
 use sov_mock_da::MockDaVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::fork::{parse_fork_list_utf8, Fork};
+use sov_modules_api::fork::{Fork, Forks};
 use sov_modules_stf_blueprint::StfBlueprint;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_state::ZkStorage;
@@ -31,24 +31,20 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
 };
 
 // Temporary variable to allow FORKS static reference to be valid
-const TEMP_FORKS: ([Fork; 50], usize) = {
+const TEMP_FORKS: Forks = {
     let forks_str = env!("FORKS");
 
-    match parse_fork_list_utf8(forks_str) {
-        Some((forks, count)) => {
-            if count == 0 {
-                panic!("FORKS can not be empty");
+    match Forks::from_utf8(forks_str) {
+        Some(forks) => {
+            if forks.inner().len() == 0 {
             }
-            (forks, count)
+            forks
         }
         None => panic!("FORKS must be valid comma separated list"),
     }
 };
 
-const FORKS: &[Fork] = {
-    let (temp_forks, count) = &TEMP_FORKS;
-    temp_forks.split_at(*count).0
-};
+const FORKS: &[Fork] = TEMP_FORKS.inner();
 
 pub fn main() {
     let guest = Risc0Guest::new();
