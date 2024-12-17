@@ -210,16 +210,11 @@ pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)
 pub const fn verify_forks(forks: &[Fork], size: usize) -> bool {
     let mut i = 0;
     while i < size {
-        let fork = forks[i];
-        if i == 0 {
-            // Validate genesis fork
-            if fork.spec_id as u8 != 0 || fork.activation_height != 0 {
-                return false;
-            }
-        } else {
+        if i != 0 {
+            let fork = forks[i];
             // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
             if (fork.spec_id as u8).wrapping_sub(forks[i - 1].spec_id as u8) != 1
-                || fork.activation_height < forks[i - 1].activation_height
+                || fork.activation_height <= forks[i - 1].activation_height
             {
                 return false;
             }
