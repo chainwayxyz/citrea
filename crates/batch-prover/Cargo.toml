@@ -39,6 +39,7 @@ parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 reth-primitives = { workspace = true }
+alloy-primitives = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }

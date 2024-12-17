@@ -1,3 +1,4 @@
+use alloy_consensus::BlockHeader;
 use alloy_primitives::hex_literal::hex;
 use alloy_primitives::{Address, Bloom, Bytes, Sealable, B256, B64, U256};
 use lazy_static::lazy_static;
@@ -109,7 +110,7 @@ fn end_soft_confirmation_hook_sets_head() {
                 beneficiary: config.coinbase,
                 state_root: KECCAK_EMPTY,
                 transactions_root: B256::from(hex!(
-                    "fdf1049f7decef904ffdc7d55f8ca9c9c52ad655c8ddb7435025d86c97a253c0"
+                    "31f0a536f543dd3068c2e90c7770606680c223504a62d354994f3cc19c1d5c5b"
                 )),
                 receipts_root: B256::from(hex!(
                     "e8271759b66c13c70ad0726ee34c9fd2574d429fd77d95f95b22f988565a1469"
@@ -322,7 +323,7 @@ fn finalize_hook_creates_final_block() {
         beneficiary: config.coinbase,
         state_root: B256::from(root_hash),
         transactions_root: B256::from(hex!(
-            "fdf1049f7decef904ffdc7d55f8ca9c9c52ad655c8ddb7435025d86c97a253c0"
+            "31f0a536f543dd3068c2e90c7770606680c223504a62d354994f3cc19c1d5c5b"
         )),
         receipts_root: B256::from(hex!(
             "e8271759b66c13c70ad0726ee34c9fd2574d429fd77d95f95b22f988565a1469"
@@ -345,12 +346,14 @@ fn finalize_hook_creates_final_block() {
         parent_beacon_block_root: None,
         requests_root: None,
     };
-    let sealed = header.seal_slow();
-    let (header, seal) = sealed.into_parts();
+
+    let hash = header.hash_slow();
+    // let sealed = header.seal_slow();
+    // let (header, seal) = sealed.into_parts();
     assert_eq!(
         block,
         SealedBlock {
-            header: reth_primitives::SealedHeader::new(header, seal),
+            header: reth_primitives::SealedHeader::new(header, hash),
             l1_fee_rate: 0,
             l1_hash: B256::from(DA_ROOT_HASH.0),
             transactions: 3..6

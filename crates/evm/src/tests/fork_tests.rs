@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use reth_primitives::{address, keccak256, Address, TxKind};
+use alloy_primitives::{address, keccak256, Address, TxKind};
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;

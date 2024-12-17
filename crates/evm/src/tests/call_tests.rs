@@ -1092,7 +1092,7 @@ fn test_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as _);
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT);
     assert_eq!(block.header.gas_used, 29997634);
     assert_eq!(block.transactions.hashes().len(), 1130);
 }

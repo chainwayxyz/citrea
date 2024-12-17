@@ -4,7 +4,7 @@ use citrea_primitives::basefee::calculate_next_block_base_fee;
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{AccessoryWorkingSet, Spec, WorkingSet};
+use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
 use sov_rollup_interface::spec::SpecId as CitreaSpecId;
 use sov_state::Storage;
 #[cfg(feature = "native")]

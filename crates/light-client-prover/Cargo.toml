@@ -31,6 +31,7 @@ metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 once_cell = { workspace = true, default-features = true, optional = true }
 reth-primitives = { workspace = true, optional = true }
+alloy-primitives = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
@@ -44,6 +45,7 @@ tempfile = { workspace = true }
 [features]
 default = []
 native = [
+  "dep:alloy-primitives",
   "dep:citrea-primitives",
   "dep:citrea-common",
   "dep:sov-db",

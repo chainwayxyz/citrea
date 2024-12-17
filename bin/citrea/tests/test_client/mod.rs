@@ -20,9 +20,8 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{PingConfig, WsClient, WsClientBuilder};
 use reth_primitives::{BlockId, BlockNumberOrTag};
-use sequencer_client::GetSoftConfirmationResponse;
-use sov_ledger_rpc::client::LedgerRpcClient;
 use sov_ledger_rpc::HexHash;
+use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,

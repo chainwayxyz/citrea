@@ -35,6 +35,7 @@ metrics-derive = { workspace = true }
 once_cell = { workspace = true, default-features = true }
 rand = { workspace = true }
 reth-primitives = { workspace = true }
+alloy-primitives = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

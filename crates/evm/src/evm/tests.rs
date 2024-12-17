@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
-use reth_primitives::{Address, TransactionSignedEcRecovered, TxKind};
+use alloy_primitives::{Address, TxKind};
+use reth_primitives::TransactionSignedEcRecovered;
 use revm::primitives::{
     BlockEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult, Output, SpecId, U256,
 };

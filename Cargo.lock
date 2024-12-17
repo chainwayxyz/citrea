@@ -1858,6 +1858,7 @@ dependencies = [
 name = "citrea-batch-prover"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "backoff",
@@ -1901,6 +1902,7 @@ dependencies = [
 name = "citrea-common"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "backoff",
  "borsh",
@@ -2012,6 +2014,7 @@ dependencies = [
 name = "citrea-fullnode"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "backoff",
  "borsh",
@@ -2050,6 +2053,7 @@ dependencies = [
 name = "citrea-light-client-prover"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "bincode",
@@ -8187,6 +8191,7 @@ dependencies = [
 name = "sov-ledger-rpc"
 version = "0.5.0-rc.1"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "futures",
  "jsonrpsee",

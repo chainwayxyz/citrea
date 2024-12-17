@@ -101,10 +101,9 @@ impl TestSigner {
 
         let reth_tx = RethTransaction::Eip1559(reth_tx);
         let signed = self.signer.sign_transaction(reth_tx, self.address)?;
-
-        Ok(RlpEvmTransaction {
-            rlp: signed.envelope_encoded().to_vec(),
-        })
+        let mut buf = vec![];
+        signed.encode_2718(&mut buf);
+        Ok(RlpEvmTransaction { rlp: buf })
     }
 
     /// Signs default Eip1559 transaction with to, data and nonce overridden.
