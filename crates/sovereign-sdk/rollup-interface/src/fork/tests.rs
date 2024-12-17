@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 
-use super::{parse_fork_list_utf8, ForkManager};
+use super::{Forks, ForkManager};
 use crate::fork::{fork_from_block_number, Fork, ForkMigration};
 use crate::spec::SpecId;
 
@@ -100,22 +100,24 @@ fn test_fork_parse_list() {
     assert_fork_parse_list("0:0", &[(0, 0)]);
     assert_fork_parse_list("0:0,1:456", &[(0, 0), (1, 456)]);
     assert_fork_parse_list("0:0,1:1,2:2", &[(0, 0), (1, 1), (2, 2)]);
+    assert_fork_parse_list("1:0,2:123", &[(1, 0), (2, 123)]);
 
-    assert!(parse_fork_list_utf8("").is_none());
-    assert!(parse_fork_list_utf8("0123").is_none());
-    assert!(parse_fork_list_utf8("01:123").is_none());
-    assert!(parse_fork_list_utf8("0:123 1:456").is_none());
-    assert!(parse_fork_list_utf8("0:123,1:456,").is_none());
-    assert!(parse_fork_list_utf8("1:123").is_none());
-    assert!(parse_fork_list_utf8("0:0,2:456,1:789").is_none());
-    assert!(parse_fork_list_utf8("0:0,1:456,2:123").is_none());
+    assert!(Forks::from_utf8("").is_none());
+    assert!(Forks::from_utf8("0123").is_none());
+    assert!(Forks::from_utf8("01:123").is_none());
+    assert!(Forks::from_utf8("0:123,1:456").is_none());
+    assert!(Forks::from_utf8("0:0 1:456").is_none());
+    assert!(Forks::from_utf8("0:0,1:456,").is_none());
+    assert!(Forks::from_utf8("0:0,2:456,1:789").is_none());
+    assert!(Forks::from_utf8("0:0,1:456,2:123").is_none());
 }
 
 fn assert_fork_parse_list(s: &str, exp_list: &[(u8, u64)]) {
-    let (forks, count) = parse_fork_list_utf8(s).unwrap();
-    assert_eq!(exp_list.len(), count);
+    let forks  = Forks::from_utf8(s).unwrap();
+    let forks = forks.inner();
+    assert_eq!(forks.len(), exp_list.len());
 
-    for (fork, exp_fork) in forks[0..count].iter().zip(exp_list) {
+    for (fork, exp_fork) in forks.iter().zip(exp_list) {
         assert_eq!(fork.spec_id as u8, exp_fork.0);
         assert_eq!(fork.activation_height, exp_fork.1);
     }

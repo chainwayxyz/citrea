@@ -10,6 +10,81 @@ pub use migration::*;
 
 use crate::spec::SpecId;
 
+pub struct Forks {
+    forks: [Fork; 50],
+    count: usize,
+}
+
+impl Forks {
+    /// Parse fork list from utf8 string. Format should be `{spec_id as u8}:{activation_height},{spec_id2 as u8}:{activation_height2}`.
+    /// Since this is a constant fn, it returns a stack allocated array with 50 const size, and a second return value as the count
+    /// of valid forks within this array
+    ///
+    /// Example:
+    /// ```
+    /// use sov_rollup_interface::fork::{Fork, Forks};
+    /// const FORKS: Option<Forks> = Forks::from_utf8("0:1000,1:5000,2:100000");
+    ///
+    /// fn main() {
+    ///     let forks: &[Fork] = match &FORKS {
+    ///         Some(forks) => forks.inner(),
+    ///         None => &[],
+    ///     };
+    /// }
+    /// ```
+    pub const fn from_utf8(forks_str: &str) -> Option<Self> {
+        if forks_str.is_empty() {
+            return None;
+        }
+
+        let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
+        let mut count = 0;
+
+        let mut bytes = forks_str.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] != b',' {
+                i += 1;
+                continue;
+            }
+
+            let (fork_utf8, remaining_bytes) = bytes.split_at(i);
+
+            let Some(fork) = Fork::from_colon_separated_utf8(fork_utf8) else {
+                return None;
+            };
+
+            // Ignore comma
+            let Some((_, remaining_bytes)) = remaining_bytes.split_first() else {
+                return None;
+            };
+            bytes = remaining_bytes;
+
+            forks[count] = fork;
+            count += 1;
+
+            i = 0;
+        }
+
+        // Add the last one
+        let Some(fork) = Fork::from_colon_separated_utf8(bytes) else {
+            return None;
+        };
+        forks[count] = fork;
+        count += 1;
+
+        if !verify_forks(&forks, count) {
+            return None;
+        }
+
+        Some(Self { forks, count })
+    }
+
+    pub const fn inner(&self) -> &[Fork] {
+        self.forks.split_at(self.count).0
+    }
+}
+
 /// Fork is a wrapper struct that contains spec id and it's activation height
 #[derive(Debug, Clone, Copy)]
 pub struct Fork {
@@ -17,6 +92,12 @@ pub struct Fork {
     pub spec_id: SpecId,
     /// Height to activate this spec
     pub activation_height: u64,
+}
+
+impl PartialEq for Fork {
+    fn eq(&self, other: &Self) -> bool {
+        self.spec_id == other.spec_id && self.activation_height == other.activation_height
+    }
 }
 
 impl Fork {
@@ -141,77 +222,18 @@ impl Fork {
     }
 }
 
-/// Parse fork list from utf8 string. Format should be `{spec_id as u8}:{activation_height},{spec_id2 as u8}:{activation_height2}`.
-/// Since this is a constant fn, it returns a stack allocated array with 50 const size, and a second return value as the count
-/// of valid forks within this array
-///
-/// Example:
-/// ```
-/// use sov_rollup_interface::fork::{parse_fork_list_utf8, Fork};
-/// const FORKS: Option<([Fork; 50], usize)> = parse_fork_list_utf8("0:1000,1:5000,2:100000");
-///
-/// fn main() {
-///     let forks: &[Fork] = match &FORKS {
-///         Some((forks, count)) => &forks[0..*count],
-///         None => &[],
-///     };
-/// }
-/// ```
-pub const fn parse_fork_list_utf8(forks_str: &str) -> Option<([Fork; 50], usize)> {
-    if forks_str.is_empty() {
-        return None;
-    }
-
-    let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
-    let mut count = 0;
-
-    let mut bytes = forks_str.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b',' {
-            i += 1;
-            continue;
-        }
-
-        let (fork_utf8, remaining_bytes) = bytes.split_at(i);
-
-        let Some(fork) = Fork::from_colon_separated_utf8(fork_utf8) else {
-            return None;
-        };
-
-        // Ignore comma
-        let Some((_, remaining_bytes)) = remaining_bytes.split_first() else {
-            return None;
-        };
-        bytes = remaining_bytes;
-
-        forks[count] = fork;
-        count += 1;
-
-        i = 0;
-    }
-
-    // Add the last one
-    let Some(fork) = Fork::from_colon_separated_utf8(bytes) else {
-        return None;
-    };
-    forks[count] = fork;
-    count += 1;
-
-    if !verify_forks(&forks, count) {
-        return None;
-    }
-
-    Some((forks, count))
-}
-
 /// Verifies the order of forks. `size` is needed here due to being in const environment,
 /// size of the fork might not be known beforehand.
 pub const fn verify_forks(forks: &[Fork], size: usize) -> bool {
     let mut i = 0;
     while i < size {
-        if i != 0 {
-            let fork = forks[i];
+        let fork = forks[i];
+        if i == 0 {
+            // Ensure that the first fork starts from height 0
+            if fork.activation_height != 0 {
+                return false;
+            }
+        } else {
             // Validate spec_id increase by 1, and activation height is strictly greater than the previous fork
             if (fork.spec_id as u8).wrapping_sub(forks[i - 1].spec_id as u8) != 1
                 || fork.activation_height <= forks[i - 1].activation_height
