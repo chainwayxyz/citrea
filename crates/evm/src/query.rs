@@ -6,7 +6,7 @@ use alloy_eips::eip2930::AccessListWithGasUsed;
 use alloy_primitives::Uint;
 use alloy_rlp::Encodable;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::TxKind::{Call, Create};
 use reth_primitives::{
@@ -29,7 +29,6 @@ use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::*;
 use sov_modules_api::WorkingSet;
@@ -367,7 +366,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let block_number = self.block_number_for_id(&block_number, working_set)?;
 
         let current_spec =
-            citrea_spec_id_to_evm_spec_id(fork_from_block_number(FORKS, block_number).spec_id);
+            citrea_spec_id_to_evm_spec_id(fork_from_block_number(block_number).spec_id);
 
         self.set_state_to_end_of_evm_block_by_block_id(block_id, working_set)?;
 
@@ -562,7 +561,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(working_set)
                 .expect("EVM chain config should be set");
 
-            let citrea_spec_id = fork_from_block_number(FORKS, block_num).spec_id;
+            let citrea_spec_id = fork_from_block_number(block_num).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -657,7 +656,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(working_set)
                 .expect("EVM chain config should be set");
 
-            let citrea_spec_id = fork_from_block_number(FORKS, block_num).spec_id;
+            let citrea_spec_id = fork_from_block_number(block_num).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -768,8 +767,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(working_set)
                 .expect("EVM chain config should be set");
 
-            let citrea_spec_id =
-                fork_from_block_number(FORKS, block_env.number.saturating_to()).spec_id;
+            let citrea_spec_id = fork_from_block_number(block_env.number.saturating_to()).spec_id;
             let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
             let cfg_env = get_cfg_env(cfg, evm_spec_id);
@@ -1196,7 +1194,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // set state to end of the previous block
         set_state_to_end_of_evm_block::<C>(block_number - 1, working_set);
 
-        let citrea_spec_id = fork_from_block_number(FORKS, block_number).spec_id;
+        let citrea_spec_id = fork_from_block_number(block_number).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
 
         let block_env = sealed_block_to_block_env(&sealed_block.header);
@@ -1824,7 +1822,7 @@ fn get_pending_block_env<C: sov_modules_api::Context>(
         cfg.base_fee_params,
     ));
     block_env.blob_excess_gas_and_price = if citrea_spec_id_to_evm_spec_id(
-        fork_from_block_number(FORKS, block_env.number.saturating_to()).spec_id,
+        fork_from_block_number(block_env.number.saturating_to()).spec_id,
     ) >= SpecId::CANCUN
     {
         Some(BlobExcessGasAndPrice::new(0))

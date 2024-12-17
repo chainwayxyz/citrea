@@ -1,49 +1,52 @@
-use sov_rollup_interface::fork::Fork;
-use sov_rollup_interface::spec::SpecId;
+use std::sync::OnceLock;
 
-/// This defines the list of forks which will be activated
-/// at specific heights.
-#[cfg(not(feature = "testing"))]
-pub const FORKS: &[Fork] = &[
-    Fork {
-        spec_id: SpecId::Genesis,
-        activation_height: 0,
-    },
-    Fork {
-        spec_id: SpecId::Fork1,
-        activation_height: 99999999999, // TODO: change this to the correct height once decided
-    },
-    // Examples of how we can define further forks
-    // Fork { spec_id: SpecId::Fork2, activation_height: 1000 },
-];
+use sov_rollup_interface::fork::{Fork, Forks};
 
-#[cfg(feature = "testing")]
-pub const FORKS: &[Fork] = &[
-    Fork {
-        spec_id: SpecId::Genesis,
-        activation_height: 0,
-    },
-    Fork {
-        spec_id: SpecId::Fork1,
-        activation_height: 10000,
-    },
-    Fork {
-        spec_id: SpecId::Fork2,
-        activation_height: 20000,
-    },
-];
+static FORKS: OnceLock<Forks> = OnceLock::new();
 
-const _CHECK_FORKS_ARE_SORTED: () = {
-    const fn check_forks_are_sorted() {
-        let mut height = FORKS[0].activation_height;
-        let mut i = 1;
-        while i < FORKS.len() {
-            let fork = FORKS[i];
-            let fork_height = fork.activation_height;
-            assert!(fork_height > height, "FORKS are not sorted!");
-            height = fork_height;
-            i += 1;
+/// Set the forks. Must be called once.
+pub fn set_forks(forks: Forks) {
+    FORKS.set(forks).expect("Forks must be set exactly once");
+}
+
+/// Get forks. Forks need to be set before calling this method if not in testing environment.
+/// In testing environment default forks are used.
+pub fn get_forks() -> &'static Forks {
+    match FORKS.get() {
+        Some(forks) => forks,
+        None => {
+            #[cfg(not(feature = "testing"))]
+            panic!("Forks must be set before accessing");
+
+            #[cfg(feature = "testing")]
+            {
+                use sov_rollup_interface::spec::SpecId;
+
+                set_forks(
+                    Forks::from_slice(&[
+                        Fork {
+                            spec_id: SpecId::Genesis,
+                            activation_height: 0,
+                        },
+                        Fork {
+                            spec_id: SpecId::Fork1,
+                            activation_height: 10000,
+                        },
+                        Fork {
+                            spec_id: SpecId::Fork2,
+                            activation_height: 20000,
+                        },
+                    ])
+                    .expect("Forks are ordered"),
+                );
+                FORKS.get().expect("Just set it")
+            }
         }
     }
-    check_forks_are_sorted()
-};
+}
+
+/// Get fork from the given block number. Forks must be set before calling this method if not in test environment.
+/// In test environment default forks are used.
+pub fn fork_from_block_number(block_number: u64) -> Fork {
+    get_forks().fork_from_block_number(block_number)
+}

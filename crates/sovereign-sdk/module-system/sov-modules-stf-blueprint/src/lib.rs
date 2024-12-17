@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 use borsh::BorshDeserialize;
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::get_forks;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -508,7 +508,8 @@ where
         let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
-        let mut fork_manager = ForkManager::new(FORKS, sequencer_commitments_range.0 as u64);
+        let mut fork_manager =
+            ForkManager::new(get_forks().inner(), sequencer_commitments_range.0 as u64);
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in

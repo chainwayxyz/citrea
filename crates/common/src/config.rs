@@ -539,7 +539,8 @@ mod tests {
             forks: Forks::from_slice(&[
                 Fork::new(SpecId::Genesis, 0),
                 Fork::new(SpecId::Fork1, 1000),
-            ]),
+            ])
+            .unwrap(),
         };
         assert_eq!(config, expected);
     }
@@ -737,7 +738,8 @@ mod tests {
             forks: Forks::from_slice(&[
                 Fork::new(SpecId::Genesis, 0),
                 Fork::new(SpecId::Fork1, 1000),
-            ]),
+            ])
+            .unwrap(),
         };
         assert_eq!(full_node_config, expected);
     }

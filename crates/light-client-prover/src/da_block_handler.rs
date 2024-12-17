@@ -6,13 +6,12 @@ use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::http_client::HttpClient;
 use reth_primitives::U64;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -169,7 +168,7 @@ where
                 >(&proof)
                 .map_err(|_| anyhow!("Proof should be deserializable"))?;
                 let last_l2_height = batch_proof_output.last_l2_height;
-                let current_spec = fork_from_block_number(FORKS, last_l2_height).spec_id;
+                let current_spec = fork_from_block_number(last_l2_height).spec_id;
                 let batch_proof_method_id = self
                     .batch_proof_code_commitments
                     .get(&current_spec)
@@ -231,7 +230,7 @@ where
         let l2_last_height = l2_last_height.ok_or(anyhow!(
             "Could not determine the last L2 height for batch proof"
         ))?;
-        let current_fork = fork_from_block_number(FORKS, l2_last_height);
+        let current_fork = fork_from_block_number(l2_last_height);
         let batch_proof_method_id = self
             .batch_proof_code_commitments
             .get(&current_fork.spec_id)

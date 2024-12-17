@@ -190,7 +190,8 @@ pub fn create_default_rollup_config(
             Fork::new(SpecId::Genesis, 0),
             Fork::new(SpecId::Fork1, 10000),
             Fork::new(SpecId::Fork2, 20000),
-        ]),
+        ])
+        .unwrap(),
     }
 }
 

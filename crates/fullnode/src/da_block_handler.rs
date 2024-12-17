@@ -10,7 +10,7 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{extract_sequencer_commitments, extract_zk_proofs, get_da_block_at_height};
 use citrea_common::error::SyncError;
 use citrea_common::utils::check_l2_range_exists;
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::fork_from_block_number;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use serde::de::DeserializeOwned;
@@ -21,7 +21,6 @@ use sov_db::schema::types::{
 };
 use sov_modules_api::{Context, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
-use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
@@ -313,8 +312,7 @@ where
             ).into());
         }
 
-        let last_active_spec_id =
-            fork_from_block_number(FORKS, batch_proof_output.last_l2_height).spec_id;
+        let last_active_spec_id = fork_from_block_number(batch_proof_output.last_l2_height).spec_id;
         let code_commitment = self
             .code_commitments_by_spec
             .get(&last_active_spec_id)
