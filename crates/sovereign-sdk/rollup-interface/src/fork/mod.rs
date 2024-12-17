@@ -7,6 +7,8 @@ mod tests;
 
 pub use manager::*;
 pub use migration::*;
+use serde::ser::SerializeSeq;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::spec::SpecId;
 
@@ -87,8 +89,45 @@ impl Forks {
     }
 }
 
+impl Serialize for Forks {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let inner = self.inner();
+        let mut seq = serializer.serialize_seq(Some(inner.len()))?;
+        for fork in inner {
+            seq.serialize_element(fork)?;
+        }
+        seq.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Forks {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Deserialize a vector of forks
+        let forks_vec: Vec<Fork> = Vec::deserialize(deserializer)?;
+
+        if forks_vec.len() > 50 {
+            return Err(de::Error::custom("Too many forks (max 50 allowed)"));
+        }
+
+        // Initialize the fixed-size array and count
+        let mut forks = [Fork::new(SpecId::Genesis, 0); 50];
+        let count = forks_vec.len();
+
+        // Copy the deserialized forks into the fixed array
+        forks[..count].copy_from_slice(&forks_vec);
+
+        Ok(Forks { forks, count })
+    }
+}
+
 /// Fork is a wrapper struct that contains spec id and it's activation height
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct Fork {
     /// Spec id for this fork
     pub spec_id: SpecId,

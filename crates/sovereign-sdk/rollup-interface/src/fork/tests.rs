@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 
-use super::{Forks, ForkManager};
+use super::{ForkManager, Forks};
 use crate::fork::{fork_from_block_number, Fork, ForkMigration};
 use crate::spec::SpecId;
 
@@ -113,7 +113,7 @@ fn test_fork_parse_list() {
 }
 
 fn assert_fork_parse_list(s: &str, exp_list: &[(u8, u64)]) {
-    let forks  = Forks::from_utf8(s).unwrap();
+    let forks = Forks::from_utf8(s).unwrap();
     let forks = forks.inner();
     assert_eq!(forks.len(), exp_list.len());
 
