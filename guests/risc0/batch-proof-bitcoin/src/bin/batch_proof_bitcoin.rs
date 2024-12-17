@@ -28,7 +28,12 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
 
     match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
         // TODO: maybe verify the first byte?
-        Ok(pub_key) => pub_key,
+        Ok(pub_key) => {
+            if pub_key[0] != 2 && pub_key[0] != 3 {
+                panic!("SEQUENCER_DA_PUBLIC_KEY first byte must be either 02 or 03");
+            }
+            pub_key
+        },
         Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
     }
 };
