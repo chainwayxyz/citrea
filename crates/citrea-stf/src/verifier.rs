@@ -1,3 +1,4 @@
+use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput};
@@ -27,6 +28,7 @@ where
         &mut self,
         data: BatchProofCircuitInput<Stf::StateRoot, Stf::Witness, Da::Spec, Stf::Transaction>,
         pre_state: Stf::PreState,
+        forks: &[Fork],
     ) -> Result<BatchProofCircuitOutput<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
 
@@ -73,6 +75,7 @@ where
                 data.da_block_headers_of_soft_confirmations,
                 data.soft_confirmations,
                 data.preproven_commitments.clone(),
+                forks,
             );
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");

@@ -2,6 +2,7 @@ use std::ops::DerefMut;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use citrea_primitives::forks::get_forks;
 use futures::future;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaData;
@@ -262,7 +263,7 @@ where
             let guest = vm.simulate_with_hints();
             let data = guest.read_from_host();
             verifier
-                .run_sequencer_commitments_in_da_slot(data, zk_storage)
+                .run_sequencer_commitments_in_da_slot(data, zk_storage, get_forks().inner())
                 .map(|_| Vec::default())
                 .map_err(|e| {
                     anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)
