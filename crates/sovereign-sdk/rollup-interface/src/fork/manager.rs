@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use super::{fork_pos_from_block_number, Fork, ForkMigration};
+use super::{fork_pos_from_block_number, verify_forks, Fork, ForkMigration};
 
 pub struct ForkManager<'a> {
     forks: &'a [Fork],
@@ -11,8 +11,10 @@ pub struct ForkManager<'a> {
 }
 
 impl<'a> ForkManager<'a> {
+    /// Creates new `ForkManager`. Forks are expected to be in ascending order, if not, panics in debug mode.
     pub fn new(forks: &'a [Fork], current_l2_height: u64) -> Self {
-        // FORKS from citrea-primitives are checked at compile time to be sorted.
+        debug_assert!(verify_forks(forks), "Forks must be ordered correctly");
+
         let active_fork_idx = fork_pos_from_block_number(forks, current_l2_height);
 
         Self {

@@ -77,25 +77,29 @@ impl Forks {
         forks[count] = fork;
         count += 1;
 
-        if !verify_forks(&forks, count) {
+        if !verify_forks(forks.split_at(count).0) {
             return None;
         }
 
         Some(Self { forks, count })
     }
 
-    pub fn from_slice(slice: &[Fork]) -> Self {
+    pub fn from_slice(slice: &[Fork]) -> Option<Self> {
         if slice.len() > 50 {
             panic!("Never gonna have 50 forks...");
+        }
+
+        if !verify_forks(slice) {
+            return None;
         }
 
         let mut forks = [Fork::default(); 50];
         forks[0..slice.len()].copy_from_slice(slice);
 
-        Self {
+        Some(Self {
             forks,
             count: slice.len(),
-        }
+        })
     }
 
     pub const fn inner(&self) -> &[Fork] {
@@ -135,16 +139,16 @@ impl<'de> Deserialize<'de> for Forks {
             return Err(de::Error::custom("Too many forks (max 50 allowed)"));
         }
 
+        if !verify_forks(&forks_vec) {
+            return Err(de::Error::custom("Forks are not ordered correctly"));
+        }
+
         // Initialize the fixed-size array and count
         let mut forks = [Fork::default(); 50];
         let count = forks_vec.len();
 
         // Copy the deserialized forks into the fixed array
         forks[..count].copy_from_slice(&forks_vec);
-
-        if !verify_forks(&forks, count) {
-            return Err(de::Error::custom("Forks are not ordered correctly"));
-        }
 
         Ok(Forks { forks, count })
     }
@@ -298,9 +302,9 @@ impl Fork {
 
 /// Verifies the order of forks. `size` is needed here due to being in const environment,
 /// size of the fork might not be known beforehand.
-pub(crate) const fn verify_forks(forks: &[Fork], size: usize) -> bool {
+pub(crate) const fn verify_forks(forks: &[Fork]) -> bool {
     let mut i = 0;
-    while i < size {
+    while i < forks.len() {
         let fork = forks[i];
         if i == 0 {
             // Ensure that the first fork starts from height 0
