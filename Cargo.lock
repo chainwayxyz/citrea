@@ -1995,7 +1995,6 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
  "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-rollup-interface",

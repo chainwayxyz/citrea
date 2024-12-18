@@ -26,7 +26,6 @@ jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], 
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
-serde_with = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
 

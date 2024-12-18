@@ -5,7 +5,6 @@ use alloy_rlp::bytes::BufMut;
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 use reth_primitives::{Header as AlloyHeader, SealedHeader, TransactionSigned};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 
 /// Rlp encoded evm transaction.
 #[derive(
@@ -246,7 +245,6 @@ impl From<Block<AlloyHeader>> for Block<DoNotUseHeader> {
     }
 }
 
-#[serde_as]
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SealedBlock {
     /// Block header.
