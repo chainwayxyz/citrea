@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, RollupPublicKeys};
 // use citrea_sp1::host::SP1Host;
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
@@ -138,6 +138,7 @@ impl RollupBlueprint for MockDemoRollup {
         da_service: &Arc<Self::DaService>,
         da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
+        keys: RollupPublicKeys,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(ledger_db.clone());
 
@@ -154,8 +155,17 @@ impl RollupBlueprint for MockDemoRollup {
             ProverGuestRunConfig::Prove => ProofGenMode::Prove,
         };
 
-        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
-            .expect("Should be able to instantiate prover service")
+        ParallelProverService::new(
+            da_service.clone(),
+            vm,
+            proof_mode,
+            zk_storage,
+            1,
+            ledger_db,
+            keys.sequencer_public_key.clone(),
+            keys.sequencer_da_pub_key,
+        )
+        .expect("Should be able to instantiate prover service")
     }
 
     fn create_storage_manager(

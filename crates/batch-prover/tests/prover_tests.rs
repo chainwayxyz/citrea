@@ -308,6 +308,8 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
                 (),
                 thread_pool_size,
                 ledger_db,
+                vec![],
+                vec![],
             )
             .expect("Should be able to instantiate Prover service"),
         ),

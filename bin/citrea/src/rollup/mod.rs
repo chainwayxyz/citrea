@@ -340,6 +340,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 &da_service,
                 da_verifier,
                 ledger_db.clone(),
+                rollup_config.public_keys.clone(),
             )
             .await;
 
@@ -472,6 +473,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
                 &da_service,
                 da_verifier,
                 ledger_db.clone(),
+                rollup_config.public_keys.clone(),
             )
             .await;
 

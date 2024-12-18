@@ -64,7 +64,7 @@ pub fn main() {
     let data = guest.read_from_host();
 
     let out = stf_verifier
-        .run_sequencer_commitments_in_da_slot(data, storage, FORKS)
+        .run_sequencer_commitments_in_da_slot(data, storage, &SEQUENCER_PUBLIC_KEY, &SEQUENCER_DA_PUBLIC_KEY, FORKS)
         .expect("Prover must be honest");
 
     guest.commit(&out);

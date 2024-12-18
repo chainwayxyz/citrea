@@ -37,6 +37,8 @@ where
     _ledger_db: LedgerDB,
 
     proof_queue: Arc<Mutex<Vec<ProofData>>>,
+    sequencer_public_key: Vec<u8>,
+    sequencer_da_public_key: Vec<u8>,
 }
 
 impl<Da, Vm, Stf> ParallelProverService<Da, Vm, Stf>
@@ -54,6 +56,8 @@ where
         zk_storage: Stf::PreState,
         thread_pool_size: usize,
         _ledger_db: LedgerDB,
+        sequencer_public_key: Vec<u8>,
+        sequencer_da_public_key: Vec<u8>,
     ) -> anyhow::Result<Self> {
         assert!(
             thread_pool_size > 0,
@@ -88,6 +92,8 @@ where
             zk_storage,
             _ledger_db,
             proof_queue: Arc::new(Mutex::new(vec![])),
+            sequencer_public_key,
+            sequencer_da_public_key,
         })
     }
 
@@ -99,6 +105,8 @@ where
         proof_mode: ProofGenMode<Da, Stf>,
         zk_storage: Stf::PreState,
         _ledger_db: LedgerDB,
+        sequencer_public_key: Vec<u8>,
+        sequencer_da_public_key: Vec<u8>,
     ) -> anyhow::Result<Self> {
         let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT")
             .expect("PARALLEL_PROOF_LIMIT must be set")
@@ -112,6 +120,8 @@ where
             zk_storage,
             thread_pool_size,
             _ledger_db,
+            sequencer_public_key,
+            sequencer_da_public_key,
         )
     }
 
@@ -162,6 +172,8 @@ where
         let mut vm = self.vm.clone();
         let zk_storage = self.zk_storage.clone();
         let proof_mode = self.proof_mode.clone();
+        let sequencer_public_key = self.sequencer_public_key.clone();
+        let sequencer_da_public_key = self.sequencer_da_public_key.clone();
 
         vm.add_hint(input);
         for assumption in assumptions {
@@ -170,8 +182,15 @@ where
 
         let (tx, rx) = oneshot::channel();
         self.thread_pool.spawn(move || {
-            let proof =
-                make_proof(vm, elf, zk_storage, proof_mode).expect("Proof creation must not fail");
+            let proof = make_proof(
+                vm,
+                elf,
+                zk_storage,
+                proof_mode,
+                &sequencer_public_key,
+                &sequencer_da_public_key,
+            )
+            .expect("Proof creation must not fail");
             let _ = tx.send(proof);
         });
 
@@ -249,6 +268,8 @@ fn make_proof<Da, Vm, Stf>(
     elf: Vec<u8>,
     zk_storage: Stf::PreState,
     proof_mode: Arc<Mutex<ProofGenMode<Da, Stf>>>,
+    sequencer_public_key: &[u8],
+    sequencer_da_public_key: &[u8],
 ) -> Result<Proof, anyhow::Error>
 where
     Da: DaService,
@@ -263,7 +284,13 @@ where
             let guest = vm.simulate_with_hints();
             let data = guest.read_from_host();
             verifier
-                .run_sequencer_commitments_in_da_slot(data, zk_storage, get_forks().inner())
+                .run_sequencer_commitments_in_da_slot(
+                    data,
+                    zk_storage,
+                    sequencer_public_key,
+                    sequencer_da_public_key,
+                    get_forks().inner(),
+                )
                 .map(|_| Vec::default())
                 .map_err(|e| {
                     anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)

@@ -28,6 +28,8 @@ where
         &mut self,
         data: BatchProofCircuitInput<Stf::StateRoot, Stf::Witness, Da::Spec, Stf::Transaction>,
         pre_state: Stf::PreState,
+        sequencer_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
         forks: &[Fork],
     ) -> Result<BatchProofCircuitOutput<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
@@ -65,8 +67,8 @@ where
         } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
-                data.sequencer_public_key.as_ref(),
-                data.sequencer_da_public_key.as_ref(),
+                sequencer_public_key,
+                sequencer_da_public_key,
                 &data.initial_state_root,
                 pre_state,
                 data.da_data,

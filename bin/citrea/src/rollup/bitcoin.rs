@@ -8,7 +8,7 @@ use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::FullNodeConfig;
+use citrea_common::{FullNodeConfig, RollupPublicKeys};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 // use citrea_sp1::host::SP1Host;
@@ -261,6 +261,7 @@ impl RollupBlueprint for BitcoinRollup {
         da_service: &Arc<Self::DaService>,
         da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
+        keys: RollupPublicKeys,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(ledger_db.clone());
         // let vm = SP1Host::new(
@@ -287,6 +288,8 @@ impl RollupBlueprint for BitcoinRollup {
             proof_mode,
             zk_storage,
             ledger_db,
+            keys.sequencer_public_key.clone(),
+            keys.sequencer_da_pub_key,
         )
         .expect("Should be able to instantiate prover service")
     }
