@@ -1,8 +1,7 @@
 use std::hash::Hash;
 
-use alloy_primitives::Bytes;
-use reth_primitives::{Address, Log, U256};
-use revm::primitives::B256;
+use alloy_primitives::{Address, Bytes, B256, U256};
+use reth_primitives::Log;
 
 /// Ethereum Log emitted by a transaction
 #[derive(Debug, Clone, Eq, PartialEq, Hash, serde::Serialize, serde::Deserialize)]

@@ -1,10 +1,11 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use alloy_primitives::{Address, Bytes, B256, U256};
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, B256, U256};
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use tokio::time::sleep;
 
 use crate::evm::init_test_rollup;
@@ -61,7 +62,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
 
     assert!(invalid_block_balance
         .to_string()
-        .contains("unknown block number"));
+        .contains("block not found: number 0x2d2"));
 
     let invalid_block_balance = seq_test_client
         .eth_get_balance(addr, Some(BlockId::Hash(invalid_block_hash.into())))
@@ -82,7 +83,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .unwrap_err();
     assert!(invalid_block_storage
         .to_string()
-        .contains("unknown block number"));
+        .contains("block not found:"));
 
     let invalid_block_storage = seq_test_client
         .eth_get_storage_at(
@@ -100,9 +101,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_code(addr, Some(BlockId::Number(BlockNumberOrTag::Number(722))))
         .await
         .unwrap_err();
-    assert!(invalid_block_code
-        .to_string()
-        .contains("unknown block number"));
+    assert!(invalid_block_code.to_string().contains("block not found:"));
 
     let invalid_block_code = seq_test_client
         .eth_get_code(addr, Some(BlockId::Hash(invalid_block_hash.into())))
@@ -118,7 +117,7 @@ async fn run_archival_fail_tests(addr: Address, seq_test_client: &TestClient) {
         .unwrap_err();
     assert!(invalid_block_tx_count
         .to_string()
-        .contains("unknown block number"));
+        .contains("block not found:"));
 
     let invalid_block_tx_count = seq_test_client
         .eth_get_transaction_count(addr, Some(BlockId::Hash(invalid_block_hash.into())))
@@ -134,8 +133,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_block_by_number(None)
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
     assert_eq!(
         seq_test_client
             .eth_get_balance(addr, Some(BlockId::Number(BlockNumberOrTag::Latest)))
@@ -216,8 +214,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_block_by_number(None)
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
     // Wait for changeset storage
     sleep(Duration::from_secs(2)).await;
 
@@ -275,8 +272,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
             .eth_get_block_by_number(Some(BlockNumberOrTag::Number(i)))
             .await
             .header
-            .hash
-            .unwrap();
+            .hash;
 
         assert_eq!(
             seq_test_client
@@ -413,8 +409,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let code = seq_test_client
         .eth_get_code(contract_address, Some(BlockId::Hash(block_hash_9.into())))
@@ -427,8 +422,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(8)))
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let non_existent_code = seq_test_client
         .eth_get_code(contract_address, Some(BlockId::Hash(block_hash_8.into())))
@@ -469,8 +463,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_block_by_number(None)
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let storage_value = seq_test_client
         .eth_get_storage_at(
@@ -497,8 +490,7 @@ async fn run_archival_valid_tests(addr: Address, seq_test_client: &TestClient) {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(11)))
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let previous_storage_value = seq_test_client
         .eth_get_storage_at(

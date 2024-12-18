@@ -3,13 +3,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use alloy_primitives::FixedBytes;
+// use citrea::initialize_logging;
+use alloy_primitives::{keccak256, Address};
 use alloy_sol_types::SolEvent;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{AnotherLogEvent, LogEvent, LogsContract, TestContract};
 use citrea_evm::{Filter, LogResponse};
-// use citrea::initialize_logging;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{keccak256, Address};
 use tokio::time::sleep;
 
 use crate::evm::make_test_client;
@@ -79,7 +79,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
 
         let block = last_received_block.lock().unwrap();
         let block = block.as_ref().unwrap();
-        assert_eq!(block.header.number, Some(2));
+        assert_eq!(block.header.number, 2);
         assert!(block.transactions.is_empty());
     }
 
@@ -98,7 +98,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
 
         let block = last_received_block.lock().unwrap();
         let block = block.as_ref().unwrap();
-        assert_eq!(block.header.number, Some(3));
+        assert_eq!(block.header.number, 3);
         assert_eq!(block.transactions.len(), 1);
         assert_eq!(block.transactions.hashes().last().unwrap().clone(), tx_hash);
     }
@@ -180,7 +180,7 @@ async fn test_eth_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         let block = last_received_block.lock().unwrap();
         let block = block.as_ref().unwrap();
         let mut tx_hashes = block.transactions.hashes();
-        assert_eq!(block.header.number, Some(5));
+        assert_eq!(block.header.number, 5);
         assert_eq!(block.transactions.len(), 2);
         assert_eq!(tx_hashes.next().unwrap().clone(), tx_hash1);
         assert_eq!(tx_hashes.next().unwrap().clone(), tx_hash2);

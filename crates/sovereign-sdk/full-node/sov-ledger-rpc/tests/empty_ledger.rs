@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use reth_primitives::U64;
+use alloy_primitives::U64;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_ledger_rpc::server::create_rpc_module;

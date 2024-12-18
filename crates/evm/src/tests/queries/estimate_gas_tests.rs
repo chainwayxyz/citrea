@@ -1,12 +1,11 @@
 use std::str::FromStr;
 
-use alloy_eips::eip2930::AccessListWithGasUsed;
+use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
+use alloy_primitives::{address, b256, Address, TxKind, U256};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{
-    address, b256, AccessList, AccessListItem, Address, BlockNumberOrTag, TxKind, U256,
-};
+use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
-use reth_rpc_types::request::{TransactionInput, TransactionRequest};
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::{Spec, WorkingSet};
@@ -44,6 +43,7 @@ fn test_payable_contract_value() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
+        authorization_list: None,
     };
 
     let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
@@ -75,6 +75,7 @@ fn test_tx_request_fields_gas() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
+        authorization_list: None,
     };
 
     let result_contract_call = evm.eth_estimate_gas(
@@ -318,6 +319,7 @@ fn test_access_list() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
+        authorization_list: None,
     };
 
     let no_access_list = evm.eth_estimate_gas(tx_req_contract_call.clone(), None, &mut working_set);
@@ -404,6 +406,7 @@ fn test_pending_env() {
         blob_versioned_hashes: None,
         transaction_type: None,
         sidecar: None,
+        authorization_list: None,
     };
 
     let result = evm

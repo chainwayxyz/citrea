@@ -1,10 +1,9 @@
 use alloy_eips::eip1559::BaseFeeParams;
+use alloy_primitives::hex_literal::hex;
+use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
 use lazy_static::lazy_static;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
-use reth_primitives::hex_literal::hex;
-use reth_primitives::{
-    Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH, U256,
-};
+use reth_primitives::{Header, SealedHeader, EMPTY_OMMER_ROOT_HASH};
 use revm::primitives::SpecId;
 use sov_modules_api::prelude::*;
 
@@ -143,7 +142,7 @@ fn genesis_block() {
                     timestamp: 0,
                     extra_data: Bytes::default(),
                     mix_hash: B256::default(),
-                    nonce: 0,
+                    nonce: B64::ZERO,
                     base_fee_per_gas: Some(1000000000),
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: *BENEFICIARY,
@@ -187,7 +186,7 @@ fn genesis_head() {
             timestamp: 0,
             extra_data: Bytes::default(),
             mix_hash: B256::default(),
-            nonce: 0,
+            nonce: B64::ZERO,
             base_fee_per_gas: Some(1000000000),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: *BENEFICIARY,

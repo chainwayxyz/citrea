@@ -55,7 +55,6 @@ metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true, default-features = true }
 metrics-util = { workspace = true }
 reth-primitives = { workspace = true }
-reth-rpc-types = { workspace = true }
 reth-transaction-pool = { workspace = true }
 risc0-binfmt = { workspace = true }
 secp256k1 = { workspace = true }
@@ -75,6 +74,8 @@ sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", f
 
 alloy = { workspace = true, features = ["hyper", "consensus", "rpc-types-eth", "provider-http", "signers", "signer-local"] }
 alloy-rlp = { workspace = true }
+alloy-rpc-types = { workspace = true }
+alloy-rpc-types-trace = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }

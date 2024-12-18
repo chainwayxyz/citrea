@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin_da::service::FINALITY_DEPTH;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
@@ -12,7 +13,6 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use reth_primitives::U64;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::batch_prover_test::wait_for_zkproofs;

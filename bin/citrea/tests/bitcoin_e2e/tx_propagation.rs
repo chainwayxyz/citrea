@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use alloy_primitives::{Address, TxHash};
 use async_trait::async_trait;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
@@ -8,7 +9,7 @@ use citrea_e2e::node::Config;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
-use reth_primitives::{Address, BlockNumberOrTag, TxHash};
+use reth_primitives::BlockNumberOrTag;
 
 use super::get_citrea_path;
 use crate::evm::make_test_client;

@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
+use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -17,7 +18,6 @@ use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
-use reth_primitives::U64;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{BatchNumber, SlotNumber};
 use sov_ledger_rpc::LedgerRpcClient;

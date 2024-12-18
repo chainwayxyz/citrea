@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
@@ -14,7 +15,6 @@ use citrea_e2e::sequencer::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::TO_BATCH_PROOF_PREFIX;
-use reth_primitives::U64;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;

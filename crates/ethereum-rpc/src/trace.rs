@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use alloy_rpc_types_trace::geth::{
+    CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
+    GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
+};
 #[cfg(feature = "local")]
 use citrea_evm::Evm;
 use jsonrpsee::types::{ErrorObjectOwned, ParamsSequence};
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::error::EthApiError;
-use reth_rpc_types::trace::geth::{
-    CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
-    GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
-};
 use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use tracing::error;
@@ -54,7 +54,9 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
     let end_block = match end_block {
         BlockNumberOrTag::Number(end_block) => {
             if end_block > latest_block_number {
-                pending.reject(EthApiError::UnknownBlockNumber).await;
+                pending
+                    .reject(EthApiError::HeaderNotFound(end_block.into()))
+                    .await;
                 return;
             }
             end_block

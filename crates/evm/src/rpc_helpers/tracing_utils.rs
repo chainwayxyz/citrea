@@ -1,10 +1,11 @@
-use reth_primitives::revm_primitives::TxEnv;
-use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered, TxHash, U256};
-use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-use reth_rpc_types::trace::geth::{
+use alloy_primitives::{TxHash, U256};
+use alloy_rpc_types_trace::geth::{
     FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracingOptions,
     GethTrace, NoopFrame,
 };
+use reth_primitives::revm_primitives::TxEnv;
+use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
+use reth_rpc_eth_types::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use revm::precompile::{PrecompileSpecId, Precompiles};
 use revm::primitives::db::Database;
 use revm::primitives::{Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, ResultAndState, SpecId};
@@ -72,23 +73,26 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .inspector
                         .into_geth_builder()
                         .geth_call_traces(call_config, res.result.gas_used());
-                    return Ok((frame.into(), res.state));
+                    Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::PreStateTracer => {
                     // Requires DatabaseRef trait
                     // meaning we need a readonly state to implement this
-                    return Err(EthApiError::Unsupported("PreStateTracer"));
+                    Err(EthApiError::Unsupported("PreStateTracer"))
                 }
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
                 }
                 // TODO: either implement or return unsupported
-                GethDebugBuiltInTracerType::MuxTracer => todo!("MuxTracer"),
+                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
+                GethDebugBuiltInTracerType::FlatCallTracer => {
+                    Err(EthApiError::Unsupported("FlatCallTracer"))
+                }
             },
             GethDebugTracerType::JsTracer(_code) => {
                 // This also requires DatabaseRef trait
                 // Implement after readonly state is implemented
-                return Err(EthApiError::Unsupported("JsTracer"));
+                Err(EthApiError::Unsupported("JsTracer"))
             }
         };
     }
@@ -238,7 +242,10 @@ pub(crate) fn caller_gas_allowance(balance: U256, value: U256, gas_price: U256) 
         // Subtract transferred value from the caller balance.
         .checked_sub(value)
         // Return error if the caller has insufficient funds.
-        .ok_or_else(|| RpcInvalidTransactionError::InsufficientFunds)?
+        .ok_or_else(|| RpcInvalidTransactionError::InsufficientFunds {
+            cost: value,
+            balance,
+        })?
         // Calculate the amount of gas the caller can afford with the specified gas price.
         .checked_div(gas_price)
         // This will be 0 if gas price is 0. It is fine, because we check it before.

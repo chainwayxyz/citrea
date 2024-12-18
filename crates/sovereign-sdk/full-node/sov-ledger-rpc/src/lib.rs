@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
+use alloy_primitives::U64;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use reth_primitives::U64;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, SequencerCommitmentResponse,
     SoftConfirmationResponse, SoftConfirmationStatus, VerifiedBatchProofResponse,

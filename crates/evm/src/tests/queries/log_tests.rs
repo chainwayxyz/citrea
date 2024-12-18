@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
+use alloy_primitives::b256;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{b256, BlockNumberOrTag};
+use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::EthApiError;
 use revm::primitives::{B256, U256};
 use sov_modules_api::default_context::DefaultContext;
@@ -37,7 +38,10 @@ fn logs_for_filter_test() {
         },
         &mut working_set,
     );
-    assert_eq!(result, Err(EthApiError::UnknownBlockNumber.into()));
+    assert_eq!(
+        result,
+        Err(EthApiError::HeaderNotFound(B256::from([1u8; 32]).into()).into())
+    );
 
     let available_res = evm.eth_get_logs(
         Filter {

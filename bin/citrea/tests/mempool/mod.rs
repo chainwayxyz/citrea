@@ -3,9 +3,10 @@ use std::str::FromStr;
 
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
+use alloy_primitives::Address;
 use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{Address, BlockNumberOrTag};
+use reth_primitives::BlockNumberOrTag;
 use tokio::task::JoinHandle;
 
 use crate::evm::make_test_client;

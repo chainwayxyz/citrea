@@ -11,7 +11,7 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-common = { path = "../common" }
-citrea-primitives = { path = "../primitives", features = ["native"] }
+citrea-primitives = { path = "../primitives" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
@@ -24,6 +24,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 sov-stf-runner = { path = "../sovereign-sdk/full-node/sov-stf-runner" }
 
 # 3rd-party deps
+alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
@@ -38,7 +39,6 @@ once_cell = { workspace = true, default-features = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
-reth-primitives = { workspace = true }
 rs_merkle = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
