@@ -330,9 +330,9 @@ pub(crate) const fn verify_forks(forks: &[Fork]) -> bool {
 /// This assumes that the list of forks is sorted by block number in ascending fashion.
 pub(crate) fn fork_pos_from_block_number(forks: &[Fork], block_number: u64) -> usize {
     let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&block_number));
-    let active_fork_idx = match pos {
+
+    match pos {
         Ok(idx) => idx,
         Err(idx) => idx.saturating_sub(1),
-    };
-    active_fork_idx
+    }
 }

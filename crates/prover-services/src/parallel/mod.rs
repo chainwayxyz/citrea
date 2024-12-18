@@ -49,6 +49,7 @@ where
     Stf::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
         vm: Vm,

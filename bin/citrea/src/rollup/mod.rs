@@ -52,7 +52,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         // Set forks before anything
-        set_forks(rollup_config.forks.clone());
+        set_forks(rollup_config.forks);
 
         let mut task_manager = TaskManager::default();
         let da_service = self
@@ -176,7 +176,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         // Set forks before anything
-        set_forks(rollup_config.forks.clone());
+        set_forks(rollup_config.forks);
 
         let mut task_manager = TaskManager::default();
         let da_service = self
@@ -311,7 +311,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         // Set forks before anything
-        set_forks(rollup_config.forks.clone());
+        set_forks(rollup_config.forks);
 
         let mut task_manager = TaskManager::default();
         let da_service = self
@@ -445,7 +445,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         // Set forks before anything
-        set_forks(rollup_config.forks.clone());
+        set_forks(rollup_config.forks);
 
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(

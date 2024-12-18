@@ -306,7 +306,7 @@ impl FromEnv for LightClientProverConfig {
 impl FromEnv for Forks {
     fn from_env() -> anyhow::Result<Self> {
         let forks = std::env::var("FORKS")?;
-        Ok(Forks::from_utf8(&forks).ok_or(anyhow::anyhow!("Invalid FORKS env variable"))?)
+        Forks::from_utf8(&forks).ok_or(anyhow::anyhow!("Invalid FORKS env variable"))
     }
 }
 
