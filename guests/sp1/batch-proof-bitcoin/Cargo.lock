@@ -2776,6 +2776,7 @@ dependencies = [
  "citrea-primitives",
  "citrea-sp1",
  "citrea-stf",
+ "const-hex",
  "curve25519-dalek",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
