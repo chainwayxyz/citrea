@@ -14,7 +14,7 @@ use revm::primitives::{
     spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
     SpecId, B256, U256,
 };
-use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+use revm::{Context, ContextPrecompiles, Database, FrameResult, InnerEvmContext, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{EvmContext, Inspector};
 use sov_modules_api::{native_debug, native_error, native_warn};
@@ -290,7 +290,7 @@ where
         // validation.env =
         validation.tx_against_state =
             Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-        // pre_execution.load_accounts =
+        pre_execution.load_precompiles = Arc::new(CitreaHandler::<SPEC, EXT, DB>::load_precompiles);
         // pre_execution.load_accounts =
         pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
         // execution.last_frame_return =
@@ -314,6 +314,29 @@ struct CitreaHandler<SPEC, EXT, DB> {
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
+    fn load_precompiles() -> ContextPrecompiles<DB> {
+        fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
+            use revm::precompile::{
+                u64_to_address, Bytes, Precompile, PrecompileOutput, PrecompileResult,
+            };
+
+            pub fn kzg(_input: &Bytes, _gas_limit: u64, _env: &Env) -> PrecompileResult {
+                pub const GAS_COST: u64 = 0;
+                pub const RETURN_VALUE: &[u8; 64] = &[0; 64];
+                Ok(PrecompileOutput::new(GAS_COST, RETURN_VALUE.into()))
+            }
+
+            let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
+            let precompiles_inner = precompiles.to_mut();
+            if let Some(kzg_point_evaluation) = precompiles_inner.get_mut(&u64_to_address(0x0A)) {
+                // replace kzg_point_evaluation if it was enabled in the Spec
+                *kzg_point_evaluation = Precompile::Env(kzg).into();
+            }
+            precompiles
+        }
+
+        our_precompiles::<SPEC, DB>()
+    }
     fn validate_tx_against_state(
         context: &mut Context<EXT, DB>,
     ) -> Result<(), EVMError<DB::Error>> {
