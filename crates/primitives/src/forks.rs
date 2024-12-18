@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use sov_rollup_interface::fork::{fork_pos_from_block_number, Fork};
+use sov_rollup_interface::fork::{fork_pos_from_block_number, verify_forks, Fork};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::Network;
 
@@ -74,3 +74,18 @@ const TESTING_FORKS: [Fork; 3] = [
         activation_height: 2000,
     },
 ];
+
+const _CHECK_FORKS: () = {
+    if !verify_forks(&MAINNET_FORKS)
+        || !verify_forks(&TESTNET_FORKS)
+        || !verify_forks(&DEVNET_FORKS)
+        || !verify_forks(&NIGHTLY_FORKS)
+    {
+        panic!("FORKS order is invalid")
+    }
+
+    #[cfg(feature = "testing")]
+    if !verify_forks(&TESTING_FORKS) {
+        panic!("FORKS order is invalid")
+    }
+};

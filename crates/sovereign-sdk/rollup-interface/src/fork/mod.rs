@@ -46,7 +46,7 @@ impl Fork {
 }
 
 /// Verifies the order of forks.
-pub(crate) const fn verify_forks(forks: &[Fork]) -> bool {
+pub const fn verify_forks(forks: &[Fork]) -> bool {
     let mut i = 0;
     while i < forks.len() {
         let fork = forks[i];
