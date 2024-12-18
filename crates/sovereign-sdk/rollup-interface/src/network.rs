@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use core::fmt::Display;
 
 /// The network currently running.
 #[derive(Copy, Clone, Default, Debug)]
