@@ -63,7 +63,7 @@ const BATCH_PROOF_METHOD_ID: [u32; 8] = {
 const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         // TODO: Update mainnet pub key
-        Network::Mainnet => "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
+        Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
         Network::Devnet => "03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
         Network::Nightly => {

@@ -29,7 +29,7 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
     let hex_pub_key = match NETWORK {
         // TODO: Update Mainnet public key when decided
-        Network::Mainnet => "4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1",
+        Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1",
         Network::Devnet => "52f41a5076498d1ae8bdfa57d19e91e3c2c94b6de21985d099cd48cfa7aef174",
         Network::Nightly => {
@@ -49,7 +49,7 @@ const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
 const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         // TODO: Update Mainnet public key when decided
-        Network::Mainnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
+        Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
         Network::Devnet => "039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
         Network::Nightly => {
