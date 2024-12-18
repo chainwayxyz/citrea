@@ -1,9 +1,10 @@
 #![no_main]
+use citrea_primitives::forks::NIGHTLY_FORKS;
 use citrea_stf::runtime::Runtime;
 use citrea_stf::StfVerifier;
 use sov_mock_da::MockDaVerifier;
 use sov_modules_api::default_context::ZkDefaultContext;
-use sov_modules_api::fork::{Fork, Forks};
+use sov_modules_api::fork::Fork;
 use sov_modules_stf_blueprint::StfBlueprint;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_state::ZkStorage;
@@ -11,45 +12,17 @@ use sov_rollup_interface::zk::ZkvmGuest;
 
 risc0_zkvm::guest::entry!(main);
 
-const SEQUENCER_PUBLIC_KEY: [u8; 32] = {
-    let hex_pub_key = env!("SEQUENCER_PUBLIC_KEY");
-
-    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-        Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_PUBLIC_KEY must be valid 32-byte hex string"),
-    }
+const SEQUENCER_PUBLIC_KEY: [u8; 32] = match const_hex::const_decode_to_array(b"204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21") {
+    Ok(pub_key) => pub_key,
+    Err(_) => panic!("Can't happen"),
 };
 
-const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
-    let hex_pub_key = env!("SEQUENCER_DA_PUBLIC_KEY");
-
-    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
-        // TODO: maybe verify the first byte?
-        Ok(pub_key) => {
-            if pub_key[0] != 2 && pub_key[0] != 3 {
-                panic!("SEQUENCER_DA_PUBLIC_KEY first byte must be either 02 or 03");
-            }
-            pub_key
-        }
-        Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
-    }
+const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(b"02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9") {
+    Ok(pub_key) => pub_key,
+    Err(_) => panic!("Can't happen"),
 };
 
-// Temporary variable to allow FORKS static reference to be valid
-const TEMP_FORKS: Forks = {
-    let forks_str = env!("FORKS");
-
-    match Forks::from_utf8(forks_str) {
-        Some(forks) => {
-            if forks.inner().len() == 0 {
-            }
-            forks
-        }
-        None => panic!("FORKS must be valid comma separated list"),
-    }
-};
-
-const FORKS: &[Fork] = TEMP_FORKS.inner();
+const FORKS: &[Fork] = &NIGHTLY_FORKS;
 
 pub fn main() {
     let guest = Risc0Guest::new();

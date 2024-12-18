@@ -45,19 +45,19 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
     forks[pos]
 }
 
-const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
+pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
 
-const TESTNET_FORKS: [Fork; 2] = [
+pub const TESTNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Fork1, 999_999_999),
 ];
 
-const DEVNET_FORKS: [Fork; 2] = [
+pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Fork1, 999_999_999),
 ];
 
-const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
+pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
 
 #[cfg(feature = "testing")]
 const TESTING_FORKS: [Fork; 3] = [
