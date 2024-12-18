@@ -17,7 +17,7 @@ use rand::Rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::{SoftConfirmationNumber, SlotNumber};
 use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -367,7 +367,7 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
         let start_l2 = sequencer_commitment.l2_start_block_number;
         let end_l2 = sequencer_commitment.l2_end_block_number;
         let soft_confirmations_in_commitment = match ledger_db
-            .get_soft_confirmation_range(&(BatchNumber(start_l2)..=BatchNumber(end_l2)))
+            .get_soft_confirmation_range(&(SoftConfirmationNumber(start_l2)..=SoftConfirmationNumber(end_l2)))
         {
             Ok(soft_confirmations) => soft_confirmations,
             Err(e) => {
@@ -453,7 +453,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
         {
             let state_diff =
                 ledger_db
-                    .get_l2_state_diff(BatchNumber(l2_height))?
+                    .get_l2_state_diff(SoftConfirmationNumber(l2_height))?
                     .ok_or(anyhow!(
                         "Could not find state diff for L2 range {}-{}",
                         sequencer_commitment.l2_start_block_number,

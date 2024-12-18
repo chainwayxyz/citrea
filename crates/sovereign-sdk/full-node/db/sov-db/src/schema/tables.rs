@@ -1,18 +1,5 @@
 //! This module defines the following tables:
 //!
-//!
-//! Slot Tables:
-//! - `SlotNumber -> StoredSlot`
-//! - `SlotNumber -> Vec<BatchNumber>`
-//!
-//! Batch Tables:
-//! - `BatchNumber -> StoredBatch`
-//! - `BatchHash -> BatchNumber`
-//!
-//! Tx Tables:
-//! - `TxNumber -> (TxHash,Tx)`
-//! - `TxHash -> TxNumber`
-//!
 //! JMT Tables:
 //! - `KeyHash -> Key`
 //! - `(Key, Version) -> JmtValue`
@@ -31,8 +18,8 @@ use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
 
 use super::types::{
-    AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, JmtValue, L2HeightRange, SlotNumber,
-    StateKey, StoredBatch, StoredBatchProof, StoredLightClientProof, StoredSlot,
+    AccessoryKey, AccessoryStateValue, DbHash, JmtValue, L2HeightRange, SlotNumber,
+    SoftConfirmationNumber, StateKey, StoredBatchProof, StoredLightClientProof,
     StoredSoftConfirmation, StoredVerifiedProof,
 };
 
@@ -48,7 +35,6 @@ pub const STATE_TABLES: &[&str] = &[
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
-    SlotByNumber::table_name(),
     SlotByHash::table_name(),
     SoftConfirmationByNumber::table_name(),
     SoftConfirmationByHash::table_name(),
@@ -60,7 +46,6 @@ pub const LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     ProverLastScannedSlot::table_name(),
-    BatchByNumber::table_name(),
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
     ProofsBySlotNumber::table_name(),
@@ -232,11 +217,6 @@ define_table_with_seek_key_codec!(
     (LastStateDiff) () => StateDiff
 );
 
-define_table_with_seek_key_codec!(
-    /// The primary source for slot data
-    (SlotByNumber) SlotNumber => StoredSlot
-);
-
 define_table_with_default_codec!(
     /// A "secondary index" for slot data by hash
     (SlotByHash) DbHash => SlotNumber
@@ -249,12 +229,12 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// The primary source for soft confirmation data
-    (SoftConfirmationByNumber) BatchNumber => StoredSoftConfirmation
+    (SoftConfirmationByNumber) SoftConfirmationNumber => StoredSoftConfirmation
 );
 
 define_table_with_default_codec!(
     /// A "secondary index" for soft confirmation data by hash
-    (SoftConfirmationByHash) DbHash => BatchNumber
+    (SoftConfirmationByHash) DbHash => SoftConfirmationNumber
 );
 
 define_table_with_default_codec!(
@@ -264,7 +244,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// The primary source of state & offchain witnesses by L2 height
-    (L2Witness) BatchNumber => (Vec<u8>, Vec<u8>)
+    (L2Witness) SoftConfirmationNumber => (Vec<u8>, Vec<u8>)
 );
 
 define_table_with_default_codec!(
@@ -279,7 +259,7 @@ define_table_with_default_codec!(
 
 define_table_with_seek_key_codec!(
     /// Sequencer uses this table to store the last commitment it sent
-    (LastSequencerCommitmentSent) () => BatchNumber
+    (LastSequencerCommitmentSent) () => SoftConfirmationNumber
 );
 
 define_table_with_seek_key_codec!(
@@ -290,14 +270,9 @@ define_table_with_seek_key_codec!(
     (ProverLastScannedSlot) () => SlotNumber
 );
 
-define_table_with_seek_key_codec!(
-    /// The primary source for batch data
-    (BatchByNumber) BatchNumber => StoredBatch
-);
-
 define_table_with_default_codec!(
     /// Check whether a block is finalized
-    (SoftConfirmationStatus) BatchNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
+    (SoftConfirmationStatus) SoftConfirmationNumber => sov_rollup_interface::rpc::SoftConfirmationStatus
 );
 
 define_table_without_codec!(
@@ -338,7 +313,7 @@ define_table_with_default_codec!(
 
 define_table_with_default_codec!(
     /// L2 height to state diff for prover
-    (ProverStateDiffs) BatchNumber => StateDiff
+    (ProverStateDiffs) SoftConfirmationNumber => StateDiff
 );
 
 define_table_with_seek_key_codec!(

@@ -28,7 +28,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::{SoftConfirmationNumber, SlotNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
@@ -579,7 +579,7 @@ where
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
-                    BatchNumber(l2_height),
+                    SoftConfirmationNumber(l2_height),
                 )?;
 
                 // Register this new block with the fork manager to active

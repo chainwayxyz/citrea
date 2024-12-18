@@ -13,7 +13,7 @@ use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::LedgerDBMigrator;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
-use sov_db::schema::types::BatchNumber;
+use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
@@ -123,7 +123,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
             .map(|(l2_height, _)| l2_height)
-            .unwrap_or(BatchNumber(0));
+            .unwrap_or(SoftConfirmationNumber(0));
 
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
@@ -254,7 +254,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
             .map(|(l2_height, _)| l2_height)
-            .unwrap_or(BatchNumber(0));
+            .unwrap_or(SoftConfirmationNumber(0));
 
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
@@ -389,12 +389,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let elfs_by_spec = self.get_batch_proof_elfs();
 
         let current_l2_height = ledger_db
-            .get_head_soft_confirmation()
+            .get_head_soft_confirmation_height()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
-            .map(|(l2_height, _)| l2_height)
-            .unwrap_or(BatchNumber(0));
+            .unwrap_or(0);
 
-        let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
+        let mut fork_manager = ForkManager::new(FORKS, current_l2_height);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaBatchProver::new(
@@ -488,7 +487,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
             .map(|(l2_height, _)| l2_height)
-            .unwrap_or(BatchNumber(0));
+            .unwrap_or(SoftConfirmationNumber(0));
 
         let mut fork_manager = ForkManager::new(FORKS, current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
