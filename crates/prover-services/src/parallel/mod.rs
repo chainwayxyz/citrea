@@ -290,7 +290,7 @@ where
                     zk_storage,
                     sequencer_public_key,
                     sequencer_da_public_key,
-                    get_forks().inner(),
+                    get_forks(),
                 )
                 .map(|_| Vec::default())
                 .map_err(|e| {

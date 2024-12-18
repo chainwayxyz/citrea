@@ -9,6 +9,7 @@ use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{FullNodeConfig, RollupPublicKeys};
+use citrea_primitives::forks::use_network_forks;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 // use citrea_sp1::host::SP1Host;
@@ -64,6 +65,7 @@ impl RollupBlueprint for BitcoinRollup {
     >;
 
     fn new(network: Network) -> Self {
+        use_network_forks(network);
         Self { network }
     }
 

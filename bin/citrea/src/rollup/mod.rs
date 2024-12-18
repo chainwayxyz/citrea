@@ -7,7 +7,7 @@ use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
-use citrea_primitives::forks::{get_forks, set_forks};
+use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::LedgerDBMigrator;
@@ -51,9 +51,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // Set forks before anything
-        set_forks(rollup_config.forks);
-
         let mut task_manager = TaskManager::default();
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
@@ -128,7 +125,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(get_forks().inner(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let seq = CitreaSequencer::new(
@@ -175,9 +172,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // Set forks before anything
-        set_forks(rollup_config.forks);
-
         let mut task_manager = TaskManager::default();
         let da_service = self
             .create_da_service(&rollup_config, false, &mut task_manager)
@@ -262,7 +256,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(get_forks().inner(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaFullnode::new(
@@ -310,9 +304,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // Set forks before anything
-        set_forks(rollup_config.forks);
-
         let mut task_manager = TaskManager::default();
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
@@ -404,7 +395,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(get_forks().inner(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaBatchProver::new(
@@ -444,9 +435,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // Set forks before anything
-        set_forks(rollup_config.forks);
-
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
             rollup_config.storage.path.as_path(),
@@ -504,7 +492,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             .map(|(l2_height, _)| l2_height)
             .unwrap_or(BatchNumber(0));
 
-        let mut fork_manager = ForkManager::new(get_forks().inner(), current_l2_height.0);
+        let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
         let runner = CitreaLightClientProver::new(

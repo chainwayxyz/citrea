@@ -327,7 +327,7 @@ pub(crate) const fn verify_forks(forks: &[Fork]) -> bool {
 
 /// Simple search for the fork to which a specific block number belongs.
 /// This assumes that the list of forks is sorted by block number in ascending fashion.
-pub(crate) fn fork_pos_from_block_number(forks: &[Fork], block_number: u64) -> usize {
+pub fn fork_pos_from_block_number(forks: &[Fork], block_number: u64) -> usize {
     let pos = forks.binary_search_by(|fork| fork.activation_height.cmp(&block_number));
 
     match pos {

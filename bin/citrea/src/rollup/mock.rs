@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{FullNodeConfig, RollupPublicKeys};
+use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
@@ -50,6 +51,7 @@ impl RollupBlueprint for MockDemoRollup {
     >;
 
     fn new(network: Network) -> Self {
+        use_network_forks(network);
         Self { _network: network }
     }
 
