@@ -53,7 +53,7 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
         Network::Testnet => "03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b",
         Network::Devnet => "039cd55f9b3dcf306c4d54f66cd7c4b27cc788632cd6fb73d80c99d303c6536486",
         Network::Nightly => {
-            match option_env!("SEQUENCER_DA_PUBLIC_KEY") {
+            match option_env!("SEQUENCER_DA_PUB_KEY") {
                 Some(hex_pub_key) => hex_pub_key,
                 None => "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9",
             }
@@ -62,7 +62,7 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
 
     match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
         Ok(pub_key) => pub_key,
-        Err(_) => panic!("SEQUENCER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
+        Err(_) => panic!("SEQUENCER_DA_PUB_KEY must be valid 33-byte hex string"),
     }
 };
 

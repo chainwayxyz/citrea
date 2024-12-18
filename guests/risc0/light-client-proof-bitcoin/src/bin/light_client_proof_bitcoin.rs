@@ -67,7 +67,7 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
         Network::Testnet => "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
         Network::Devnet => "03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
         Network::Nightly => {
-            match option_env!("BATCH_PROVER_DA_PUBLIC_KEY") {
+            match option_env!("PROVER_DA_PUB_KEY") {
                 Some(hex_pub_key) => hex_pub_key,
                 None => "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
             }
@@ -76,7 +76,7 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
 
     match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
         Ok(pub_key) => pub_key,
-        Err(_) => panic!("BATCH_PROVER_DA_PUBLIC_KEY must be valid 33-byte hex string"),
+        Err(_) => panic!("PROVER_DA_PUB_KEY must be valid 33-byte hex string"),
     }
 };
 
