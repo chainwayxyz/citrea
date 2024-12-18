@@ -8,9 +8,9 @@ pub enum Network {
     Mainnet,
     /// Testnet
     Testnet,
-    /// Testnet
+    /// Devnet
     Devnet,
-    /// nightly
+    /// Nightly
     Nightly,
 }
 
