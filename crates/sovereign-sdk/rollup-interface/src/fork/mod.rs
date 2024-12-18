@@ -7,12 +7,11 @@ mod tests;
 
 pub use manager::*;
 pub use migration::*;
-use serde::{Deserialize, Serialize};
 
 use crate::spec::SpecId;
 
 /// Fork is a wrapper struct that contains spec id and it's activation height
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct Fork {
     /// Spec id for this fork
     pub spec_id: SpecId,
