@@ -907,7 +907,6 @@ dependencies = [
  "reth-primitives-traits",
  "revm",
  "serde",
- "serde_with",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",

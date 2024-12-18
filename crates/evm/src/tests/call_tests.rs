@@ -40,22 +40,6 @@ use crate::{
 type C = DefaultContext;
 
 #[test]
-fn serde_block_with_bcs() {
-    #[serde_as]
-    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-    struct Data {
-        #[serde_as(as = "reth_serde_bincode_compat::SealedHeader")]
-        pub b: SealedHeader,
-    }
-    let data = Data {
-        b: SealedHeader::default(),
-    };
-    let serialized_block = bcs::to_bytes(&data).unwrap();
-    let deserialized_block: Data = bcs::from_bytes(&serialized_block).unwrap();
-    println!("{:?}", deserialized_block);
-}
-
-#[test]
 fn call_multiple_test() {
     let dev_signer1: TestSigner = TestSigner::new_random();
 
