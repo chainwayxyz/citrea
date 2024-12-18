@@ -300,8 +300,7 @@ impl Fork {
     }
 }
 
-/// Verifies the order of forks. `size` is needed here due to being in const environment,
-/// size of the fork might not be known beforehand.
+/// Verifies the order of forks.
 pub(crate) const fn verify_forks(forks: &[Fork]) -> bool {
     let mut i = 0;
     while i < forks.len() {
