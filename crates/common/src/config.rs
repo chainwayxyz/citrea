@@ -194,8 +194,8 @@ impl FromEnv for RollupPublicKeys {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sequencer_public_key: hex::decode(std::env::var("SEQUENCER_PUBLIC_KEY")?)?,
-            sequencer_da_pub_key: hex::decode(std::env::var("SEQUENCER_DA_PUB_KEY")?)?,
-            prover_da_pub_key: hex::decode(std::env::var("PROVER_DA_PUB_KEY")?)?,
+            sequencer_da_pub_key: hex::decode(std::env::var("SEQUENCER_DA_PUBLIC_KEY")?)?,
+            prover_da_pub_key: hex::decode(std::env::var("PROVER_DA_PUBLIC_KEY")?)?,
         })
     }
 }
@@ -675,10 +675,10 @@ mod tests {
             "0000000000000000000000000000000000000000000000000000000000000000",
         );
         std::env::set_var(
-            "SEQUENCER_DA_PUB_KEY",
+            "SEQUENCER_DA_PUBLIC_KEY",
             "7777777777777777777777777777777777777777777777777777777777777777",
         );
-        std::env::set_var("PROVER_DA_PUB_KEY", "");
+        std::env::set_var("PROVER_DA_PUBLIC_KEY", "");
 
         std::env::set_var("RPC_BIND_HOST", "127.0.0.1");
         std::env::set_var("RPC_BIND_PORT", "12345");
