@@ -166,9 +166,6 @@ pub struct LightClientProofOutputRpcResponse {
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
-    /// Genesis state root of Citrea
-    #[serde(with = "hex::serde")]
-    pub l2_genesis_state_root: [u8; 32],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

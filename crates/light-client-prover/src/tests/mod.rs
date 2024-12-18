@@ -25,12 +25,19 @@ fn test_light_client_circuit_valid_da_valid_data() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: Some([1u8; 32]),
-        batch_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_1 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input).unwrap();
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32].to_vec();
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_1.state_root, [3; 32]);
@@ -52,12 +59,16 @@ fn test_light_client_circuit_valid_da_valid_data() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: None,
-        batch_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_2 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input_2).unwrap();
+    let output_2 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input_2,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_2.state_root, [5; 32]);
@@ -68,6 +79,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
 #[test]
 fn test_wrong_order_da_blocks_should_still_work() {
     let light_client_proof_method_id = [1u32; 8];
+    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
@@ -82,12 +94,19 @@ fn test_wrong_order_da_blocks_should_still_work() {
         da_data: vec![blob_2, blob_1],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: Some([1u8; 32]),
-        batch_proof_method_id: light_client_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_1 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input).unwrap();
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32].to_vec();
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_1.state_root, [3; 32]);
@@ -98,6 +117,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
 #[test]
 fn create_unchainable_outputs_then_chain_them_on_next_block() {
     let light_client_proof_method_id = [1u32; 8];
+    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let block_header_1 = MockBlockHeader::from_height(1);
@@ -112,12 +132,19 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_data: vec![blob_2, blob_1],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: Some([1u8; 32]),
-        batch_proof_method_id: light_client_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_1 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input).unwrap();
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32].to_vec();
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition has not happened because we are missing 1->2
     assert_eq!(output_1.state_root, [1; 32]);
@@ -150,12 +177,16 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_data: vec![blob_1],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: None,
-        batch_proof_method_id: light_client_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_2 = run_circuit::<_, MockZkGuest>(da_verifier, input_2).unwrap();
+    let output_2 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input_2,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened from 1-4 now
 
@@ -167,6 +198,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 #[test]
 fn test_header_chain_proof_height_and_hash() {
     let light_client_proof_method_id = [1u32; 8];
+    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
@@ -181,12 +213,19 @@ fn test_header_chain_proof_height_and_hash() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: Some([1u8; 32]),
-        batch_proof_method_id: light_client_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_1 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input).unwrap();
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32].to_vec();
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened
     assert_eq!(output_1.state_root, [3; 32]);
@@ -208,13 +247,16 @@ fn test_header_chain_proof_height_and_hash() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: None,
-        batch_proof_method_id: light_client_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
-    let res = run_circuit::<_, MockZkGuest>(da_verifier, input_2);
+    let res = run_circuit::<_, MockZkGuest>(
+        da_verifier,
+        input_2,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    );
     assert!(matches!(
         res,
         Err(LightClientVerificationError::HeaderChainVerificationFailed)
@@ -239,12 +281,19 @@ fn test_unverifiable_batch_proofs() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: Some([1u8; 32]),
-        batch_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_1 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input).unwrap();
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32].to_vec();
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened but only for verified batch proof
     // and assert the unverified is ignored, so it is not even in the unchained outputs
@@ -272,12 +321,19 @@ fn test_unverifiable_prev_light_client_proof() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: Some([1u8; 32]),
-        batch_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let output_1 = run_circuit::<_, MockZkGuest>(da_verifier.clone(), input).unwrap();
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32].to_vec();
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        batch_proof_method_id,
+        &batch_prover_da_pub_key,
+    )
+    .unwrap();
 
     // Check that the state transition actually happened but only for verified batch proof
     // and assert the unverified is ignored, so it is not even in the unchained outputs
@@ -297,12 +353,15 @@ fn test_unverifiable_prev_light_client_proof() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
-        l2_genesis_state_root: None,
-        batch_proof_method_id: light_client_proof_method_id,
-        batch_prover_da_pub_key: [9; 32].to_vec(),
     };
 
-    let res = run_circuit::<_, MockZkGuest>(da_verifier, input_2);
+    let res = run_circuit::<_, MockZkGuest>(
+        da_verifier,
+        input_2,
+        l2_genesis_state_root,
+        light_client_proof_method_id,
+        &batch_prover_da_pub_key,
+    );
     assert!(matches!(
         res,
         Err(LightClientVerificationError::InvalidPreviousLightClientProof)

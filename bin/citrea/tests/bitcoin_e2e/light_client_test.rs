@@ -321,16 +321,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             light_client_proof.light_client_proof_output.last_l2_height
         );
 
-        // Should always be the same
-        assert_eq!(
-            light_client_proof2
-                .light_client_proof_output
-                .l2_genesis_state_root,
-            light_client_proof
-                .light_client_proof_output
-                .l2_genesis_state_root
-        );
-
         assert!(light_client_proof2
             .light_client_proof_output
             .unchained_batch_proofs_info
@@ -415,15 +405,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
                 .state_root
                 .to_vec(),
             batch_proofs[0].proof_output.final_state_root
-        );
-
-        assert_eq!(
-            light_client_proof3
-                .light_client_proof_output
-                .l2_genesis_state_root,
-            light_client_proof
-                .light_client_proof_output
-                .l2_genesis_state_root
         );
 
         assert_ne!(

@@ -16,6 +16,7 @@ citrea-light-client-prover = { path = "../../../crates/light-client-prover", def
 citrea-primitives = { path = "../../../crates/primitives" }
 citrea-risc0-adapter = { path = "../../../crates/risc0" }
 const-hex = "1.12"
+constmuck = "1.1"
 sov-modules-api = { path = "../../../crates/sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-modules-stf-blueprint = { path = "../../../crates/sovereign-sdk/module-system/sov-modules-stf-blueprint" }
 sov-rollup-interface = { path = "../../../crates/sovereign-sdk/rollup-interface" }

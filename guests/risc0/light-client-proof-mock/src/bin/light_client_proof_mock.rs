@@ -15,11 +15,11 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
-const BATCH_PROOF_METHOD_ID: [u8; 32] = {
+const BATCH_PROOF_METHOD_ID: [u32; 8] = {
     let hex_method_id = env!("BATCH_PROOF_METHOD_ID");
 
-    match const_hex::const_decode_to_array(hex_method_id.as_bytes()) {
-        Ok(method_id) => method_id,
+    match const_hex::const_decode_to_array::<32>(hex_method_id.as_bytes()) {
+        Ok(method_id) => constmuck::cast(method_id),
         Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
     }
 };
@@ -45,7 +45,7 @@ pub fn main() {
 
     let input = guest.read_from_host();
 
-    let output = run_circuit::<MockDaVerifier, Risc0Guest>(da_verifier, input).unwrap();
+    let output = run_circuit::<MockDaVerifier, Risc0Guest>(da_verifier, input, L2_GENESIS_ROOT, BATCH_PROOF_METHOD_ID, &BATCH_PROVER_DA_PUBLIC_KEY).unwrap();
 
     guest.commit(&output);
 }

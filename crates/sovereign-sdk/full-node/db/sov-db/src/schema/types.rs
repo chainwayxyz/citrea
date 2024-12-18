@@ -95,8 +95,6 @@ pub struct StoredLightClientProofOutput {
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height after proof.
     pub last_l2_height: u64,
-    /// L2 genesis state root.
-    pub l2_genesis_state_root: [u8; 32],
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
@@ -112,7 +110,6 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             da_prev_11_timestamps: value.da_prev_11_timestamps,
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
-            l2_genesis_state_root: value.l2_genesis_state_root,
         }
     }
 }

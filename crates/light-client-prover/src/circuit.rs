@@ -18,6 +18,9 @@ pub enum LightClientVerificationError {
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
     input: LightClientCircuitInput<DaV::Spec>,
+    l2_genesis_root: [u8; 32],
+    batch_proof_method_id: [u32; 8],
+    batch_prover_da_public_key: &[u8],
 ) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
     // Extract previous light client proof output
     let previous_light_client_proof_output =
@@ -55,21 +58,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let (mut last_state_root, mut last_l2_height, l2_genesis_state_root) =
+    let (mut last_state_root, mut last_l2_height) =
         previous_light_client_proof_output.as_ref().map_or_else(
             || {
-                let r = input
-                    .l2_genesis_state_root
-                    .expect("if no preious proof, genesis must exist");
-                (r, 0, r)
+                // if no previous proof, we start from genesis state root
+                (l2_genesis_root, 0)
             },
-            |prev_journal| {
-                (
-                    prev_journal.state_root,
-                    prev_journal.last_l2_height,
-                    prev_journal.l2_genesis_state_root,
-                )
-            },
+            |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
         );
 
     // If we have a previous light client proof, check they can be chained
@@ -88,10 +83,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
     // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
     // https://github.com/chainwayxyz/citrea/issues/1401
-    let batch_proof_method_id = input.batch_proof_method_id;
     // Parse the batch proof da data
     for blob in input.da_data {
-        if blob.sender().as_ref() == input.batch_prover_da_pub_key {
+        if blob.sender().as_ref() == batch_prover_da_public_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
             if let Ok(data) = data {
@@ -157,6 +151,5 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         da_prev_11_timestamps: block_updates.prev_11_timestamps,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
-        l2_genesis_state_root,
     })
 }
