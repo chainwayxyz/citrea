@@ -1,5 +1,4 @@
 #![no_main]
-
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_primitives::forks::{DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTNET_FORKS};
