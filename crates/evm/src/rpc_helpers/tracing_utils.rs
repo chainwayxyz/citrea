@@ -73,24 +73,26 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                         .inspector
                         .into_geth_builder()
                         .geth_call_traces(call_config, res.result.gas_used());
-                    return Ok((frame.into(), res.state));
+                    Ok((frame.into(), res.state))
                 }
                 GethDebugBuiltInTracerType::PreStateTracer => {
                     // Requires DatabaseRef trait
                     // meaning we need a readonly state to implement this
-                    return Err(EthApiError::Unsupported("PreStateTracer"));
+                    Err(EthApiError::Unsupported("PreStateTracer"))
                 }
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
                 }
                 // TODO: either implement or return unsupported
-                GethDebugBuiltInTracerType::MuxTracer => todo!("MuxTracer"),
-                GethDebugBuiltInTracerType::FlatCallTracer => todo!("FlatCallTracer"),
+                GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
+                GethDebugBuiltInTracerType::FlatCallTracer => {
+                    Err(EthApiError::Unsupported("FlatCallTracer"))
+                }
             },
             GethDebugTracerType::JsTracer(_code) => {
                 // This also requires DatabaseRef trait
                 // Implement after readonly state is implemented
-                return Err(EthApiError::Unsupported("JsTracer"));
+                Err(EthApiError::Unsupported("JsTracer"))
             }
         };
     }
