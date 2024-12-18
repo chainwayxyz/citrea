@@ -21,7 +21,7 @@ batch-proof-bitcoin-docker:
 		--output ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker \
 		-f ./guests/risc0/Dockerfile \
 		--build-arg GUEST_NAME=batch-proof-bitcoin \
-		--build-arg EXAMPLE_ARG=some-value \
+		--build-arg CITREA_NETWORK=$(CITREA_NETWORK) \
 		-t batch-proof-bitcoin:latest \
 		--no-cache \
 		. && \
@@ -35,7 +35,7 @@ light-client-bitcoin-docker:
 		--output ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker \
 		-f ./guests/risc0/Dockerfile \
 		--build-arg GUEST_NAME=light-client-proof-bitcoin \
-		--build-arg EXAMPLE_ARG=some-value \
+		--build-arg CITREA_NETWORK=$(CITREA_NETWORK) \
 		-t light-client-proof-bitcoin:latest \
 		--no-cache \
 		. && \
