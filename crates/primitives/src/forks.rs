@@ -14,7 +14,12 @@ pub fn use_network_forks(network: Network) {
         Network::Devnet => &DEVNET_FORKS,
         Network::Nightly => &NIGHTLY_FORKS,
     };
+
+    #[cfg(not(feature = "testing"))]
     FORKS.set(forks).expect("Forks must be set exactly once");
+
+    #[cfg(feature = "testing")]
+    let _ = FORKS.set(forks);
 }
 
 /// Get forks. Forks need to be set before calling this method if not in testing environment.
@@ -28,9 +33,7 @@ pub fn get_forks() -> &'static [Fork] {
 
             #[cfg(feature = "testing")]
             {
-                FORKS
-                    .set(&TESTING_FORKS)
-                    .expect("Already checked that it is not set");
+                use_network_forks(Network::Nightly);
                 FORKS.get().expect("Just set it")
             }
         }
@@ -59,33 +62,12 @@ pub const DEVNET_FORKS: [Fork; 2] = [
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
 
-#[cfg(feature = "testing")]
-const TESTING_FORKS: [Fork; 3] = [
-    Fork {
-        spec_id: SpecId::Genesis,
-        activation_height: 0,
-    },
-    Fork {
-        spec_id: SpecId::Fork1,
-        activation_height: 1000,
-    },
-    Fork {
-        spec_id: SpecId::Fork2,
-        activation_height: 2000,
-    },
-];
-
 const _CHECK_FORKS: () = {
     if !verify_forks(&MAINNET_FORKS)
         || !verify_forks(&TESTNET_FORKS)
         || !verify_forks(&DEVNET_FORKS)
         || !verify_forks(&NIGHTLY_FORKS)
     {
-        panic!("FORKS order is invalid")
-    }
-
-    #[cfg(feature = "testing")]
-    if !verify_forks(&TESTING_FORKS) {
         panic!("FORKS order is invalid")
     }
 };
