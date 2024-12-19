@@ -93,7 +93,7 @@ impl RollupBlueprint for MockDemoRollup {
         _task_manager: &mut TaskManager<()>,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(
-            rollup_config.da.sender_address,
+            rollup_config.da.sender_address.clone(),
             &rollup_config.da.db_path,
         )))
     }

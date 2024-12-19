@@ -150,14 +150,23 @@ pub fn create_default_rollup_config(
     da_path: &Path,
     node_mode: NodeMode,
 ) -> FullNodeConfig<MockDaConfig> {
+    let sequencer_da_pub_key = vec![
+        2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
+        218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215, 125, 201,
+    ];
+    let prover_da_pub_key = vec![
+        3, 238, 218, 184, 136, 228, 95, 59, 220, 62, 201, 145, 140, 73, 28, 17, 229, 207, 122, 240,
+        169, 31, 56, 185, 127, 188, 30, 19, 90, 228, 5, 102, 1,
+    ];
+
     FullNodeConfig {
         public_keys: RollupPublicKeys {
             sequencer_public_key: vec![
                 32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124,
                 137, 214, 80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
             ],
-            sequencer_da_pub_key: vec![0; 32],
-            prover_da_pub_key: vec![0; 32],
+            sequencer_da_pub_key: sequencer_da_pub_key.clone(),
+            prover_da_pub_key: prover_da_pub_key.clone(),
         },
         storage: StorageConfig {
             path: rollup_path.to_path_buf(),
@@ -185,7 +194,11 @@ pub fn create_default_rollup_config(
             NodeMode::SequencerNode => None,
         },
         da: MockDaConfig {
-            sender_address: MockAddress::from([0; 32]),
+            sender_address: match node_mode {
+                NodeMode::SequencerNode => MockAddress::from(sequencer_da_pub_key),
+                NodeMode::Prover(_) => MockAddress::from(prover_da_pub_key),
+                _ => MockAddress::new([0; 32]),
+            },
             db_path: da_path.to_path_buf(),
         },
         telemetry: Default::default(),

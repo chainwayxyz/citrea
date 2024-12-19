@@ -4,7 +4,7 @@ use std::fmt::{Debug, Formatter};
 use std::hash::Hasher;
 use std::path::PathBuf;
 
-pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
+pub use address::MockAddress;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHashTrait, BlockHeaderTrait, CountedBufReader, Time};

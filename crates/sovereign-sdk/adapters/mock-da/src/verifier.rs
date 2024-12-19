@@ -11,7 +11,7 @@ impl BlobReaderTrait for MockBlob {
     type Address = MockAddress;
 
     fn sender(&self) -> Self::Address {
-        self.address
+        self.address.clone()
     }
 
     fn hash(&self) -> [u8; 32] {
