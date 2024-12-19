@@ -21,6 +21,7 @@ impl Display for Network {
 }
 
 impl Network {
+    /// Constant function to get the Network from &str
     pub const fn const_from_str(s: &str) -> Option<Network> {
         match s.as_bytes() {
             b"mainnet" => Some(Network::Mainnet),

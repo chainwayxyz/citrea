@@ -4,7 +4,7 @@ use citrea_common::utils::merge_state_diffs;
 use citrea_primitives::compression::compress_blob;
 use citrea_primitives::MAX_TXBODY_SIZE;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::BatchNumber;
+use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::StateDiff;
 use tracing::{debug, warn};
 
@@ -46,14 +46,14 @@ where
         let last_finalized_l2_height = self
             .ledger_db
             .get_last_commitment_l2_height()?
-            .unwrap_or(BatchNumber(0));
+            .unwrap_or(SoftConfirmationNumber(0));
         let last_pending_l2_height = self
             .ledger_db
             .get_pending_commitments_l2_range()?
             .iter()
             .map(|(_, end)| *end)
             .max()
-            .unwrap_or(BatchNumber(0));
+            .unwrap_or(SoftConfirmationNumber(0));
         let last_committed_l2_height = cmp::max(last_finalized_l2_height, last_pending_l2_height);
 
         // If block state diff is empty, it is certain that state diff threshold won't be exceeded.
@@ -97,7 +97,7 @@ where
 
     fn check_min_soft_confirmations(
         &self,
-        last_committed_l2_height: BatchNumber,
+        last_committed_l2_height: SoftConfirmationNumber,
         current_l2_height: u64,
     ) -> Option<CommitmentInfo> {
         // If the last commitment made is on par with the head
@@ -121,13 +121,13 @@ where
 
         debug!("Enough soft confirmations to submit commitment");
         Some(CommitmentInfo {
-            l2_height_range: BatchNumber(l2_start)..=BatchNumber(l2_end),
+            l2_height_range: SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end),
         })
     }
 
     fn check_state_diff_threshold(
         &self,
-        last_committed_l2_height: BatchNumber,
+        last_committed_l2_height: SoftConfirmationNumber,
         current_l2_height: u64,
         state_diff: &StateDiff,
     ) -> Option<CommitmentInfo> {
@@ -157,7 +157,7 @@ where
 
         debug!("Enough state diff size to submit commitment");
         Some(CommitmentInfo {
-            l2_height_range: BatchNumber(l2_start)..=BatchNumber(l2_end),
+            l2_height_range: SoftConfirmationNumber(l2_start)..=SoftConfirmationNumber(l2_end),
         })
     }
 

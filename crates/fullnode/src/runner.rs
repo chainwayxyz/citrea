@@ -19,7 +19,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::NodeLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
@@ -125,7 +125,7 @@ where
             }
         };
 
-        let start_l2_height = ledger_db.get_next_items_numbers().soft_confirmation_number;
+        let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
 
@@ -293,7 +293,7 @@ where
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
-            BatchNumber(l2_height),
+            SoftConfirmationNumber(l2_height),
         )?;
 
         // Register this new block with the fork manager to active

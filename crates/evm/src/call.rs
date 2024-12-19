@@ -5,6 +5,7 @@ use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{native_error, CallResponse, SoftConfirmationModuleCallError, WorkingSet};
 
+use crate::conversions::ConversionError;
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
@@ -131,14 +132,11 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         // use of `self.block_env` is allowed here
 
-        // TODO: should not include non deserilizable transactions
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
-            .filter_map(|tx| match tx.try_into() {
-                Ok(tx) => Some(tx),
-                Err(_) => None,
-            })
-            .collect();
+            .map(|tx| tx.try_into())
+            .collect::<Result<Vec<_>, ConversionError>>()
+            .map_err(|_| SoftConfirmationModuleCallError::EvmTxNotSerializable)?;
 
         let cfg = self.cfg.get(working_set).expect("Evm config must be set");
         let active_evm_spec = citrea_spec_id_to_evm_spec_id(context.active_spec());

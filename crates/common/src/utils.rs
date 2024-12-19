@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use sov_db::ledger_db::SharedLedgerOps;
-use sov_db::schema::types::BatchNumber;
+use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::{Context, Spec};
 use sov_rollup_interface::da::{DaSpec, SequencerCommitment};
 use sov_rollup_interface::digest::Digest;
@@ -53,8 +53,9 @@ fn filter_out_commitments_by_status<DB: SharedLedgerOps>(
         visited_l2_ranges.insert(current_range);
 
         // Check if the commitment was previously finalized.
-        let Some(status) = ledger_db
-            .get_soft_confirmation_status(BatchNumber(sequencer_commitment.l2_end_block_number))?
+        let Some(status) = ledger_db.get_soft_confirmation_status(SoftConfirmationNumber(
+            sequencer_commitment.l2_end_block_number,
+        ))?
         else {
             filtered.push(sequencer_commitment.clone());
             continue;
@@ -76,7 +77,8 @@ pub fn check_l2_range_exists<DB: SharedLedgerOps>(
     last_l2_height_of_l1: u64,
 ) -> bool {
     if let Ok(range) = ledger_db.get_soft_confirmation_range(
-        &(BatchNumber(first_l2_height_of_l1)..=BatchNumber(last_l2_height_of_l1)),
+        &(SoftConfirmationNumber(first_l2_height_of_l1)
+            ..=SoftConfirmationNumber(last_l2_height_of_l1)),
     ) {
         if (range.len() as u64) >= (last_l2_height_of_l1 - first_l2_height_of_l1 + 1) {
             return true;

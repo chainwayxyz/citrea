@@ -251,7 +251,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa64d80ae58ffaafdff9d5d84f58d03775f66c84433916dc9a64ed16af5755da"
 dependencies = [
  "serde",
- "winnow 0.6.13",
+ "winnow 0.6.20",
 ]
 
 [[package]]
@@ -3861,9 +3861,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.13"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59b5e5f6c299a3c7890b876a2a587f3115162487e704907d9b6cd29473052ba1"
+checksum = "36c1fec1a2bb5866f07c25f68c26e565c4c200aebb96d7e55710c19d3e8ac49b"
 
 [[package]]
 name = "wyz"

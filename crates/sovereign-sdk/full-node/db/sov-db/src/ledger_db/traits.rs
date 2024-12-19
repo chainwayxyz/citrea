@@ -8,10 +8,9 @@ use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff};
 use sov_rollup_interface::zk::Proof;
 use sov_schema_db::SchemaBatch;
 
-use super::ItemNumbers;
 use crate::schema::types::{
-    BatchNumber, L2HeightRange, SlotNumber, StoredBatchProof, StoredBatchProofOutput,
-    StoredLightClientProof, StoredLightClientProofOutput, StoredSlot, StoredSoftConfirmation,
+    L2HeightRange, SlotNumber, SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput,
+    StoredLightClientProof, StoredLightClientProofOutput, StoredSoftConfirmation,
 };
 
 /// Shared ledger operations
@@ -23,7 +22,7 @@ pub trait SharedLedgerOps {
     fn put_soft_confirmation(
         &self,
         batch: &StoredSoftConfirmation,
-        batch_number: &BatchNumber,
+        batch_number: &SoftConfirmationNumber,
         schema_batch: &mut SchemaBatch,
     ) -> Result<()>;
 
@@ -39,17 +38,8 @@ pub trait SharedLedgerOps {
     fn extend_l2_range_of_l1_slot(
         &self,
         l1_height: SlotNumber,
-        l2_height: BatchNumber,
+        l2_height: SoftConfirmationNumber,
     ) -> Result<()>;
-
-    /// Get the next slot, block, transaction numbers
-    fn get_next_items_numbers(&self) -> ItemNumbers;
-
-    /// Gets all slots with numbers `range.start` to `range.end`. If `range.end` is outside
-    /// the range of the database, the result will smaller than the requested range.
-    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
-    /// directly via rpc.
-    fn _get_slot_range(&self, range: &std::ops::Range<SlotNumber>) -> Result<Vec<StoredSlot>>;
 
     /// Gets l1 height of l1 hash
     fn get_state_diff(&self) -> Result<StateDiff>;
@@ -63,14 +53,14 @@ pub trait SharedLedgerOps {
     /// Saves a soft confirmation status for a given L1 height
     fn put_soft_confirmation_status(
         &self,
-        height: BatchNumber,
+        height: SoftConfirmationNumber,
         status: sov_rollup_interface::rpc::SoftConfirmationStatus,
     ) -> Result<()>;
 
     /// Returns a soft confirmation status for a given L1 height
     fn get_soft_confirmation_status(
         &self,
-        height: BatchNumber,
+        height: SoftConfirmationNumber,
     ) -> Result<Option<sov_rollup_interface::rpc::SoftConfirmationStatus>>;
 
     /// Gets the commitments in the da slot with given height if any
@@ -94,7 +84,12 @@ pub trait SharedLedgerOps {
     ) -> anyhow::Result<Option<StateRoot>>;
 
     /// Get the most recent committed soft confirmation, if any
-    fn get_head_soft_confirmation(&self) -> Result<Option<(BatchNumber, StoredSoftConfirmation)>>;
+    fn get_head_soft_confirmation(
+        &self,
+    ) -> Result<Option<(SoftConfirmationNumber, StoredSoftConfirmation)>>;
+
+    /// Get the most recent committed soft confirmation height, if any
+    fn get_head_soft_confirmation_height(&self) -> Result<Option<u64>>;
 
     /// Gets all soft confirmations with numbers `range.start` to `range.end`. If `range.end` is outside
     /// the range of the database, the result will smaller than the requested range.
@@ -102,22 +97,22 @@ pub trait SharedLedgerOps {
     /// directly via rpc.
     fn get_soft_confirmation_range(
         &self,
-        range: &std::ops::RangeInclusive<BatchNumber>,
+        range: &std::ops::RangeInclusive<SoftConfirmationNumber>,
     ) -> Result<Vec<StoredSoftConfirmation>>;
 
     /// Gets all soft confirmations by numbers
 
     fn get_soft_confirmation_by_number(
         &self,
-        number: &BatchNumber,
+        number: &SoftConfirmationNumber,
     ) -> Result<Option<StoredSoftConfirmation>>;
 
     /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    fn set_last_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
+    fn set_last_commitment_l2_height(&self, l2_height: SoftConfirmationNumber) -> Result<()>;
 
     /// Get the most recent committed batch
     /// Returns L2 height.
-    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<BatchNumber>>;
+    fn get_last_commitment_l2_height(&self) -> anyhow::Result<Option<SoftConfirmationNumber>>;
 
     /// Get the last scanned slot
     fn get_last_scanned_l1_height(&self) -> Result<Option<SlotNumber>>;
@@ -147,9 +142,6 @@ pub trait NodeLedgerOps: SharedLedgerOps {
         proof: Proof,
         output: StoredBatchProofOutput,
     ) -> Result<()>;
-
-    /// Get the most recent committed slot, if any
-    fn get_head_slot(&self) -> Result<Option<(SlotNumber, StoredSlot)>>;
 
     /// Gets the commitments in the da slot with given height if any
     fn get_commitments_on_da_slot(&self, height: u64) -> Result<Option<Vec<SequencerCommitment>>>;
@@ -185,10 +177,14 @@ pub trait BatchProverLedgerOps: SharedLedgerOps + Send + Sync {
     ) -> Result<()>;
 
     /// Save a specific L2 range state diff
-    fn set_l2_state_diff(&self, l2_height: BatchNumber, state_diff: StateDiff) -> Result<()>;
+    fn set_l2_state_diff(
+        &self,
+        l2_height: SoftConfirmationNumber,
+        state_diff: StateDiff,
+    ) -> Result<()>;
 
     /// Returns an L2 state diff
-    fn get_l2_state_diff(&self, l2_height: BatchNumber) -> Result<Option<StateDiff>>;
+    fn get_l2_state_diff(&self, l2_height: SoftConfirmationNumber) -> Result<Option<StateDiff>>;
 
     /// Clears all pending proving sessions
     fn clear_pending_proving_sessions(&self) -> Result<()>;
@@ -228,17 +224,6 @@ pub trait ProvingServiceLedgerOps: BatchProverLedgerOps + SharedLedgerOps + Send
 
 /// Sequencer ledger operations
 pub trait SequencerLedgerOps: SharedLedgerOps {
-    /// Put slots
-    fn put_slot(
-        &self,
-        slot: &StoredSlot,
-        slot_number: &SlotNumber,
-        schema_batch: &mut SchemaBatch,
-    ) -> Result<()>;
-
-    /// Used by the sequencer to record that it has committed to soft confirmations on a given L2 height
-    fn set_last_sequencer_commitment_l2_height(&self, l2_height: BatchNumber) -> Result<()>;
-
     /// Gets all pending commitments' l2 ranges.
     /// Returns start-end L2 heights.
     fn get_pending_commitments_l2_range(&self) -> Result<Vec<L2HeightRange>>;
