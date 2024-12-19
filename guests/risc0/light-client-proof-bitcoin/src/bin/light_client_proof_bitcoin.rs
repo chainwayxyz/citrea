@@ -20,16 +20,15 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
     None => Network::Nightly,
 };
 
-// TODO: Find l2 genesis roots of networks
 const L2_GENESIS_ROOT: [u8; 32] = {
     let hex_root = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Devnet => "0000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "05183faf24857f0fa6d4a7738fe5ef14b7ebe88be0f66e6f87f461485554d531",
+        Network::Devnet => "c23eb4eec08765750400f6e98567ef1977dc86334318f5424b7783c4080c0a36",
         Network::Nightly => {
             match option_env!("L2_GENESIS_ROOT") {
                 Some(hex_root) => hex_root,
-                None => "0000000000000000000000000000000000000000000000000000000000000000",
+                None => "dacb59b0ff5d16985a8418235133eee37758a3ac1b76ab6d1f87c6df20e4d4da",
             }
         }
     };
