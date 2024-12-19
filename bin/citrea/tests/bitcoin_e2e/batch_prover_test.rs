@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use alloy_primitives::{Address, U64};
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
@@ -18,7 +19,6 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use reth_primitives::{Address, U64};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{DaData, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
@@ -291,7 +291,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
 
         // Wait for the full node to see all process verify and store all batch proofs
         full_node.wait_for_l1_height(finalized_height, None).await?;
-        let proofs = wait_for_zkproofs(full_node, finalized_height, None)
+        let proofs = wait_for_zkproofs(full_node, finalized_height, Some(Duration::from_secs(600)))
             .await
             .unwrap();
 

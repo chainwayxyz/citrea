@@ -10,11 +10,12 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
+use alloy_primitives::{Address, U256};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::FORKS;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{Address, BlockNumberOrTag, U256};
+use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_modules_api::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
@@ -402,7 +403,7 @@ async fn test_ledger_get_head_soft_confirmation() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(latest_block.header.number.unwrap(), 2);
+    assert_eq!(latest_block.header.number, 2);
     assert_eq!(
         head_soft_confirmation.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
@@ -563,8 +564,8 @@ async fn execute_blocks(
         .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
         .await;
 
-    assert_eq!(seq_last_block.header.number.unwrap(), 504);
-    assert_eq!(full_node_last_block.header.number.unwrap(), 504);
+    assert_eq!(seq_last_block.header.number, 504);
+    assert_eq!(full_node_last_block.header.number, 504);
 
     assert_eq!(
         seq_last_block.header.state_root,

@@ -57,7 +57,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))
         .await;
     // Base fee should at most be 0.01 gwei
-    assert_eq!(block.header.base_fee_per_gas.unwrap(), 10000000u128);
+    assert_eq!(block.header.base_fee_per_gas.unwrap(), 10000000);
 
     Ok(())
 }

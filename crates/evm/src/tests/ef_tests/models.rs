@@ -3,10 +3,9 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 
+use alloy_primitives::{Address, Bloom, Bytes, B256, B64, U256};
 use reth_chainspec::{ChainSpec, ChainSpecBuilder};
-use reth_primitives::{
-    Address, Bloom, Bytes, Header as RethHeader, SealedHeader, Withdrawals, B256, B64, U256,
-};
+use reth_primitives::{Header as RethHeader, SealedHeader, Withdrawals};
 use serde::Deserialize;
 
 /// The definition of a blockchain test.
@@ -93,7 +92,7 @@ impl From<Header> for SealedHeader {
             gas_limit: value.gas_limit.to::<u64>(),
             gas_used: value.gas_used.to::<u64>(),
             mix_hash: value.mix_hash,
-            nonce: u64::from_be_bytes(value.nonce.0),
+            nonce: value.nonce.0.into(),
             number: value.number.to::<u64>(),
             timestamp: value.timestamp.to::<u64>(),
             transactions_root: value.transactions_trie,
@@ -108,7 +107,9 @@ impl From<Header> for SealedHeader {
             parent_beacon_block_root: value.parent_beacon_block_root,
             requests_root: None,
         };
-        header.seal(value.hash)
+        let sealed = header.seal(value.hash);
+        let (header, seal) = sealed.into_parts();
+        SealedHeader::new(header, seal)
     }
 }
 

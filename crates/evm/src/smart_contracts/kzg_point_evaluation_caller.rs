@@ -1,5 +1,5 @@
+use alloy_primitives::Bytes;
 use alloy_sol_types::{sol, SolCall};
-use reth_primitives::Bytes;
 
 use super::TestContract;
 

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use alloy_eips::eip1559::BaseFeeParams;
+use alloy_primitives::{keccak256, Address, Bloom, Bytes, B256, U256};
 use reth_primitives::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
-use reth_primitives::{keccak256, Address, Bloom, Bytes, B256, KECCAK_EMPTY, U256};
+use reth_primitives::KECCAK_EMPTY;
 use revm::primitives::{Bytecode, SpecId};
 use serde::{Deserialize, Deserializer};
 use sov_modules_api::prelude::*;
@@ -206,7 +207,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         self.cfg.set(&chain_cfg, working_set);
 
-        let header = reth_primitives::Header {
+        let header = crate::primitive_types::DoNotUseHeader {
             parent_hash: B256::default(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: config.coinbase,
@@ -247,7 +248,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         #[cfg(feature = "native")]
         self.pending_head
-            .set(&block, &mut working_set.accessory_state());
+            .set(&block.into(), &mut working_set.accessory_state());
     }
 }
 
@@ -256,7 +257,7 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
 
-    use reth_primitives::{hex, keccak256, Address, Bytes};
+    use alloy_primitives::{hex, keccak256, Address, Bytes};
 
     use super::U256;
     use crate::{AccountData, EvmConfig};

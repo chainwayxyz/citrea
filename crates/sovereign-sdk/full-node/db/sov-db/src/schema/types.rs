@@ -1,12 +1,10 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LightClientProofOutputRpcResponse,
-    LightClientProofResponse, SoftConfirmationResponse, TxResponse, VerifiedBatchProofResponse,
+    LightClientProofResponse, SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::zk::{BatchProofInfo, CumulativeStateDiff, Proof};
@@ -57,18 +55,6 @@ pub type DbHash = [u8; 32];
 pub type JmtValue = Option<Vec<u8>>;
 pub(crate) type StateKey = Vec<u8>;
 
-/// The on-disk format of a slot. Specifies the batches contained in the slot
-/// and the hash of the da block. TODO(@preston-evans98): add any additional data
-/// required to reconstruct the da block proof.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredSlot {
-    /// The slot's hash, as reported by the DA layer.
-    pub hash: DbHash,
-    /// Any extra data which the rollup decides to store relating to this slot.
-    pub extra_data: DbBytes,
-    /// The range of batches which occurred in this slot.
-    pub batches: std::ops::Range<BatchNumber>,
-}
 /// The on-disk format for a light client proof output
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProofOutput {
@@ -289,7 +275,7 @@ where
 
 /// The range of L2 heights (soft confirmations) for a given L1 block
 /// (start, end) inclusive
-pub type L2HeightRange = (BatchNumber, BatchNumber);
+pub type L2HeightRange = (SoftConfirmationNumber, SoftConfirmationNumber);
 
 impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     type Error = anyhow::Error;
@@ -322,16 +308,6 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     }
 }
 
-/// The on-disk format for a batch. Stores the hash and identifies the range of transactions
-/// included in the batch.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredBatch {
-    /// The hash of the batch, as reported by the DA layer.
-    pub hash: DbHash,
-    /// The range of transactions which occurred in this batch.
-    pub txs: std::ops::Range<TxNumber>,
-}
-
 /// The on-disk format of a transaction. Includes the txhash, the serialized tx data,
 /// and identifies the events emitted by this transaction
 #[derive(Debug, PartialEq, BorshSerialize, BorshDeserialize, Clone)]
@@ -340,17 +316,6 @@ pub struct StoredTransaction {
     pub hash: DbHash,
     /// The serialized transaction data, if the rollup decides to store it.
     pub body: Option<Vec<u8>>,
-}
-
-impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
-    type Error = anyhow::Error;
-    fn try_from(value: StoredTransaction) -> Result<Self, Self::Error> {
-        Ok(Self {
-            hash: value.hash,
-            body: value.body.map(HexTx::from),
-            phantom_data: PhantomData,
-        })
-    }
 }
 
 macro_rules! u64_wrapper {
@@ -381,6 +346,4 @@ macro_rules! u64_wrapper {
 }
 
 u64_wrapper!(SlotNumber);
-u64_wrapper!(BatchNumber);
-u64_wrapper!(TxNumber);
-u64_wrapper!(EventNumber);
+u64_wrapper!(SoftConfirmationNumber);

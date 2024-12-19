@@ -4,9 +4,11 @@ use sov_modules_core::{StateCodec, StateKeyCodec, StateValueCodec};
 
 mod bcs_codec;
 mod borsh_codec;
+mod rlp_codec;
 
 pub use bcs_codec::BcsCodec;
 pub use borsh_codec::BorshCodec;
+pub use rlp_codec::RlpCodec;
 
 #[cfg(test)]
 mod tests {

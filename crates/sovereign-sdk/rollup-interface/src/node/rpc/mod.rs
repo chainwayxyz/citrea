@@ -6,7 +6,6 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -328,22 +327,6 @@ pub fn sequencer_commitment_to_response(
         l2_start_block_number: commitment.l2_start_block_number,
         l2_end_block_number: commitment.l2_end_block_number,
     }
-}
-
-/// The response to a JSON-RPC request for a particular transaction.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TxResponse<Tx> {
-    /// The hex encoded transaction hash.
-    #[serde(with = "utils::rpc_hex")]
-    pub hash: [u8; 32],
-    /// The transaction body, if stored by the rollup.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<HexTx>,
-    /// The custom receipt specified by the rollup. This typically contains
-    /// information about the outcome of the transaction.
-    #[serde(skip_serializing)]
-    pub phantom_data: PhantomData<Tx>,
 }
 
 /// An RPC response which might contain a full item or just its hash.

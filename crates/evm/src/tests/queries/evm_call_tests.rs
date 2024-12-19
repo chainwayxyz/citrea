@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use alloy_primitives::{address, Address, Bytes, TxKind, B256};
+use alloy_rpc_types::state::AccountOverride;
+use alloy_rpc_types::{BlockId, TransactionInput, TransactionRequest};
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{address, Address, BlockNumberOrTag, Bytes, TxKind};
+use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
-use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::state::AccountOverride;
-use reth_rpc_types::BlockId;
 use revm::primitives::U256;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -244,7 +244,11 @@ fn call_with_high_gas_price() {
 
     assert_eq!(
         call_result,
-        Err(RpcInvalidTransactionError::InsufficientFunds.into())
+        Err(RpcInvalidTransactionError::InsufficientFunds {
+            cost: U256::from(1000000000000000000000000000u128),
+            balance: U256::from(99999573573123175976u128)
+        }
+        .into())
     );
 }
 
@@ -274,7 +278,11 @@ fn test_eip1559_fields_call() {
     );
     assert_eq!(
         high_fee_result,
-        Err(RpcInvalidTransactionError::InsufficientFunds.into())
+        Err(RpcInvalidTransactionError::InsufficientFunds {
+            cost: U256::from_str("34028236692093846346337460743176821145500000").unwrap(),
+            balance: U256::from(99999573573123175976u128)
+        }
+        .into())
     );
 
     let low_max_fee_result = eth_call_eip1559(&evm, &mut working_set, &signer, Some(1), Some(1));
@@ -315,7 +323,7 @@ fn eth_call_eip1559(
     signer: &TestSigner,
     max_fee_per_gas: Option<u128>,
     max_priority_fee_per_gas: Option<u128>,
-) -> RpcResult<reth_primitives::Bytes> {
+) -> RpcResult<Bytes> {
     let contract = SimpleStorageContract::default();
 
     let tx_req = TransactionRequest {
@@ -367,6 +375,7 @@ fn gas_price_call_test() {
         gas_price: None,
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
+        authorization_list: None,
     };
 
     // Test with low gas limit
@@ -540,10 +549,15 @@ fn test_call_with_state_overrides() {
     );
 
     // Override the state and check returned value
-    let mut state = HashMap::new();
+    let mut state: HashMap<B256, B256, alloy_primitives::map::FbBuildHasher<32>> =
+        HashMap::with_hasher(alloy_primitives::map::FbBuildHasher::default());
     state.insert(U256::from(0).into(), U256::from(15).into());
 
-    let mut state_override = HashMap::new();
+    let mut state_override: HashMap<
+        Address,
+        AccountOverride,
+        alloy_primitives::map::FbBuildHasher<20>,
+    > = HashMap::with_hasher(alloy_primitives::map::FbBuildHasher::default());
     state_override.insert(
         contract_address,
         AccountOverride {
@@ -552,6 +566,7 @@ fn test_call_with_state_overrides() {
             code: None,
             state: Some(state),
             state_diff: None,
+            move_precompile_to: None,
         },
     );
     let call_result_with_state_override = evm

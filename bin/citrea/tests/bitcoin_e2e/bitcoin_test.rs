@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
 use bitcoin::Txid;
@@ -13,7 +14,6 @@ use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
-use reth_primitives::U64;
 use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 

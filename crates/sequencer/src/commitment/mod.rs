@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaData, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
@@ -26,7 +26,7 @@ mod controller;
 #[derive(Clone, Debug)]
 pub struct CommitmentInfo {
     /// L2 heights to commit
-    pub l2_height_range: RangeInclusive<BatchNumber>,
+    pub l2_height_range: RangeInclusive<SoftConfirmationNumber>,
 }
 
 pub struct CommitmentService<Da, Db>

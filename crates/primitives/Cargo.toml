@@ -12,16 +12,12 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 # 3rd-party deps
 alloy-eips = { workspace = true }
-anyhow = { workspace = true }
 brotli = { workspace = true }
-reth-primitives = { workspace = true }
 
 [dev-dependencies]
 # Sov SDK deps
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 
 [features]
-testing = [
-  "short-prefix",
-]
+testing = ["short-prefix"]
 short-prefix = []

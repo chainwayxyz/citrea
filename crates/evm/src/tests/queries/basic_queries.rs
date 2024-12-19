@@ -1,9 +1,12 @@
 use std::collections::BTreeMap;
 
-use reth_primitives::{address, b256, BlockId, BlockNumberOrTag, TxKind, U64};
+use alloy_primitives::{address, b256, TxKind, U64};
+use alloy_rpc_types::{
+    AnyNetworkBlock, AnyTransactionReceipt, TransactionInput, TransactionRequest,
+};
+use alloy_serde::OtherFields;
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use reth_rpc_eth_types::EthApiError;
-use reth_rpc_types::request::{TransactionInput, TransactionRequest};
-use reth_rpc_types::{AnyTransactionReceipt, Block, Rich};
 use revm::primitives::{B256, U256};
 use serde_json::json;
 
@@ -110,8 +113,7 @@ fn get_transaction_by_block_hash_and_index_test() {
         .unwrap()
         .unwrap()
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     // doesn't exist
     let result = evm.get_transaction_by_block_hash_and_index(hash, U64::from(5), &mut working_set);
@@ -198,8 +200,7 @@ fn get_block_transaction_count_by_hash_test() {
         .unwrap()
         .unwrap()
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let result = evm.eth_get_block_transaction_count_by_hash(block_hash_1, &mut working_set);
 
@@ -210,8 +211,7 @@ fn get_block_transaction_count_by_hash_test() {
         .unwrap()
         .unwrap()
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let result = evm.eth_get_block_transaction_count_by_hash(block_hash_2, &mut working_set);
     assert_eq!(result, Ok(Some(U256::from(5))));
@@ -221,8 +221,7 @@ fn get_block_transaction_count_by_hash_test() {
         .unwrap()
         .unwrap()
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let result = evm.eth_get_block_transaction_count_by_hash(block_hash_3, &mut working_set);
 
@@ -274,6 +273,7 @@ fn call_test() {
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
+            authorization_list: None,
         },
         Some(BlockId::Number(BlockNumberOrTag::Number(100))),
         None,
@@ -281,7 +281,10 @@ fn call_test() {
         &mut working_set,
     );
 
-    assert_eq!(fail_result, Err(EthApiError::UnknownBlockNumber.into()));
+    assert_eq!(
+        fail_result,
+        Err(EthApiError::HeaderNotFound(BlockNumberOrTag::Number(100).into()).into())
+    );
     working_set.unset_archival_version();
 
     let contract = SimpleStorageContract::default();
@@ -292,8 +295,7 @@ fn call_test() {
         .unwrap()
         .unwrap()
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let call_with_hash_nonce_too_low_result = evm.get_call(
         TransactionRequest {
@@ -314,6 +316,7 @@ fn call_test() {
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
+            authorization_list: None,
         },
         Some(BlockId::Hash(block_hash_3.into())),
         None,
@@ -340,6 +343,7 @@ fn call_test() {
             blob_versioned_hashes: None,
             transaction_type: None,
             sidecar: None,
+            authorization_list: None,
         },
         Some(BlockId::Number(BlockNumberOrTag::Number(3))),
         None,
@@ -356,8 +360,7 @@ fn call_test() {
         .unwrap()
         .unwrap()
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let result = evm
         .get_call(
@@ -379,6 +382,7 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
+                authorization_list: None,
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockId::Number(BlockNumberOrTag::Latest)),
@@ -408,6 +412,7 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
+                authorization_list: None,
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockId::Hash(latest_block_hash.into())),
@@ -444,6 +449,7 @@ fn call_test() {
                 blob_versioned_hashes: None,
                 transaction_type: None,
                 sidecar: None,
+                authorization_list: None,
             },
             // How does this work precisely? In the first block, the contract was not there?
             Some(BlockId::Number(BlockNumberOrTag::Latest)),
@@ -463,9 +469,9 @@ fn call_test() {
     // https://github.com/chainwayxyz/citrea/issues/134
 }
 
-fn check_against_third_block(block: &Rich<Block>) {
+fn check_against_third_block(block: &AnyNetworkBlock) {
     // details = false
-    let mut inner_block = serde_json::from_value::<Block>(json!({
+    let inner_block = serde_json::from_value::<AnyNetworkBlock>(json!({
         "baseFeePerGas": "0x2de0b039",
         "difficulty": "0x0",
         "extraData": "0x",
@@ -495,22 +501,22 @@ fn check_against_third_block(block: &Rich<Block>) {
         "uncles": []
     })).unwrap();
 
-    inner_block.other.insert(
+    let mut rich_block: AnyNetworkBlock = AnyNetworkBlock {
+        inner: inner_block.inner,
+        other: OtherFields::new(BTreeMap::new()),
+    };
+
+    rich_block.other.insert(
         "l1FeeRate".to_string(),
         serde_json::Value::Number(serde_json::Number::from(1)),
     );
 
-    inner_block.other.insert(
+    rich_block.other.insert(
         "l1Hash".to_string(),
         serde_json::Value::String(
             "0x0808080808080808080808080808080808080808080808080808080808080808".to_string(),
         ),
     );
-
-    let rich_block: Rich<Block> = Rich {
-        inner: inner_block,
-        extra_info: BTreeMap::new(),
-    };
 
     assert_eq!(block, &rich_block);
 }

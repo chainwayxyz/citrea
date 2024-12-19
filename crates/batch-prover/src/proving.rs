@@ -11,7 +11,7 @@ use citrea_primitives::forks::FORKS;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
+use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::fork::fork_from_block_number;
@@ -165,7 +165,7 @@ where
             .expect("There should be a state root");
 
         let initial_batch_hash = ledger
-            .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))
+            .get_soft_confirmation_by_number(&SoftConfirmationNumber(first_l2_height_of_l1))
             .map_err(|e| {
                 L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
             })?
@@ -390,7 +390,10 @@ pub(crate) fn save_commitments<DB>(
         let l2_end_height = sequencer_commitment.l2_end_block_number;
         for i in l2_start_height..=l2_end_height {
             ledger_db
-                .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)
+                .put_soft_confirmation_status(
+                    SoftConfirmationNumber(i),
+                    SoftConfirmationStatus::Proven,
+                )
                 .unwrap_or_else(|_| {
                     panic!(
                         "Failed to put soft confirmation status in the ledger db {}",

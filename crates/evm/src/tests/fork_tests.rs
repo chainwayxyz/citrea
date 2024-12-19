@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::thread::sleep;
 
-use reth_primitives::{address, keccak256, Address, Bytes, TxKind};
+use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
 use sha2::Digest;
 use sov_modules_api::default_context::DefaultContext;

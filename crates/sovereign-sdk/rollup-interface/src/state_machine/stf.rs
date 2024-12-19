@@ -292,6 +292,8 @@ pub enum SoftConfirmationModuleCallError {
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
     EvmNotEnoughFundsForL1Fee,
+    /// An EVM transaction in the soft confirmation was not serializable
+    EvmTxNotSerializable,
     /// The sov-tx was not sent by the rule enforcer authority
     RuleEnforcerUnauthorized,
     /// The EVM transaction type is not supported
@@ -394,6 +396,9 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => {
                 write!(f, "Rule enforcer unauthorized")
+            }
+            SoftConfirmationModuleCallError::EvmTxNotSerializable => {
+                write!(f, "EVM tx not serializable")
             }
         }
     }
