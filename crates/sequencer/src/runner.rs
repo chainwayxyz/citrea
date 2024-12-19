@@ -358,6 +358,7 @@ where
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
                                             // we don't call the rule enforcer in the sequencer -- yet at least
                                             sov_modules_api::SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
                                         },
