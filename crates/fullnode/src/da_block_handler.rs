@@ -17,7 +17,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{
-    SoftConfirmationNumber, SlotNumber, StoredBatchProofOutput, StoredSoftConfirmation,
+    SlotNumber, SoftConfirmationNumber, StoredBatchProofOutput, StoredSoftConfirmation,
 };
 use sov_modules_api::{Context, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
@@ -279,8 +279,10 @@ where
         )?;
 
         for i in start_l2_height..=end_l2_height {
-            self.ledger_db
-                .put_soft_confirmation_status(SoftConfirmationNumber(i), SoftConfirmationStatus::Finalized)?;
+            self.ledger_db.put_soft_confirmation_status(
+                SoftConfirmationNumber(i),
+                SoftConfirmationStatus::Finalized,
+            )?;
         }
         self.ledger_db
             .set_last_commitment_l2_height(SoftConfirmationNumber(end_l2_height))?;
@@ -410,8 +412,10 @@ where
             let l2_start_height = commitment.l2_start_block_number;
             let l2_end_height = commitment.l2_end_block_number;
             for i in l2_start_height..=l2_end_height {
-                self.ledger_db
-                    .put_soft_confirmation_status(SoftConfirmationNumber(i), SoftConfirmationStatus::Proven)?;
+                self.ledger_db.put_soft_confirmation_status(
+                    SoftConfirmationNumber(i),
+                    SoftConfirmationStatus::Proven,
+                )?;
             }
         }
         // store in ledger db

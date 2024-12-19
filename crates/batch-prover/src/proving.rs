@@ -390,7 +390,10 @@ pub(crate) fn save_commitments<DB>(
         let l2_end_height = sequencer_commitment.l2_end_block_number;
         for i in l2_start_height..=l2_end_height {
             ledger_db
-                .put_soft_confirmation_status(SoftConfirmationNumber(i), SoftConfirmationStatus::Proven)
+                .put_soft_confirmation_status(
+                    SoftConfirmationNumber(i),
+                    SoftConfirmationStatus::Proven,
+                )
                 .unwrap_or_else(|_| {
                     panic!(
                         "Failed to put soft confirmation status in the ledger db {}",
