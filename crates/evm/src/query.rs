@@ -14,7 +14,7 @@ use alloy_rpc_types::{
 };
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use alloy_rpc_types_eth::Block as AlloyRpcBlock;
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
+use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, TraceResult};
 use alloy_serde::OtherFields;
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::forks::FORKS;
@@ -1207,7 +1207,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         opts: Option<GethDebugTracingOptions>,
         stop_at: Option<usize>,
         working_set: &mut WorkingSet<C::Storage>,
-    ) -> RpcResult<Vec<GethTrace>> {
+    ) -> RpcResult<Vec<TraceResult>> {
         let sealed_block = self
             .get_sealed_block_by_number(Some(BlockNumberOrTag::Number(block_number)), working_set)?
             .ok_or_else(|| EthApiError::HeaderNotFound(block_number.into()))?;
@@ -1260,7 +1260,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 &mut evm_db,
                 l1_fee_rate,
             )?;
-            traces.push(trace);
+            traces.push(TraceResult::new_success(trace, Some(tx.hash())));
 
             if limit == index {
                 break;

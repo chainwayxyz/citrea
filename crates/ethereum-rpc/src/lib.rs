@@ -8,7 +8,7 @@ use std::sync::Arc;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{keccak256, Bytes, B256, U256};
 use alloy_rpc_types::{FeeHistory, Index};
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
+use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 #[cfg(feature = "local")]
 pub use citrea_evm::DevSigner;
 use citrea_evm::{Evm, Filter};
@@ -394,7 +394,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
     //     Ok::<_, ErrorObjectOwned>(tx_hash)
     // })?;
 
-    rpc.register_blocking_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _>(
+    rpc.register_blocking_method::<Result<Vec<TraceResult>, ErrorObjectOwned>, _>(
         "debug_traceBlockByHash",
         move |parameters, ethereum, _| {
             let mut params = parameters.sequence();
@@ -416,7 +416,7 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
         },
     )?;
 
-    rpc.register_blocking_method::<Result<Vec<GethTrace>, ErrorObjectOwned>, _>(
+    rpc.register_blocking_method::<Result<Vec<TraceResult>, ErrorObjectOwned>, _>(
         "debug_traceBlockByNumber",
         move |parameters, ethereum, _| {
             let mut params = parameters.sequence();
@@ -479,7 +479,15 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 &mut working_set,
                 opts,
             )?;
-            Ok(traces[0].clone())
+            match &traces[0] {
+                TraceResult::Success { result, .. } => {
+                    Ok(result.clone())
+                }
+                // this should never happen since we propagate any tracing error
+                TraceResult::Error { error, tx_hash: _} => {
+                    Err(EthApiError::EvmCustom(error.clone()).into())
+                }
+            }
         },
     )?;
 
