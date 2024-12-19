@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{FullNodeConfig, RollupPublicKeys};
+use citrea_common::FullNodeConfig;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -125,9 +125,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
-        da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
-        keys: RollupPublicKeys,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].
