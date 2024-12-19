@@ -6,8 +6,7 @@ use sov_rollup_interface::zk::ZkvmGuest;
 
 risc0_zkvm::guest::entry!(main);
 
-// TODO: Find l2 genesis root of nightly
-const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(b"0000000000000000000000000000000000000000000000000000000000000000") {
+const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(b"dacb59b0ff5d16985a8418235133eee37758a3ac1b76ab6d1f87c6df20e4d4da") {
     Ok(root) => root,
     Err(_) => panic!("Can't happen"),
 };
