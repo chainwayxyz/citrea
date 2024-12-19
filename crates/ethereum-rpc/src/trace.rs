@@ -237,10 +237,17 @@ fn get_traces_with_requested_tracer_and_config(
                         }
                         _ => {
                             traces.into_iter().for_each(|trace| {
-                                if let TraceResult::Success { result: GethTrace::CallTracer(call_frame), tx_hash } = trace {
+                                if let TraceResult::Success {
+                                    result: GethTrace::CallTracer(call_frame),
+                                    tx_hash,
+                                } = trace
+                                {
                                     let new_call_frame =
                                         apply_call_config(call_frame.clone(), call_config);
-                                    new_traces.push(TraceResult::new_success(GethTrace::CallTracer(new_call_frame), tx_hash));
+                                    new_traces.push(TraceResult::new_success(
+                                        GethTrace::CallTracer(new_call_frame),
+                                        tx_hash,
+                                    ));
                                 }
                             });
                         }
@@ -249,17 +256,25 @@ fn get_traces_with_requested_tracer_and_config(
                 }
                 GethDebugBuiltInTracerType::FourByteTracer => {
                     traces.into_iter().for_each(|trace| {
-                        if let TraceResult::Success { result: GethTrace::CallTracer(call_frame), tx_hash } = trace {
+                        if let TraceResult::Success {
+                            result: GethTrace::CallTracer(call_frame),
+                            tx_hash,
+                        } = trace
+                        {
                             let four_byte_frame =
                                 convert_call_trace_into_4byte_frame(vec![call_frame]);
-                            new_traces.push(TraceResult::new_success(GethTrace::FourByteTracer(four_byte_frame), tx_hash));
+                            new_traces.push(TraceResult::new_success(
+                                GethTrace::FourByteTracer(four_byte_frame),
+                                tx_hash,
+                            ));
                         }
                     });
                     Ok(new_traces)
                 }
-                GethDebugBuiltInTracerType::NoopTracer => {
-                    Ok(vec![TraceResult::new_success(GethTrace::NoopTracer(NoopFrame::default()), None)])
-                }
+                GethDebugBuiltInTracerType::NoopTracer => Ok(vec![TraceResult::new_success(
+                    GethTrace::NoopTracer(NoopFrame::default()),
+                    None,
+                )]),
                 _ => Err(EthApiError::Unsupported("This tracer is not supported")),
             }
         }

@@ -480,11 +480,9 @@ fn register_rpc_methods<C: sov_modules_api::Context, Da: DaService>(
                 opts,
             )?;
             match &traces[0] {
-                TraceResult::Success { result, .. } => {
-                    Ok(result.clone())
-                }
+                TraceResult::Success { result, .. } => Ok(result.clone()),
                 // this should never happen since we propagate any tracing error
-                TraceResult::Error { error, tx_hash: _} => {
+                TraceResult::Error { error, tx_hash: _ } => {
                     Err(EthApiError::EvmCustom(error.clone()).into())
                 }
             }

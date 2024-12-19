@@ -345,7 +345,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
             _ => anyhow::bail!("Unexpected trace result"),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     assert_eq!(traces.len(), 8);
     assert_eq!(traces[5], CallTracer(reth_json));
     assert_eq!(traces[6], CallTracer(expected_call_get_trace));
