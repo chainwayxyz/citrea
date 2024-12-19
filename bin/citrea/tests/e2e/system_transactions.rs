@@ -1,9 +1,10 @@
 /// Testing if the sequencer and full node can handle system transactions correctly (the full node should have the same system transactions as the sequencer)
 use std::str::FromStr;
 
+use alloy_primitives::Address;
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_evm::SYSTEM_SIGNER;
-use reth_primitives::{Address, BlockNumberOrTag};
+use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
 use sov_rollup_interface::services::da::DaService;
 

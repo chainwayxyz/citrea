@@ -12,8 +12,10 @@ readme = "README.md"
 resolver = "2"
 
 [dependencies]
+alloy-rlp = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc", "bytes"] }
+bytes = { workspace = true }
 bcs = { workspace = true }
 serde = { workspace = true, features = ["rc"] }
 sov-rollup-interface = { path = "../../rollup-interface" }

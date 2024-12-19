@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use alloy_primitives::{keccak256, Address};
+use alloy_rpc_types::state::AccountOverride;
+use alloy_rpc_types::BlockOverrides;
 pub use filter::*;
 pub use log_utils::*;
 pub use responses::*;
-use reth_primitives::{keccak256, Address};
 use reth_rpc_eth_types::{EthApiError, EthResult};
-use reth_rpc_types::state::AccountOverride;
-use reth_rpc_types::BlockOverrides;
 use revm::Database;
 
 mod filter;
@@ -23,7 +23,7 @@ use crate::db::EvmDb;
 #[cfg(feature = "native")]
 /// Applies all instances [`AccountOverride`] to the [`EvmDb`].
 pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
-    state_overrides: HashMap<Address, AccountOverride>,
+    state_overrides: HashMap<Address, AccountOverride, alloy_primitives::map::FbBuildHasher<20>>,
     db: &mut EvmDb<C>,
 ) -> EthResult<()> {
     for (address, account_overrides) in state_overrides {
@@ -82,7 +82,7 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
     block_overrides: &mut BlockOverrides,
     db: &mut EvmDb<C>,
 ) {
-    use reth_primitives::U256;
+    use alloy_primitives::U256;
 
     if let Some(block_hashes) = block_overrides.block_hash.take() {
         // override block hashes

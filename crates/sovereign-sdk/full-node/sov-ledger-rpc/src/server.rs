@@ -1,9 +1,9 @@
 //! A JSON-RPC server implementation for any [`LedgerRpcProvider`].
 
+use alloy_primitives::U64;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::U64;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
 use sov_rollup_interface::rpc::{
     BatchProofResponse, LastVerifiedBatchProofResponse, LedgerRpcProvider,

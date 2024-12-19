@@ -3,10 +3,11 @@ use std::time::Duration;
 
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
+use alloy_primitives::U256;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{BlockNumberOrTag, U256};
+use reth_primitives::BlockNumberOrTag;
 
 use crate::evm::init_test_rollup;
 use crate::test_client::TestClient;

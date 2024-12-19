@@ -1,10 +1,11 @@
-use alloy_primitives::B256;
+use alloy_consensus::Header as AlloyHeader;
+use alloy_primitives::{Bloom, Bytes, B256, B64, U256};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
-use reth_primitives::{Bloom, Bytes, U256};
 use revm::primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
+use sov_rollup_interface::spec::SpecId as CitreaSpecId;
 use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -33,13 +34,31 @@ where
         // a holy line
         self.pending_transactions.clear();
 
-        let mut parent_block = self
-            .head
-            .get(working_set)
-            .expect("Head block should always be set");
+        let current_spec = soft_confirmation_info.current_spec;
+
+        let mut parent_block = if current_spec >= CitreaSpecId::Fork1 {
+            match self.head_rlp.get(working_set) {
+                Some(block) => block.clone().into(),
+                None => self
+                    .head
+                    .get(working_set)
+                    .expect("Head block should always be set")
+                    .clone(),
+            }
+        } else {
+            self.head
+                .get(working_set)
+                .expect("Head block should always be set")
+                .clone()
+        };
 
         parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
-        self.head.set(&parent_block, working_set);
+
+        if current_spec >= CitreaSpecId::Fork1 {
+            self.head_rlp.set(&parent_block.clone().into(), working_set);
+        } else {
+            self.head.set(&parent_block, working_set);
+        }
 
         let sealed_parent_block = parent_block.clone().seal();
         let last_block_hash = sealed_parent_block.header.hash();
@@ -85,8 +104,8 @@ where
             .get(working_set)
             .expect("EVM chain config should be set");
         let basefee = calculate_next_block_base_fee(
-            parent_block.header.gas_used as u128,
-            parent_block.header.gas_limit as u128,
+            parent_block.header.gas_used,
+            parent_block.header.gas_limit,
             parent_block.header.base_fee_per_gas.unwrap_or_default(),
             cfg.base_fee_params,
         );
@@ -150,11 +169,26 @@ where
     ) {
         let l1_hash = soft_confirmation_info.da_slot_hash;
 
-        let parent_block = self
-            .head
-            .get(working_set)
-            .expect("Head block should always be set")
-            .seal();
+        let current_spec = soft_confirmation_info.current_spec;
+
+        let parent_block = if current_spec >= CitreaSpecId::Fork1 {
+            match self.head_rlp.get(working_set) {
+                Some(block) => block.seal(),
+                None => {
+                    let block: Block<AlloyHeader> = self
+                        .head
+                        .get(working_set)
+                        .expect("Head block should always be set")
+                        .into();
+                    block.seal()
+                }
+            }
+        } else {
+            self.head
+                .get(working_set)
+                .expect("Head block should always be set")
+                .seal()
+        };
 
         let expected_block_number = parent_block.header.number + 1;
         assert_eq!(
@@ -183,7 +217,7 @@ where
             .map(|tx| tx.receipt.receipt.clone().with_bloom())
             .collect();
 
-        let header = reth_primitives::Header {
+        let header = AlloyHeader {
             parent_hash: parent_block.header.hash(),
             timestamp: self.block_env.timestamp.saturating_to(),
             number: self.block_env.number.saturating_to(),
@@ -203,7 +237,7 @@ where
             gas_limit: self.block_env.gas_limit.saturating_to(),
             gas_used,
             mix_hash: self.block_env.prevrandao.unwrap_or_default(),
-            nonce: 0,
+            nonce: B64::ZERO,
             base_fee_per_gas: Some(self.block_env.basefee.saturating_to()),
             extra_data: Bytes::default(),
             // EIP-4844 related fields
@@ -235,7 +269,11 @@ where
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 
-        self.head.set(&block, working_set);
+        if current_spec >= CitreaSpecId::Fork1 {
+            self.head_rlp.set(&block, working_set);
+        } else {
+            self.head.set(&block.clone().into(), working_set);
+        }
 
         #[cfg(not(feature = "native"))]
         pending_transactions.clear();
@@ -245,6 +283,7 @@ where
             use crate::PendingTransaction;
 
             let mut accessory_state = working_set.accessory_state();
+
             self.pending_head.set(&block, &mut accessory_state);
 
             let mut tx_index = start_tx_index;

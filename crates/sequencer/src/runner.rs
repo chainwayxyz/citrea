@@ -4,6 +4,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Address, Bytes, TxHash};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
@@ -19,11 +21,11 @@ use futures::StreamExt;
 use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
-use reth_primitives::{Address, IntoRecoveredTransaction, TxHash};
+use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
-    BestTransactions, BestTransactionsAttributes, ChangedAccount, EthPooledTransaction,
-    PoolTransaction, ValidPoolTransaction,
+    BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
+    ValidPoolTransaction,
 };
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
@@ -281,13 +283,12 @@ where
                             let mut l1_fee_failed_txs = vec![];
 
                             for evm_tx in transactions {
-                                let rlp_tx = RlpEvmTransaction {
-                                    rlp: evm_tx
-                                        .to_recovered_transaction()
-                                        .into_signed()
-                                        .envelope_encoded()
-                                        .to_vec(),
-                                };
+                                let mut buf = vec![];
+                                evm_tx
+                                    .to_recovered_transaction()
+                                    .into_signed()
+                                    .encode_2718(&mut buf);
+                                let rlp_tx = RlpEvmTransaction { rlp: buf };
 
                                 let call_txs = CallMessage {
                                     txs: vec![rlp_tx.clone()],
@@ -810,8 +811,8 @@ where
             .unseal();
 
         let base_fee = calculate_next_block_base_fee(
-            latest_header.gas_used as u128,
-            latest_header.gas_limit as u128,
+            latest_header.gas_used,
+            latest_header.gas_limit,
             latest_header
                 .base_fee_per_gas
                 .expect("Base fee always set in Citrea"),
@@ -962,8 +963,7 @@ where
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {
         let mempool_txs = self.ledger_db.get_mempool_txs()?;
         for (_, tx) in mempool_txs {
-            let recovered =
-                recover_raw_transaction(reth_primitives::Bytes::from(tx.as_slice().to_vec()))?;
+            let recovered = recover_raw_transaction(Bytes::from(tx.as_slice().to_vec()))?;
             let pooled_tx = EthPooledTransaction::from_pooled(recovered);
 
             let _ = self.mempool.add_external_transaction(pooled_tx).await?;
@@ -978,7 +978,7 @@ where
             .expect("Unrecoverable: Head must exist");
 
         let addresses: HashSet<Address> = match head.transactions {
-            reth_rpc_types::BlockTransactions::Full(ref txs) => {
+            alloy_rpc_types::BlockTransactions::Full(ref txs) => {
                 txs.iter().map(|tx| tx.from).collect()
             }
             _ => panic!("Block should have full transactions"),

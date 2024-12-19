@@ -3,12 +3,13 @@ use std::str::FromStr;
 
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
-use citrea_common::SequencerConfig;
 // use citrea::initialize_logging;
+use alloy_primitives::{Address, Bytes, U256};
+use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{Address, BlockId, BlockNumberOrTag, Bytes, U256};
+use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_rollup_interface::CITREA_VERSION;
 
 // use sov_demo_rollup::initialize_logging;
@@ -377,7 +378,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let first_block = client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(1)))
         .await;
-    assert_eq!(first_block.header.number.unwrap(), 1);
+    assert_eq!(first_block.header.number, 1);
     assert_eq!(first_block.transactions.len(), 4);
 
     let set_arg = 923;
@@ -392,11 +393,11 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     let second_block = client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(2)))
         .await;
-    assert_eq!(second_block.header.number.unwrap(), 2);
+    assert_eq!(second_block.header.number, 2);
 
     // Assert getTransactionByBlockHashAndIndex
     let tx_by_hash = client
-        .eth_get_tx_by_block_hash_and_index(second_block.header.hash.unwrap(), U256::from(0))
+        .eth_get_tx_by_block_hash_and_index(second_block.header.hash, U256::from(0))
         .await;
     assert_eq!(tx_by_hash.hash, tx_hash);
 
@@ -429,7 +430,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
     // It should have a single transaction, setting the value
     let latest_block = client.eth_get_block_by_number_with_detail(None).await;
     let block_transactions: Vec<_> = latest_block.transactions.hashes().clone().collect();
-    assert_eq!(latest_block.header.number.unwrap(), 2);
+    assert_eq!(latest_block.header.number, 2);
     assert_eq!(block_transactions.len(), 1);
     assert_eq!(block_transactions[0], tx_hash);
 
@@ -494,7 +495,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
             .await;
         let latest_block_receipt_by_number = client
             .eth_get_block_receipts(BlockId::Number(BlockNumberOrTag::Number(
-                latest_block.header.number.unwrap(),
+                latest_block.header.number,
             )))
             .await;
         assert_eq!(latest_block_receipts, latest_block_receipt_by_number);
@@ -519,8 +520,7 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 
     // assert parent hash works correctly
     assert_eq!(
-        first_block.header.hash.unwrap(),
-        second_block.header.parent_hash,
+        first_block.header.hash, second_block.header.parent_hash,
         "Parent hash should be the hash of the previous block"
     );
 
@@ -547,7 +547,7 @@ pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
         .await;
 
     assert_eq!(latest_block, earliest_block);
-    assert_eq!(latest_block.header.number.unwrap(), 0);
+    assert_eq!(latest_block.header.number, 0);
     test_client
 }
 

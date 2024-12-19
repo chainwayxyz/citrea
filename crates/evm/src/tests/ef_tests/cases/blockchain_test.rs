@@ -133,7 +133,7 @@ impl Case for BlockchainTestCase {
                 let mut evm_config = EvmConfig::default();
                 config_push_contracts(&mut evm_config, None);
                 // Set this base fee based on what's set in genesis.
-                let header = reth_primitives::Header {
+                let header = crate::primitive_types::DoNotUseHeader {
                     parent_hash: case.genesis_block_header.parent_hash,
                     ommers_hash: EMPTY_OMMER_ROOT_HASH,
                     beneficiary: evm_config.coinbase,
@@ -201,7 +201,7 @@ impl Case for BlockchainTestCase {
                 );
                 evm.head.set(&block, &mut working_set);
                 evm.pending_head
-                    .set(&block, &mut working_set.accessory_state());
+                    .set(&block.into(), &mut working_set.accessory_state());
                 evm.finalize_hook(
                     &case.genesis_block_header.state_root.0.into(),
                     &mut working_set.accessory_state(),
@@ -217,15 +217,16 @@ impl Case for BlockchainTestCase {
                 // Decode and insert blocks, creating a chain of blocks for the test case.
                 for block in case.blocks.iter() {
                     let decoded = SealedBlock::decode(&mut block.rlp.as_ref())?;
-                    let txs: Vec<RlpEvmTransaction> = decoded
+                    let txs = decoded
                         .body
+                        .transactions
                         .iter()
                         .map(|t| {
                             let mut buffer = Vec::<u8>::new();
                             t.encode(&mut buffer);
                             RlpEvmTransaction { rlp: buffer }
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
 
                     (working_set, storage) = self.execute_transactions(
                         &mut evm,

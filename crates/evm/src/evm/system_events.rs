@@ -1,16 +1,11 @@
+use alloy_consensus::TxEip1559;
+use alloy_primitives::{address, Address, TxKind, U256};
 use reth_primitives::{
-    address, Address, Signature, Transaction, TransactionSigned, TransactionSignedEcRecovered,
-    TransactionSignedNoHash, TxEip1559, TxKind, U256,
+    Signature, Transaction, TransactionSigned, TransactionSignedEcRecovered,
+    TransactionSignedNoHash,
 };
 
-use super::system_contracts::{BitcoinLightClient, Bridge};
-
-/// This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
-pub const SYSTEM_SIGNATURE: Signature = Signature {
-    r: U256::ZERO,
-    s: U256::ZERO,
-    odd_y_parity: false,
-};
+use super::system_contracts::{BitcoinLightClient, BridgeWrapper};
 
 /// This is a special system address to indicate a tx is called by system not by a user/contract.
 pub const SYSTEM_SIGNER: Address = address!("deaddeaddeaddeaddeaddeaddeaddeaddeaddead");
@@ -48,8 +43,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BridgeInitialize => TxEip1559 {
-            to: TxKind::Call(Bridge::address()),
-            input: Bridge::initialize(),
+            to: TxKind::Call(BridgeWrapper::address()),
+            input: BridgeWrapper::initialize(),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -58,8 +53,8 @@ fn system_event_to_transaction(event: SystemEvent, nonce: u64, chain_id: u64) ->
             ..Default::default()
         },
         SystemEvent::BridgeDeposit(params) => TxEip1559 {
-            to: TxKind::Call(Bridge::address()),
-            input: Bridge::deposit(params),
+            to: TxKind::Call(BridgeWrapper::address()),
+            input: BridgeWrapper::deposit(params),
             nonce,
             chain_id,
             value: U256::ZERO,
@@ -78,7 +73,12 @@ fn signed_system_transaction(
 ) -> TransactionSignedEcRecovered {
     let transaction = system_event_to_transaction(event, nonce, chain_id);
     let signed_no_hash = TransactionSignedNoHash {
-        signature: SYSTEM_SIGNATURE,
+        // This is a special signature to force tx.signer to be set to SYSTEM_SIGNER
+        signature: Signature::new(
+            U256::ZERO,
+            U256::ZERO,
+            alloy_primitives::Parity::Parity(false),
+        ),
         transaction,
     };
     let signed: TransactionSigned = signed_no_hash.into();

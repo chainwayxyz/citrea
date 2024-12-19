@@ -1,4 +1,4 @@
-use reth_primitives::U256;
+use alloy_primitives::U256;
 #[cfg(test)]
 use revm::db::{CacheDB, EmptyDB};
 use revm::primitives::{Address, Bytecode, SpecId, B256};

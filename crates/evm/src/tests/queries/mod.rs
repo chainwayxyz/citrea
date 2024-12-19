@@ -5,7 +5,7 @@ mod log_tests;
 
 use std::str::FromStr;
 
-use reth_primitives::{address, Address, Bytes};
+use alloy_primitives::{address, Address, Bytes};
 use revm::primitives::{KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use alloy_primitives::LogData;
+use alloy_primitives::{address, b256, hex, LogData, TxKind, U64};
+use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
-use reth_primitives::{address, b256, hex, BlockNumberOrTag, Log, TxKind, U64};
-use reth_rpc_types::{TransactionInput, TransactionRequest};
+use reth_primitives::{BlockNumberOrTag, Log};
 use revm::primitives::{Bytes, KECCAK_EMPTY, U256};
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
@@ -19,7 +19,7 @@ use crate::evm::primitive_types::Receipt;
 use crate::evm::system_contracts::BitcoinLightClient;
 use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{BlockHashContract, LogsContract};
-use crate::system_contracts::{Bridge, ProxyAdmin};
+use crate::system_contracts::{BridgeWrapper, ProxyAdmin};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee, get_evm,
@@ -79,14 +79,14 @@ fn test_sys_bitcoin_light_client() {
                     cumulative_gas_used: 300521,
                     logs: vec![
                         Log {
-                            address: Bridge::address(),
+                            address: BridgeWrapper::address(),
                             data: LogData::new(
                                 vec![b256!("fbe5b6cbafb274f445d7fed869dc77a838d8243a22c460de156560e8857cad03")],
                                 Bytes::from_static(&hex!("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead")),
                             ).unwrap(),
                         },
                         Log {
-                            address: Bridge::address(),
+                            address: BridgeWrapper::address(),
                             data: LogData::new(
                                 vec![b256!("80bd1fdfe157286ce420ee763f91748455b249605748e5df12dad9844402bafc")],
                                 Bytes::from_static(&hex!("000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002d4a209fb3a961d8b1f4ec1caa220c6a50b815febc0b689ddf0b9ddfbf99cb74479e41ac0063066369747265611400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a08000000003b9aca006800000000000000000000000000000000000000000000"))
@@ -480,7 +480,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT as _);
+    assert_eq!(block.header.gas_limit, ETHEREUM_BLOCK_GAS_LIMIT);
     assert!(block.header.gas_used <= block.header.gas_limit);
 
     // In total there should only be 1134 transactions 1 is system tx others are contract calls
@@ -679,7 +679,7 @@ fn test_upgrade_light_client() {
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
         hash,
-        reth_primitives::Bytes::from_str(
+        alloy_primitives::Bytes::from_str(
             "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
         )
         .unwrap()
@@ -865,7 +865,7 @@ fn test_change_upgrade_owner() {
     // Assert if hash is equal to 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead
     assert_eq!(
         hash,
-        reth_primitives::Bytes::from_str(
+        alloy_primitives::Bytes::from_str(
             "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
         )
         .unwrap()

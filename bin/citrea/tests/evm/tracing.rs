@@ -1,15 +1,16 @@
 use std::str::FromStr;
 
-use citrea_common::SequencerConfig;
 // use citrea::initialize_logging;
-use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
-use citrea_stf::genesis_config::GenesisPaths;
-use reth_primitives::{Address, BlockNumberOrTag};
-use reth_rpc_types::trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
-use reth_rpc_types::trace::geth::{
+use alloy_primitives::Address;
+use alloy_rpc_types_trace::geth::GethTrace::{self, CallTracer, FourByteTracer};
+use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerType,
     GethDebugTracingOptions,
 };
+use citrea_common::SequencerConfig;
+use citrea_evm::smart_contracts::{CallerContract, SimpleStorageContract};
+use citrea_stf::genesis_config::GenesisPaths;
+use reth_primitives::BlockNumberOrTag;
 use serde_json::{self, json};
 
 use crate::evm::make_test_client;
@@ -89,10 +90,8 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         let call_set_value_req = test_client
             .contract_transaction(
                 caller_contract_address,
-                caller_contract.call_set_call_data(
-                    reth_primitives::Address::from_slice(ss_contract_address.as_ref()),
-                    3,
-                ),
+                caller_contract
+                    .call_set_call_data(Address::from_slice(ss_contract_address.as_ref()), 3),
                 None,
             )
             .await;
@@ -145,9 +144,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
     let call_get_value_req = test_client
         .contract_transaction(
             caller_contract_address,
-            caller_contract.call_get_call_data(reth_primitives::Address::from_slice(
-                ss_contract_address.as_ref(),
-            )),
+            caller_contract.call_get_call_data(Address::from_slice(ss_contract_address.as_ref())),
             None,
         )
         .await;
@@ -234,8 +231,7 @@ async fn tracing_tests() -> Result<(), Box<dyn std::error::Error>> {
         .eth_get_block_by_number(Some(BlockNumberOrTag::Number(3)))
         .await
         .header
-        .hash
-        .unwrap();
+        .hash;
 
     let traces = test_client
         .debug_trace_block_by_hash(

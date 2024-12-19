@@ -11,7 +11,7 @@ repository.workspace = true
 [dependencies]
 # Citrea dependencies
 citrea-evm = { path = "../evm", features = ["native"] }
-citrea-primitives = { path = "../primitives", features = ["native"] }
+citrea-primitives = { path = "../primitives" }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }

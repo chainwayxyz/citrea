@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 # Citrea Deps
-citrea-primitives = { path = "../primitives", features = ["native"] }
+citrea-primitives = { path = "../primitives" }
 citrea-stf = { path = "../citrea-stf" }
 
 # Sov SDK deps

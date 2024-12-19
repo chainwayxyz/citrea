@@ -4,16 +4,15 @@ use std::hash::Hash;
 use std::iter::StepBy;
 use std::ops::{Range, RangeFrom, RangeInclusive, RangeTo};
 
-use alloy_primitives::{Bloom, BloomInput, U64};
+use alloy_primitives::{Address, BlockHash, Bloom, BloomInput, B256, U64};
 use itertools::EitherOrBoth::*;
 use itertools::Itertools;
-use reth_primitives::{Address, BlockHash, BlockNumberOrTag, B256};
+use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::error::EthApiError;
+use reth_rpc_server_types::result::rpc_error_with_code;
 use serde::de::{DeserializeOwned, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::evm::error::result::rpc_error_with_code;
 
 /// The maximum number of blocks that can be queried in a single eth_getLogs request.
 pub const DEFAULT_MAX_BLOCKS_PER_FILTER: u64 = 1_000;
@@ -209,7 +208,7 @@ pub struct Filter {
     // https://eips.ethereum.org/EIPS/eip-234
     pub block_option: FilterBlockOption,
     /// Filter for the address of the log, can be
-    pub address: FilterSet<reth_primitives::Address>,
+    pub address: FilterSet<alloy_primitives::Address>,
     /// Filter for the topics of the log
     pub topics: [Topic; 4],
 }

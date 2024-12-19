@@ -1,11 +1,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use alloy_primitives::U64;
 use anyhow::anyhow;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use jsonrpsee::http_client::HttpClient;
-use reth_primitives::U64;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};

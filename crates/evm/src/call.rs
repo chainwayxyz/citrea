@@ -10,7 +10,7 @@ use crate::evm::executor::{self};
 use crate::evm::handler::{CitreaExternal, CitreaExternalExt};
 use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
-use crate::system_contracts::{BitcoinLightClient, Bridge};
+use crate::system_contracts::{BitcoinLightClient, BridgeWrapper};
 use crate::system_events::{create_system_transactions, SYSTEM_SIGNER};
 use crate::{citrea_spec_id_to_evm_spec_id, Evm, PendingTransaction, SystemEvent};
 
@@ -52,7 +52,10 @@ impl<C: sov_modules_api::Context> Evm<C> {
             return;
         }
 
-        let bridge_contract_exists = self.accounts.get(&Bridge::address(), working_set).is_some();
+        let bridge_contract_exists = self
+            .accounts
+            .get(&BridgeWrapper::address(), working_set)
+            .is_some();
         if !bridge_contract_exists {
             native_error!("System contract not found: Bridge");
             return;
@@ -128,6 +131,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
     ) -> Result<CallResponse, SoftConfirmationModuleCallError> {
         // use of `self.block_env` is allowed here
 
+        // TODO: should not include non deserilizable transactions
         let users_txs: Vec<TransactionSignedEcRecovered> = txs
             .into_iter()
             .filter_map(|tx| match tx.try_into() {
