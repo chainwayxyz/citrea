@@ -653,8 +653,6 @@ fn test_kzg_point_eval_should_revert() {
         .iter(&mut working_set.accessory_state())
         .collect();
 
-    assert!(!receipts.last().unwrap().receipt.success);
-
     let db_account = DbAccount::new(contract_addr);
     let storage_value = db_account
         .storage
@@ -662,11 +660,13 @@ fn test_kzg_point_eval_should_revert() {
         .unwrap();
     assert_ne!(
         storage_value,
+        // expected if point eval precompile was enabled
         U256::from_str(
             "52435875175126190479447740508185965837690552500527637822603658699938581184513"
         )
         .unwrap()
     );
+    assert!(receipts.last().unwrap().receipt.success);
 }
 
 #[test]

@@ -8,6 +8,7 @@ use revm::handler::register::{EvmHandler, HandleRegisters};
 #[cfg(feature = "native")]
 use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
 use revm::interpreter::{Gas, InstructionResult};
+use revm::precompile::u64_to_address;
 #[cfg(feature = "native")]
 use revm::primitives::Log;
 use revm::primitives::{
@@ -316,22 +317,15 @@ struct CitreaHandler<SPEC, EXT, DB> {
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
     fn load_precompiles() -> ContextPrecompiles<DB> {
         fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
-            use revm::precompile::{
-                u64_to_address, Bytes, Precompile, PrecompileOutput, PrecompileResult,
-            };
-
-            pub fn kzg(_input: &Bytes, _gas_limit: u64, _env: &Env) -> PrecompileResult {
-                pub const GAS_COST: u64 = 0;
-                pub const RETURN_VALUE: &[u8; 64] = &[0; 64];
-                Ok(PrecompileOutput::new(GAS_COST, RETURN_VALUE.into()))
-            }
-
             let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
-            let precompiles_inner = precompiles.to_mut();
-            if let Some(kzg_point_evaluation) = precompiles_inner.get_mut(&u64_to_address(0x0A)) {
-                // replace kzg_point_evaluation if it was enabled in the Spec
-                *kzg_point_evaluation = Precompile::Env(kzg).into();
+
+            if SPEC::enabled(SpecId::CANCUN) {
+                precompiles
+                    .to_mut()
+                    .remove(&u64_to_address(0x0A))
+                    .expect("after cancun point eval should be removed");
             }
+
             precompiles
         }
 
