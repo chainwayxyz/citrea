@@ -4,6 +4,7 @@ sequencer_da_pub_key = "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714
 prover_da_pub_key = "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601"
 
 [da]
+sender_address = "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601"
 db_path = "resources/dbs/da-db"
 
 [storage]
