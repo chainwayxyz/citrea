@@ -23,6 +23,7 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 const L2_GENESIS_ROOT: [u8; 32] = {
     let hex_root = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
+        // TODO: Update this after finding out the first batch prover output of the next release
         Network::Testnet => "05183faf24857f0fa6d4a7738fe5ef14b7ebe88be0f66e6f87f461485554d531",
         Network::Devnet => "c23eb4eec08765750400f6e98567ef1977dc86334318f5424b7783c4080c0a36",
         Network::Nightly => {
