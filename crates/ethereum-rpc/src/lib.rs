@@ -324,7 +324,13 @@ where
         )
         .map_err(to_eth_rpc_error)?;
 
-        Ok(traces[0].clone())
+        match &traces[0] {
+            TraceResult::Success { result, .. } => Ok(result.clone()),
+            // this should never happen since we propagate any tracing error
+            TraceResult::Error { error, tx_hash: _ } => {
+                Err(EthApiError::EvmCustom(error.clone()).into())
+            }
+        }
     }
 
     fn txpool_content(&self) -> RpcResult<Value> {
