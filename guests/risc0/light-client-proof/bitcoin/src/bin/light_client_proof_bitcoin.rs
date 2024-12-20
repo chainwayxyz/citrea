@@ -40,23 +40,28 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
-// TODO: Find batch proof method ids of networks
 const BATCH_PROOF_METHOD_ID: [u32; 8] = {
+    // TODO: Don't forget to always update devnet, testnet, mainnet method ids just before release
     let hex_method_id = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "0000000000000000000000000000000000000000000000000000000000000000",
         Network::Devnet => "0000000000000000000000000000000000000000000000000000000000000000",
         Network::Nightly => {
             match option_env!("BATCH_PROOF_METHOD_ID") {
-                Some(hex_root) => hex_root,
-                None => "0000000000000000000000000000000000000000000000000000000000000000",
+                Some(hex_method_id) => hex_method_id,
+                None => "",
             }
         }
     };
 
-    match const_hex::const_decode_to_array::<32>(hex_method_id.as_bytes()) {
-        Ok(method_id) => constmuck::cast(method_id),
-        Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
+    // Use default nightly batch proof method_id
+    if hex_method_id.is_empty() {
+        citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID
+    } else {
+        match const_hex::const_decode_to_array::<32>(hex_method_id.as_bytes()) {
+            Ok(method_id) => constmuck::cast(method_id),
+            Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
+        }
     }
 };
 
