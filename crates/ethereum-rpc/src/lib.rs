@@ -311,7 +311,7 @@ pub struct SyncStatus {
 //     (call_request, gas_price, max_fee_per_gas)
 // }
 
-#[rpc(server, client)]
+#[rpc(server)]
 pub trait EthereumRpc {
     /// Returns the client version.
     #[method(name = "web3_clientVersion")]
@@ -612,19 +612,16 @@ where
     }
 
     async fn eth_send_raw_transaction(&self, data: Bytes) -> RpcResult<B256> {
-        let tx_hash = SequencerRpcClient::eth_send_raw_transaction(
-            self.ethereum.sequencer_client.as_ref().unwrap(),
-            data,
-        )
-        .await;
-
-        match tx_hash {
-            Ok(tx_hash) => Ok(tx_hash),
-            Err(e) => match e {
-                jsonrpsee::core::client::Error::Call(e_owned) => Err(e_owned),
-                _ => Err(to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e)),
-            },
-        }
+        self.ethereum
+            .sequencer_client
+            .as_ref()
+            .unwrap()
+            .eth_send_raw_transaction(data)
+            .await
+            .map_err(|e| match e {
+                jsonrpsee::core::client::Error::Call(e_owned) => e_owned,
+                _ => to_jsonrpsee_error_object("SEQUENCER_CLIENT_ERROR", e),
+            })
     }
 
     async fn eth_get_transaction_by_hash(
@@ -634,12 +631,13 @@ where
     ) -> RpcResult<Option<RpcTransaction<AnyNetwork>>> {
         match mempool_only {
             Some(true) => {
-                match SequencerRpcClient::eth_get_transaction_by_hash(
-                    self.ethereum.sequencer_client.as_ref().unwrap(),
-                    hash,
-                    Some(true),
-                )
-                .await
+                match self
+                    .ethereum
+                    .sequencer_client
+                    .as_ref()
+                    .unwrap()
+                    .eth_get_transaction_by_hash(hash, Some(true))
+                    .await
                 {
                     Ok(tx) => Ok(tx),
                     Err(e) => match e {
@@ -654,12 +652,13 @@ where
                 match evm.get_transaction_by_hash(hash, &mut working_set) {
                     Ok(Some(tx)) => Ok(Some(tx)),
                     Ok(None) => {
-                        match SequencerRpcClient::eth_get_transaction_by_hash(
-                            self.ethereum.sequencer_client.as_ref().unwrap(),
-                            hash,
-                            Some(true),
-                        )
-                        .await
+                        match self
+                            .ethereum
+                            .sequencer_client
+                            .as_ref()
+                            .unwrap()
+                            .eth_get_transaction_by_hash(hash, Some(true))
+                            .await
                         {
                             Ok(tx) => Ok(tx),
                             Err(e) => match e {
