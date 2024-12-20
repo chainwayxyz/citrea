@@ -90,7 +90,7 @@ fn end_soft_confirmation_hook_sets_head() {
         .push(create_pending_transaction(2, 1));
 
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    let head = evm.head.get(&mut working_set).unwrap();
+    let head = evm.head_rlp.get(&mut working_set).unwrap();
     let pending_head = evm
         .pending_head
         .get(&mut working_set.accessory_state())
@@ -100,9 +100,9 @@ fn end_soft_confirmation_hook_sets_head() {
     assert_eq!(
         head,
         Block {
-            header: crate::primitive_types::DoNotUseHeader {
+            header: alloy_consensus::Header {
                 parent_hash: B256::from(hex!(
-                    "42b2df14615729c49a449b8f42c1a9eb4b9b62fb6a70464eabfa362cd1d20f75"
+                    "cddac53c8ce67726f9d2c51cdfca6af78e24e836ffbc614e878a59d89fcd7738"
                 )),
 
                 ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -122,11 +122,11 @@ fn end_soft_confirmation_hook_sets_head() {
                 gas_used: 200u64,
                 timestamp: 54,
                 mix_hash: *DA_ROOT_HASH,
-                nonce: 0,
+                nonce: 0u64.into(),
                 base_fee_per_gas: Some(767816299),
                 extra_data: Bytes::default(),
-                blob_gas_used: None,
-                excess_blob_gas: None,
+                blob_gas_used: Some(0),
+                excess_blob_gas: Some(0),
                 parent_beacon_block_root: None,
                 requests_root: None,
             },
