@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use alloy_primitives::U256;
-use alloy_rpc_types_trace::geth::GethTrace;
+use alloy_rpc_types_trace::geth::TraceResult;
 use citrea_evm::Evm;
 use jsonrpsee::http_client::HttpClient;
 use rustc_version_runtime::version;
@@ -34,7 +34,7 @@ pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     pub(crate) ledger_db: LedgerDB,
     pub(crate) sequencer_client: Option<HttpClient>,
     pub(crate) web3_client_version: String,
-    pub(crate) trace_cache: Mutex<LruMap<u64, Vec<GethTrace>, ByLength>>,
+    pub(crate) trace_cache: Mutex<LruMap<u64, Vec<TraceResult>, ByLength>>,
     pub(crate) subscription_manager: Option<SubscriptionManager>,
 }
 

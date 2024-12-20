@@ -8,7 +8,7 @@ use std::sync::Arc;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{keccak256, Bytes, B256, U256};
 use alloy_rpc_types::{FeeHistory, Index};
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
+use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_evm::{Evm, Filter};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
@@ -94,7 +94,7 @@ pub trait EthereumRpc {
         &self,
         block_hash: B256,
         opts: Option<GethDebugTracingOptions>,
-    ) -> RpcResult<Vec<GethTrace>>;
+    ) -> RpcResult<Vec<TraceResult>>;
 
     /// Returns traces for a block by number.
     #[method(name = "debug_traceBlockByNumber")]
@@ -103,7 +103,7 @@ pub trait EthereumRpc {
         &self,
         block_number: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
-    ) -> RpcResult<Vec<GethTrace>>;
+    ) -> RpcResult<Vec<TraceResult>>;
 
     /// Returns trace for a transaction.
     #[method(name = "debug_traceTransaction")]
@@ -237,7 +237,7 @@ where
         &self,
         block_hash: B256,
         opts: Option<GethDebugTracingOptions>,
-    ) -> RpcResult<Vec<GethTrace>> {
+    ) -> RpcResult<Vec<TraceResult>> {
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
 
@@ -263,7 +263,7 @@ where
         &self,
         block_number: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
-    ) -> RpcResult<Vec<GethTrace>> {
+    ) -> RpcResult<Vec<TraceResult>> {
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
         let evm = Evm::<C>::default();
         let latest_block_number: u64 = evm.block_number(&mut working_set)?.saturating_to();
@@ -324,7 +324,13 @@ where
         )
         .map_err(to_eth_rpc_error)?;
 
-        Ok(traces[0].clone())
+        match &traces[0] {
+            TraceResult::Success { result, .. } => Ok(result.clone()),
+            // this should never happen since we propagate any tracing error
+            TraceResult::Error { error, tx_hash: _ } => {
+                Err(EthApiError::EvmCustom(error.clone()).into())
+            }
+        }
     }
 
     fn txpool_content(&self) -> RpcResult<Value> {

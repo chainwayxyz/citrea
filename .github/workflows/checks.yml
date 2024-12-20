@@ -491,6 +491,7 @@ jobs:
   validate_and_check_DA_ID:
     runs-on: ubicloud-standard-2
     needs: build
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 

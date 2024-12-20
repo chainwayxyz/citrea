@@ -11,7 +11,7 @@ use alloy::transports::http::{Http, HyperClient};
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
 use alloy_rpc_types::AnyNetworkBlock;
-use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace};
+use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_batch_prover::GroupCommitments;
 use citrea_evm::{Filter, LogResponse};
 use ethereum_rpc::SyncStatus;
@@ -601,7 +601,7 @@ impl TestClient {
         &self,
         block_number: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
-    ) -> Vec<GethTrace> {
+    ) -> Vec<TraceResult> {
         self.http_client
             .request("debug_traceBlockByNumber", rpc_params![block_number, opts])
             .await
@@ -612,7 +612,7 @@ impl TestClient {
         &self,
         block_hash: B256,
         opts: Option<GethDebugTracingOptions>,
-    ) -> Vec<GethTrace> {
+    ) -> Vec<TraceResult> {
         self.http_client
             .request("debug_traceBlockByHash", rpc_params![block_hash, opts])
             .await
@@ -624,7 +624,7 @@ impl TestClient {
         start_block: BlockNumberOrTag,
         end_block: BlockNumberOrTag,
         opts: Option<GethDebugTracingOptions>,
-    ) -> Vec<GethTrace> {
+    ) -> Vec<TraceResult> {
         let mut subscription = self
             .ws_client
             .subscribe(
@@ -643,7 +643,7 @@ impl TestClient {
             BlockNumberOrTag::Latest => self.eth_block_number().await,
             _ => panic!("Only number and latest"),
         };
-        let mut traces: Vec<Vec<GethTrace>> = vec![];
+        let mut traces: Vec<Vec<TraceResult>> = vec![];
         for _ in start_block..end_block {
             let block_traces = subscription.next().await.unwrap().unwrap();
             traces.push(block_traces);
