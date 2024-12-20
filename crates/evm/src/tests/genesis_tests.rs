@@ -164,7 +164,7 @@ fn genesis_block() {
 #[test]
 fn genesis_head() {
     let (evm, mut working_set) = get_evm(&get_evm_test_config());
-    let head = evm.head.get(&mut working_set).unwrap();
+    let head = evm.head_rlp.get(&mut working_set).unwrap();
     assert_eq!(head.header.parent_hash, *GENESIS_HASH);
     let genesis_block = evm
         .blocks
