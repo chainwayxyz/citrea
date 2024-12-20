@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -20,15 +19,13 @@ pub(crate) fn register_ethereum<Da: DaService>(
     soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
 ) -> Result<(), anyhow::Error> {
     let eth_rpc_config = {
-        let eth_signer = eth_dev_signer();
         EthRpcConfig {
-            eth_signer,
             gas_price_oracle_config: GasPriceOracleConfig::default(),
             fee_history_cache_config: FeeHistoryCacheConfig::default(),
         }
     };
 
-    let ethereum_rpc = ethereum_rpc::get_ethereum_rpc::<DefaultContext, Da>(
+    let ethereum_rpc = ethereum_rpc::create_rpc_module::<DefaultContext, Da>(
         da_service,
         eth_rpc_config,
         storage,
@@ -39,12 +36,4 @@ pub(crate) fn register_ethereum<Da: DaService>(
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")
-}
-
-// TODO: #840
-fn eth_dev_signer() -> ethereum_rpc::DevSigner {
-    ethereum_rpc::DevSigner::new(vec![secp256k1::SecretKey::from_str(
-        "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    )
-    .unwrap()])
 }

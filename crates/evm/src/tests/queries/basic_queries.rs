@@ -506,10 +506,9 @@ fn check_against_third_block(block: &AnyNetworkBlock) {
         other: OtherFields::new(BTreeMap::new()),
     };
 
-    rich_block.other.insert(
-        "l1FeeRate".to_string(),
-        serde_json::Value::Number(serde_json::Number::from(1)),
-    );
+    rich_block
+        .other
+        .insert("l1FeeRate".to_string(), "0x1".into());
 
     rich_block.other.insert(
         "l1Hash".to_string(),

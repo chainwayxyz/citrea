@@ -19,7 +19,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{Context, SignedSoftConfirmation, SlotData, Spec};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
@@ -130,12 +130,8 @@ where
             }
         };
 
-        // Start the main rollup loop
-        let item_numbers = ledger_db.get_next_items_numbers();
-        let last_soft_confirmation_processed_before_shutdown =
-            item_numbers.soft_confirmation_number;
         // Last L1/L2 height before shutdown.
-        let start_l2_height = last_soft_confirmation_processed_before_shutdown;
+        let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
         Ok(Self {
             start_l2_height,
@@ -446,8 +442,10 @@ where
         }
 
         // Save state diff to ledger DB
-        self.ledger_db
-            .set_l2_state_diff(BatchNumber(l2_height), soft_confirmation_result.state_diff)?;
+        self.ledger_db.set_l2_state_diff(
+            SoftConfirmationNumber(l2_height),
+            soft_confirmation_result.state_diff,
+        )?;
 
         // Save witnesses data to ledger db
         self.ledger_db.set_l2_witness(
@@ -472,7 +470,7 @@ where
 
         self.ledger_db.extend_l2_range_of_l1_slot(
             SlotNumber(current_l1_block.header().height()),
-            BatchNumber(l2_height),
+            SoftConfirmationNumber(l2_height),
         )?;
 
         // Register this new block with the fork manager to active

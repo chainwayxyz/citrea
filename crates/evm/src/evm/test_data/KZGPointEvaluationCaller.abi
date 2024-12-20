@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"bytes","name":"input","type":"bytes"}],"name":"verifyPointEvaluation","outputs":[{"internalType":"bool","name":"success","type":"bool"}],"stateMutability":"nonpayable","type":"function"}]

@@ -2,8 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use alloy_primitives::U256;
 use alloy_rpc_types_trace::geth::GethTrace;
-#[cfg(feature = "local")]
-use citrea_evm::DevSigner;
 use citrea_evm::Evm;
 use jsonrpsee::http_client::HttpClient;
 use rustc_version_runtime::version;
@@ -26,16 +24,12 @@ const DEFAULT_PRIORITY_FEE: U256 = U256::from_limbs([100, 0, 0, 0]);
 pub struct EthRpcConfig {
     pub gas_price_oracle_config: GasPriceOracleConfig,
     pub fee_history_cache_config: FeeHistoryCacheConfig,
-    #[cfg(feature = "local")]
-    pub eth_signer: DevSigner,
 }
 
 pub struct Ethereum<C: sov_modules_api::Context, Da: DaService> {
     #[allow(dead_code)]
     pub(crate) da_service: Arc<Da>,
     pub(crate) gas_price_oracle: GasPriceOracle<C>,
-    #[cfg(feature = "local")]
-    pub(crate) eth_signer: DevSigner,
     pub(crate) storage: C::Storage,
     pub(crate) ledger_db: LedgerDB,
     pub(crate) sequencer_client: Option<HttpClient>,
@@ -50,7 +44,6 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         da_service: Arc<Da>,
         gas_price_oracle_config: GasPriceOracleConfig,
         fee_history_cache_config: FeeHistoryCacheConfig,
-        #[cfg(feature = "local")] eth_signer: DevSigner,
         storage: C::Storage,
         ledger_db: LedgerDB,
         sequencer_client: Option<HttpClient>,
@@ -74,8 +67,6 @@ impl<C: sov_modules_api::Context, Da: DaService> Ethereum<C, Da> {
         Self {
             da_service,
             gas_price_oracle,
-            #[cfg(feature = "local")]
-            eth_signer,
             storage,
             ledger_db,
             sequencer_client,
