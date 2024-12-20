@@ -40,7 +40,8 @@ jobs:
 
       - name: Build Project
         env:
-          REPR_GUEST_BUILD: 1
+          # TODO: make this dynamic somehow
+          CITREA_NETWORK: testnet
         run: |
           cargo build --release
 

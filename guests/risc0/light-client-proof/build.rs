@@ -3,9 +3,15 @@ use std::collections::HashMap;
 use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
 
 fn main() {
+    // Build environment variables
     println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
     println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD");
     println!("cargo:rerun-if-env-changed=OUT_DIR");
+    // Compile time constant environment variables
+    println!("cargo:rerun-if-env-changed=CITREA_NETWORK");
+    println!("cargo:rerun-if-env-changed=L2_GENESIS_ROOT");
+    println!("cargo:rerun-if-env-changed=BATCH_PROOF_METHOD_ID");
+    println!("cargo:rerun-if-env-changed=PROVER_DA_PUB_KEY");
 
     match std::env::var("SKIP_GUEST_BUILD") {
         Ok(value) => match value.as_str() {
