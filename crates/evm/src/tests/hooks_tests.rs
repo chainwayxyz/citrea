@@ -6,7 +6,7 @@ use reth_primitives::{
     Header, Signature, TransactionSigned, TransactionSignedNoHash, EMPTY_OMMER_ROOT_HASH,
     KECCAK_EMPTY,
 };
-use revm::primitives::BlockEnv;
+use revm::primitives::{BlobExcessGasAndPrice, BlockEnv};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{StateMapAccessor, StateValueAccessor, StateVecAccessor};
 use sov_rollup_interface::spec::SpecId;
@@ -34,7 +34,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -52,7 +52,7 @@ fn begin_soft_confirmation_hook_creates_pending_block() {
             basefee: U256::from(767816299),
             gas_limit: U256::from(config.block_gas_limit),
             difficulty: U256::ZERO,
-            blob_excess_gas_and_price: None
+            blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0))
         }
     );
 }
@@ -74,7 +74,7 @@ fn end_soft_confirmation_hook_sets_head() {
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: pre_state_root.to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -149,7 +149,7 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -272,7 +272,7 @@ fn finalize_hook_creates_final_block() {
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: root.to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -301,7 +301,7 @@ fn finalize_hook_creates_final_block() {
             da_slot_height: 1,
             da_slot_txs_commitment: txs_commitment.into(),
             pre_state_root: root_hash.to_vec(),
-            current_spec: SpecId::Genesis,
+            current_spec: SpecId::Fork1,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -340,8 +340,8 @@ fn finalize_hook_creates_final_block() {
         nonce: B64::ZERO,
         base_fee_per_gas: Some(767816299),
         extra_data: Bytes::default(),
-        blob_gas_used: None,
-        excess_blob_gas: None,
+        blob_gas_used: Some(0),
+        excess_blob_gas: Some(0),
         parent_beacon_block_root: None,
         requests_root: None,
     };
@@ -390,7 +390,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_height: 1,
         da_slot_txs_commitment: txs_commitment.into(),
         pre_state_root: root.to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -433,7 +433,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             da_slot_height: 1,
             da_slot_txs_commitment: random_32_bytes,
             pre_state_root: random_32_bytes.to_vec(),
-            current_spec: SpecId::Genesis,
+            current_spec: SpecId::Fork1,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -457,7 +457,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         da_slot_height: 1,
         da_slot_txs_commitment: random_32_bytes,
         pre_state_root: random_32_bytes.to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
