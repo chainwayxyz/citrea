@@ -16,10 +16,6 @@ fn main() {
                 let methods_path = out_dir.join("methods.rs");
 
                 let elf = r#"
-                pub const BATCH_PROOF_BITCOIN_ELF: &[u8] = &[];
-                pub const BATCH_PROOF_BITCOIN_ID: [u32; 8] = [0u32; 8];
-                pub const BATCH_PROOF_MOCK_ELF: &[u8] = &[];
-                pub const BATCH_PROOF_MOCK_ID: [u32; 8] = [0u32; 8];
                 pub const LIGHT_CLIENT_PROOF_BITCOIN_ELF: &[u8] = &[];
                 pub const LIGHT_CLIENT_PROOF_BITCOIN_ID: [u32; 8] = [0u32; 8];
                 pub const LIGHT_CLIENT_PROOF_MOCK_ELF: &[u8] = &[];
@@ -73,8 +69,6 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         use_docker,
     };
 
-    guest_pkg_to_options.insert("batch-proof-bitcoin", opts.clone());
-    guest_pkg_to_options.insert("batch-proof-mock", opts.clone());
     guest_pkg_to_options.insert("light-client-proof-bitcoin", opts.clone());
     guest_pkg_to_options.insert("light-client-proof-mock", opts);
     guest_pkg_to_options

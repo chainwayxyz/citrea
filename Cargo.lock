@@ -1809,6 +1809,8 @@ dependencies = [
  "citrea-light-client-prover",
  "citrea-primitives",
  "citrea-risc0-adapter",
+ "citrea-risc0-batch-proof",
+ "citrea-risc0-light-client",
  "citrea-sequencer",
  "citrea-stf",
  "clap",
@@ -1827,7 +1829,6 @@ dependencies = [
  "reth-primitives",
  "reth-transaction-pool",
  "revm",
- "risc0",
  "risc0-binfmt",
  "rs_merkle",
  "rustc_version_runtime",
@@ -2116,6 +2117,20 @@ dependencies = [
  "sov-db",
  "sov-rollup-interface",
  "tracing",
+]
+
+[[package]]
+name = "citrea-risc0-batch-proof"
+version = "0.5.0-rc.1"
+dependencies = [
+ "risc0-build",
+]
+
+[[package]]
+name = "citrea-risc0-light-client"
+version = "0.5.0-rc.1"
+dependencies = [
+ "risc0-build",
 ]
 
 [[package]]
@@ -7126,13 +7141,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
-]
-
-[[package]]
-name = "risc0"
-version = "0.5.0-rc.1"
-dependencies = [
- "risc0-build",
 ]
 
 [[package]]

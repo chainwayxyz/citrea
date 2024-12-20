@@ -19,8 +19,9 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-risc0 = { package = "risc0", path = "../../guests/risc0" }
 citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
+citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
+citrea-risc0-light-client = { path = "../../guests/risc0/light-client-proof" }
 citrea-sequencer = { path = "../../crates/sequencer" }
 # citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
@@ -102,7 +103,12 @@ sp1-helper = { version = "3.0.0", default-features = false }
 
 [features]
 default = [] # Deviate from convention by making the "native" feature active by default. This aligns with how this package is meant to be used (as a binary first, library second).
-testing = ["citrea-primitives/testing", "citrea-risc0/testing", "sov-rollup-interface/testing"]
+testing = [
+  "citrea-primitives/testing",
+  "citrea-risc0-batch-proof/testing",
+  "citrea-risc0-light-client/testing",
+  "sov-rollup-interface/testing",
+]
 
 [[bin]]
 name = "citrea"
