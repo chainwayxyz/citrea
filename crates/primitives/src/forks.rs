@@ -71,8 +71,3 @@ const _CHECK_FORKS: () = {
         panic!("FORKS order is invalid")
     }
 };
-
-#[cfg(feature = "testing")]
-pub fn set_test_forks(forks: &'static [Fork]) {
-    FORKS.set(forks).unwrap()
-}

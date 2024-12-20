@@ -17,7 +17,7 @@ use crate::smart_contracts::{
     SelfdestructingConstructorContract, SimpleStorageContract, TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, set_arg_message};
+use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_evm_with_spec, set_arg_message};
 use crate::RlpEvmTransaction;
 type C = DefaultContext;
 
@@ -82,7 +82,7 @@ fn test_cancun_transient_storage_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -238,7 +238,7 @@ fn test_cancun_mcopy_activation() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -439,7 +439,7 @@ fn test_blob_base_fee_should_return_1() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -674,7 +674,7 @@ fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
