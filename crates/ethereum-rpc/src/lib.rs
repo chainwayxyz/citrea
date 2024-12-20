@@ -501,17 +501,12 @@ where
                     .await;
             }
             "logs" => {
-                let Some(filter) = filter else {
-                    pending.reject(to_eth_rpc_error("Missing filter")).await;
-                    return Ok(());
-                };
-
                 let subscription = pending.accept().await?;
                 self.ethereum
                     .subscription_manager
                     .as_ref()
                     .unwrap()
-                    .register_new_logs_subscription(filter, subscription)
+                    .register_new_logs_subscription(filter.unwrap_or_default(), subscription)
                     .await;
             }
             _ => {
