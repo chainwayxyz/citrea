@@ -28,7 +28,10 @@ use crate::smart_contracts::{
 };
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
-    config_push_contracts, create_contract_message, create_contract_message_with_fee, create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm, get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, publish_event_message, set_arg_message
+    config_push_contracts, create_contract_message, create_contract_message_with_fee,
+    create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
+    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, publish_event_message,
+    set_arg_message,
 };
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
@@ -1246,7 +1249,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 50751,
                     log_index_start: 0,
-                    l1_diff_size: 53, 
+                    l1_diff_size: 53,
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -1319,7 +1322,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 114235,
                     log_index_start: 1,
-                    l1_diff_size: 52 
+                    l1_diff_size: 52,
                 }
             ]
         )

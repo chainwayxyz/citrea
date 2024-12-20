@@ -96,7 +96,7 @@ fn end_soft_confirmation_hook_sets_head() {
         .get(&mut working_set.accessory_state())
         .unwrap();
 
-    assert_eq!(head, pending_head.into());
+    assert_eq!(head, pending_head);
     assert_eq!(
         head,
         Block {

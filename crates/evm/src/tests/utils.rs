@@ -57,7 +57,10 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::St
     get_evm_with_spec(config, SovSpecId::Fork1)
 }
 
-pub(crate) fn get_evm_with_spec(config: &EvmConfig, spec_id: SovSpecId) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
+pub(crate) fn get_evm_with_spec(
+    config: &EvmConfig,
+    spec_id: SovSpecId,
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());

@@ -17,7 +17,9 @@ use crate::smart_contracts::{
     SelfdestructingConstructorContract, SimpleStorageContract, TransientStorageContract,
 };
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_evm_with_spec, set_arg_message};
+use crate::tests::utils::{
+    create_contract_message, get_evm, get_evm_config, get_evm_with_spec, set_arg_message,
+};
 use crate::RlpEvmTransaction;
 type C = DefaultContext;
 
