@@ -35,7 +35,7 @@ jobs:
 
       - name: Build Project
         run: |
-          cargo build --features short-prefix
+          cargo build --features testing
 
       - name: Copy binary to build-push/nightly
         run: |

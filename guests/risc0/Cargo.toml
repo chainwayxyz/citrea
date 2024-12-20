@@ -19,4 +19,4 @@ methods = [
 
 [features]
 bench = []
-short-prefix = []
+testing = []
