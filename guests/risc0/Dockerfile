@@ -6,7 +6,7 @@ ARG CITREA_NETWORK
 
 COPY . .
 
-ENV CARGO_MANIFEST_PATH="guests/risc0/${GUEST_NAME}/Cargo.toml"
+ENV CARGO_MANIFEST_PATH="guests/risc0/${GUEST_NAME}/bitcoin/Cargo.toml"
 ENV RUSTFLAGS="-C passes=loweratomic -C link-arg=-Ttext=0x00200800 -C link-arg=--fatal-warnings"
 ENV CARGO_TARGET_DIR="target"
 ENV CC_riscv32im_risc0_zkvm_elf="/root/.local/share/cargo-risczero/cpp/bin/riscv32-unknown-elf-gcc"
@@ -21,4 +21,4 @@ FROM scratch AS export
 
 ARG GUEST_NAME
 
-COPY --from=build /src/target/riscv32im-risc0-zkvm-elf/release /${GUEST_NAME}
+COPY --from=build /src/target/riscv32im-risc0-zkvm-elf/release "/${GUEST_NAME}-bitcoin"

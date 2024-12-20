@@ -6,12 +6,12 @@ all: batch-proof-bitcoin light-client-bitcoin
 .PHONY: batch-proof-bitcoin
 batch-proof-bitcoin:
 	cd ../../ && \
-	cargo risczero build --manifest-path guests/risc0/batch-proof-bitcoin/Cargo.toml
+	cargo risczero build --manifest-path guests/risc0/batch-proof/bitcoin/Cargo.toml
 
 .PHONY: light-client-bitcoin
 light-client-bitcoin:
 	cd ../../ && \
-	cargo risczero build --manifest-path guests/risc0/light-client-proof-bitcoin/Cargo.toml
+	cargo risczero build --manifest-path guests/risc0/light-client-proof/bitcoin/Cargo.toml
 
 .PHONY: batch-proof-bitcoin-docker
 batch-proof-bitcoin-docker:
@@ -20,7 +20,7 @@ batch-proof-bitcoin-docker:
 		--platform linux/amd64 \
 		--output ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker \
 		-f ./guests/risc0/Dockerfile \
-		--build-arg GUEST_NAME=batch-proof-bitcoin \
+		--build-arg GUEST_NAME=batch-proof \
 		--build-arg CITREA_NETWORK=$(CITREA_NETWORK) \
 		-t batch-proof-bitcoin:latest \
 		--no-cache \
@@ -34,7 +34,7 @@ light-client-bitcoin-docker:
 		--platform linux/amd64 \
 		--output ./target/riscv-guest/riscv32im-risc0-zkvm-elf/docker \
 		-f ./guests/risc0/Dockerfile \
-		--build-arg GUEST_NAME=light-client-proof-bitcoin \
+		--build-arg GUEST_NAME=light-client-proof \
 		--build-arg CITREA_NETWORK=$(CITREA_NETWORK) \
 		-t light-client-proof-bitcoin:latest \
 		--no-cache \
