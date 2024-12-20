@@ -51,7 +51,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 50751,
                 log_index_start: 0,
-                l1_diff_size: 255,
+                l1_diff_size: 53,
             },
             Receipt { // BitcoinLightClient::setBlockInfo(U256, U256)
                 receipt: reth_primitives::Receipt {
@@ -70,7 +70,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561,
+                l1_diff_size: 94,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -96,7 +96,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 169150,
                 log_index_start: 1,
-                l1_diff_size: 1019,
+                l1_diff_size: 154,
             }
         ]
     );
@@ -158,7 +158,7 @@ fn test_sys_bitcoin_light_client() {
         da_slot_height: 2,
         da_slot_txs_commitment: [3u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -170,7 +170,7 @@ fn test_sys_bitcoin_light_client() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -222,7 +222,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561,
+                l1_diff_size: 94,
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -233,7 +233,7 @@ fn test_sys_bitcoin_light_client() {
                 },
                 gas_used: 114235,
                 log_index_start: 1,
-                l1_diff_size: 479,
+                l1_diff_size: 52,
             },
         ]
     );
@@ -241,7 +241,7 @@ fn test_sys_bitcoin_light_client() {
     let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
 
     assert_eq!(base_fee_vault.balance, U256::from(114235u64 * 10000000));
-    assert_eq!(l1_fee_vault.balance, U256::from(479 + L1_FEE_OVERHEAD));
+    assert_eq!(l1_fee_vault.balance, U256::from(52 + L1_FEE_OVERHEAD));
 
     let hash = evm
         .get_call(
