@@ -3,12 +3,15 @@ use std::str::FromStr;
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_primitives::{address, b256, Address, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use citrea_primitives::forks::FORKS;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::{Spec, WorkingSet};
+use sov_modules_api::fork::Fork;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_modules_api::{Spec, SpecId, WorkingSet};
 
 use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
@@ -51,7 +54,281 @@ fn test_payable_contract_value() {
 }
 
 #[test]
-fn test_tx_request_fields_gas() {
+fn test_tx_request_fields_gas_genesis_to_fork1() {
+    static F: &[Fork] = &[Fork::new(SpecId::Genesis, 0), Fork::new(SpecId::Fork1, 2)];
+    FORKS.set(F).unwrap();
+
+    let (mut evm, mut working_set, signer) = init_evm_single_block();
+
+    let block = evm.block_number(&mut working_set).unwrap();
+    dbg!(block);
+
+    let tx_req_contract_call = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(address!(
+            "819c5497b157177315e1204f52e588b393771719"
+        ))),
+        gas: Some(10000000),
+        gas_price: Some(100),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: None,
+        input: TransactionInput {
+            input: None,
+            data: None,
+        },
+        nonce: Some(1u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
+        transaction_type: None,
+        sidecar: None,
+        authorization_list: None,
+    };
+
+    let result_contract_call = evm.eth_estimate_gas(
+        tx_req_contract_call.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_contract_call.unwrap(),
+        U256::from_str("0x6602").unwrap()
+    );
+    let contract_diff_size = evm.eth_estimate_diff_size(
+        tx_req_contract_call.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        contract_diff_size.unwrap(),
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x60"}])
+            .unwrap()
+    );
+
+    let tx_req_no_gas = TransactionRequest {
+        gas: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let contract_diff_size = evm.eth_estimate_diff_size(
+        tx_req_no_gas.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        contract_diff_size.unwrap(),
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x60"}])
+            .unwrap()
+    );
+
+    let tx_req_no_sender = TransactionRequest {
+        from: None,
+        nonce: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_sender = evm.eth_estimate_gas(
+        tx_req_no_sender,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(result_no_sender.unwrap(), U256::from_str("0x6602").unwrap());
+    working_set.unset_archival_version();
+
+    let tx_req_no_recipient = TransactionRequest {
+        to: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_recipient = evm.eth_estimate_gas(
+        tx_req_no_recipient,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_recipient.unwrap(),
+        U256::from_str("0xd0ad").unwrap()
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_no_gas = TransactionRequest {
+        gas: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_gas = evm.eth_estimate_gas(
+        tx_req_no_gas,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(result_no_gas.unwrap(), U256::from_str("0x6602").unwrap());
+    working_set.unset_archival_version();
+
+    let tx_req_no_gas_price = TransactionRequest {
+        gas_price: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_gas_price = evm.eth_estimate_gas(
+        tx_req_no_gas_price,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_gas_price.unwrap(),
+        U256::from_str("0x6602").unwrap()
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_no_chain_id = TransactionRequest {
+        chain_id: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_chain_id = evm.eth_estimate_gas(
+        tx_req_no_chain_id,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_chain_id.unwrap(),
+        U256::from_str("0x6602").unwrap()
+    );
+    working_set.unset_archival_version();
+
+    let tx_req_invalid_chain_id = TransactionRequest {
+        chain_id: Some(3u64),
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_invalid_chain_id = evm.eth_estimate_gas(
+        tx_req_invalid_chain_id,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_invalid_chain_id,
+        Err(RpcInvalidTransactionError::InvalidChainId.into())
+    );
+    working_set.unset_archival_version();
+
+    // We don't have EIP-4844 now, so this is just to see if it's working.
+    let tx_req_no_blob_versioned_hashes = TransactionRequest {
+        blob_versioned_hashes: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let result_no_blob_versioned_hashes = evm.eth_estimate_gas(
+        tx_req_no_blob_versioned_hashes,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    assert_eq!(
+        result_no_blob_versioned_hashes.unwrap(),
+        U256::from_str("0x6602").unwrap()
+    );
+    working_set.unset_archival_version();
+
+    let no_access_list_req = TransactionRequest {
+        access_list: None,
+        ..tx_req_contract_call.clone()
+    };
+
+    let create_no_access_list_test = evm.create_access_list(
+        no_access_list_req,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    assert_eq!(
+        create_no_access_list_test.unwrap(),
+        AccessListWithGasUsed {
+            access_list: AccessList(vec![AccessListItem {
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![b256!(
+                    "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                )]
+            }]),
+            gas_used: U256::from_str("0x6e67").unwrap()
+        }
+    );
+
+    let access_list_req = TransactionRequest {
+        access_list: Some(AccessList(vec![AccessListItem {
+            address: address!("819c5497b157177315e1204f52e588b393771719"),
+            storage_keys: vec![b256!(
+                "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+            )],
+        }])),
+        ..tx_req_contract_call.clone()
+    };
+
+    let access_list_gas_test = evm.eth_estimate_gas(
+        access_list_req.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    // Wrong access punishment.
+    assert_eq!(
+        access_list_gas_test.unwrap(),
+        U256::from_str("0x6e67").unwrap()
+    );
+
+    let already_formed_list = evm.create_access_list(
+        access_list_req,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+
+    assert_eq!(
+        already_formed_list.unwrap(),
+        AccessListWithGasUsed {
+            access_list: AccessList(vec![AccessListItem {
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![b256!(
+                    "d17c80a661d193357ea7c5311e029471883989438c7bcae8362437311a764685"
+                )]
+            }]),
+            gas_used: U256::from_str("0x6e67").unwrap()
+        }
+    );
+
+    // Produce 1 block to go to Fork1
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height: 2,
+        da_slot_hash: [1u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [0u8; 32].to_vec(),
+        current_spec: SpecId::Fork1,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 1,
+        timestamp: 0,
+    };
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[2u8; 32].into(), &mut working_set.accessory_state());
+
+    let contract_diff_size = evm.eth_estimate_diff_size(
+        tx_req_contract_call.clone(),
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+    );
+    // Check if l1DiffSize is calculated with its compress rate,
+    // as it should be in Fork1
+    assert_eq!(
+        contract_diff_size.unwrap(),
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x1f"}])
+            .unwrap()
+    );
+}
+
+#[test]
+fn test_tx_request_fields_gas_fork1() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     let tx_req_contract_call = TransactionRequest {
