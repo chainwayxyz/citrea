@@ -231,7 +231,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             other: OtherFields::new(BTreeMap::<String, _>::from([
                 (
                     "l1FeeRate".to_string(),
-                    serde_json::json!(sealed_block.l1_fee_rate),
+                    format!("{:#x}", sealed_block.l1_fee_rate).into(),
                 ),
                 (
                     "l1Hash".to_string(),

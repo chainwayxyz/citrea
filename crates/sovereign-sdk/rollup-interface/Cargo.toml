@@ -34,7 +34,7 @@ serde_json = { workspace = true }
 [features]
 default = ["std"]
 native = ["std", "tokio", "futures", "tracing"]
-testing = ["native"]
+testing = []
 std = [
   "anyhow/default",
   "borsh/default",
