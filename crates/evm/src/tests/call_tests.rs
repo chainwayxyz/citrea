@@ -4,7 +4,6 @@ use std::str::FromStr;
 use alloy_eips::BlockId;
 use alloy_primitives::{address, b256, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
-use citrea_primitives::forks::set_test_forks;
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{BlockNumberOrTag, Log, LogData};
@@ -12,7 +11,6 @@ use revm::primitives::SpecId::SHANGHAI;
 use revm::primitives::{hex, KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
@@ -518,12 +516,6 @@ fn failed_transaction_test() {
 // test self destruct behaviour before cancun and after cancun
 #[test]
 fn self_destruct_test() {
-    static F: &[Fork] = &[
-        Fork::new(SovSpecId::Genesis, 0),
-        Fork::new(SovSpecId::Fork1, 4),
-    ];
-    set_test_forks(F);
-
     let contract_balance: u64 = 1000000000000000;
 
     // address used in selfdestruct
