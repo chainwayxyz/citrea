@@ -70,7 +70,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::St
         da_slot_height: 1,
         da_slot_txs_commitment: [2u8; 32],
         pre_state_root: root.to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 0,
