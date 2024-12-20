@@ -2936,6 +2936,7 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-rpc-types-trace",
  "anyhow",
+ "async-trait",
  "borsh",
  "citrea-evm",
  "citrea-primitives",

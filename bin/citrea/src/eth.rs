@@ -28,7 +28,7 @@ pub(crate) fn register_ethereum<Da: DaService>(
         }
     };
 
-    let ethereum_rpc = ethereum_rpc::get_ethereum_rpc::<DefaultContext, Da>(
+    let ethereum_rpc = ethereum_rpc::create_rpc_module::<DefaultContext, Da>(
         da_service,
         eth_rpc_config,
         storage,
