@@ -48,6 +48,3 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 [dev-dependencies]
 tokio = { workspace = true }
 
-[features]
-default = ["local"]
-local = []
