@@ -4,6 +4,7 @@ use std::str::FromStr;
 use alloy_eips::BlockId;
 use alloy_primitives::{address, b256, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
+use citrea_primitives::forks::set_test_forks;
 use citrea_primitives::MIN_BASE_FEE_PER_GAS;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::{BlockNumberOrTag, Log, LogData};
@@ -11,6 +12,7 @@ use revm::primitives::SpecId::SHANGHAI;
 use revm::primitives::{hex, KECCAK_EMPTY, U256};
 use revm::Database;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
@@ -21,16 +23,14 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 use crate::call::CallMessage;
 use crate::evm::primitive_types::Receipt;
 use crate::evm::DbAccount;
-use crate::handler::{BROTLI_COMPRESSION_PERCENTAGE, L1_FEE_OVERHEAD};
+use crate::handler::L1_FEE_OVERHEAD;
 use crate::smart_contracts::{
     BlockHashContract, InfiniteLoopContract, LogsContract, SelfDestructorContract,
     SimpleStorageContract, TestContract,
 };
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
-    config_push_contracts, create_contract_message, create_contract_message_with_fee,
-    create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
-    get_evm_config, get_evm_config_starting_base_fee, publish_event_message, set_arg_message,
+    config_push_contracts, create_contract_message, create_contract_message_with_fee, create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm, get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, publish_event_message, set_arg_message
 };
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
@@ -69,7 +69,7 @@ fn call_multiple_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -82,7 +82,7 @@ fn call_multiple_test() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -138,8 +138,8 @@ fn call_multiple_test() {
                     logs: vec![]
                 },
                 gas_used: 50751,
-                 log_index_start: 0,
-                 l1_diff_size: 255
+                log_index_start: 0,
+                l1_diff_size: 53
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -155,9 +155,9 @@ fn call_multiple_test() {
                             ).unwrap()
                         }
                     ]},
-                        gas_used: 80620,
-                        log_index_start: 0,
-                        l1_diff_size: 561
+                    gas_used: 80620,
+                    log_index_start: 0,
+                    l1_diff_size: 94
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt{
@@ -183,7 +183,7 @@ fn call_multiple_test() {
                 },
                     gas_used: 169150,
                     log_index_start: 1,
-                    l1_diff_size: 1019
+                    l1_diff_size: 154
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -200,13 +200,13 @@ fn call_multiple_test() {
                         },
                         gas_used: 80620,
                         log_index_start: 0,
-                        l1_diff_size: 561
+                        l1_diff_size: 94
                 },
-                Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 213563, logs: vec![] }, gas_used: 132943, log_index_start: 1, l1_diff_size: 567 },
-                Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 257293, logs: vec![] }, gas_used: 43730, log_index_start: 1, l1_diff_size: 255 },
-                Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 283923, logs: vec![] }, gas_used: 26630, log_index_start: 1, l1_diff_size: 255 },
+                Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 213563, logs: vec![] }, gas_used: 132943, log_index_start: 1, l1_diff_size: 52 },
+                Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 257293, logs: vec![] }, gas_used: 43730, log_index_start: 1, l1_diff_size: 53 },
+                Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 283923, logs: vec![] }, gas_used: 26630, log_index_start: 1, l1_diff_size: 53 },
                 Receipt { receipt: reth_primitives::Receipt { tx_type: reth_primitives::TxType::Eip1559, success: true, cumulative_gas_used: 310553, logs: vec![] },
-                gas_used: 26630, log_index_start: 1, l1_diff_size: 255 }]
+                gas_used: 26630, log_index_start: 1, l1_diff_size: 53 }]
     );
     // checkout esad/fix-block-env-bug branch
     let tx = evm
@@ -236,7 +236,7 @@ fn call_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -248,7 +248,7 @@ fn call_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -285,7 +285,7 @@ fn call_test() {
                 },
                 gas_used: 50751,
                 log_index_start: 0,
-                l1_diff_size: 255
+                l1_diff_size: 53
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -304,7 +304,7 @@ fn call_test() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561
+                l1_diff_size: 94
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -330,7 +330,7 @@ fn call_test() {
                     },
                     gas_used: 169150,
                     log_index_start: 1,
-                    l1_diff_size: 1019
+                    l1_diff_size: 154
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -349,7 +349,7 @@ fn call_test() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561
+                l1_diff_size: 94
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -360,7 +360,7 @@ fn call_test() {
                 },
                 gas_used: 132943,
                 log_index_start: 1,
-                l1_diff_size: 567
+                l1_diff_size: 52
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -371,7 +371,7 @@ fn call_test() {
                 },
                 gas_used: 43730,
                 log_index_start: 1,
-                l1_diff_size: 255
+                l1_diff_size: 53
             }]
     );
 }
@@ -393,7 +393,7 @@ fn failed_transaction_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -403,7 +403,7 @@ fn failed_transaction_test() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -443,7 +443,7 @@ fn failed_transaction_test() {
                     },
                     gas_used: 50751,
                     log_index_start: 0,
-                    l1_diff_size: 255
+                    l1_diff_size: 53
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt{
@@ -462,7 +462,7 @@ fn failed_transaction_test() {
                     },
                     gas_used: 80620,
                     log_index_start: 0,
-                    l1_diff_size: 561
+                    l1_diff_size: 94
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -486,7 +486,7 @@ fn failed_transaction_test() {
                         },
                     gas_used: 169150,
                     log_index_start: 1,
-                    l1_diff_size: 1019
+                    l1_diff_size: 154
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -505,7 +505,7 @@ fn failed_transaction_test() {
                     },
                     gas_used: 80620,
                     log_index_start: 0,
-                    l1_diff_size: 561
+                    l1_diff_size: 94
                 }
         ]
     );
@@ -518,6 +518,12 @@ fn failed_transaction_test() {
 // test self destruct behaviour before cancun and after cancun
 #[test]
 fn self_destruct_test() {
+    static F: &[Fork] = &[
+        Fork::new(SovSpecId::Genesis, 0),
+        Fork::new(SovSpecId::Fork1, 4),
+    ];
+    set_test_forks(F);
+
     let contract_balance: u64 = 1000000000000000;
 
     // address used in selfdestruct
@@ -526,7 +532,7 @@ fn self_destruct_test() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
-    let (mut evm, mut working_set) = get_evm(&config);
+    let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
 
@@ -813,7 +819,7 @@ fn test_block_hash_in_evm() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -823,7 +829,7 @@ fn test_block_hash_in_evm() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -850,7 +856,7 @@ fn test_block_hash_in_evm() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
+            current_spec: SovSpecId::Fork1,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -961,7 +967,7 @@ fn test_block_gas_limit() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -971,7 +977,7 @@ fn test_block_gas_limit() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -1026,7 +1032,7 @@ fn test_block_gas_limit() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1036,7 +1042,7 @@ fn test_block_gas_limit() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -1182,7 +1188,7 @@ fn test_l1_fee_success() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
+            current_spec: SovSpecId::Fork1,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -1193,7 +1199,7 @@ fn test_l1_fee_success() {
         {
             let sender_address = generate_address::<C>("sender");
 
-            let context = C::new(sender_address, 2, SovSpecId::Genesis, l1_fee_rate);
+            let context = C::new(sender_address, 2, SovSpecId::Fork1, l1_fee_rate);
 
             let deploy_message = create_contract_message_with_priority_fee(
                 &dev_signer,
@@ -1248,7 +1254,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 50751,
                     log_index_start: 0,
-                    l1_diff_size: 255
+                    l1_diff_size: 53, 
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -1267,7 +1273,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 80620,
                     log_index_start: 0,
-                    l1_diff_size: 561
+                    l1_diff_size: 94
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -1292,7 +1298,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 169150,
                     log_index_start: 1,
-                    l1_diff_size: 1019
+                    l1_diff_size: 154
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -1310,7 +1316,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 80620,
                     log_index_start: 0,
-                    l1_diff_size: 561
+                    l1_diff_size: 94,
                 },
                 Receipt {
                     receipt: reth_primitives::Receipt {
@@ -1321,7 +1327,7 @@ fn test_l1_fee_success() {
                     },
                     gas_used: 114235,
                     log_index_start: 1,
-                    l1_diff_size: 479
+                    l1_diff_size: 52 
                 }
             ]
         )
@@ -1339,11 +1345,11 @@ fn test_l1_fee_success() {
     );
     run_tx(
         1,
-        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 479 - L1_FEE_OVERHEAD as u64),
+        U256::from(100000000000000u64 - gas_fee_paid * 10000001 - 52 - L1_FEE_OVERHEAD as u64),
         // priority fee goes to coinbase
         U256::from(gas_fee_paid),
         U256::from(gas_fee_paid * 10000000),
-        U256::from(479 + L1_FEE_OVERHEAD as u64),
+        U256::from(52 + L1_FEE_OVERHEAD as u64),
     );
 }
 
@@ -1366,7 +1372,7 @@ fn test_l1_fee_not_enough_funds() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1377,7 +1383,7 @@ fn test_l1_fee_not_enough_funds() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee_and_gas_limit(
             &dev_signer,
@@ -1416,7 +1422,7 @@ fn test_l1_fee_not_enough_funds() {
                     },
                 gas_used: 50751,
                 log_index_start: 0,
-                l1_diff_size: 255
+                l1_diff_size: 53
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1435,7 +1441,7 @@ fn test_l1_fee_not_enough_funds() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561
+                l1_diff_size: 94
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1461,7 +1467,7 @@ fn test_l1_fee_not_enough_funds() {
                 },
                 gas_used: 169150,
                 log_index_start: 1,
-                l1_diff_size: 1019
+                l1_diff_size: 154
             }
         ]
         );
@@ -1499,7 +1505,7 @@ fn test_l1_fee_halt() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1510,7 +1516,7 @@ fn test_l1_fee_halt() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -1557,7 +1563,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 50751,
                 log_index_start: 0,
-                l1_diff_size: 255
+                l1_diff_size: 53
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1576,7 +1582,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561
+                l1_diff_size: 94
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1602,7 +1608,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 169150,
                 log_index_start: 1,
-                l1_diff_size: 1019
+                l1_diff_size: 154
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1621,7 +1627,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 80620,
                 log_index_start: 0,
-                l1_diff_size: 561
+                l1_diff_size: 94
             },
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -1632,7 +1638,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 106947,
                 log_index_start: 1,
-                l1_diff_size: 447
+                l1_diff_size: 52
             },
             Receipt {
                 receipt: reth_primitives::Receipt
@@ -1643,7 +1649,7 @@ fn test_l1_fee_halt() {
                 },
                 gas_used: 1000000,
                 log_index_start: 1,
-                l1_diff_size: 96
+                l1_diff_size: 31
             }
         ]
     );
@@ -1654,8 +1660,8 @@ fn test_l1_fee_halt() {
         .unwrap();
 
     let expenses = 1106947_u64 * 10000000 + // evm gas
-        447  + // l1 contract deploy fee
-        96  + // l1 contract call fee
+        52 + // l1 contract deploy fee
+        31 + // l1 contract call fee
         2 * L1_FEE_OVERHEAD as u64; // l1 fee overhead *2
     assert_eq!(
         db_account.balance,
@@ -1670,7 +1676,7 @@ fn test_l1_fee_halt() {
     assert_eq!(base_fee_vault.balance, U256::from(1106947_u64 * 10000000));
     assert_eq!(
         l1_fee_vault.balance,
-        U256::from(447 + 96 + 2 * L1_FEE_OVERHEAD as u64)
+        U256::from(52 + 31 + 2 * L1_FEE_OVERHEAD as u64)
     );
 }
 
@@ -1688,7 +1694,7 @@ fn test_l1_fee_compression_discount() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1698,7 +1704,7 @@ fn test_l1_fee_compression_discount() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 2, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, 2, SovSpecId::Fork1, l1_fee_rate);
         let call_tx = dev_signer
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
@@ -1735,102 +1741,30 @@ fn test_l1_fee_compression_discount() {
     assert_eq!(config.coinbase, PRIORITY_FEE_VAULT);
 
     let gas_fee_paid = 21000;
-    let tx1_diff_size = 140;
+    let tx1_diff_size = 46;
 
-    let mut expected_db_balance = U256::from(
+    let expected_db_balance = U256::from(
         100000000000000u64
             - 1000
             - gas_fee_paid * 10000001
             - tx1_diff_size
             - L1_FEE_OVERHEAD as u64,
     );
-    let mut expected_base_fee_vault_balance = U256::from(gas_fee_paid * 10000000);
-    let mut expected_coinbase_balance = U256::from(gas_fee_paid);
-    let mut expected_l1_fee_vault_balance = U256::from(tx1_diff_size + L1_FEE_OVERHEAD as u64);
+    let expected_base_fee_vault_balance = U256::from(gas_fee_paid * 10000000);
+    let expected_coinbase_balance = U256::from(gas_fee_paid);
+    let expected_l1_fee_vault_balance = U256::from(tx1_diff_size + L1_FEE_OVERHEAD as u64);
 
     assert_eq!(db_account.balance, expected_db_balance);
     assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
     assert_eq!(coinbase_account.balance, expected_coinbase_balance);
     assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
-
-    // Set up the next transaction with the fork 1 activated
-    let soft_confirmation_info = HookSoftConfirmationInfo {
-        l2_height: 3,
-        da_slot_hash: [5u8; 32],
-        da_slot_height: 1,
-        da_slot_txs_commitment: [42u8; 32],
-        pre_state_root: [99u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1, // Compression discount is enabled
-        pub_key: vec![],
-        deposit_data: vec![],
-        l1_fee_rate,
-        timestamp: 0,
-    };
-
-    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    {
-        let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 3, SovSpecId::Fork1, l1_fee_rate);
-        let simple_tx = dev_signer
-            .sign_default_transaction_with_priority_fee(
-                TxKind::Call(Address::random()),
-                vec![],
-                1,
-                1000,
-                20000000,
-                1,
-            )
-            .unwrap();
-        evm.call(
-            CallMessage {
-                txs: vec![simple_tx],
-            },
-            &context,
-            &mut working_set,
-        )
-        .unwrap();
-    }
-    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
-    evm.finalize_hook(&[98u8; 32].into(), &mut working_set.accessory_state());
-
-    let db_account = evm
-        .accounts
-        .get(&dev_signer.address(), &mut working_set)
-        .unwrap();
-    let base_fee_vault = evm.accounts.get(&BASE_FEE_VAULT, &mut working_set).unwrap();
-    let l1_fee_vault = evm.accounts.get(&L1_FEE_VAULT, &mut working_set).unwrap();
-
-    let coinbase_account = evm
-        .accounts
-        .get(&config.coinbase, &mut working_set)
-        .unwrap();
-
-    // gas fee remains the same
-    let tx2_diff_size = 46;
-
-    expected_db_balance -=
-        U256::from(gas_fee_paid * 10000001 + 1000 + tx2_diff_size + L1_FEE_OVERHEAD as u64);
-    expected_base_fee_vault_balance += U256::from(gas_fee_paid * 10000000);
-    expected_coinbase_balance += U256::from(gas_fee_paid);
-    expected_l1_fee_vault_balance += U256::from(tx2_diff_size + L1_FEE_OVERHEAD as u64);
-
-    assert_eq!(db_account.balance, expected_db_balance);
-    assert_eq!(base_fee_vault.balance, expected_base_fee_vault_balance);
-    assert_eq!(coinbase_account.balance, expected_coinbase_balance);
-    assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
-
-    // assert comression discount
-    assert_eq!(
-        tx1_diff_size * BROTLI_COMPRESSION_PERCENTAGE as u64 / 100,
-        tx2_diff_size
-    );
 
     assert_eq!(
         evm.receipts
             .iter(&mut working_set.accessory_state())
             .map(|r| r.l1_diff_size)
             .collect::<Vec<_>>(),
-        [255, 561, 1019, 561, tx1_diff_size, tx2_diff_size]
+        [53, 94, 154, 94, tx1_diff_size]
     );
 }
 
@@ -1849,7 +1783,7 @@ fn test_call_with_block_overrides() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: SovSpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1860,7 +1794,7 @@ fn test_call_with_block_overrides() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -1886,7 +1820,7 @@ fn test_call_with_block_overrides() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
-            current_spec: SovSpecId::Genesis,
+            current_spec: SovSpecId::Fork1,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -1988,7 +1922,7 @@ fn test_blob_tx() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
 
         let blob_message = dev_signer
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)
