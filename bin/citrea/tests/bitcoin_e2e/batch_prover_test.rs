@@ -147,6 +147,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         }
     }
 
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -164,13 +171,19 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             node_password: da_config.rpc_password.clone(),
             network: bitcoin::Network::Regtest,
             da_private_key: Some(
-                // This is the private key used by the sequencer.
                 // This is because the prover has a check to make sure that the commitment was
                 // submitted by the sequencer and NOT any other key. Which means that arbitrary keys
                 // CANNOT submit preproven commitments.
                 // Using the sequencer DA private key means that we simulate the fact that the sequencer
                 // somehow resubmitted the same commitment.
-                "045FFC81A3C1FDB3AF1359DBF2D114B0B3EFBF7F29CC9C5DA01267AA39D2C78D".to_owned(),
+                sequencer
+                    .config()
+                    .rollup
+                    .da
+                    .da_private_key
+                    .as_ref()
+                    .unwrap()
+                    .clone(),
             ),
             tx_backup_dir: Self::test_config()
                 .dir
@@ -197,8 +210,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         self.task_manager
             .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
-        // Generate 1 FINALIZED DA block.
-        da.generate(1 + FINALITY_DEPTH).await?;
+        // Generate FINALIZED DA block.
+        da.generate(FINALITY_DEPTH).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
