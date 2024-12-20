@@ -307,13 +307,6 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn eth_accounts(&self) -> Vec<Address> {
-        self.http_client
-            .request("eth_accounts", rpc_params![])
-            .await
-            .unwrap()
-    }
-
     pub(crate) async fn eth_chain_id(&self) -> u64 {
         self.client.get_chain_id().await.unwrap()
     }

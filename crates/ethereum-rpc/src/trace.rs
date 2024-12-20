@@ -5,9 +5,8 @@ use alloy_rpc_types_trace::geth::{
     CallConfig, CallFrame, FourByteFrame, GethDebugBuiltInTracerType, GethDebugTracerConfig,
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame,
 };
-#[cfg(feature = "local")]
 use citrea_evm::Evm;
-use jsonrpsee::types::{ErrorObjectOwned, ParamsSequence};
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::error::EthApiError;
@@ -18,25 +17,12 @@ use tracing::error;
 use crate::ethereum::Ethereum;
 
 pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService>(
-    mut params: ParamsSequence<'_>,
+    start_block: BlockNumberOrTag,
+    end_block: BlockNumberOrTag,
+    opts: Option<GethDebugTracingOptions>,
     pending: PendingSubscriptionSink,
     ethereum: Arc<Ethereum<C, Da>>,
 ) {
-    let start_block: BlockNumberOrTag = match params.next() {
-        Ok(v) => v,
-        Err(err) => {
-            pending.reject(err).await;
-            return;
-        }
-    };
-    let end_block: BlockNumberOrTag = match params.next() {
-        Ok(v) => v,
-        Err(err) => {
-            pending.reject(err).await;
-            return;
-        }
-    };
-
     // start block is exclusive, hence latest is not supported
     let BlockNumberOrTag::Number(start_block) = start_block else {
         pending.reject(EthApiError::Unsupported(
@@ -76,14 +62,6 @@ pub async fn handle_debug_trace_chain<C: sov_modules_api::Context, Da: DaService
         pending.reject(EthApiError::InvalidBlockRange).await;
         return;
     }
-
-    let opts: Option<GethDebugTracingOptions> = match params.optional_next() {
-        Ok(v) => v,
-        Err(err) => {
-            pending.reject(err).await;
-            return;
-        }
-    };
 
     let subscription = pending.accept().await.unwrap();
 
