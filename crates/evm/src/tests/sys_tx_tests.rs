@@ -292,7 +292,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     let mut l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -300,7 +300,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 1,
@@ -335,7 +335,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_height: 2,
         da_slot_txs_commitment: [43u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -343,7 +343,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
         let pending_cumulative_from_sum: u128 = evm
             .pending_transactions
@@ -411,7 +411,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
         da_slot_height: 2,
         da_slot_txs_commitment: [43u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -419,7 +419,7 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
     };
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
         let pending_cumulative_from_sum: u128 = evm
             .pending_transactions
@@ -511,7 +511,7 @@ fn test_bridge() {
             188, 45, 73, 146, 108, 41, 125, 77, 133, 86, 235, 104,
         ],
         pre_state_root: [1u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![[
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -621,7 +621,7 @@ fn test_upgrade_light_client() {
     let l2_height = 2;
 
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -629,7 +629,7 @@ fn test_upgrade_light_client() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -747,7 +747,7 @@ fn test_change_upgrade_owner() {
     let l1_fee_rate = 1;
     let mut l2_height = 2;
     let sender_address = generate_address::<C>("sender");
-    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -755,7 +755,7 @@ fn test_change_upgrade_owner() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -786,7 +786,7 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     l2_height += 1;
-    let context = C::new(sender_address, l2_height, SpecId::Genesis, l1_fee_rate);
+    let context = C::new(sender_address, l2_height, SpecId::Fork1, l1_fee_rate);
 
     let soft_confirmation_info = HookSoftConfirmationInfo {
         l2_height,
@@ -794,7 +794,7 @@ fn test_change_upgrade_owner() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
