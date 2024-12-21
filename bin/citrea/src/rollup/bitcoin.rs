@@ -25,8 +25,8 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::SenderWithNotifier;
 use sov_state::ProverStorage;
 use sov_stf_runner::ProverGuestRunConfig;
-use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc::unbounded_channel;
 use tracing::instrument;
 
 use crate::guests::{

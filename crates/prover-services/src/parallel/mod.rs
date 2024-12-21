@@ -239,9 +239,7 @@ where
 {
     match proof_mode {
         ProofGenMode::Skip => Ok(Vec::default()),
-        ProofGenMode::Execute => {
-            vm.run(elf, false)
-        }
+        ProofGenMode::Execute => vm.run(elf, false),
         ProofGenMode::ProveWithSampling => {
             // `make_proof` is called with a probability in this case.
             // When it's called, we have to produce a real proof.
