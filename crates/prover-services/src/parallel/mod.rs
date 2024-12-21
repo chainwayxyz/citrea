@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future;
+use rand::Rng;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
@@ -58,8 +59,17 @@ where
             ProofGenMode::Execute => {
                 tracing::info!("Prover is configured to execute proving");
             }
-            ProofGenMode::Prove => {
+            ProofGenMode::ProveWithSampling => {
                 tracing::info!("Prover is configured to prove");
+            }
+            ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
+                if proof_sampling_number == 0 {
+                    tracing::info!("Prover is configured to always prove");
+                } else {
+                    tracing::info!(
+                        "Prover is configured to prove with fake proofs with 1/{proof_sampling_number} sampling"
+                    );
+                }
             }
         };
 
@@ -229,8 +239,21 @@ where
 {
     match proof_mode {
         ProofGenMode::Skip => Ok(Vec::default()),
-        // If not skip or simulate, we have to drop the lock manually to allow parallel proving
-        ProofGenMode::Execute => vm.run(elf, false),
-        ProofGenMode::Prove => vm.run(elf, true),
+        ProofGenMode::Execute => {
+            vm.run(elf, false)
+        }
+        ProofGenMode::ProveWithSampling => {
+            // `make_proof` is called with a probability in this case.
+            // When it's called, we have to produce a real proof.
+            vm.run(elf, true)
+        }
+        ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
+            // `make_proof` is called unconditionally in this case.
+            // When it's called, we have to calculate the probabiliry for a proof
+            //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
+            let with_prove = proof_sampling_number == 0
+                || rand::thread_rng().gen_range(0..proof_sampling_number) == 0;
+            vm.run(elf, with_prove)
+        }
     }
 }

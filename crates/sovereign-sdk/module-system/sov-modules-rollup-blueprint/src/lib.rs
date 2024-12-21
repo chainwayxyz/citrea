@@ -126,6 +126,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
+        proof_sampling_number: usize,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].

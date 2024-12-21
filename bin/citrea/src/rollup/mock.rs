@@ -132,13 +132,17 @@ impl RollupBlueprint for MockDemoRollup {
         proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
         ledger_db: LedgerDB,
+        proof_sampling_number: usize,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(ledger_db.clone());
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,
             ProverGuestRunConfig::Execute => ProofGenMode::Execute,
-            ProverGuestRunConfig::Prove => ProofGenMode::Prove,
+            ProverGuestRunConfig::Prove => ProofGenMode::ProveWithSampling,
+            ProverGuestRunConfig::ProveWithFakeProofs => {
+                ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number)
+            }
         };
 
         ParallelProverService::new(da_service.clone(), vm, proof_mode, 1, ledger_db)

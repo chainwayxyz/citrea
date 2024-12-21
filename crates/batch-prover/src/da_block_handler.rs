@@ -24,7 +24,7 @@ use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -238,11 +238,18 @@ where
                 l1_block.header().height(),
             );
 
-            // if proof_sampling_number is 0, then we always prove and submit
-            // otherwise we submit and prove with a probability of 1/proof_sampling_number
-            let should_prove = self.prover_config.proof_sampling_number == 0
-                || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number) == 0;
-
+            let should_prove = match self.prover_config.proving_mode {
+                ProverGuestRunConfig::ProveWithFakeProofs => {
+                    // Unconditionally call `prove_l1()`
+                    true
+                }
+                _ => {
+                    // Call `prove_l1()` with a probability
+                    self.prover_config.proof_sampling_number == 0
+                        || rand::thread_rng().gen_range(0..self.prover_config.proof_sampling_number)
+                            == 0
+                }
+            };
             if should_prove {
                 if l1_height >= self.skip_submission_until_l1 {
                     prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(

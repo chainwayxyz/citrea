@@ -324,7 +324,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_prover_service(prover_config.proving_mode, &da_service, ledger_db.clone())
+            .create_prover_service(prover_config.proving_mode, &da_service, ledger_db.clone(), prover_config.proof_sampling_number)
             .await;
 
         // TODO: Double check what kind of storage needed here.
@@ -446,7 +446,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
         let prover_service = self
-            .create_prover_service(prover_config.proving_mode, &da_service, ledger_db.clone())
+            .create_prover_service(prover_config.proving_mode, &da_service, ledger_db.clone(), prover_config.proof_sampling_number)
             .await;
 
         // TODO: Double check what kind of storage needed here.

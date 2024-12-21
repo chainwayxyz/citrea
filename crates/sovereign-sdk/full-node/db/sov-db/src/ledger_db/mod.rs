@@ -280,9 +280,13 @@ impl SharedLedgerOps for LedgerDB {
         match commitments {
             // If there were other commitments, upsert
             Some(mut commitments) => {
-                commitments.push(commitment);
-                self.db
-                    .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
+                if !commitments.contains(&commitment) {
+                    commitments.push(commitment);
+                    self.db
+                        .put::<CommitmentsByNumber>(&SlotNumber(height), &commitments)
+                } else {
+                    Ok(())
+                }
             }
             // Else insert
             None => self
