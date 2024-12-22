@@ -244,7 +244,7 @@ impl BitcoinVerifier {
         let network_constants = MAINNET_CONSTANTS;
         let latest_da_state = latest_da_state.unwrap_or(&INITIAL_MAINNET_STATE);
 
-        let target = bits_to_target(block_header.bits());
+        let target = bits_to_target(latest_da_state.current_target_bits);
         let work_add = target_to_work(&target);
 
         // Check 1: Verify block hash
@@ -321,7 +321,7 @@ impl BitcoinVerifier {
         let network_constants = TESTNET4_CONSTANTS;
         let latest_da_state = latest_da_state.unwrap_or(&INITIAL_TESTNET4_STATE);
 
-        let target = bits_to_target(block_header.bits());
+        let target = bits_to_target(latest_da_state.current_target_bits);
         let work_add = target_to_work(&target);
 
         // Check 1: Verify block hash
@@ -398,7 +398,7 @@ impl BitcoinVerifier {
         let network_constants = SIGNET_CONSTANTS;
         let latest_da_state = latest_da_state.unwrap_or(&INITIAL_SIGNET_STATE);
 
-        let target = bits_to_target(block_header.bits());
+        let target = bits_to_target(latest_da_state.current_target_bits);
         let work_add = target_to_work(&target);
 
         // Check 1: Verify block hash
