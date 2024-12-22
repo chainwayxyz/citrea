@@ -42,9 +42,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             None
         };
 
-    let block_updates = da_verifier
+    let new_da_state = da_verifier
         .verify_header_chain(
-            &previous_light_client_proof_output,
+            previous_light_client_proof_output
+                .as_ref()
+                .map(|output| &output.latest_da_state),
             &input.da_block_header,
             network,
         )
@@ -149,12 +151,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     Ok(LightClientCircuitOutput {
         state_root: last_state_root,
         light_client_proof_method_id: input.light_client_proof_method_id,
-        da_block_hash: block_updates.hash,
-        da_block_height: block_updates.height,
-        da_total_work: block_updates.total_work,
-        da_current_target_bits: block_updates.current_target_bits,
-        da_epoch_start_time: block_updates.epoch_start_time,
-        da_prev_11_timestamps: block_updates.prev_11_timestamps,
+        latest_da_state: new_da_state,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
     })

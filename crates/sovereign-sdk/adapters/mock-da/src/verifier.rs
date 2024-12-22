@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
+    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
 };
 use sov_rollup_interface::Network;
 
@@ -70,16 +70,14 @@ impl DaVerifier for MockDaVerifier {
 
     fn verify_header_chain(
         &self,
-        previous_light_client_proof_output: &Option<
-            sov_rollup_interface::zk::LightClientCircuitOutput<Self::Spec>,
-        >,
+        latest_da_state: Option<&LatestDaState<Self::Spec>>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         _network: Network,
-    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
-        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
-            return Ok(UpdatedDaState {
-                hash: block_header.hash,
-                height: block_header.height,
+    ) -> Result<LatestDaState<Self::Spec>, Self::Error> {
+        let Some(latest_da_state) = latest_da_state else {
+            return Ok(LatestDaState {
+                block_hash: block_header.hash,
+                block_height: block_header.height,
                 total_work: [0; 32],
                 epoch_start_time: block_header.time.secs() as u32,
                 prev_11_timestamps: [0; 11],
@@ -87,20 +85,20 @@ impl DaVerifier for MockDaVerifier {
             });
         };
         // Check block heights are consecutive
-        if block_header.height - 1 != previous_light_client_proof_output.da_block_height {
+        if block_header.height - 1 != latest_da_state.block_height {
             return Err(anyhow!("Block heights are not consecutive"));
         }
         // Check prev hash matches with prev light client proof hash
-        if block_header.prev_hash != previous_light_client_proof_output.da_block_hash {
+        if block_header.prev_hash != latest_da_state.block_hash {
             return Err(anyhow!(
                 "Block prev hash does not match with prev light client proof hash"
             ));
         }
         // Skip hash, bits, pow and timestamp checks for now
 
-        Ok(UpdatedDaState {
-            hash: block_header.hash,
-            height: block_header.height,
+        Ok(LatestDaState {
+            block_hash: block_header.hash,
+            block_height: block_header.height,
             total_work: [0; 32],
             epoch_start_time: 0,
             prev_11_timestamps: [0; 11],

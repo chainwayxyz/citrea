@@ -3,9 +3,8 @@ use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
+    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
 };
-use sov_rollup_interface::zk::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
 
 use crate::helpers::parsers::{
@@ -13,7 +12,9 @@ use crate::helpers::parsers::{
     ParsedLightClientTransaction, VerifyParsed,
 };
 use crate::helpers::{calculate_double_sha256, merkle_tree};
-use crate::network_constants::{MAINNET_CONSTANTS, REGTEST_CONSTANTS, SIGNET_CONSTANTS, TESTNET4_CONSTANTS};
+use crate::network_constants::{
+    MAINNET_CONSTANTS, REGTEST_CONSTANTS, SIGNET_CONSTANTS, TESTNET4_CONSTANTS,
+};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::BitcoinSpec;
@@ -220,23 +221,15 @@ impl DaVerifier for BitcoinVerifier {
 
     fn verify_header_chain(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
+        latest_da_state: Option<&LatestDaState<Self::Spec>>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
-    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
+    ) -> Result<LatestDaState<Self::Spec>, Self::Error> {
         match network {
-            Network::Mainnet => {
-                self.verify_header_chain_mainnet(previous_light_client_proof_output, block_header)
-            }
-            Network::Testnet => {
-                self.verify_header_chain_testnet4(previous_light_client_proof_output, block_header)
-            }
-            Network::Devnet => {
-                self.verify_header_chain_signet(previous_light_client_proof_output, block_header)
-            }
-            Network::Nightly => {
-                self.verify_header_chain_regtest(previous_light_client_proof_output, block_header)
-            }
+            Network::Mainnet => self.verify_header_chain_mainnet(latest_da_state, block_header),
+            Network::Testnet => self.verify_header_chain_testnet4(latest_da_state, block_header),
+            Network::Devnet => self.verify_header_chain_signet(latest_da_state, block_header),
+            Network::Nightly => self.verify_header_chain_regtest(latest_da_state, block_header),
         }
     }
 }
@@ -244,19 +237,19 @@ impl DaVerifier for BitcoinVerifier {
 impl BitcoinVerifier {
     fn verify_header_chain_mainnet(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
         block_header: &HeaderWrapper,
-    ) -> Result<UpdatedDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
         let network_constants = MAINNET_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
 
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
-            return Ok(UpdatedDaState {
-                hash: block_header.hash(),
-                height: block_header.height(),
+        let Some(latest_da_state) = latest_da_state else {
+            return Ok(LatestDaState {
+                block_hash: block_header.hash(),
+                block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
                 epoch_start_time: block_header.time().secs() as u32,
@@ -272,15 +265,15 @@ impl BitcoinVerifier {
         }
 
         // Check 2: block heights are consecutive
-        if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
+        if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != previous_light_client_proof_output.da_block_hash {
+        if block_header.prev_hash() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
-        if block_header.bits() != previous_light_client_proof_output.da_current_target_bits {
+        if block_header.bits() != latest_da_state.current_target_bits {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
@@ -290,20 +283,20 @@ impl BitcoinVerifier {
         // Check 6: valid timestamp
         if !verify_timestamp(
             block_header.time().secs() as u32,
-            previous_light_client_proof_output.da_prev_11_timestamps,
+            latest_da_state.prev_11_timestamps,
         ) {
             return Err(ValidationError::InvalidTimestamp);
         }
 
         let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
         // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = previous_light_client_proof_output.da_epoch_start_time;
+        let mut epoch_start_time = latest_da_state.epoch_start_time;
         if epoch_block == 0 {
             epoch_start_time = block_header.time().secs() as u32;
         }
 
         // Update previous timestamps
-        let mut prev_11_timestamps = previous_light_client_proof_output.da_prev_11_timestamps;
+        let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
         // If the next block is epoch start block, calculate the next epoch's difficulty target
@@ -318,13 +311,13 @@ impl BitcoinVerifier {
             current_target_bits = target_to_bits(&next_target);
         }
 
-        let total_work = U256::from_be_bytes(previous_light_client_proof_output.da_total_work)
+        let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
             .to_be_bytes();
 
-        Ok(UpdatedDaState {
-            hash: block_header.hash(),
-            height: block_header.height(),
+        Ok(LatestDaState {
+            block_hash: block_header.hash(),
+            block_height: block_header.height(),
             total_work,
             epoch_start_time,
             prev_11_timestamps,
@@ -334,19 +327,19 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_testnet4(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
         block_header: &HeaderWrapper,
-    ) -> Result<UpdatedDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
         let network_constants = TESTNET4_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
 
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
-            return Ok(UpdatedDaState {
-                hash: block_header.hash(),
-                height: block_header.height(),
+        let Some(latest_da_state) = latest_da_state else {
+            return Ok(LatestDaState {
+                block_hash: block_header.hash(),
+                block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
                 epoch_start_time: block_header.time().secs() as u32,
@@ -362,15 +355,15 @@ impl BitcoinVerifier {
         }
 
         // Check 2: block heights are consecutive
-        if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
+        if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != previous_light_client_proof_output.da_block_hash {
+        if block_header.prev_hash() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
-        if block_header.bits() != previous_light_client_proof_output.da_current_target_bits {
+        if block_header.bits() != latest_da_state.current_target_bits {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
@@ -380,20 +373,20 @@ impl BitcoinVerifier {
         // Check 6: valid timestamp
         if !verify_timestamp(
             block_header.time().secs() as u32,
-            previous_light_client_proof_output.da_prev_11_timestamps,
+            latest_da_state.prev_11_timestamps,
         ) {
             return Err(ValidationError::InvalidTimestamp);
         }
 
         let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
         // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = previous_light_client_proof_output.da_epoch_start_time;
+        let mut epoch_start_time = latest_da_state.epoch_start_time;
         if epoch_block == 0 {
             epoch_start_time = block_header.time().secs() as u32;
         }
 
         // Update previous timestamps
-        let mut prev_11_timestamps = previous_light_client_proof_output.da_prev_11_timestamps;
+        let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
         // If the next block is epoch start block, calculate the next epoch's difficulty target
@@ -408,13 +401,13 @@ impl BitcoinVerifier {
             current_target_bits = target_to_bits(&next_target);
         }
 
-        let total_work = U256::from_be_bytes(previous_light_client_proof_output.da_total_work)
+        let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
             .to_be_bytes();
 
-        Ok(UpdatedDaState {
-            hash: block_header.hash(),
-            height: block_header.height(),
+        Ok(LatestDaState {
+            block_hash: block_header.hash(),
+            block_height: block_header.height(),
             total_work,
             epoch_start_time,
             prev_11_timestamps,
@@ -424,19 +417,19 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_signet(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
         block_header: &HeaderWrapper,
-    ) -> Result<UpdatedDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
         let network_constants = SIGNET_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
 
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
-            return Ok(UpdatedDaState {
-                hash: block_header.hash(),
-                height: block_header.height(),
+        let Some(latest_da_state) = latest_da_state else {
+            return Ok(LatestDaState {
+                block_hash: block_header.hash(),
+                block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
                 epoch_start_time: block_header.time().secs() as u32,
@@ -452,15 +445,15 @@ impl BitcoinVerifier {
         }
 
         // Check 2: block heights are consecutive
-        if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
+        if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != previous_light_client_proof_output.da_block_hash {
+        if block_header.prev_hash() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
-        if block_header.bits() != previous_light_client_proof_output.da_current_target_bits {
+        if block_header.bits() != latest_da_state.current_target_bits {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
@@ -470,20 +463,20 @@ impl BitcoinVerifier {
         // Check 6: valid timestamp
         if !verify_timestamp(
             block_header.time().secs() as u32,
-            previous_light_client_proof_output.da_prev_11_timestamps,
+            latest_da_state.prev_11_timestamps,
         ) {
             return Err(ValidationError::InvalidTimestamp);
         }
 
         let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
         // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = previous_light_client_proof_output.da_epoch_start_time;
+        let mut epoch_start_time = latest_da_state.epoch_start_time;
         if epoch_block == 0 {
             epoch_start_time = block_header.time().secs() as u32;
         }
 
         // Update previous timestamps
-        let mut prev_11_timestamps = previous_light_client_proof_output.da_prev_11_timestamps;
+        let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
         // If the next block is epoch start block, calculate the next epoch's difficulty target
@@ -498,13 +491,13 @@ impl BitcoinVerifier {
             current_target_bits = target_to_bits(&next_target);
         }
 
-        let total_work = U256::from_be_bytes(previous_light_client_proof_output.da_total_work)
+        let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
             .to_be_bytes();
 
-        Ok(UpdatedDaState {
-            hash: block_header.hash(),
-            height: block_header.height(),
+        Ok(LatestDaState {
+            block_hash: block_header.hash(),
+            block_height: block_header.height(),
             total_work,
             epoch_start_time,
             prev_11_timestamps,
@@ -514,19 +507,19 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_regtest(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
         block_header: &HeaderWrapper,
-    ) -> Result<UpdatedDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
         let network_constants = REGTEST_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
 
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
-            return Ok(UpdatedDaState {
-                hash: block_header.hash(),
-                height: block_header.height(),
+        let Some(latest_da_state) = latest_da_state else {
+            return Ok(LatestDaState {
+                block_hash: block_header.hash(),
+                block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
                 epoch_start_time: block_header.time().secs() as u32,
@@ -542,15 +535,15 @@ impl BitcoinVerifier {
         }
 
         // Check 2: block heights are consecutive
-        if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
+        if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != previous_light_client_proof_output.da_block_hash {
+        if block_header.prev_hash() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
-        if block_header.bits() != previous_light_client_proof_output.da_current_target_bits {
+        if block_header.bits() != latest_da_state.current_target_bits {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
@@ -560,20 +553,20 @@ impl BitcoinVerifier {
         // Check 6: valid timestamp
         if !verify_timestamp(
             block_header.time().secs() as u32,
-            previous_light_client_proof_output.da_prev_11_timestamps,
+            latest_da_state.prev_11_timestamps,
         ) {
             return Err(ValidationError::InvalidTimestamp);
         }
 
         let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
         // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = previous_light_client_proof_output.da_epoch_start_time;
+        let mut epoch_start_time = latest_da_state.epoch_start_time;
         if epoch_block == 0 {
             epoch_start_time = block_header.time().secs() as u32;
         }
 
         // Update previous timestamps
-        let mut prev_11_timestamps = previous_light_client_proof_output.da_prev_11_timestamps;
+        let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
         // If the next block is epoch start block, calculate the next epoch's difficulty target
@@ -588,13 +581,13 @@ impl BitcoinVerifier {
             current_target_bits = target_to_bits(&next_target);
         }
 
-        let total_work = U256::from_be_bytes(previous_light_client_proof_output.da_total_work)
+        let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
             .to_be_bytes();
 
-        Ok(UpdatedDaState {
-            hash: block_header.hash(),
-            height: block_header.height(),
+        Ok(LatestDaState {
+            block_hash: block_header.hash(),
+            block_height: block_header.height(),
             total_work,
             epoch_start_time,
             prev_11_timestamps,

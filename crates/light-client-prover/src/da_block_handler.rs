@@ -255,15 +255,16 @@ where
             circuit_output
         );
 
+        let latest_da_state = &circuit_output.latest_da_state;
         let stored_proof_output = StoredLightClientProofOutput {
             state_root: circuit_output.state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
-            da_block_hash: circuit_output.da_block_hash.into(),
-            da_block_height: circuit_output.da_block_height,
-            da_total_work: circuit_output.da_total_work,
-            da_current_target_bits: circuit_output.da_current_target_bits,
-            da_epoch_start_time: circuit_output.da_epoch_start_time,
-            da_prev_11_timestamps: circuit_output.da_prev_11_timestamps,
+            da_block_hash: latest_da_state.block_hash.clone().into(),
+            da_block_height: latest_da_state.block_height,
+            da_total_work: latest_da_state.total_work,
+            da_current_target_bits: latest_da_state.current_target_bits,
+            da_epoch_start_time: latest_da_state.epoch_start_time,
+            da_prev_11_timestamps: latest_da_state.prev_11_timestamps,
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
         };
