@@ -13,6 +13,7 @@ use crate::helpers::parsers::{
     ParsedLightClientTransaction, VerifyParsed,
 };
 use crate::helpers::{calculate_double_sha256, merkle_tree};
+use crate::network::NetworkConstants;
 use crate::spec::blob::BlobWithSender;
 use crate::spec::BitcoinSpec;
 
@@ -226,6 +227,8 @@ impl DaVerifier for BitcoinVerifier {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
     ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
+        let _network_constants = NetworkConstants::from(network);
+
         // Check 1: Verify block hash
         if !block_header.verify_hash() {
             return Err(ValidationError::InvalidBlockHash);
