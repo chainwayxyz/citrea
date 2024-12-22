@@ -246,9 +246,8 @@ where
             .prove(light_client_elf, circuit_input, assumptions)
             .await?;
 
-        let circuit_output =
-            Vm::extract_output::<Da::Spec, LightClientCircuitOutput<Da::Spec>>(&proof)
-                .expect("Should deserialize valid proof");
+        let circuit_output = Vm::extract_output::<Da::Spec, LightClientCircuitOutput>(&proof)
+            .expect("Should deserialize valid proof");
 
         tracing::info!(
             "Generated proof for L1 block: {l1_height} output={:?}",
@@ -259,7 +258,7 @@ where
         let stored_proof_output = StoredLightClientProofOutput {
             state_root: circuit_output.state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
-            da_block_hash: latest_da_state.block_hash.clone().into(),
+            da_block_hash: latest_da_state.block_hash,
             da_block_height: latest_da_state.block_height,
             da_total_work: latest_da_state.total_work,
             da_current_target_bits: latest_da_state.current_target_bits,

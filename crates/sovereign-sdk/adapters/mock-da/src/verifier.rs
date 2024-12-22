@@ -70,13 +70,13 @@ impl DaVerifier for MockDaVerifier {
 
     fn verify_header_chain(
         &self,
-        latest_da_state: Option<&LatestDaState<Self::Spec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         _network: Network,
-    ) -> Result<LatestDaState<Self::Spec>, Self::Error> {
+    ) -> Result<LatestDaState, Self::Error> {
         let Some(latest_da_state) = latest_da_state else {
             return Ok(LatestDaState {
-                block_hash: block_header.hash,
+                block_hash: block_header.hash.0,
                 block_height: block_header.height,
                 total_work: [0; 32],
                 epoch_start_time: block_header.time.secs() as u32,
@@ -89,7 +89,7 @@ impl DaVerifier for MockDaVerifier {
             return Err(anyhow!("Block heights are not consecutive"));
         }
         // Check prev hash matches with prev light client proof hash
-        if block_header.prev_hash != latest_da_state.block_hash {
+        if block_header.prev_hash.0 != latest_da_state.block_hash {
             return Err(anyhow!(
                 "Block prev hash does not match with prev light client proof hash"
             ));
@@ -97,7 +97,7 @@ impl DaVerifier for MockDaVerifier {
         // Skip hash, bits, pow and timestamp checks for now
 
         Ok(LatestDaState {
-            block_hash: block_header.hash,
+            block_hash: block_header.hash.0,
             block_height: block_header.height,
             total_work: [0; 32],
             epoch_start_time: 0,

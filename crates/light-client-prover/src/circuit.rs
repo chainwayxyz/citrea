@@ -23,11 +23,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     batch_proof_method_id: [u32; 8],
     batch_prover_da_public_key: &[u8],
     network: Network,
-) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
+) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
     // Extract previous light client proof output
     let previous_light_client_proof_output =
         if let Some(journal) = input.previous_light_client_proof_journal {
-            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput<DaV::Spec>>(
+            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )

@@ -1,4 +1,5 @@
 use crypto_bigint::U256;
+use sov_rollup_interface::da::LatestDaState;
 
 pub const MAINNET_CONSTANTS: NetworkConstants = NetworkConstants {
     max_bits: 0x1D00FFFF,

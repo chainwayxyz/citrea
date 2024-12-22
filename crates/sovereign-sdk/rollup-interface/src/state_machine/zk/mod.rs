@@ -213,7 +213,7 @@ impl BatchProofInfo {
 
 /// The output of light client proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-pub struct LightClientCircuitOutput<Da: DaSpec> {
+pub struct LightClientCircuitOutput {
     /// State root of the node after the light client proof
     pub state_root: [u8; 32],
     /// The method id of the light client proof
@@ -221,7 +221,7 @@ pub struct LightClientCircuitOutput<Da: DaSpec> {
     pub light_client_proof_method_id: [u32; 8],
     /// Latest da state output of the previous light client proof
     /// If None, initial hardcoded da block will be used for verification
-    pub latest_da_state: LatestDaState<Da>,
+    pub latest_da_state: LatestDaState,
     /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies

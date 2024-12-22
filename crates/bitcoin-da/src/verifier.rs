@@ -221,10 +221,10 @@ impl DaVerifier for BitcoinVerifier {
 
     fn verify_header_chain(
         &self,
-        latest_da_state: Option<&LatestDaState<Self::Spec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
-    ) -> Result<LatestDaState<Self::Spec>, Self::Error> {
+    ) -> Result<LatestDaState, Self::Error> {
         match network {
             Network::Mainnet => self.verify_header_chain_mainnet(latest_da_state, block_header),
             Network::Testnet => self.verify_header_chain_testnet4(latest_da_state, block_header),
@@ -237,9 +237,9 @@ impl DaVerifier for BitcoinVerifier {
 impl BitcoinVerifier {
     fn verify_header_chain_mainnet(
         &self,
-        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &HeaderWrapper,
-    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState, ValidationError> {
         let network_constants = MAINNET_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
@@ -248,7 +248,7 @@ impl BitcoinVerifier {
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
         let Some(latest_da_state) = latest_da_state else {
             return Ok(LatestDaState {
-                block_hash: block_header.hash(),
+                block_hash: block_header.hash().to_byte_array(),
                 block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
@@ -269,7 +269,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != latest_da_state.block_hash {
+        if block_header.prev_hash().to_byte_array() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
@@ -316,7 +316,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash(),
+            block_hash: block_header.hash().to_byte_array(),
             block_height: block_header.height(),
             total_work,
             epoch_start_time,
@@ -327,9 +327,9 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_testnet4(
         &self,
-        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &HeaderWrapper,
-    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState, ValidationError> {
         let network_constants = TESTNET4_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
@@ -338,7 +338,7 @@ impl BitcoinVerifier {
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
         let Some(latest_da_state) = latest_da_state else {
             return Ok(LatestDaState {
-                block_hash: block_header.hash(),
+                block_hash: block_header.hash().to_byte_array(),
                 block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
@@ -359,7 +359,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != latest_da_state.block_hash {
+        if block_header.prev_hash().to_byte_array() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
@@ -406,7 +406,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash(),
+            block_hash: block_header.hash().to_byte_array(),
             block_height: block_header.height(),
             total_work,
             epoch_start_time,
@@ -417,9 +417,9 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_signet(
         &self,
-        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &HeaderWrapper,
-    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState, ValidationError> {
         let network_constants = SIGNET_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
@@ -428,7 +428,7 @@ impl BitcoinVerifier {
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
         let Some(latest_da_state) = latest_da_state else {
             return Ok(LatestDaState {
-                block_hash: block_header.hash(),
+                block_hash: block_header.hash().to_byte_array(),
                 block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
@@ -449,7 +449,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != latest_da_state.block_hash {
+        if block_header.prev_hash().to_byte_array() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
@@ -496,7 +496,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash(),
+            block_hash: block_header.hash().to_byte_array(),
             block_height: block_header.height(),
             total_work,
             epoch_start_time,
@@ -507,9 +507,9 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_regtest(
         &self,
-        latest_da_state: Option<&LatestDaState<BitcoinSpec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &HeaderWrapper,
-    ) -> Result<LatestDaState<BitcoinSpec>, ValidationError> {
+    ) -> Result<LatestDaState, ValidationError> {
         let network_constants = REGTEST_CONSTANTS;
 
         let target = bits_to_target(block_header.bits());
@@ -518,7 +518,7 @@ impl BitcoinVerifier {
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
         let Some(latest_da_state) = latest_da_state else {
             return Ok(LatestDaState {
-                block_hash: block_header.hash(),
+                block_hash: block_header.hash().to_byte_array(),
                 block_height: block_header.height(),
                 // TODO: total work should be the hardcoded initial block's total_work + work_add
                 total_work: work_add.to_be_bytes(),
@@ -539,7 +539,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::NonConsecutiveBlockHeight);
         }
         // Check 3: prev hash matches with prev light client proof hash
-        if block_header.prev_hash() != latest_da_state.block_hash {
+        if block_header.prev_hash().to_byte_array() != latest_da_state.block_hash {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
@@ -586,7 +586,7 @@ impl BitcoinVerifier {
             .to_be_bytes();
 
         Ok(LatestDaState {
-            block_hash: block_header.hash(),
+            block_hash: block_header.hash().to_byte_array(),
             block_height: block_header.height(),
             total_work,
             epoch_start_time,

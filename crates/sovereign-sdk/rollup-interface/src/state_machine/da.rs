@@ -118,10 +118,10 @@ pub trait DaSpec:
 
 /// Latest da state to verify and apply da block changes
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
-pub struct LatestDaState<Da: DaSpec> {
+pub struct LatestDaState {
     /// Proved DA block's header hash
     /// This is used to compare the previous DA block hash with first batch proof's DA block hash
-    pub block_hash: Da::SlotHash,
+    pub block_hash: [u8; 32],
     /// Height of the blockchain
     pub block_height: u64,
     /// Total work done in the DA blockchain
@@ -164,10 +164,10 @@ pub trait DaVerifier: Send + Sync {
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(
         &self,
-        latest_da_state: Option<&LatestDaState<Self::Spec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
-    ) -> Result<LatestDaState<Self::Spec>, Self::Error>;
+    ) -> Result<LatestDaState, Self::Error>;
 }
 
 #[cfg(feature = "std")]
