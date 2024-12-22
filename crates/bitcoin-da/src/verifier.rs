@@ -333,7 +333,9 @@ impl BitcoinVerifier {
             let next_target = calculate_new_difficulty(
                 epoch_start_time,
                 block_header.time().secs() as u32,
-                block_header.bits(),
+                // If 20 minute exception happened on last block of the difficulty period,
+                // previous block's target should be used.
+                latest_da_state.current_target_bits,
                 network_constants.max_target,
             );
             current_target_bits = target_to_bits(&next_target);
