@@ -33,3 +33,30 @@ pub struct NetworkConstants {
     /// Maximum target of the chain
     pub max_target: U256,
 }
+
+pub const INITIAL_MAINNET_STATE: LatestDaState = LatestDaState {
+    block_hash: [0; 32],
+    block_height: 0,
+    total_work: [0; 32],
+    current_target_bits: 0,
+    epoch_start_time: 0,
+    prev_11_timestamps: [0; 11],
+};
+
+pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
+    block_hash: [0; 32],
+    block_height: 0,
+    total_work: [0; 32],
+    current_target_bits: 0,
+    epoch_start_time: 0,
+    prev_11_timestamps: [0; 11],
+};
+
+pub const INITIAL_SIGNET_STATE: LatestDaState = LatestDaState {
+    block_hash: [0; 32],
+    block_height: 0,
+    total_work: [0; 32],
+    current_target_bits: 0,
+    epoch_start_time: 0,
+    prev_11_timestamps: [0; 11],
+};

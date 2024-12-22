@@ -13,7 +13,8 @@ use crate::helpers::parsers::{
 };
 use crate::helpers::{calculate_double_sha256, merkle_tree};
 use crate::network_constants::{
-    MAINNET_CONSTANTS, REGTEST_CONSTANTS, SIGNET_CONSTANTS, TESTNET4_CONSTANTS,
+    INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
+    REGTEST_CONSTANTS, SIGNET_CONSTANTS, TESTNET4_CONSTANTS,
 };
 use crate::spec::blob::BlobWithSender;
 use crate::spec::header::HeaderWrapper;
@@ -241,23 +242,10 @@ impl BitcoinVerifier {
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = MAINNET_CONSTANTS;
+        let latest_da_state = latest_da_state.unwrap_or(&INITIAL_MAINNET_STATE);
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
-
-        // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(latest_da_state) = latest_da_state else {
-            return Ok(LatestDaState {
-                block_hash: block_header.hash().to_byte_array(),
-                block_height: block_header.height(),
-                // TODO: total work should be the hardcoded initial block's total_work + work_add
-                total_work: work_add.to_be_bytes(),
-                epoch_start_time: block_header.time().secs() as u32,
-                // TODO: this is temporary fix for ci to pass until we hardcode the first da block
-                prev_11_timestamps: [0; 11],
-                current_target_bits: block_header.bits(),
-            });
-        };
 
         // Check 1: Verify block hash
         if !block_header.verify_hash() {
@@ -331,23 +319,10 @@ impl BitcoinVerifier {
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = TESTNET4_CONSTANTS;
+        let latest_da_state = latest_da_state.unwrap_or(&INITIAL_TESTNET4_STATE);
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
-
-        // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(latest_da_state) = latest_da_state else {
-            return Ok(LatestDaState {
-                block_hash: block_header.hash().to_byte_array(),
-                block_height: block_header.height(),
-                // TODO: total work should be the hardcoded initial block's total_work + work_add
-                total_work: work_add.to_be_bytes(),
-                epoch_start_time: block_header.time().secs() as u32,
-                // TODO: this is temporary fix for ci to pass until we hardcode the first da block
-                prev_11_timestamps: [0; 11],
-                current_target_bits: block_header.bits(),
-            });
-        };
 
         // Check 1: Verify block hash
         if !block_header.verify_hash() {
@@ -421,23 +396,10 @@ impl BitcoinVerifier {
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = SIGNET_CONSTANTS;
+        let latest_da_state = latest_da_state.unwrap_or(&INITIAL_SIGNET_STATE);
 
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
-
-        // TODO: this is first light client proof, hardcode the first da block and verify accordingly
-        let Some(latest_da_state) = latest_da_state else {
-            return Ok(LatestDaState {
-                block_hash: block_header.hash().to_byte_array(),
-                block_height: block_header.height(),
-                // TODO: total work should be the hardcoded initial block's total_work + work_add
-                total_work: work_add.to_be_bytes(),
-                epoch_start_time: block_header.time().secs() as u32,
-                // TODO: this is temporary fix for ci to pass until we hardcode the first da block
-                prev_11_timestamps: [0; 11],
-                current_target_bits: block_header.bits(),
-            });
-        };
 
         // Check 1: Verify block hash
         if !block_header.verify_hash() {
