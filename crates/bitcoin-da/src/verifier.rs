@@ -321,14 +321,23 @@ impl BitcoinVerifier {
         let network_constants = TESTNET4_CONSTANTS;
         let latest_da_state = latest_da_state.unwrap_or(&INITIAL_TESTNET4_STATE);
 
-        let target = bits_to_target(latest_da_state.current_target_bits);
+        let latest_block_time =
+            latest_da_state.prev_11_timestamps[latest_da_state.block_height as usize % 11];
+        // If more than 20 minutes passed since latest block, reset target
+        let (target, expected_bits) =
+            if block_header.time().secs() as u32 > latest_block_time + 1200 {
+                let target = network_constants.max_target.to_be_bytes();
+                (target, target_to_bits(&target))
+            } else {
+                let target = bits_to_target(latest_da_state.current_target_bits);
+                (target, latest_da_state.current_target_bits)
+            };
         let work_add = target_to_work(&target);
 
         // Check 1: Verify block hash
         if !block_header.verify_hash() {
             return Err(ValidationError::InvalidBlockHash);
         }
-
         // Check 2: block heights are consecutive
         if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
@@ -338,7 +347,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::InvalidPrevBlockHash);
         }
         // Check 4: valid bits
-        if block_header.bits() != latest_da_state.current_target_bits {
+        if block_header.bits() != expected_bits {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
