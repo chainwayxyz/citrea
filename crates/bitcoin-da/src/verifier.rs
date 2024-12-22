@@ -251,7 +251,6 @@ impl BitcoinVerifier {
         if !block_header.verify_hash() {
             return Err(ValidationError::InvalidBlockHash);
         }
-
         // Check 2: block heights are consecutive
         if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
@@ -414,7 +413,6 @@ impl BitcoinVerifier {
         if !block_header.verify_hash() {
             return Err(ValidationError::InvalidBlockHash);
         }
-
         // Check 2: block heights are consecutive
         if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
@@ -483,7 +481,7 @@ impl BitcoinVerifier {
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = REGTEST_CONSTANTS;
 
-        let target = bits_to_target(block_header.bits());
+        let target = network_constants.max_target.to_be_bytes();
         let work_add = target_to_work(&target);
 
         // TODO: this is first light client proof, hardcode the first da block and verify accordingly
@@ -504,7 +502,6 @@ impl BitcoinVerifier {
         if !block_header.verify_hash() {
             return Err(ValidationError::InvalidBlockHash);
         }
-
         // Check 2: block heights are consecutive
         if block_header.height() - 1 != latest_da_state.block_height {
             return Err(ValidationError::NonConsecutiveBlockHeight);
