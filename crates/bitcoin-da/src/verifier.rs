@@ -585,7 +585,7 @@ fn bits_to_target(bits: u32) -> [u8; 32] {
 }
 
 /// Converts the big-endian target value to the little-endian `bits` field of a block header.
-fn target_to_bits(target: &[u8; 32]) -> u32 {
+pub(crate) const fn target_to_bits(target: &[u8; 32]) -> u32 {
     let target_u256 = U256::from_be_slice(target);
     let target_bits = target_u256.bits();
     let size = (263 - target_bits) / 8;

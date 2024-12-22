@@ -60,3 +60,27 @@ pub const INITIAL_SIGNET_STATE: LatestDaState = LatestDaState {
     epoch_start_time: 0,
     prev_11_timestamps: [0; 11],
 };
+
+#[test]
+fn verify_constants() {
+    use crypto_bigint::Encoding;
+
+    use crate::verifier::target_to_bits;
+
+    assert_eq!(
+        target_to_bits(&MAINNET_CONSTANTS.max_target.to_be_bytes()),
+        MAINNET_CONSTANTS.max_bits
+    );
+    assert_eq!(
+        target_to_bits(&TESTNET4_CONSTANTS.max_target.to_be_bytes()),
+        TESTNET4_CONSTANTS.max_bits
+    );
+    assert_eq!(
+        target_to_bits(&SIGNET_CONSTANTS.max_target.to_be_bytes()),
+        SIGNET_CONSTANTS.max_bits
+    );
+    assert_eq!(
+        target_to_bits(&REGTEST_CONSTANTS.max_target.to_be_bytes()),
+        REGTEST_CONSTANTS.max_bits
+    );
+}
