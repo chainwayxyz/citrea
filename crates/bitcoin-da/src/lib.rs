@@ -13,7 +13,7 @@ pub mod fee;
 #[cfg(feature = "native")]
 pub mod rpc;
 
-pub mod network;
+pub mod network_constants;
 
 pub mod verifier;
 
