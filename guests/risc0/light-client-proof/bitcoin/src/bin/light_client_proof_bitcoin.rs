@@ -94,7 +94,14 @@ pub fn main() {
 
     let input = guest.read_from_host();
 
-    let output = run_circuit::<BitcoinVerifier, Risc0Guest>(da_verifier, input, L2_GENESIS_ROOT, BATCH_PROOF_METHOD_ID, &BATCH_PROVER_DA_PUBLIC_KEY).unwrap();
+    let output = run_circuit::<BitcoinVerifier, Risc0Guest>(
+        da_verifier,
+        input,
+        L2_GENESIS_ROOT,
+        BATCH_PROOF_METHOD_ID,
+        &BATCH_PROVER_DA_PUBLIC_KEY,
+        NETWORK,
+    ).unwrap();
 
     guest.commit(&output);
 }

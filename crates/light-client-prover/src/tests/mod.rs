@@ -3,6 +3,7 @@ mod test_utils;
 use sov_mock_da::{MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::zk::LightClientCircuitInput;
+use sov_rollup_interface::Network;
 use test_utils::{create_mock_blob, create_prev_lcp_serialized};
 
 use crate::circuit::{run_circuit, LightClientVerificationError};
@@ -36,6 +37,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -67,6 +69,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -105,6 +108,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -143,6 +147,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -185,6 +190,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -224,6 +230,7 @@ fn test_header_chain_proof_height_and_hash() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -256,6 +263,7 @@ fn test_header_chain_proof_height_and_hash() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     );
     assert!(matches!(
         res,
@@ -292,6 +300,7 @@ fn test_unverifiable_batch_proofs() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -332,6 +341,7 @@ fn test_unverifiable_prev_light_client_proof() {
         l2_genesis_state_root,
         batch_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     )
     .unwrap();
 
@@ -361,6 +371,7 @@ fn test_unverifiable_prev_light_client_proof() {
         l2_genesis_state_root,
         light_client_proof_method_id,
         &batch_prover_da_pub_key,
+        Network::Nightly,
     );
     assert!(matches!(
         res,

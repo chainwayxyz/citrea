@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
 };
+use sov_rollup_interface::Network;
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash};
 
@@ -73,6 +74,7 @@ impl DaVerifier for MockDaVerifier {
             sov_rollup_interface::zk::LightClientCircuitOutput<Self::Spec>,
         >,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        _network: Network,
     ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
         let Some(previous_light_client_proof_output) = previous_light_client_proof_output else {
             return Ok(UpdatedDaState {

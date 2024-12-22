@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::zk::{LightClientCircuitOutput, Proof};
-use crate::BasicAddress;
+use crate::{BasicAddress, Network};
 
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of soft confirmation hashes from L1 start block to L1 end block (inclusive)
@@ -166,6 +166,7 @@ pub trait DaVerifier: Send + Sync {
         &self,
         previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        network: Network,
     ) -> Result<UpdatedDaState<Self::Spec>, Self::Error>;
 }
 

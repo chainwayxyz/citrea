@@ -6,6 +6,7 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, UpdatedDaState,
 };
 use sov_rollup_interface::zk::LightClientCircuitOutput;
+use sov_rollup_interface::Network;
 
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
@@ -223,6 +224,7 @@ impl DaVerifier for BitcoinVerifier {
         &self,
         previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
+        network: Network,
     ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
         // Check 1: Verify block hash
         if !block_header.verify_hash() {

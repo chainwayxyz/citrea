@@ -5,6 +5,7 @@ use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     ZkvmGuest,
 };
+use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
@@ -21,6 +22,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     l2_genesis_root: [u8; 32],
     batch_proof_method_id: [u32; 8],
     batch_prover_da_public_key: &[u8],
+    network: Network,
 ) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
     // Extract previous light client proof output
     let previous_light_client_proof_output =
@@ -41,7 +43,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         };
 
     let block_updates = da_verifier
-        .verify_header_chain(&previous_light_client_proof_output, &input.da_block_header)
+        .verify_header_chain(
+            &previous_light_client_proof_output,
+            &input.da_block_header,
+            network,
+        )
         .map_err(|_| LightClientVerificationError::HeaderChainVerificationFailed)?;
 
     // Verify data from da
