@@ -432,10 +432,6 @@ impl BitcoinVerifier {
             current_target_bits: network_constants.max_bits,
         };
         let latest_da_state = latest_da_state.unwrap_or(&initial_regtest_state);
-        // Ensure that target bits are correct
-        if latest_da_state.current_target_bits != network_constants.max_bits {
-            return Err(ValidationError::InvalidBlockBits);
-        }
 
         let target = network_constants.max_target.to_be_bytes();
         let work_add = target_to_work(&target);
@@ -445,7 +441,7 @@ impl BitcoinVerifier {
             block_header,
             latest_da_state,
             target,
-            latest_da_state.current_target_bits,
+            network_constants.max_bits,
         )?;
 
         // Update previous timestamps
