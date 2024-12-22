@@ -339,11 +339,6 @@ impl BitcoinVerifier {
     ) -> Result<UpdatedDaState<BitcoinSpec>, ValidationError> {
         let network_constants = TESTNET4_CONSTANTS;
 
-        // Check 1: Verify block hash
-        if !block_header.verify_hash() {
-            return Err(ValidationError::InvalidBlockHash);
-        }
-
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
 
@@ -360,6 +355,11 @@ impl BitcoinVerifier {
                 current_target_bits: block_header.bits(),
             });
         };
+
+        // Check 1: Verify block hash
+        if !block_header.verify_hash() {
+            return Err(ValidationError::InvalidBlockHash);
+        }
 
         // Check 2: block heights are consecutive
         if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
@@ -519,11 +519,6 @@ impl BitcoinVerifier {
     ) -> Result<UpdatedDaState<BitcoinSpec>, ValidationError> {
         let network_constants = REGTEST_CONSTANTS;
 
-        // Check 1: Verify block hash
-        if !block_header.verify_hash() {
-            return Err(ValidationError::InvalidBlockHash);
-        }
-
         let target = bits_to_target(block_header.bits());
         let work_add = target_to_work(&target);
 
@@ -540,6 +535,11 @@ impl BitcoinVerifier {
                 current_target_bits: block_header.bits(),
             });
         };
+
+        // Check 1: Verify block hash
+        if !block_header.verify_hash() {
+            return Err(ValidationError::InvalidBlockHash);
+        }
 
         // Check 2: block heights are consecutive
         if block_header.height() - 1 != previous_light_client_proof_output.da_block_height {
