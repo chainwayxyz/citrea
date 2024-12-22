@@ -19,10 +19,6 @@ use crate::spec::BitcoinSpec;
 
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
-/// The maximum target value, which corresponds to the minimum difficulty
-const MAX_TARGET: U256 =
-    U256::from_be_hex("00000000FFFF0000000000000000000000000000000000000000000000000000");
-
 /// An epoch should be two weeks (represented as number of seconds)
 /// seconds/minute * minutes/hour * hours/day * 14 days
 const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
@@ -227,7 +223,7 @@ impl DaVerifier for BitcoinVerifier {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
     ) -> Result<UpdatedDaState<Self::Spec>, Self::Error> {
-        let _network_constants = NetworkConstants::from(network);
+        let network_constants = NetworkConstants::from(network);
 
         // Check 1: Verify block hash
         if !block_header.verify_hash() {
@@ -293,6 +289,7 @@ impl DaVerifier for BitcoinVerifier {
                 epoch_start_time,
                 block_header.time().secs() as u32,
                 block_header.bits(),
+                network_constants.max_target,
             );
             current_target_bits = target_to_bits(&next_target);
         }
@@ -420,6 +417,7 @@ fn calculate_new_difficulty(
     epoch_start_time: u32,
     last_timestamp: u32,
     current_target: u32,
+    max_target: U256,
 ) -> [u8; 32] {
     // Step 1: Calculate the actual timespan of the epoch
     let mut actual_timespan = last_timestamp - epoch_start_time;
@@ -434,8 +432,8 @@ fn calculate_new_difficulty(
         .wrapping_mul(&U256::from(actual_timespan))
         .wrapping_div(&U256::from(EXPECTED_EPOCH_TIMESPAN));
     // Step 3: Clamp the new target to the maximum target
-    if new_target > MAX_TARGET {
-        new_target = MAX_TARGET;
+    if new_target > max_target {
+        new_target = max_target;
     }
 
     new_target.to_be_bytes()
