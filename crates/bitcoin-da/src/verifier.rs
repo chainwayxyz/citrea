@@ -306,7 +306,7 @@ impl BitcoinVerifier {
         let (target, expected_bits) =
             if block_header.time().secs() as u32 > latest_block_time + 1200 {
                 let target = network_constants.max_target.to_be_bytes();
-                (target, target_to_bits(&target))
+                (target, network_constants.max_bits)
             } else {
                 let target = bits_to_target(latest_da_state.current_target_bits);
                 (target, latest_da_state.current_target_bits)
