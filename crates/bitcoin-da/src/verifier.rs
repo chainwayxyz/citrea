@@ -656,10 +656,9 @@ mod tests {
     use borsh::BorshDeserialize;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
 
+    use super::BitcoinVerifier;
     use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
     use crate::spec::RollupParams;
-
-    use super::BitcoinVerifier;
 
     fn get_verifier() -> BitcoinVerifier {
         BitcoinVerifier::new(RollupParams {
@@ -673,7 +672,11 @@ mod tests {
         let verifier = get_verifier();
 
         let mut block_hash = [0; 32];
-        hex::decode_to_slice("000000006ae2e2690d771ee2ce991006d6606c97c5894e810159563a7731b39e", &mut block_hash).unwrap();
+        hex::decode_to_slice(
+            "000000006ae2e2690d771ee2ce991006d6606c97c5894e810159563a7731b39e",
+            &mut block_hash,
+        )
+        .unwrap();
         block_hash.reverse();
         // Initial da height 40309 state
         let mut da_state = LatestDaState {
@@ -684,7 +687,7 @@ mod tests {
             epoch_start_time: 1265319794,
             prev_11_timestamps: [
                 1266182524, 1266182598, 1266184302, 1266185866, 1266186230, 1266186530, 1266180699,
-                1266181218, 1266181275, 1266182052, 1266182473
+                1266181218, 1266181275, 1266182052, 1266182473,
             ],
         };
 
@@ -694,17 +697,14 @@ mod tests {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
-            let inner_header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
-            let header = HeaderWrapper::new(
-                inner_header.deref().clone(),
-                0,
-                height,
-                [0; 32],
-            );
+            let inner_header =
+                BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+            let header = HeaderWrapper::new(inner_header.deref().clone(), 0, height, [0; 32]);
 
-            da_state = verifier.verify_header_chain_mainnet(&da_state, &header).expect("Header chain verification should not fail");
+            da_state = verifier
+                .verify_header_chain_mainnet(&da_state, &header)
+                .expect("Header chain verification should not fail");
         }
-
     }
 
     #[test]
@@ -712,7 +712,11 @@ mod tests {
         let verifier = get_verifier();
 
         let mut block_hash = [0; 32];
-        hex::decode_to_slice("000000000000000000006d109e50b04ac96c15e9e47688bb264849867cc0faee", &mut block_hash).unwrap();
+        hex::decode_to_slice(
+            "000000000000000000006d109e50b04ac96c15e9e47688bb264849867cc0faee",
+            &mut block_hash,
+        )
+        .unwrap();
         block_hash.reverse();
         // Initial da height 872917 state
         let mut da_state = LatestDaState {
@@ -723,7 +727,7 @@ mod tests {
             epoch_start_time: 1731962532,
             prev_11_timestamps: [
                 1733145689, 1733146032, 1733139284, 1733139502, 1733140945, 1733141528, 1733141580,
-                1733142637, 1733142783, 1733143675, 1733144344
+                1733142637, 1733142783, 1733143675, 1733144344,
             ],
         };
 
@@ -733,16 +737,55 @@ mod tests {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
-            let inner_header = BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
-            let header = HeaderWrapper::new(
-                inner_header.deref().clone(),
-                0,
-                height,
-                [0; 32],
-            );
+            let inner_header =
+                BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+            let header = HeaderWrapper::new(inner_header.deref().clone(), 0, height, [0; 32]);
 
-            da_state = verifier.verify_header_chain_mainnet(&da_state, &header).expect("Header chain verification should not fail");
+            da_state = verifier
+                .verify_header_chain_mainnet(&da_state, &header)
+                .expect("Header chain verification should not fail");
         }
+    }
 
+    #[test]
+    fn test_header_chain_testnet4() {
+        let verifier = get_verifier();
+
+        let mut block_hash = [0; 32];
+        hex::decode_to_slice(
+            "000000004554e9e9ae1542b126511770012c6d6227b317efaaadea36c543519e",
+            &mut block_hash,
+        )
+        .unwrap();
+        block_hash.reverse();
+        // Initial da height 40309 state
+        // Even though target is as below, this block has its next blocks produced in more than 20 minutes,
+        // causing their bits to be resetted.
+        let mut da_state = LatestDaState {
+            block_hash,
+            block_height: 40309,
+            total_work: [0; 32],
+            current_target_bits: 0x1954fa04,
+            epoch_start_time: 1722969976,
+            prev_11_timestamps: [
+                1724062401, 1724063602, 1724064803, 1724066004, 1724061810, 1724063011, 1724056393,
+                1724057597, 1724058798, 1724059999, 1724061200,
+            ],
+        };
+
+        let file = File::open("test_data/testnet4/headers-40310-42346.txt").unwrap();
+        let reader = BufReader::new(file);
+        for (line, height) in reader.lines().zip((40310..=42346).into_iter()) {
+            let header_hex = line.unwrap();
+            let header_bytes = hex::decode(&header_hex).unwrap();
+
+            let inner_header =
+                BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
+            let header = HeaderWrapper::new(inner_header.deref().clone(), 0, height, [0; 32]);
+
+            da_state = verifier
+                .verify_header_chain_testnet4(&da_state, &header)
+                .expect("Header chain verification should not fail");
+        }
     }
 }
