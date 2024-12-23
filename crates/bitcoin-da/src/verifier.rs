@@ -693,13 +693,13 @@ mod tests {
 
         let file = File::open("test_data/mainnet/headers-40310-42346.txt").unwrap();
         let reader = BufReader::new(file);
-        for (line, height) in reader.lines().zip((40310..=42346).into_iter()) {
+        for (line, height) in reader.lines().zip(40310..=42346) {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
             let inner_header =
                 BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
-            let header = HeaderWrapper::new(inner_header.deref().clone(), 0, height, [0; 32]);
+            let header = HeaderWrapper::new(*inner_header.deref(), 0, height, [0; 32]);
 
             da_state = verifier
                 .verify_header_chain_mainnet(&da_state, &header)
@@ -733,13 +733,13 @@ mod tests {
 
         let file = File::open("test_data/mainnet/headers-872918-874954.txt").unwrap();
         let reader = BufReader::new(file);
-        for (line, height) in reader.lines().zip((872918..=874954).into_iter()) {
+        for (line, height) in reader.lines().zip(872918..=874954) {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
             let inner_header =
                 BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
-            let header = HeaderWrapper::new(inner_header.deref().clone(), 0, height, [0; 32]);
+            let header = HeaderWrapper::new(*inner_header.deref(), 0, height, [0; 32]);
 
             da_state = verifier
                 .verify_header_chain_mainnet(&da_state, &header)
@@ -775,13 +775,13 @@ mod tests {
 
         let file = File::open("test_data/testnet4/headers-40310-42346.txt").unwrap();
         let reader = BufReader::new(file);
-        for (line, height) in reader.lines().zip((40310..=42346).into_iter()) {
+        for (line, height) in reader.lines().zip(40310..=42346) {
             let header_hex = line.unwrap();
             let header_bytes = hex::decode(&header_hex).unwrap();
 
             let inner_header =
                 BitcoinHeaderWrapper::deserialize(&mut header_bytes.as_ref()).unwrap();
-            let header = HeaderWrapper::new(inner_header.deref().clone(), 0, height, [0; 32]);
+            let header = HeaderWrapper::new(*inner_header.deref(), 0, height, [0; 32]);
 
             da_state = verifier
                 .verify_header_chain_testnet4(&da_state, &header)
