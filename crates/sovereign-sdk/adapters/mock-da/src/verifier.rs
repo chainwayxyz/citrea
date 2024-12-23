@@ -1,9 +1,7 @@
 use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{
-    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
-};
+use sov_rollup_interface::da::{BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
 use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash};
