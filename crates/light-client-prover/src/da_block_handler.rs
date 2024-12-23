@@ -17,7 +17,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace}
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
-    LightClientCircuitInput, LightClientCircuitOutput, Proof, ZkvmHost,
+    LightClientCircuitInput, LightClientCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
 };
 use sov_stf_runner::ProverService;
 use tokio::select;
@@ -162,12 +162,23 @@ where
         let mut assumptions = vec![];
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
-                let batch_proof_output = Vm::extract_output::<
+                let last_l2_height = match Vm::extract_output::<
                     <Da as DaService>::Spec,
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
-                .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                let last_l2_height = batch_proof_output.last_l2_height;
+                {
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        Vm::extract_output::<
+                            <Da as DaService>::Spec,
+                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                        >(&proof)
+                        .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
+                        0
+                    }
+                };
                 let current_spec = fork_from_block_number(last_l2_height).spec_id;
                 let batch_proof_method_id = self
                     .batch_proof_code_commitments
