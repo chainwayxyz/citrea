@@ -116,7 +116,6 @@ risc0-zkvm-platform = { version = "1.2.0" }
 risc0-zkp = { version = "1.2.0" }
 risc0-circuit-rv32im = { version = "1.2.0" }
 risc0-build = { version = "1.2.0" }
-bonsai-sdk = { version = "1.2.0" }
 
 # EVM dependencies
 revm-inspectors = { version = "=0.8.1", default-features = false }
