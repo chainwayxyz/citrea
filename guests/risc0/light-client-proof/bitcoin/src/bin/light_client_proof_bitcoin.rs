@@ -40,6 +40,8 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
+const INITIAL_BATCH_PROOF_METHOD_IDS = [(SpecId::Genesis, [0u8; 32]), (SpecId::Fork1, [1u8; 32])];
+
 const BATCH_PROOF_METHOD_ID: [u32; 8] = {
     // TODO: Don't forget to always update devnet, testnet, mainnet method ids just before release
     let hex_method_id = match NETWORK {
@@ -94,7 +96,7 @@ pub fn main() {
 
     let input = guest.read_from_host();
 
-    let output = run_circuit::<BitcoinVerifier, Risc0Guest>(da_verifier, input, L2_GENESIS_ROOT, BATCH_PROOF_METHOD_ID, &BATCH_PROVER_DA_PUBLIC_KEY).unwrap();
+    let output = run_circuit::<BitcoinVerifier, Risc0Guest>(da_verifier, input, L2_GENESIS_ROOT, INITIAL_BATCH_PROOF_METHOD_IDS, &BATCH_PROVER_DA_PUBLIC_KEY).unwrap();
 
     guest.commit(&output);
 }

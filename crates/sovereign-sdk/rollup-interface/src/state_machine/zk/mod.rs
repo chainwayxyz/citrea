@@ -285,6 +285,7 @@ pub struct LightClientCircuitOutput<Da: DaSpec> {
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
+    pub batch_proof_method_ids: ...,
 }
 
 /// The input of light client proof

@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
+
 use borsh::BorshDeserialize;
-use sov_modules_api::BlobReaderTrait;
+use sov_modules_api::{BlobReaderTrait, SpecId};
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
@@ -19,7 +21,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
     input: LightClientCircuitInput<DaV::Spec>,
     l2_genesis_root: [u8; 32],
-    batch_proof_method_id: [u32; 8],
+    initial_batch: ...,
     batch_prover_da_public_key: &[u8],
 ) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
     // Extract previous light client proof output
@@ -39,6 +41,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         } else {
             None
         };
+
+    let mut batch_proof_method_ids =
+        previous_light_client_proof_output.map_or_else(initial_batch, |o| o.batch_proof_method_ids);
 
     let block_updates = da_verifier
         .verify_header_chain(&previous_light_client_proof_output, &input.da_block_header)
@@ -120,6 +125,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
+                    DaDataLightClient::UpdateId => {
+                        if pubkey = auth {
+                            batch_proof_method_ids.push(new_id);
+                        }
+                    }
                 }
             }
         }
@@ -151,5 +161,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         da_prev_11_timestamps: block_updates.prev_11_timestamps,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
+        batch_proof_method_ids,
     })
 }
