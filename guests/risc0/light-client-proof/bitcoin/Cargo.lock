@@ -613,7 +613,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "bincode",
  "borsh",
@@ -624,7 +624,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-adapter"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -647,7 +647,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-risc0-batch-proof"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "risc0-build",
 ]
@@ -1272,7 +1272,7 @@ dependencies = [
 
 [[package]]
 name = "light-client-proof-bitcoin"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bitcoin-da",
@@ -1951,7 +1951,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -1971,7 +1971,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -1989,7 +1989,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-stf-blueprint"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2019,7 +2019,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "0.5.0-rc.1"
+version = "0.6.0"
 dependencies = [
  "alloy-rlp",
  "anyhow",
