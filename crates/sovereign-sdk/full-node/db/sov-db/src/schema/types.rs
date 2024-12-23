@@ -53,6 +53,8 @@ pub struct StoredLatestDaState {
     pub total_work: [u8; 32],
     /// Current target bits of DA
     pub current_target_bits: u32,
+    /// Target bits of the current epoch. Only useful for Testnet4
+    pub epoch_target_bits: u32,
     /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
     pub epoch_start_time: u32,
     /// The UNIX timestamps in seconds of the previous 11 blocks

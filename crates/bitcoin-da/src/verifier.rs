@@ -292,6 +292,8 @@ impl BitcoinVerifier {
             epoch_start_time,
             prev_11_timestamps,
             current_target_bits,
+            // Epoch target bits is irrelevant in mainnet
+            epoch_target_bits: 0,
         })
     }
 
@@ -417,6 +419,8 @@ impl BitcoinVerifier {
             epoch_start_time,
             prev_11_timestamps,
             current_target_bits,
+            // Epoch target bits is irrelevant in signet
+            epoch_target_bits: 0,
         })
     }
 
@@ -441,6 +445,8 @@ impl BitcoinVerifier {
             // Prev 11 timestamps is irrelevant in regtest
             prev_11_timestamps: [0; 11],
             current_target_bits: network_constants.max_bits,
+            // Epoch target bits is irrelevant in regtest
+            epoch_target_bits: 0,
         };
         let latest_da_state = latest_da_state.unwrap_or(&initial_regtest_state);
 
@@ -463,7 +469,7 @@ impl BitcoinVerifier {
             epoch_start_time: 0,
             prev_11_timestamps,
             current_target_bits: block_header.bits(),
-            epoch_target_bits: block_header.bits(),
+            epoch_target_bits: 0,
         })
     }
 
