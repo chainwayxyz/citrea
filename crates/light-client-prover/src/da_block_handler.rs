@@ -263,7 +263,6 @@ where
                 block_height: latest_da_state.block_height,
                 total_work: latest_da_state.total_work,
                 current_target_bits: latest_da_state.current_target_bits,
-                epoch_target_bits: latest_da_state.epoch_target_bits,
                 epoch_start_time: latest_da_state.epoch_start_time,
                 prev_11_timestamps: latest_da_state.prev_11_timestamps,
             },

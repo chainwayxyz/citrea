@@ -290,7 +290,6 @@ impl BitcoinVerifier {
             block_height: block_header.height(),
             total_work,
             current_target_bits,
-            epoch_target_bits: None,
             epoch_start_time,
             prev_11_timestamps,
         })
@@ -357,8 +356,6 @@ impl BitcoinVerifier {
             block_height: block_header.height(),
             total_work,
             current_target_bits,
-            // TODO: handle this
-            epoch_target_bits: None,
             epoch_start_time,
             prev_11_timestamps,
         })
@@ -418,7 +415,6 @@ impl BitcoinVerifier {
             block_height: block_header.height(),
             total_work,
             current_target_bits,
-            epoch_target_bits: None,
             epoch_start_time,
             prev_11_timestamps,
         })
@@ -440,12 +436,11 @@ impl BitcoinVerifier {
             block_height: block_header.height() - 1,
             // Total work is irrelevant in regtest
             total_work: [0; 32],
+            current_target_bits: network_constants.max_bits,
             // Epoch start time is irrelevant in regtest
             epoch_start_time: 0,
             // Prev 11 timestamps is irrelevant in regtest
             prev_11_timestamps: [0; 11],
-            current_target_bits: network_constants.max_bits,
-            epoch_target_bits: None,
         };
         let latest_da_state = latest_da_state.unwrap_or(&initial_regtest_state);
 
@@ -466,7 +461,6 @@ impl BitcoinVerifier {
             block_height: block_header.height(),
             total_work: [0; 32],
             current_target_bits: block_header.bits(),
-            epoch_target_bits: None,
             epoch_start_time: 0,
             prev_11_timestamps,
         })

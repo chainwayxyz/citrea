@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
+    BlobReaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
 };
 use sov_rollup_interface::Network;
 
@@ -79,10 +79,9 @@ impl DaVerifier for MockDaVerifier {
                 block_hash: block_header.hash.0,
                 block_height: block_header.height,
                 total_work: [0; 32],
-                epoch_start_time: block_header.time.secs() as u32,
+                current_target_bits: 0,
+                epoch_start_time: 0,
                 prev_11_timestamps: [0; 11],
-                current_target_bits: block_header.bits(),
-                epoch_target_bits: None,
             });
         };
         // Check block heights are consecutive
@@ -101,10 +100,9 @@ impl DaVerifier for MockDaVerifier {
             block_hash: block_header.hash.0,
             block_height: block_header.height,
             total_work: [0; 32],
+            current_target_bits: 0,
             epoch_start_time: 0,
             prev_11_timestamps: [0; 11],
-            current_target_bits: 0,
-            epoch_target_bits: None,
         })
     }
 }

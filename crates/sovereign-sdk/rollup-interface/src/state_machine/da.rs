@@ -128,8 +128,6 @@ pub struct LatestDaState {
     pub total_work: [u8; 32],
     /// Current target bits of the DA block
     pub current_target_bits: u32,
-    /// Target bits of the current block's epoch. This is needed for Testnet4 BIP-94.
-    pub epoch_target_bits: Option<u32>,
     /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
     pub epoch_start_time: u32,
     /// The UNIX timestamps in seconds of the previous 11 blocks

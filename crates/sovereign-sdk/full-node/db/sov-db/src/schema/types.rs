@@ -53,8 +53,6 @@ pub struct StoredLatestDaState {
     pub total_work: [u8; 32],
     /// Current target bits of DA
     pub current_target_bits: u32,
-    /// Target bits of the current epoch. Only useful for Testnet4
-    pub epoch_target_bits: Option<u32>,
     /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
     pub epoch_start_time: u32,
     /// The UNIX timestamps in seconds of the previous 11 blocks
@@ -103,7 +101,6 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                 block_height: value.latest_da_state.block_height,
                 total_work: value.latest_da_state.total_work,
                 current_target_bits: value.latest_da_state.current_target_bits,
-                epoch_target_bits: value.latest_da_state.epoch_target_bits,
                 epoch_start_time: value.latest_da_state.epoch_start_time,
                 prev_11_timestamps: value.latest_da_state.prev_11_timestamps,
             },
