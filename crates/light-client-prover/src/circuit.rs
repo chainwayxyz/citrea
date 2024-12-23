@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
-
 use borsh::BorshDeserialize;
+use citrea_primitives::forks::fork_from_block_number;
 use sov_modules_api::{BlobReaderTrait, SpecId};
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
-    ZkvmGuest,
+    OldBatchProofCircuitOutput, ZkvmGuest,
 };
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
@@ -17,11 +16,13 @@ pub enum LightClientVerificationError {
     InvalidPreviousLightClientProof,
 }
 
+type InitialBatchProofMethodIds = Vec<(SpecId, [u32; 8])>;
+
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
     input: LightClientCircuitInput<DaV::Spec>,
     l2_genesis_root: [u8; 32],
-    initial_batch: ...,
+    initial_batch_proof_method_ids: InitialBatchProofMethodIds,
     batch_prover_da_public_key: &[u8],
 ) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
     // Extract previous light client proof output
@@ -42,8 +43,28 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             None
         };
 
-    let mut batch_proof_method_ids =
-        previous_light_client_proof_output.map_or_else(initial_batch, |o| o.batch_proof_method_ids);
+    let (mut last_state_root, mut last_l2_height) =
+        previous_light_client_proof_output.as_ref().map_or_else(
+            || {
+                // if no previous proof, we start from genesis state root
+                (l2_genesis_root, 0)
+            },
+            |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
+        );
+
+    let batch_proof_method_ids = previous_light_client_proof_output
+        .as_ref()
+        .map_or(initial_batch_proof_method_ids, |o| {
+            o.batch_proof_method_ids.clone()
+        });
+
+    let spec_id = fork_from_block_number(last_l2_height).spec_id;
+
+    // Get the method id of spec id with binary search
+    let batch_proof_method_id_index = batch_proof_method_ids
+        .binary_search_by_key(&(spec_id as u8), |(id, _)| *id as u8)
+        .unwrap();
+    let batch_proof_method_id = batch_proof_method_ids[batch_proof_method_id_index].1;
 
     let block_updates = da_verifier
         .verify_header_chain(&previous_light_client_proof_output, &input.da_block_header)
@@ -62,15 +83,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
-
-    let (mut last_state_root, mut last_l2_height) =
-        previous_light_client_proof_output.as_ref().map_or_else(
-            || {
-                // if no previous proof, we start from genesis state root
-                (l2_genesis_root, 0)
-            },
-            |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
-        );
 
     // If we have a previous light client proof, check they can be chained
     // If not, skip for now
@@ -99,37 +111,49 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
                         // TODO: select output version based on the spec
-                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
-                            match G::verify_and_extract_output(
-                                &journal,
-                                &batch_proof_method_id.into(),
-                            ) {
-                                Ok(output) => output,
-                                Err(_) => continue,
-                            };
+                        let (
+                            batch_proof_output_initial_state_root,
+                            batch_proof_output_final_state_root,
+                            batch_proof_output_last_l2_height,
+                        ) = match G::verify_and_extract_output::<
+                            BatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
+                        >(&journal, &batch_proof_method_id.into())
+                        {
+                            Ok(output) => (
+                                output.initial_state_root,
+                                output.final_state_root,
+                                output.last_l2_height,
+                            ),
+                            Err(_) => {
+                                if let Ok(output) = G::verify_and_extract_output::<
+                                    OldBatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
+                                >(
+                                    &journal, &batch_proof_method_id.into()
+                                ) {
+                                    (output.initial_state_root, output.final_state_root, 0)
+                                } else {
+                                    continue;
+                                }
+                            }
+                        };
 
                         // Do not add if last l2 height is smaller or equal to previous output
                         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-                        if batch_proof_output.last_l2_height <= last_l2_height {
+                        if batch_proof_output_last_l2_height <= last_l2_height {
                             continue;
                         }
 
                         recursive_match_state_roots(
                             &mut initial_to_final,
                             &BatchProofInfo::new(
-                                batch_proof_output.initial_state_root,
-                                batch_proof_output.final_state_root,
-                                batch_proof_output.last_l2_height,
+                                batch_proof_output_initial_state_root,
+                                batch_proof_output_final_state_root,
+                                batch_proof_output_last_l2_height,
                             ),
                         );
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
-                    DaDataLightClient::UpdateId => {
-                        if pubkey = auth {
-                            batch_proof_method_ids.push(new_id);
-                        }
-                    }
                 }
             }
         }

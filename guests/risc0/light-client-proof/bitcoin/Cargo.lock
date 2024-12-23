@@ -617,6 +617,7 @@ version = "0.5.0-rc.1"
 dependencies = [
  "bincode",
  "borsh",
+ "citrea-primitives",
  "hex",
  "sov-modules-api",
  "sov-rollup-interface",
