@@ -1,5 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::vec;
 
 use alloy_primitives::U64;
 use anyhow::anyhow;
@@ -46,6 +47,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     sequencer_client: Arc<HttpClient>,
+    mmr_native: MMRNative,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -159,6 +161,8 @@ where
             batch_proofs.len()
         );
 
+        let mut mmr_hints = vec![];
+
         let mut assumptions = vec![];
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
@@ -178,6 +182,25 @@ where
                     continue;
                 }
                 assumptions.push(proof);
+            } else if let DaDataLightClient::Aggregate(a, b) = batch_proof {
+                for wtxid in a {
+                    if wtxid not in block {
+                        let (chunk_from_db, proof) = self.ledger_db.get_chunk_with_proof(wtxid, self.mmr_native);
+
+                        mmr_hints.push((chunk_from_db, proof));
+                    }
+                }
+
+                // 2 blocks
+                // block 1 chunk-1
+                // block 2 chunk-2, aggr(chunk-1, chunk-2)
+            } else if let DaDataLightClient::Chunk(c) = batch_proof {
+                if chunk not used by any aggregate in block {
+                    self.mmr_native.add_leaf(chunk); // TODO: this should happen after circuit execution
+                    // to not change tree until proof is generated
+
+                    // also save to db
+                }
             }
         }
         let previous_l1_height = l1_height - 1;

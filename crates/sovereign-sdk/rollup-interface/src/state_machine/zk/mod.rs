@@ -211,6 +211,7 @@ impl BatchProofInfo {
     }
 }
 
+type MMRGuest = usize;
 /// The output of light client proof
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct LightClientCircuitOutput<Da: DaSpec> {
@@ -237,9 +238,12 @@ pub struct LightClientCircuitOutput<Da: DaSpec> {
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
     /// A map from tx hash to chunk data
-    pub unprocessed_chunks: BTreeMap<[u8; 32], Vec<u8>>,
+    /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
+    /// like 32 hashes and some u64
+    pub unprocessed_chunks: MMRGuest,
 }
 
+type MMRHint = usize;
 /// The input of light client proof
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct LightClientCircuitInput<Da: DaSpec> {
@@ -257,4 +261,6 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Light client proof output
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
+    ///
+    pub mmr_hints: Vec<MMRHint>,
 }
