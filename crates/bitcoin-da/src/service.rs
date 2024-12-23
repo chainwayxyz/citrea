@@ -81,6 +81,7 @@ pub struct BitcoinServiceConfig {
     pub tx_backup_dir: String,
 
     pub monitoring: Option<MonitoringConfig>,
+    pub mempool_space_url: Option<String>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -97,6 +98,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                 history_limit: std::env::var("DA_MONITORING_HISTORY_LIMIT")?.parse()?,
                 max_history_size: std::env::var("DA_MONITORING_MAX_HISTORY_SIZE")?.parse()?,
             }),
+            mempool_space_url: std::env::var("MEMPOOL_SPACE_URL").ok(),
         })
     }
 }
@@ -153,7 +155,7 @@ impl BitcoinService {
         }
 
         let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
-        let fee = FeeService::new(client.clone(), config.network);
+        let fee = FeeService::new(client.clone(), config.network, config.mempool_space_url);
         Ok(Self {
             client,
             network: config.network,
@@ -195,7 +197,7 @@ impl BitcoinService {
         }
 
         let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
-        let fee = FeeService::new(client.clone(), config.network);
+        let fee = FeeService::new(client.clone(), config.network, config.mempool_space_url);
 
         Ok(Self {
             client,
