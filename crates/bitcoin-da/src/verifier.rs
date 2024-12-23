@@ -227,10 +227,39 @@ impl DaVerifier for BitcoinVerifier {
         network: Network,
     ) -> Result<LatestDaState, Self::Error> {
         match network {
-            Network::Mainnet => self.verify_header_chain_mainnet(latest_da_state, block_header),
-            Network::Testnet => self.verify_header_chain_testnet4(latest_da_state, block_header),
-            Network::Devnet => self.verify_header_chain_signet(latest_da_state, block_header),
-            Network::Nightly => self.verify_header_chain_regtest(latest_da_state, block_header),
+            Network::Mainnet => self.verify_header_chain_mainnet(
+                latest_da_state.unwrap_or(&INITIAL_MAINNET_STATE),
+                block_header,
+            ),
+            Network::Testnet => self.verify_header_chain_testnet4(
+                latest_da_state.unwrap_or(&INITIAL_TESTNET4_STATE),
+                block_header,
+            ),
+            Network::Devnet => self.verify_header_chain_signet(
+                latest_da_state.unwrap_or(&INITIAL_SIGNET_STATE),
+                block_header,
+            ),
+            Network::Nightly => {
+                if let Some(latest_da_state) = latest_da_state {
+                    self.verify_header_chain_regtest(latest_da_state, block_header)
+                } else {
+                    // For regtest, if this is the first light client proof, we always
+                    // consider the block valid with respect to its parent block, so
+                    // it can start from anywhere.
+                    let initial_regtest_state = LatestDaState {
+                        block_hash: block_header.prev_hash().to_byte_array(),
+                        block_height: block_header.height() - 1,
+                        // Total work is irrelevant in regtest
+                        total_work: [0; 32],
+                        current_target_bits: REGTEST_CONSTANTS.max_bits,
+                        // Epoch start time is irrelevant in regtest
+                        epoch_start_time: 0,
+                        // Prev 11 timestamps is irrelevant in regtest
+                        prev_11_timestamps: [0; 11],
+                    };
+                    self.verify_header_chain_regtest(&initial_regtest_state, block_header)
+                }
+            }
         }
     }
 }
@@ -238,11 +267,10 @@ impl DaVerifier for BitcoinVerifier {
 impl BitcoinVerifier {
     fn verify_header_chain_mainnet(
         &self,
-        latest_da_state: Option<&LatestDaState>,
+        latest_da_state: &LatestDaState,
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = MAINNET_CONSTANTS;
-        let latest_da_state = latest_da_state.unwrap_or(&INITIAL_MAINNET_STATE);
 
         let target = bits_to_target(latest_da_state.current_target_bits);
         let work_add = target_to_work(&target);
@@ -297,11 +325,10 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_testnet4(
         &self,
-        latest_da_state: Option<&LatestDaState>,
+        latest_da_state: &LatestDaState,
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = TESTNET4_CONSTANTS;
-        let latest_da_state = latest_da_state.unwrap_or(&INITIAL_TESTNET4_STATE);
 
         let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
         let latest_block_time =
@@ -364,11 +391,10 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_signet(
         &self,
-        latest_da_state: Option<&LatestDaState>,
+        latest_da_state: &LatestDaState,
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         let network_constants = SIGNET_CONSTANTS;
-        let latest_da_state = latest_da_state.unwrap_or(&INITIAL_SIGNET_STATE);
 
         let target = bits_to_target(latest_da_state.current_target_bits);
         let work_add = target_to_work(&target);
@@ -423,27 +449,12 @@ impl BitcoinVerifier {
 
     fn verify_header_chain_regtest(
         &self,
-        latest_da_state: Option<&LatestDaState>,
+        latest_da_state: &LatestDaState,
         block_header: &HeaderWrapper,
     ) -> Result<LatestDaState, ValidationError> {
         assert_ne!(block_header.height(), 0, "Height must not be 0 in regtest");
 
         let network_constants = REGTEST_CONSTANTS;
-        // For regtest, if this is the first light client proof, we always
-        // consider the block valid with respect to its parent block, so
-        // it can start from anywhere.
-        let initial_regtest_state = LatestDaState {
-            block_hash: block_header.prev_hash().to_byte_array(),
-            block_height: block_header.height() - 1,
-            // Total work is irrelevant in regtest
-            total_work: [0; 32],
-            current_target_bits: network_constants.max_bits,
-            // Epoch start time is irrelevant in regtest
-            epoch_start_time: 0,
-            // Prev 11 timestamps is irrelevant in regtest
-            prev_11_timestamps: [0; 11],
-        };
-        let latest_da_state = latest_da_state.unwrap_or(&initial_regtest_state);
 
         // Verify common header chain rules
         self.verify_header_chain_common(
