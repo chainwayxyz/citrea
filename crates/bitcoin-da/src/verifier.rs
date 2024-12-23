@@ -435,13 +435,11 @@ impl BitcoinVerifier {
         };
         let latest_da_state = latest_da_state.unwrap_or(&initial_regtest_state);
 
-        let target = network_constants.max_target.to_be_bytes();
-
         // Verify common header chain rules
         self.verify_header_chain_common(
             block_header,
             latest_da_state,
-            target,
+            network_constants.max_target.to_be_bytes(),
             network_constants.max_bits,
         )?;
 
@@ -605,7 +603,7 @@ fn target_to_work(target: &[u8; 32]) -> U256 {
 fn calculate_new_difficulty(
     epoch_start_time: u32,
     last_timestamp: u32,
-    current_target: u32,
+    current_target_bits: u32,
     max_target: U256,
 ) -> [u8; 32] {
     // Step 1: Calculate the actual timespan of the epoch
@@ -616,7 +614,7 @@ fn calculate_new_difficulty(
         actual_timespan = EXPECTED_EPOCH_TIMESPAN * 4;
     }
     // Step 2: Calculate the new target
-    let new_target_bytes = bits_to_target(current_target);
+    let new_target_bytes = bits_to_target(current_target_bits);
     let mut new_target = U256::from_be_bytes(new_target_bytes)
         .wrapping_mul(&U256::from(actual_timespan))
         .wrapping_div(&U256::from(EXPECTED_EPOCH_TIMESPAN));
