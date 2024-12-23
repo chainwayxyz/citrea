@@ -34,9 +34,18 @@ pub struct FeeService {
 }
 
 impl FeeService {
-    pub fn new(client: Arc<Client>, network: bitcoin::Network, mempool_space_url: Option<String>) -> Self {
-        let mempool_space_url = mempool_space_url.unwrap_or_else(|| DEFAULT_MEMPOOL_SPACE_URL.to_string());
-        Self { client, network, mempool_space_url}
+    pub fn new(
+        client: Arc<Client>,
+        network: bitcoin::Network,
+        mempool_space_url: Option<String>,
+    ) -> Self {
+        let mempool_space_url =
+            mempool_space_url.unwrap_or_else(|| DEFAULT_MEMPOOL_SPACE_URL.to_string());
+        Self {
+            client,
+            network,
+            mempool_space_url,
+        }
     }
 
     #[instrument(level = "trace", skip_all, ret)]
@@ -58,13 +67,14 @@ impl FeeService {
     #[instrument(level = "trace", skip_all, ret)]
     pub async fn get_fee_rate_as_sat_vb(&self) -> Result<u64> {
         // If network is regtest or signet, mempool space is not available
-        let smart_fee = match get_fee_rate_from_mempool_space(self.network, &self.mempool_space_url).await {
-            Ok(fee_rate) => fee_rate,
-            Err(e) => {
-                tracing::error!(?e, "Failed to get fee rate from mempool.space");
-                self.client.estimate_smart_fee(1, None).await?.fee_rate
-            }
-        };
+        let smart_fee =
+            match get_fee_rate_from_mempool_space(self.network, &self.mempool_space_url).await {
+                Ok(fee_rate) => fee_rate,
+                Err(e) => {
+                    tracing::error!(?e, "Failed to get fee rate from mempool.space");
+                    self.client.estimate_smart_fee(1, None).await?.fee_rate
+                }
+            };
         let sat_vkb = smart_fee.map_or(1000, |rate| rate.to_sat());
 
         tracing::debug!("Fee rate: {} sat/vb", sat_vkb / 1000);
@@ -179,18 +189,20 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
 #[cfg(test)]
 mod tests {
 
-    use super::{DEFAULT_MEMPOOL_SPACE_URL, get_fee_rate_from_mempool_space};
+    use super::{get_fee_rate_from_mempool_space, DEFAULT_MEMPOOL_SPACE_URL};
 
     #[tokio::test]
     async fn test_mempool_space_fee_rate() {
         let mempool_space_url = DEFAULT_MEMPOOL_SPACE_URL;
 
-        let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Bitcoin, mempool_space_url)
-            .await
-            .unwrap();
-        let _fee_rate = get_fee_rate_from_mempool_space(bitcoin::Network::Testnet, mempool_space_url)
-            .await
-            .unwrap();
+        let _fee_rate =
+            get_fee_rate_from_mempool_space(bitcoin::Network::Bitcoin, mempool_space_url)
+                .await
+                .unwrap();
+        let _fee_rate =
+            get_fee_rate_from_mempool_space(bitcoin::Network::Testnet, mempool_space_url)
+                .await
+                .unwrap();
         assert_eq!(
             None,
             get_fee_rate_from_mempool_space(bitcoin::Network::Regtest, mempool_space_url)
