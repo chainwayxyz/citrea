@@ -303,11 +303,13 @@ impl BitcoinVerifier {
         let network_constants = TESTNET4_CONSTANTS;
         let latest_da_state = latest_da_state.unwrap_or(&INITIAL_TESTNET4_STATE);
 
+        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
         let latest_block_time =
             latest_da_state.prev_11_timestamps[latest_da_state.block_height as usize % 11];
-        // If more than 20 minutes passed since latest block, reset target
+
+        // If more than 20 minutes passed since latest block and this is not epoch block 0, reset target
         let (target, expected_bits) =
-            if block_header.time().secs() as u32 > latest_block_time + 1200 {
+            if epoch_block != 0 && block_header.time().secs() as u32 > latest_block_time + 1200 {
                 let target = network_constants.max_target.to_be_bytes();
                 (target, network_constants.max_bits)
             } else {
@@ -323,8 +325,6 @@ impl BitcoinVerifier {
         let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
-        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
-
         // Check if this is the first epoch block, and update time accordingly
         let epoch_start_time = if epoch_block == 0 {
             block_header.time().secs() as u32
@@ -338,13 +338,14 @@ impl BitcoinVerifier {
                 epoch_start_time,
                 block_header.time().secs() as u32,
                 // If 20 minute exception happened on last block of the difficulty period,
-                // previous block's target should be used.
+                // previous block's target should be used. If didn't happen, it is going
+                // to be equal to current block bits anyway.
                 latest_da_state.current_target_bits,
                 network_constants.max_target,
             );
             target_to_bits(&next_target)
         } else {
-            block_header.bits()
+            latest_da_state.current_target_bits
         };
 
         let total_work = U256::from_be_bytes(latest_da_state.total_work)
