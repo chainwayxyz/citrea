@@ -255,28 +255,31 @@ impl BitcoinVerifier {
             latest_da_state.current_target_bits,
         )?;
 
-        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
-        // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = latest_da_state.epoch_start_time;
-        if epoch_block == 0 {
-            epoch_start_time = block_header.time().secs() as u32;
-        }
-
         // Update previous timestamps
         let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
-        // If the next block is epoch start block, calculate the next epoch's difficulty target
-        let mut current_target_bits = block_header.bits();
-        if epoch_block == BLOCKS_PER_EPOCH - 1 {
+        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
+
+        // Check if this is the first epoch block, and update time accordingly
+        let epoch_start_time = if epoch_block == 0 {
+            block_header.time().secs() as u32
+        } else {
+            latest_da_state.epoch_start_time
+        };
+
+        // If this is the last block of the epoch, calculate the target for the next epoch
+        let current_target_bits = if epoch_block == BLOCKS_PER_EPOCH - 1 {
             let next_target = calculate_new_difficulty(
                 epoch_start_time,
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
             );
-            current_target_bits = target_to_bits(&next_target);
-        }
+            target_to_bits(&next_target)
+        } else {
+            block_header.bits()
+        };
 
         let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
@@ -316,20 +319,21 @@ impl BitcoinVerifier {
         // Verify common header chain rules
         self.verify_header_chain_common(block_header, latest_da_state, target, expected_bits)?;
 
-        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
-        // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = latest_da_state.epoch_start_time;
-        if epoch_block == 0 {
-            epoch_start_time = block_header.time().secs() as u32;
-        }
-
         // Update previous timestamps
         let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
-        // If the next block is epoch start block, calculate the next epoch's difficulty target
-        let mut current_target_bits = block_header.bits();
-        if epoch_block == BLOCKS_PER_EPOCH - 1 {
+        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
+
+        // Check if this is the first epoch block, and update time accordingly
+        let epoch_start_time = if epoch_block == 0 {
+            block_header.time().secs() as u32
+        } else {
+            latest_da_state.epoch_start_time
+        };
+
+        // If this is the last block of the epoch, calculate the target for the next epoch
+        let current_target_bits = if epoch_block == BLOCKS_PER_EPOCH - 1 {
             let next_target = calculate_new_difficulty(
                 epoch_start_time,
                 block_header.time().secs() as u32,
@@ -338,8 +342,10 @@ impl BitcoinVerifier {
                 latest_da_state.current_target_bits,
                 network_constants.max_target,
             );
-            current_target_bits = target_to_bits(&next_target);
-        }
+            target_to_bits(&next_target)
+        } else {
+            block_header.bits()
+        };
 
         let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
@@ -374,28 +380,31 @@ impl BitcoinVerifier {
             latest_da_state.current_target_bits,
         )?;
 
-        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
-        // Check if this is epoch block, and update time accordingly
-        let mut epoch_start_time = latest_da_state.epoch_start_time;
-        if epoch_block == 0 {
-            epoch_start_time = block_header.time().secs() as u32;
-        }
-
         // Update previous timestamps
         let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
+        let epoch_block = block_header.height() % BLOCKS_PER_EPOCH;
+
+        // Check if this is epoch block, and update time accordingly
+        let epoch_start_time = if epoch_block == 0 {
+            block_header.time().secs() as u32
+        } else {
+            latest_da_state.epoch_start_time
+        };
+
         // If the next block is epoch start block, calculate the next epoch's difficulty target
-        let mut current_target_bits = block_header.bits();
-        if epoch_block == BLOCKS_PER_EPOCH - 1 {
+        let current_target_bits = if epoch_block == BLOCKS_PER_EPOCH - 1 {
             let next_target = calculate_new_difficulty(
                 epoch_start_time,
                 block_header.time().secs() as u32,
                 block_header.bits(),
                 network_constants.max_target,
             );
-            current_target_bits = target_to_bits(&next_target);
-        }
+            target_to_bits(&next_target)
+        } else {
+            block_header.bits()
+        };
 
         let total_work = U256::from_be_bytes(latest_da_state.total_work)
             .saturating_add(&work_add)
