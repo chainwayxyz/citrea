@@ -436,7 +436,6 @@ impl BitcoinVerifier {
         let latest_da_state = latest_da_state.unwrap_or(&initial_regtest_state);
 
         let target = network_constants.max_target.to_be_bytes();
-        let work_add = target_to_work(&target);
 
         // Verify common header chain rules
         self.verify_header_chain_common(
@@ -450,15 +449,11 @@ impl BitcoinVerifier {
         let mut prev_11_timestamps = latest_da_state.prev_11_timestamps;
         prev_11_timestamps[block_header.height() as usize % 11] = block_header.time().secs() as u32;
 
-        let total_work = U256::from_be_bytes(latest_da_state.total_work)
-            .saturating_add(&work_add)
-            .to_be_bytes();
-
         Ok(LatestDaState {
             block_hash: block_header.hash().to_byte_array(),
             block_height: block_header.height(),
-            total_work,
-            epoch_start_time: latest_da_state.epoch_start_time,
+            total_work: [0; 32],
+            epoch_start_time: 0,
             prev_11_timestamps,
             current_target_bits: block_header.bits(),
         })
