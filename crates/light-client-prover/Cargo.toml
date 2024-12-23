@@ -11,7 +11,7 @@ repository.workspace = true
 [dependencies]
 # Citrea Deps
 citrea-common = { path = "../common", optional = true }
-citrea-primitives = { path = "../primitives" }
+citrea-primitives = { path = "../primitives", optional = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
@@ -45,6 +45,7 @@ tempfile = { workspace = true }
 default = []
 native = [
   "dep:alloy-primitives",
+  "dep:citrea-primitives",
   "dep:citrea-common",
   "dep:sov-db",
   "dep:sov-stf-runner",
