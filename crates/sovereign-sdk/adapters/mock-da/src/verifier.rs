@@ -82,6 +82,7 @@ impl DaVerifier for MockDaVerifier {
                 epoch_start_time: block_header.time.secs() as u32,
                 prev_11_timestamps: [0; 11],
                 current_target_bits: block_header.bits(),
+                epoch_target_bits: 0,
             });
         };
         // Check block heights are consecutive
@@ -103,6 +104,7 @@ impl DaVerifier for MockDaVerifier {
             epoch_start_time: 0,
             prev_11_timestamps: [0; 11],
             current_target_bits: 0,
+            epoch_target_bits: 0,
         })
     }
 }

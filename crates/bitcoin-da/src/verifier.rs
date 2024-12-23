@@ -454,6 +454,7 @@ impl BitcoinVerifier {
             epoch_start_time: 0,
             prev_11_timestamps,
             current_target_bits: block_header.bits(),
+            epoch_target_bits: block_header.bits(),
         })
     }
 
