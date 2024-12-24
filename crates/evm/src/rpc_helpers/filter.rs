@@ -1,4 +1,4 @@
-// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-types/src/eth/filter.rs
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/filter.rs
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::iter::StepBy;
@@ -627,7 +627,7 @@ where
     }
 }
 
-// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/logs_utils.rs#L56
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-eth-types/src/logs_utils.rs#L56
 /// Returns true if the log matches the filter and should be included
 pub fn log_matches_filter(
     log: &reth_primitives::Log,
