@@ -22,8 +22,29 @@ use crate::spec::BitcoinSpec;
 
 pub const WITNESS_COMMITMENT_PREFIX: &[u8] = &[0x6a, 0x24, 0xaa, 0x21, 0xa9, 0xed];
 
-pub const METHOD_ID_UPGRADE_AUTHORITY: &[u8] =
-    &[0xde, 0xad, 0xde, 0xad, 0xde, 0xad, 0xde, 0xad, 0xde, 0xad]; // TODO
+pub const METHOD_ID_UPGRADE_AUTHORITY: [u8; 33] = {
+    const NETWORK: Network = match option_env!("CITREA_NETWORK") {
+        Some(network) => match Network::const_from_str(network) {
+            Some(network) => network,
+            None => panic!("Invalid CITREA_NETWORK value"),
+        },
+        None => Network::Nightly,
+    };
+    let hex_pub_key = match NETWORK {
+        Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Devnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Nightly => match option_env!("METHOD_ID_UPGRADE_AUTHORITY") {
+            Some(hex_pub_key) => hex_pub_key,
+            None => "000000000000000000000000000000000000000000000000000000000000000000",
+        },
+    };
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => panic!("METHOD_ID_UPGRADE_AUTHORITY must be valid 33-byte hex string"),
+    }
+};
 
 /// An epoch should be two weeks (represented as number of seconds)
 /// seconds/minute * minutes/hour * hours/day * 14 days
