@@ -1,7 +1,4 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
-
-use std::io::Cursor;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;
@@ -225,8 +222,7 @@ impl Zkvm for Risc0BonsaiHost {
     }
 
     fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
-        let mut reader = Cursor::new(journal);
-        Ok(T::deserialize_reader(&mut reader)?)
+        Ok(T::try_from_slice(journal)?)
     }
 
     fn verify_and_extract_output<T: BorshDeserialize>(
