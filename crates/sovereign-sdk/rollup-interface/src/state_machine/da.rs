@@ -26,7 +26,7 @@ pub struct SequencerCommitment {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct BatchProofMethodId {
     /// Merkle root of soft confirmation hashes
-    pub method_id: [u8; 32],
+    pub method_id: [u32; 8],
     /// Start L2 block's number
     pub l2_block_number: u64,
 }

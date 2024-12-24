@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     OldBatchProofCircuitOutput, ZkvmGuest,
@@ -25,6 +25,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     l2_genesis_root: [u8; 32],
     initial_batch_proof_method_ids: InitialBatchProofMethodIds,
     batch_prover_da_public_key: &[u8],
+    method_id_upgrade_authority_da_public_key: &[u8],
     network: Network,
 ) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
     // Extract previous light client proof output
@@ -45,7 +46,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             None
         };
 
-    let batch_proof_method_ids = previous_light_client_proof_output
+    let mut batch_proof_method_ids = previous_light_client_proof_output
         .as_ref()
         .map_or(initial_batch_proof_method_ids, |o| {
             o.batch_proof_method_ids.clone()
@@ -176,7 +177,28 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
-                    DaDataLightClient::BatchProofMethodId(_) => todo!(),
+                    DaDataLightClient::BatchProofMethodId(_) => {} // if coming from batch prover, ignore
+                }
+            }
+        } else if blob.sender().as_ref() == method_id_upgrade_authority_da_public_key {
+            let data = DaDataLightClient::try_from_slice(blob.verified_data());
+
+            if let Ok(data) = data {
+                match data {
+                    DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                        method_id,
+                        l2_block_number,
+                    }) => {
+                        let last_activation_height = batch_proof_method_ids
+                            .last()
+                            .expect("Should be at least one")
+                            .0;
+
+                        if l2_block_number > last_activation_height {
+                            batch_proof_method_ids.push((l2_block_number, method_id));
+                        }
+                    }
+                    _ => {} // ignore other types of data
                 }
             }
         }

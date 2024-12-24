@@ -1308,7 +1308,6 @@ dependencies = [
  "citrea-common",
  "citrea-e2e",
  "citrea-primitives",
- "const-hex",
  "crypto-bigint",
  "futures",
  "hex",
