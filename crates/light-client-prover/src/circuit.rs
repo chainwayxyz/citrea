@@ -183,22 +183,18 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         } else if blob.sender().as_ref() == method_id_upgrade_authority_da_public_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
-            if let Ok(data) = data {
-                match data {
-                    DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
-                        method_id,
-                        l2_block_number,
-                    }) => {
-                        let last_activation_height = batch_proof_method_ids
-                            .last()
-                            .expect("Should be at least one")
-                            .0;
+            if let Ok(DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                method_id,
+                l2_block_number,
+            })) = data
+            {
+                let last_activation_height = batch_proof_method_ids
+                    .last()
+                    .expect("Should be at least one")
+                    .0;
 
-                        if l2_block_number > last_activation_height {
-                            batch_proof_method_ids.push((l2_block_number, method_id));
-                        }
-                    }
-                    _ => {} // ignore other types of data
+                if l2_block_number > last_activation_height {
+                    batch_proof_method_ids.push((l2_block_number, method_id));
                 }
             }
         }

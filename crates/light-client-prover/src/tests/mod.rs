@@ -402,7 +402,7 @@ fn test_new_method_id_txs() {
     let method_id_upgrade_authority = [11u8; 32];
 
     let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority.clone());
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -433,7 +433,7 @@ fn test_new_method_id_txs() {
     );
 
     // now try wrong method id
-    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key.clone());
+    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -465,8 +465,8 @@ fn test_new_method_id_txs() {
     );
 
     // now try activation height < last activationg height and activation height = last activation height
-    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority.clone());
-    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_upgrade_authority.clone());
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
+    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_upgrade_authority);
 
     let block_header_3 = MockBlockHeader::from_height(3);
 
