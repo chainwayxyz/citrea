@@ -5,20 +5,18 @@ use async_trait::async_trait;
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
+use citrea_primitives::forks::use_network_forks;
 // use citrea_sp1::host::SP1Host;
 use citrea_risc0_adapter::host::Risc0BonsaiHost;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::Runtime;
-use citrea_stf::verifier::StateTransitionVerifier;
 use prover_services::{ParallelProverService, ProofGenMode};
 use sov_db::ledger_db::LedgerDB;
 use sov_mock_da::{MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier};
 use sov_modules_api::default_context::{DefaultContext, ZkDefaultContext};
 use sov_modules_api::{Address, Spec, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::StfBlueprint;
 use sov_prover_storage_manager::ProverStorageManager;
-use sov_state::ZkStorage;
 use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
 
@@ -43,13 +41,10 @@ impl RollupBlueprint for MockDemoRollup {
     type NativeContext = DefaultContext;
     type ZkRuntime = Runtime<Self::ZkContext, Self::DaSpec>;
     type NativeRuntime = Runtime<Self::NativeContext, Self::DaSpec>;
-    type ProverService = ParallelProverService<
-        Self::DaService,
-        Self::Vm,
-        StfBlueprint<Self::ZkContext, Self::DaSpec, Self::ZkRuntime>,
-    >;
+    type ProverService = ParallelProverService<Self::DaService, Self::Vm>;
 
     fn new(network: Network) -> Self {
+        use_network_forks(network);
         Self { _network: network }
     }
 
@@ -91,7 +86,7 @@ impl RollupBlueprint for MockDemoRollup {
         _task_manager: &mut TaskManager<()>,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
         Ok(Arc::new(MockDaService::new(
-            rollup_config.da.sender_address,
+            rollup_config.da.sender_address.clone(),
             &rollup_config.da.db_path,
         )))
     }
@@ -136,25 +131,21 @@ impl RollupBlueprint for MockDemoRollup {
         &self,
         proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
-        da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
+        proof_sampling_number: usize,
     ) -> Self::ProverService {
         let vm = Risc0BonsaiHost::new(ledger_db.clone());
 
-        let zk_stf = StfBlueprint::new();
-        let zk_storage = ZkStorage::new();
-
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,
-            ProverGuestRunConfig::Simulate => {
-                let stf_verifier = StateTransitionVerifier::new(zk_stf, da_verifier);
-                ProofGenMode::Simulate(stf_verifier)
-            }
             ProverGuestRunConfig::Execute => ProofGenMode::Execute,
-            ProverGuestRunConfig::Prove => ProofGenMode::Prove,
+            ProverGuestRunConfig::Prove => ProofGenMode::ProveWithSampling,
+            ProverGuestRunConfig::ProveWithFakeProofs => {
+                ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number)
+            }
         };
 
-        ParallelProverService::new(da_service.clone(), vm, proof_mode, zk_storage, 1, ledger_db)
+        ParallelProverService::new(da_service.clone(), vm, proof_mode, 1, ledger_db)
             .expect("Should be able to instantiate prover service")
     }
 

@@ -531,12 +531,6 @@ async fn execute(client: &Box<TestClient>) -> Result<(), Box<dyn std::error::Err
 pub async fn init_test_rollup(rpc_address: SocketAddr) -> Box<TestClient> {
     let test_client = make_test_client(rpc_address).await.unwrap();
 
-    let etc_accounts = test_client.eth_accounts().await;
-    assert_eq!(
-        vec![Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap()],
-        etc_accounts
-    );
-
     let eth_chain_id = test_client.eth_chain_id().await;
     assert_eq!(5655, eth_chain_id);
 

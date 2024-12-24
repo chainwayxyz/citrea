@@ -1,12 +1,11 @@
-use std::ops::DerefMut;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future;
+use rand::Rng;
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaData;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::{oneshot, Mutex};
@@ -19,38 +18,32 @@ pub(crate) type Assumptions = Vec<Vec<u8>>;
 pub(crate) type ProofData = (Input, Assumptions);
 
 /// Prover service that generates proofs in parallel.
-pub struct ParallelProverService<Da, Vm, Stf>
+pub struct ParallelProverService<Da, Vm>
 where
     Da: DaService,
     Vm: ZkvmHost + 'static,
-    Stf: StateTransitionFunction<Da::Spec> + Send + Sync + 'static,
-    Stf::PreState: Clone + Send + Sync + 'static,
 {
     thread_pool: rayon::ThreadPool,
 
-    proof_mode: Arc<Mutex<ProofGenMode<Da, Vm, Stf>>>,
+    proof_mode: ProofGenMode,
 
     da_service: Arc<Da>,
     vm: Vm,
-    zk_storage: Stf::PreState,
     _ledger_db: LedgerDB,
 
     proof_queue: Arc<Mutex<Vec<ProofData>>>,
 }
 
-impl<Da, Vm, Stf> ParallelProverService<Da, Vm, Stf>
+impl<Da, Vm> ParallelProverService<Da, Vm>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Da::Spec> + Send + Sync,
-    Stf::PreState: Clone + Send + Sync,
 {
     /// Creates a new prover.
     pub fn new(
         da_service: Arc<Da>,
         vm: Vm,
-        proof_mode: ProofGenMode<Da, Vm, Stf>,
-        zk_storage: Stf::PreState,
+        proof_mode: ProofGenMode,
         thread_pool_size: usize,
         _ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
@@ -63,14 +56,20 @@ where
             ProofGenMode::Skip => {
                 tracing::info!("Prover is configured to skip proving");
             }
-            ProofGenMode::Simulate(_) => {
-                tracing::info!("Prover is configured to simulate proving");
-            }
             ProofGenMode::Execute => {
                 tracing::info!("Prover is configured to execute proving");
             }
-            ProofGenMode::Prove => {
+            ProofGenMode::ProveWithSampling => {
                 tracing::info!("Prover is configured to prove");
+            }
+            ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
+                if proof_sampling_number == 0 {
+                    tracing::info!("Prover is configured to always prove");
+                } else {
+                    tracing::info!(
+                        "Prover is configured to prove with fake proofs with 1/{proof_sampling_number} sampling"
+                    );
+                }
             }
         };
 
@@ -81,10 +80,9 @@ where
 
         Ok(Self {
             thread_pool,
-            proof_mode: Arc::new(Mutex::new(proof_mode)),
+            proof_mode,
             da_service,
             vm,
-            zk_storage,
             _ledger_db,
             proof_queue: Arc::new(Mutex::new(vec![])),
         })
@@ -95,8 +93,7 @@ where
     pub fn new_from_env(
         da_service: Arc<Da>,
         vm: Vm,
-        proof_mode: ProofGenMode<Da, Vm, Stf>,
-        zk_storage: Stf::PreState,
+        proof_mode: ProofGenMode,
         _ledger_db: LedgerDB,
     ) -> anyhow::Result<Self> {
         let thread_pool_size = std::env::var("PARALLEL_PROOF_LIMIT")
@@ -104,14 +101,7 @@ where
             .parse::<usize>()
             .expect("PARALLEL_PROOF_LIMIT must be valid unsigned number");
 
-        Self::new(
-            da_service,
-            vm,
-            proof_mode,
-            zk_storage,
-            thread_pool_size,
-            _ledger_db,
-        )
+        Self::new(da_service, vm, proof_mode, thread_pool_size, _ledger_db)
     }
 
     async fn prove_all(&self, elf: Vec<u8>, proof_queue: Vec<ProofData>) -> Vec<Proof> {
@@ -159,8 +149,7 @@ where
 
     async fn prove_one(&self, elf: Vec<u8>, (input, assumptions): ProofData) -> Proof {
         let mut vm = self.vm.clone();
-        let zk_storage = self.zk_storage.clone();
-        let proof_mode = self.proof_mode.clone();
+        let proof_mode = self.proof_mode;
 
         vm.add_hint(input);
         for assumption in assumptions {
@@ -169,8 +158,7 @@ where
 
         let (tx, rx) = oneshot::channel();
         self.thread_pool.spawn(move || {
-            let proof =
-                make_proof(vm, elf, zk_storage, proof_mode).expect("Proof creation must not fail");
+            let proof = make_proof(vm, elf, proof_mode).expect("Proof creation must not fail");
             let _ = tx.send(proof);
         });
 
@@ -187,12 +175,10 @@ where
 }
 
 #[async_trait]
-impl<Da, Vm, Stf> ProverService for ParallelProverService<Da, Vm, Stf>
+impl<Da, Vm> ProverService for ParallelProverService<Da, Vm>
 where
     Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Da::Spec> + Send + Sync,
-    Stf::PreState: Clone + Send + Sync,
 {
     type DaService = Da;
 
@@ -203,7 +189,7 @@ where
 
     async fn prove(&self, elf: Vec<u8>) -> anyhow::Result<Vec<Proof>> {
         let mut proof_queue = self.proof_queue.lock().await;
-        if let ProofGenMode::Skip = *self.proof_mode.lock().await {
+        if let ProofGenMode::Skip = self.proof_mode {
             tracing::debug!("Skipped proving {} proofs", proof_queue.len());
             proof_queue.clear();
             return Ok(vec![]);
@@ -243,33 +229,29 @@ where
     }
 }
 
-fn make_proof<Da, Vm, Stf>(
+fn make_proof<Vm>(
     mut vm: Vm,
     elf: Vec<u8>,
-    zk_storage: Stf::PreState,
-    proof_mode: Arc<Mutex<ProofGenMode<Da, Vm, Stf>>>,
+    proof_mode: ProofGenMode,
 ) -> Result<Proof, anyhow::Error>
 where
-    Da: DaService,
     Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Da::Spec> + Send + Sync,
-    Stf::PreState: Send + Sync,
 {
-    let mut proof_mode = proof_mode.blocking_lock();
-    match proof_mode.deref_mut() {
+    match proof_mode {
         ProofGenMode::Skip => Ok(Vec::default()),
-        ProofGenMode::Simulate(ref mut verifier) => verifier
-            .run_sequencer_commitments_in_da_slot(vm.simulate_with_hints(), zk_storage)
-            .map(|_| Vec::default())
-            .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
-        // If not skip or simulate, we have to drop the lock manually to allow parallel proving
-        ProofGenMode::Execute => {
-            drop(proof_mode);
-            vm.run(elf, false)
-        }
-        ProofGenMode::Prove => {
-            drop(proof_mode);
+        ProofGenMode::Execute => vm.run(elf, false),
+        ProofGenMode::ProveWithSampling => {
+            // `make_proof` is called with a probability in this case.
+            // When it's called, we have to produce a real proof.
             vm.run(elf, true)
+        }
+        ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
+            // `make_proof` is called unconditionally in this case.
+            // When it's called, we have to calculate the probabiliry for a proof
+            //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
+            let with_prove = proof_sampling_number == 0
+                || rand::thread_rng().gen_range(0..proof_sampling_number) == 0;
+            vm.run(elf, with_prove)
         }
     }
 }

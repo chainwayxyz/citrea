@@ -11,7 +11,7 @@ use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::{ErrorObjectOwned, Request};
 use jsonrpsee::{MethodResponse, RpcModule};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
-use sov_db::schema::types::BatchNumber;
+use sov_db::schema::types::SoftConfirmationNumber;
 use tower_http::cors::{Any, CorsLayer};
 
 // Exit early if head_batch_num is below this threshold
@@ -33,7 +33,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             )
         };
 
-        let Some((BatchNumber(head_batch_num), _)) = ledger_db
+        let Some((SoftConfirmationNumber(head_batch_num), _)) = ledger_db
             .get_head_soft_confirmation()
             .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
         else {
@@ -47,7 +47,8 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
 
         let soft_batches = ledger_db
             .get_soft_confirmation_range(
-                &(BatchNumber(head_batch_num - 1)..=BatchNumber(head_batch_num)),
+                &(SoftConfirmationNumber(head_batch_num - 1)
+                    ..=SoftConfirmationNumber(head_batch_num)),
             )
             .map_err(|err| error(&format!("Failed to get soft batch range: {}", err)))?;
 
@@ -58,7 +59,7 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             .get_head_soft_confirmation()
             .map_err(|err| error(&format!("Failed to get head soft batch: {}", err)))?
             .unwrap();
-        if new_head_batch_num > BatchNumber(head_batch_num) {
+        if new_head_batch_num > SoftConfirmationNumber(head_batch_num) {
             Ok::<(), ErrorObjectOwned>(())
         } else {
             Err(error("Block number is not increasing"))

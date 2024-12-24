@@ -8,7 +8,7 @@ use crate::schema::tables::{
     CommitmentsByNumber, SlotByHash, SoftConfirmationByHash, SoftConfirmationByNumber,
     SoftConfirmationStatus, VerifiedBatchProofsBySlotNumber,
 };
-use crate::schema::types::{BatchNumber, SlotNumber};
+use crate::schema::types::{SlotNumber, SoftConfirmationNumber};
 
 /// The maximum number of batches that can be requested in a single RPC range query
 const MAX_BATCHES_PER_REQUEST: u64 = 20;
@@ -94,7 +94,7 @@ impl LedgerRpcProvider for LedgerDB {
     ) -> Result<sov_rollup_interface::rpc::SoftConfirmationStatus, anyhow::Error> {
         if self
             .db
-            .get::<SoftConfirmationByNumber>(&BatchNumber(l2_height))
+            .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(l2_height))
             .ok()
             .flatten()
             .is_none()
@@ -107,7 +107,7 @@ impl LedgerRpcProvider for LedgerDB {
 
         let status = self
             .db
-            .get::<SoftConfirmationStatus>(&BatchNumber(l2_height))?;
+            .get::<SoftConfirmationStatus>(&SoftConfirmationNumber(l2_height))?;
 
         match status {
             Some(status) => Ok(status),
@@ -196,19 +196,22 @@ impl LedgerRpcProvider for LedgerDB {
     fn get_head_soft_confirmation(
         &self,
     ) -> Result<Option<SoftConfirmationResponse>, anyhow::Error> {
-        let next_ids = self.get_next_items_numbers();
+        let head_l2_height =
+            Self::last_version_written(&self.db, SoftConfirmationByNumber)?.unwrap_or(0);
 
-        if let Some(stored_soft_confirmation) = self.db.get::<SoftConfirmationByNumber>(
-            &BatchNumber(next_ids.soft_confirmation_number.saturating_sub(1)),
-        )? {
+        if let Some(stored_soft_confirmation) = self
+            .db
+            .get::<SoftConfirmationByNumber>(&SoftConfirmationNumber(head_l2_height))?
+        {
             return Ok(Some(stored_soft_confirmation.try_into()?));
         }
         Ok(None)
     }
 
     fn get_head_soft_confirmation_height(&self) -> Result<u64, anyhow::Error> {
-        let next_ids = self.get_next_items_numbers();
-        Ok(next_ids.soft_confirmation_number.saturating_sub(1))
+        let head_l2_height =
+            Self::last_version_written(&self.db, SoftConfirmationByNumber)?.unwrap_or(0);
+        Ok(head_l2_height)
     }
 }
 
@@ -216,10 +219,10 @@ impl LedgerDB {
     fn resolve_soft_confirmation_identifier(
         &self,
         batch_id: &SoftConfirmationIdentifier,
-    ) -> Result<Option<BatchNumber>, anyhow::Error> {
+    ) -> Result<Option<SoftConfirmationNumber>, anyhow::Error> {
         match batch_id {
             SoftConfirmationIdentifier::Hash(hash) => self.db.get::<SoftConfirmationByHash>(hash),
-            SoftConfirmationIdentifier::Number(num) => Ok(Some(BatchNumber(*num))),
+            SoftConfirmationIdentifier::Number(num) => Ok(Some(SoftConfirmationNumber(*num))),
         }
     }
 }

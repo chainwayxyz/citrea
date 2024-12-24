@@ -51,7 +51,6 @@ sha2 = { workspace = true }
 tempfile = { workspace = true }
 
 citrea-primitives = { path = "../primitives", features = ["testing"] }
-citrea-stf = { path = "../citrea-stf", features = ["native"] }
 prover-services = { path = "../prover-services" }
 sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", features = ["native"] }
 sov-mock-zkvm = { path = "../sovereign-sdk/adapters/mock-zkvm" }

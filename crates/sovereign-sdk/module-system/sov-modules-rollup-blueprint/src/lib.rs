@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
-use derive_more::Display;
 use sov_db::ledger_db::LedgerDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::{Context, DaSpec, Spec};
@@ -17,26 +16,13 @@ use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
+use sov_rollup_interface::Network;
 use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::sync::broadcast;
 
 mod runtime_rpc;
 
 pub use runtime_rpc::*;
-
-/// The network currently running.
-#[derive(Copy, Clone, Default, Debug, Display)]
-pub enum Network {
-    /// Mainnet
-    #[default]
-    Mainnet,
-    /// Testnet
-    Testnet,
-    /// Testnet
-    Devnet,
-    /// nightly
-    Nightly,
-}
 
 /// This trait defines how to crate all the necessary dependencies required by a rollup.
 #[async_trait]
@@ -139,8 +125,8 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         &self,
         proving_mode: ProverGuestRunConfig,
         da_service: &Arc<Self::DaService>,
-        da_verifier: Self::DaVerifier,
         ledger_db: LedgerDB,
+        proof_sampling_number: usize,
     ) -> Self::ProverService;
 
     /// Creates instance of [`Self::StorageManager`].

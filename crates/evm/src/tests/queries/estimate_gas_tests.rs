@@ -51,7 +51,7 @@ fn test_payable_contract_value() {
 }
 
 #[test]
-fn test_tx_request_fields_gas() {
+fn test_tx_request_fields_gas_fork1() {
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     let tx_req_contract_call = TransactionRequest {
@@ -94,7 +94,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x60"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x1f"}])
             .unwrap()
     );
 
@@ -110,7 +110,7 @@ fn test_tx_request_fields_gas() {
     );
     assert_eq!(
         contract_diff_size.unwrap(),
-        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x60"}])
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x6601","l1DiffSize":"0x1f"}])
             .unwrap()
     );
 

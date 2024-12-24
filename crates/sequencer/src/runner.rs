@@ -30,7 +30,7 @@ use reth_transaction_pool::{
 use sov_accounts::Accounts;
 use sov_accounts::Response::{AccountEmpty, AccountExists};
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_db::schema::types::{BatchNumber, SlotNumber};
+use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
@@ -94,7 +94,7 @@ where
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     rpc_config: RpcConfig,
-    fork_manager: ForkManager,
+    fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
 }
@@ -122,7 +122,7 @@ where
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         rpc_config: RpcConfig,
-        fork_manager: ForkManager,
+        fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
     ) -> anyhow::Result<Self> {
@@ -358,6 +358,7 @@ where
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
+                                            sov_modules_api::SoftConfirmationModuleCallError::EvmTxNotSerializable => panic!("Fed a non-serializable tx"),
                                             // we don't call the rule enforcer in the sequencer -- yet at least
                                             sov_modules_api::SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => unreachable!(),
                                         },
@@ -580,7 +581,7 @@ where
                 // connect L1 and L2 height
                 self.ledger_db.extend_l2_range_of_l1_slot(
                     SlotNumber(da_block.header().height()),
-                    BatchNumber(l2_height),
+                    SoftConfirmationNumber(l2_height),
                 )?;
 
                 // Register this new block with the fork manager to active

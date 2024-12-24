@@ -1,45 +1,38 @@
-use std::marker::PhantomData;
-
+use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
-use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput, Zkvm, ZkvmGuest};
+use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput};
 
 /// Verifies a state transition
-pub struct StateTransitionVerifier<ST, Da, Zk>
+pub struct StateTransitionVerifier<ST, Da>
 where
     Da: DaVerifier,
-    Zk: Zkvm,
     ST: StateTransitionFunction<Da::Spec>,
 {
     app: ST,
     da_verifier: Da,
-    phantom: PhantomData<Zk>,
 }
 
-impl<Stf, Da, Zk> StateTransitionVerifier<Stf, Da, Zk>
+impl<Stf, Da> StateTransitionVerifier<Stf, Da>
 where
     Da: DaVerifier,
-    Zk: ZkvmGuest,
     Stf: StateTransitionFunction<Da::Spec>,
 {
     /// Create a [`StateTransitionVerifier`]
     pub fn new(app: Stf, da_verifier: Da) -> Self {
-        Self {
-            app,
-            da_verifier,
-            phantom: Default::default(),
-        }
+        Self { app, da_verifier }
     }
 
     /// Verify the next block
     pub fn run_sequencer_commitments_in_da_slot(
         &mut self,
-        zkvm: Zk,
+        data: BatchProofCircuitInput<Stf::StateRoot, Stf::Witness, Da::Spec, Stf::Transaction>,
         pre_state: Stf::PreState,
-    ) -> Result<(), Da::Error> {
+        sequencer_public_key: &[u8],
+        sequencer_da_public_key: &[u8],
+        forks: &[Fork],
+    ) -> Result<BatchProofCircuitOutput<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
-        let data: BatchProofCircuitInput<Stf::StateRoot, _, Da::Spec, Stf::Transaction> =
-            zkvm.read_from_host();
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");
@@ -74,8 +67,8 @@ where
         } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
-                data.sequencer_public_key.as_ref(),
-                data.sequencer_da_public_key.as_ref(),
+                sequencer_public_key,
+                sequencer_da_public_key,
                 &data.initial_state_root,
                 pre_state,
                 data.da_data,
@@ -84,25 +77,25 @@ where
                 data.da_block_headers_of_soft_confirmations,
                 data.soft_confirmations,
                 data.preproven_commitments.clone(),
+                forks,
             );
 
         println!("out of apply_soft_confirmations_from_sequencer_commitments");
 
-        let out: BatchProofCircuitOutput<Da::Spec, _> = BatchProofCircuitOutput {
+        let out = BatchProofCircuitOutput {
             initial_state_root: data.initial_state_root,
             final_state_root,
             final_soft_confirmation_hash,
             state_diff,
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             da_slot_hash: data.da_block_header_of_commitments.hash(),
-            sequencer_public_key: data.sequencer_public_key,
-            sequencer_da_public_key: data.sequencer_da_public_key,
+            sequencer_public_key: sequencer_public_key.to_vec(),
+            sequencer_da_public_key: sequencer_da_public_key.to_vec(),
             sequencer_commitments_range: data.sequencer_commitments_range,
             preproven_commitments: data.preproven_commitments,
             last_l2_height,
         };
 
-        zkvm.commit(&out);
-        Ok(())
+        Ok(out)
     }
 }

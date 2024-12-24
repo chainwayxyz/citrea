@@ -52,7 +52,15 @@ pub(crate) fn get_evm_with_storage(
     );
     (evm, working_set, prover_storage)
 }
+
 pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
+    get_evm_with_spec(config, SovSpecId::Fork1)
+}
+
+pub(crate) fn get_evm_with_spec(
+    config: &EvmConfig,
+    spec_id: SovSpecId,
+) -> (Evm<C>, WorkingSet<<C as Spec>::Storage>) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_orphan_storage(tmpdir.path()).unwrap();
     let mut working_set = WorkingSet::new(storage.clone());
@@ -70,7 +78,7 @@ pub(crate) fn get_evm(config: &EvmConfig) -> (Evm<C>, WorkingSet<<C as Spec>::St
         da_slot_height: 1,
         da_slot_txs_commitment: [2u8; 32],
         pre_state_root: root.to_vec(),
-        current_spec: SovSpecId::Genesis,
+        current_spec: spec_id,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 0,

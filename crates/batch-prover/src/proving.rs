@@ -7,14 +7,13 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::extract_sequencer_commitments;
 use citrea_common::utils::{check_l2_range_exists, filter_out_proven_commitments};
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::fork_from_block_number;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
-use sov_db::schema::types::{BatchNumber, StoredBatchProof, StoredBatchProofOutput};
+use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
-use sov_rollup_interface::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{BatchProofCircuitInput, Proof, ZkvmHost};
@@ -165,7 +164,7 @@ where
             .expect("There should be a state root");
 
         let initial_batch_hash = ledger
-            .get_soft_confirmation_by_number(&BatchNumber(first_l2_height_of_l1))
+            .get_soft_confirmation_by_number(&SoftConfirmationNumber(first_l2_height_of_l1))
             .map_err(|e| {
                 L1ProcessingError::Other(format!("Error getting initial batch hash: {:?}", e))
             })?
@@ -245,7 +244,7 @@ where
         .last()
         .expect("Should have at least 1 commitment")
         .l2_end_block_number;
-    let current_spec = fork_from_block_number(FORKS, last_l2_height).spec_id;
+    let current_spec = fork_from_block_number(last_l2_height).spec_id;
     let elf = elfs_by_spec
         .get(&current_spec)
         .expect("Every fork should have an elf attached")
@@ -328,8 +327,7 @@ where
         >(&proof)
         .expect("Proof should be deserializable");
 
-        let last_active_spec_id =
-            fork_from_block_number(FORKS, circuit_output.last_l2_height).spec_id;
+        let last_active_spec_id = fork_from_block_number(circuit_output.last_l2_height).spec_id;
 
         let code_commitment = code_commitments_by_spec
             .get(&last_active_spec_id)
@@ -390,7 +388,10 @@ pub(crate) fn save_commitments<DB>(
         let l2_end_height = sequencer_commitment.l2_end_block_number;
         for i in l2_start_height..=l2_end_height {
             ledger_db
-                .put_soft_confirmation_status(BatchNumber(i), SoftConfirmationStatus::Proven)
+                .put_soft_confirmation_status(
+                    SoftConfirmationNumber(i),
+                    SoftConfirmationStatus::Proven,
+                )
                 .unwrap_or_else(|_| {
                     panic!(
                         "Failed to put soft confirmation status in the ledger db {}",

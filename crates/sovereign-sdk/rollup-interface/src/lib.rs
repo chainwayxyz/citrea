@@ -17,6 +17,9 @@ pub const CITREA_VERSION: &str = "v0.5.5";
 mod state_machine;
 pub use state_machine::*;
 
+mod network;
+pub use network::*;
+
 mod node;
 
 #[cfg(not(target_has_atomic = "ptr"))]

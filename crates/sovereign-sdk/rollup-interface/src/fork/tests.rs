@@ -1,21 +1,21 @@
 use anyhow::anyhow;
 
 use super::ForkManager;
-use crate::fork::{fork_from_block_number, Fork, ForkMigration};
+use crate::fork::{fork_pos_from_block_number, Fork, ForkMigration};
 use crate::spec::SpecId;
 
 #[test]
-fn test_fork_from_block_number() {
+fn test_fork_pos_from_block_number() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
         Fork::new(SpecId::Fork1, 100),
         Fork::new(SpecId::Fork2, 500),
     ];
 
-    assert_eq!(fork_from_block_number(T_FORKS, 5).spec_id, SpecId::Genesis);
-    assert_eq!(fork_from_block_number(T_FORKS, 105).spec_id, SpecId::Fork1);
-    assert_eq!(fork_from_block_number(T_FORKS, 350).spec_id, SpecId::Fork1);
-    assert_eq!(fork_from_block_number(T_FORKS, 505).spec_id, SpecId::Fork2);
+    assert_eq!(fork_pos_from_block_number(T_FORKS, 5), 0);
+    assert_eq!(fork_pos_from_block_number(T_FORKS, 105), 1);
+    assert_eq!(fork_pos_from_block_number(T_FORKS, 350), 1);
+    assert_eq!(fork_pos_from_block_number(T_FORKS, 505), 2);
 }
 
 #[test]

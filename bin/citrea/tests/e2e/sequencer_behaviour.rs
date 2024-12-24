@@ -425,7 +425,7 @@ async fn test_gas_limit_too_high() {
     assert_eq!(block_from_sequencer.header.hash, block.header.hash);
 
     seq_test_client.send_publish_batch_request().await;
-    wait_for_l2_block(&full_node_test_client, 2, None).await;
+    wait_for_l2_block(&full_node_test_client, 2, Some(Duration::from_secs(60))).await;
 
     let block = full_node_test_client
         .eth_get_block_by_number(Some(BlockNumberOrTag::Latest))

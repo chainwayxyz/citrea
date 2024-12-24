@@ -5,7 +5,7 @@ use std::env;
 use std::str::FromStr;
 
 use serde::Serialize;
-use sov_modules_rollup_blueprint::Network;
+use sov_rollup_interface::Network;
 use tracing::Level;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;

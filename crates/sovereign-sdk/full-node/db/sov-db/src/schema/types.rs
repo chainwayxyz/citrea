@@ -1,12 +1,11 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LightClientProofOutputRpcResponse,
-    LightClientProofResponse, SoftConfirmationResponse, TxResponse, VerifiedBatchProofResponse,
+    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
+    LightClientProofOutputRpcResponse, LightClientProofResponse, SoftConfirmationResponse,
+    VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::zk::{BatchProofInfo, CumulativeStateDiff, Proof};
@@ -42,6 +41,24 @@ impl AsRef<[u8]> for DbBytes {
     }
 }
 
+/// Latest da state to verify and apply da block changes
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+pub struct StoredLatestDaState {
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    pub block_hash: [u8; 32],
+    /// Height of the blockchain
+    pub block_height: u64,
+    /// Total work done in the DA blockchain
+    pub total_work: [u8; 32],
+    /// Current target bits of DA
+    pub current_target_bits: u32,
+    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
+    pub epoch_start_time: u32,
+    /// The UNIX timestamps in seconds of the previous 11 blocks
+    pub prev_11_timestamps: [u32; 11],
+}
+
 /// The "key" half of a key/value pair from accessory state.
 ///
 /// See [`NativeDB`](crate::native_db::NativeDB) for more information.
@@ -57,18 +74,6 @@ pub type DbHash = [u8; 32];
 pub type JmtValue = Option<Vec<u8>>;
 pub(crate) type StateKey = Vec<u8>;
 
-/// The on-disk format of a slot. Specifies the batches contained in the slot
-/// and the hash of the da block. TODO(@preston-evans98): add any additional data
-/// required to reconstruct the da block proof.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredSlot {
-    /// The slot's hash, as reported by the DA layer.
-    pub hash: DbHash,
-    /// Any extra data which the rollup decides to store relating to this slot.
-    pub extra_data: DbBytes,
-    /// The range of batches which occurred in this slot.
-    pub batches: std::ops::Range<BatchNumber>,
-}
 /// The on-disk format for a light client proof output
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct StoredLightClientProofOutput {
@@ -77,26 +82,13 @@ pub struct StoredLightClientProofOutput {
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
     pub light_client_proof_method_id: [u32; 8],
-    /// Proved DA block's header hash
-    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
-    pub da_block_hash: [u8; 32],
-    /// Height of the blockchain
-    pub da_block_height: u64,
-    /// Total work done in the DA blockchain
-    pub da_total_work: [u8; 32],
-    /// Current target bits of DA
-    pub da_current_target_bits: u32,
-    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
-    pub da_epoch_start_time: u32,
-    /// The UNIX timestamps in seconds of the previous 11 blocks
-    pub da_prev_11_timestamps: [u32; 11],
+    /// Latest DA state after proof
+    pub latest_da_state: StoredLatestDaState,
     /// Unchained batch proofs are proofs that are not consecutive,
     /// hence can not be proven yet kproofs.
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height after proof.
     pub last_l2_height: u64,
-    /// L2 genesis state root.
-    pub l2_genesis_state_root: [u8; 32],
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
@@ -104,15 +96,16 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
         Self {
             state_root: value.state_root,
             light_client_proof_method_id: value.light_client_proof_method_id,
-            da_block_hash: value.da_block_hash,
-            da_block_height: value.da_block_height,
-            da_total_work: value.da_total_work,
-            da_current_target_bits: value.da_current_target_bits,
-            da_epoch_start_time: value.da_epoch_start_time,
-            da_prev_11_timestamps: value.da_prev_11_timestamps,
+            latest_da_state: LatestDaStateRpcResponse {
+                block_hash: value.latest_da_state.block_hash,
+                block_height: value.latest_da_state.block_height,
+                total_work: value.latest_da_state.total_work,
+                current_target_bits: value.latest_da_state.current_target_bits,
+                epoch_start_time: value.latest_da_state.epoch_start_time,
+                prev_11_timestamps: value.latest_da_state.prev_11_timestamps,
+            },
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
-            l2_genesis_state_root: value.l2_genesis_state_root,
         }
     }
 }
@@ -289,7 +282,7 @@ where
 
 /// The range of L2 heights (soft confirmations) for a given L1 block
 /// (start, end) inclusive
-pub type L2HeightRange = (BatchNumber, BatchNumber);
+pub type L2HeightRange = (SoftConfirmationNumber, SoftConfirmationNumber);
 
 impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     type Error = anyhow::Error;
@@ -322,16 +315,6 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     }
 }
 
-/// The on-disk format for a batch. Stores the hash and identifies the range of transactions
-/// included in the batch.
-#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct StoredBatch {
-    /// The hash of the batch, as reported by the DA layer.
-    pub hash: DbHash,
-    /// The range of transactions which occurred in this batch.
-    pub txs: std::ops::Range<TxNumber>,
-}
-
 /// The on-disk format of a transaction. Includes the txhash, the serialized tx data,
 /// and identifies the events emitted by this transaction
 #[derive(Debug, PartialEq, BorshSerialize, BorshDeserialize, Clone)]
@@ -340,17 +323,6 @@ pub struct StoredTransaction {
     pub hash: DbHash,
     /// The serialized transaction data, if the rollup decides to store it.
     pub body: Option<Vec<u8>>,
-}
-
-impl<R: DeserializeOwned> TryFrom<StoredTransaction> for TxResponse<R> {
-    type Error = anyhow::Error;
-    fn try_from(value: StoredTransaction) -> Result<Self, Self::Error> {
-        Ok(Self {
-            hash: value.hash,
-            body: value.body.map(HexTx::from),
-            phantom_data: PhantomData,
-        })
-    }
 }
 
 macro_rules! u64_wrapper {
@@ -381,6 +353,4 @@ macro_rules! u64_wrapper {
 }
 
 u64_wrapper!(SlotNumber);
-u64_wrapper!(BatchNumber);
-u64_wrapper!(TxNumber);
-u64_wrapper!(EventNumber);
+u64_wrapper!(SoftConfirmationNumber);

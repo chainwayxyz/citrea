@@ -1,13 +1,13 @@
 /// Prefix for the reveal transaction ids - batch proof namespace.
-#[cfg(feature = "short-prefix")]
+#[cfg(feature = "testing")]
 pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1];
-#[cfg(not(feature = "short-prefix"))]
+#[cfg(not(feature = "testing"))]
 pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1, 1];
 
 /// Prefix for the reveal transaction ids - light client namespace.
-#[cfg(feature = "short-prefix")]
+#[cfg(feature = "testing")]
 pub const TO_LIGHT_CLIENT_PREFIX: &[u8] = &[2];
-#[cfg(not(feature = "short-prefix"))]
+#[cfg(not(feature = "testing"))]
 pub const TO_LIGHT_CLIENT_PREFIX: &[u8] = &[2, 2];
 
 pub const TEST_PRIVATE_KEY: &str =

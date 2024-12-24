@@ -19,5 +19,4 @@ brotli = { workspace = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = ["testing"] }
 
 [features]
-testing = ["short-prefix"]
-short-prefix = []
+testing = ["sov-rollup-interface/testing"]

@@ -17,7 +17,8 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::{Network, RollupBlueprint};
+use sov_modules_rollup_blueprint::RollupBlueprint;
+use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tracing::{debug, error, info, instrument};
 

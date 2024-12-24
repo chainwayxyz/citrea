@@ -16,6 +16,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::DaSpec;
+use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 use crate::zk::CumulativeStateDiff;
@@ -229,6 +230,7 @@ pub trait StateTransitionFunction<Da: DaSpec> {
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
         soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Self::Transaction>>>,
         preproven_commitment_indicies: Vec<usize>,
+        forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
 }
 
@@ -292,6 +294,8 @@ pub enum SoftConfirmationModuleCallError {
     EvmMisplacedSystemTx,
     /// Address does not have enough funds to pay for L1 fee
     EvmNotEnoughFundsForL1Fee,
+    /// An EVM transaction in the soft confirmation was not serializable
+    EvmTxNotSerializable,
     /// The sov-tx was not sent by the rule enforcer authority
     RuleEnforcerUnauthorized,
     /// The EVM transaction type is not supported
@@ -394,6 +398,9 @@ impl std::fmt::Display for SoftConfirmationModuleCallError {
             }
             SoftConfirmationModuleCallError::RuleEnforcerUnauthorized => {
                 write!(f, "Rule enforcer unauthorized")
+            }
+            SoftConfirmationModuleCallError::EvmTxNotSerializable => {
+                write!(f, "EVM tx not serializable")
             }
         }
     }

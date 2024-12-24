@@ -1,0 +1,20 @@
+[package]
+name = "citrea-risc0-light-client"
+version = "0.6.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+resolver = "2"
+
+[build-dependencies]
+risc0-build = { workspace = true }
+
+[package.metadata.risc0]
+methods = [
+  "bitcoin",
+  "mock",
+]
+
+[features]
+bench = []
+testing = []

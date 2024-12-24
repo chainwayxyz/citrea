@@ -7,12 +7,11 @@ use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
-use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
+use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientProofOutput};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::fork::fork_from_block_number;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -169,7 +168,7 @@ where
                 >(&proof)
                 .map_err(|_| anyhow!("Proof should be deserializable"))?;
                 let last_l2_height = batch_proof_output.last_l2_height;
-                let current_spec = fork_from_block_number(FORKS, last_l2_height).spec_id;
+                let current_spec = fork_from_block_number(last_l2_height).spec_id;
                 let batch_proof_method_id = self
                     .batch_proof_code_commitments
                     .get(&current_spec)
@@ -183,7 +182,6 @@ where
         }
         let previous_l1_height = l1_height - 1;
         let mut light_client_proof_journal = None;
-        let mut l2_genesis_state_root = None;
         let l2_last_height = match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
@@ -205,13 +203,6 @@ where
                 // If the prev block is the block before the first processed l1 block
                 // then we don't have a previous light client proof, so just give an info
                 if previous_l1_height == initial_l1_height {
-                    // TODO: Provide genesis state root here to the light client proof circuit input
-                    l2_genesis_state_root = self
-                        .sequencer_client
-                        .get_l2_genesis_state_root()
-                        .await?
-                        .map(|v| v.as_slice().try_into().unwrap());
-
                     tracing::info!(
                         "No previous light client proof found for L1 block: {}",
                         previous_l1_height
@@ -231,11 +222,7 @@ where
         let l2_last_height = l2_last_height.ok_or(anyhow!(
             "Could not determine the last L2 height for batch proof"
         ))?;
-        let current_fork = fork_from_block_number(FORKS, l2_last_height);
-        let batch_proof_method_id = self
-            .batch_proof_code_commitments
-            .get(&current_fork.spec_id)
-            .expect("Fork should have a guest code attached");
+        let current_fork = fork_from_block_number(l2_last_height);
         let light_client_proof_code_commitment = self
             .light_client_proof_code_commitments
             .get(&current_fork.spec_id)
@@ -251,38 +238,36 @@ where
             inclusion_proof,
             completeness_proof,
             da_block_header: l1_block.header().clone(),
-            batch_prover_da_pub_key: self.batch_prover_da_pub_key.clone(),
-            batch_proof_method_id: batch_proof_method_id.clone().into(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
-            l2_genesis_state_root,
         };
 
         let proof = self
             .prove(light_client_elf, circuit_input, assumptions)
             .await?;
 
-        let circuit_output =
-            Vm::extract_output::<Da::Spec, LightClientCircuitOutput<Da::Spec>>(&proof)
-                .expect("Should deserialize valid proof");
+        let circuit_output = Vm::extract_output::<Da::Spec, LightClientCircuitOutput>(&proof)
+            .expect("Should deserialize valid proof");
 
         tracing::info!(
             "Generated proof for L1 block: {l1_height} output={:?}",
             circuit_output
         );
 
+        let latest_da_state = &circuit_output.latest_da_state;
         let stored_proof_output = StoredLightClientProofOutput {
             state_root: circuit_output.state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
-            da_block_hash: circuit_output.da_block_hash.into(),
-            da_block_height: circuit_output.da_block_height,
-            da_total_work: circuit_output.da_total_work,
-            da_current_target_bits: circuit_output.da_current_target_bits,
-            da_epoch_start_time: circuit_output.da_epoch_start_time,
-            da_prev_11_timestamps: circuit_output.da_prev_11_timestamps,
+            latest_da_state: StoredLatestDaState {
+                block_hash: latest_da_state.block_hash,
+                block_height: latest_da_state.block_height,
+                total_work: latest_da_state.total_work,
+                current_target_bits: latest_da_state.current_target_bits,
+                epoch_start_time: latest_da_state.epoch_start_time,
+                prev_11_timestamps: latest_da_state.prev_11_timestamps,
+            },
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
-            l2_genesis_state_root: circuit_output.l2_genesis_state_root,
         };
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(

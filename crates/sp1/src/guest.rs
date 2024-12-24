@@ -19,7 +19,7 @@ impl Zkvm for SP1Guest {
     #[cfg(feature = "native")]
     type CodeCommitment = crate::host::VerifyingKey;
     #[cfg(not(feature = "native"))]
-    type CodeCommitment = ();
+    type CodeCommitment = [u32; 8];
 
     type Error = anyhow::Error;
 
@@ -34,6 +34,10 @@ impl Zkvm for SP1Guest {
         _serialized_proof: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
+        unimplemented!()
+    }
+
+    fn extract_raw_output(_serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
         unimplemented!()
     }
 }

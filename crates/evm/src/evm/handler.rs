@@ -8,13 +8,14 @@ use revm::handler::register::{EvmHandler, HandleRegisters};
 #[cfg(feature = "native")]
 use revm::interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter};
 use revm::interpreter::{Gas, InstructionResult};
+use revm::precompile::u64_to_address;
 #[cfg(feature = "native")]
 use revm::primitives::Log;
 use revm::primitives::{
     spec_to_generic, Address, EVMError, Env, HandlerCfg, InvalidTransaction, ResultAndState, Spec,
     SpecId, B256, U256,
 };
-use revm::{Context, Database, FrameResult, InnerEvmContext, JournalEntry};
+use revm::{Context, ContextPrecompiles, Database, FrameResult, InnerEvmContext, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{EvmContext, Inspector};
 use sov_modules_api::{native_debug, native_error, native_warn};
@@ -290,7 +291,7 @@ where
         // validation.env =
         validation.tx_against_state =
             Arc::new(CitreaHandler::<SPEC, EXT, DB>::validate_tx_against_state);
-        // pre_execution.load_accounts =
+        pre_execution.load_precompiles = Arc::new(CitreaHandler::<SPEC, EXT, DB>::load_precompiles);
         // pre_execution.load_accounts =
         pre_execution.deduct_caller = Arc::new(CitreaHandler::<SPEC, EXT, DB>::deduct_caller);
         // execution.last_frame_return =
@@ -314,6 +315,22 @@ struct CitreaHandler<SPEC, EXT, DB> {
 }
 
 impl<SPEC: Spec, EXT: CitreaExternalExt, DB: Database> CitreaHandler<SPEC, EXT, DB> {
+    fn load_precompiles() -> ContextPrecompiles<DB> {
+        fn our_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
+            let mut precompiles = revm::handler::mainnet::load_precompiles::<SPEC, DB>();
+
+            if SPEC::enabled(SpecId::CANCUN) {
+                precompiles
+                    .to_mut()
+                    .remove(&u64_to_address(0x0A))
+                    .expect("after cancun point eval should be removed");
+            }
+
+            precompiles
+        }
+
+        our_precompiles::<SPEC, DB>()
+    }
     fn validate_tx_against_state(
         context: &mut Context<EXT, DB>,
     ) -> Result<(), EVMError<DB::Error>> {

@@ -115,7 +115,7 @@ impl MockDaService {
 
     /// Get sequencer address
     pub fn get_sequencer_address(&self) -> MockAddress {
-        self.sequencer_da_address
+        self.sequencer_da_address.clone()
     }
 
     /// Change number of wait attempts before giving up on waiting for block
@@ -221,7 +221,7 @@ impl MockDaService {
         let blob = MockBlob::new_with_zkp_proof(
             blob.to_vec(),
             zkp_proof,
-            self.sequencer_da_address,
+            self.sequencer_da_address.clone(),
             data_hash,
         );
         let header = MockBlockHeader {

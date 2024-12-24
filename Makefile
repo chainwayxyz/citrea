@@ -3,17 +3,13 @@ EF_TESTS_URL := https://github.com/chainwayxyz/ef-tests/archive/develop.tar.gz
 EF_TESTS_DIR := crates/evm/ethereum-tests
 CITREA_E2E_TEST_BINARY := $(CURDIR)/target/debug/citrea
 PARALLEL_PROOF_LIMIT := 1
-TEST_FEATURES := --features short-prefix
+TEST_FEATURES := --features testing
 BATCH_OUT_PATH := resources/guests/risc0/
 LIGHT_OUT_PATH := resources/guests/risc0/
 
 .PHONY: help
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-
-.PHONY: build-risc0
-build-risc0:
-	$(MAKE) -j 2 -C guests/risc0 all
 
 .PHONY: build-risc0-docker
 build-risc0-docker:
@@ -32,7 +28,7 @@ build: ## Build the project
 build-test: ## Build the project
 	@cargo build $(TEST_FEATURES)
 
-build-release: build-risc0 build-sp1 ## Build the project in release mode
+build-release: build-risc0-docker build-sp1 ## Build the project in release mode
 	@cargo build --release
 
 clean: ## Cleans compiled
@@ -73,7 +69,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 
 install-risc0:
 	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall --no-confirm cargo-risczero@1.1.3
+	cargo binstall --no-confirm cargo-risczero@1.2.0
 	cargo risczero install --version r0.1.81.0
 
 install-sp1: ## Install necessary SP1 toolchain

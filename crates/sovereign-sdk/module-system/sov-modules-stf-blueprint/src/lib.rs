@@ -2,11 +2,11 @@
 #![doc = include_str!("../README.md")]
 
 use borsh::BorshDeserialize;
-use citrea_primitives::forks::FORKS;
 use itertools::Itertools;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_modules_api::da::BlockHeaderTrait;
+use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::{
     ApplySoftConfirmationHooks, FinalizeHook, HookSoftConfirmationInfo, SlotHooks, TxHooks,
 };
@@ -438,6 +438,7 @@ where
             Vec<SignedSoftConfirmation<Self::Transaction>>,
         >,
         preproven_commitment_indices: Vec<usize>,
+        forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
         let mut state_diff = CumulativeStateDiff::default();
 
@@ -508,7 +509,7 @@ where
         let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
-        let mut fork_manager = ForkManager::new(FORKS, sequencer_commitments_range.0 as u64);
+        let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
 
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in

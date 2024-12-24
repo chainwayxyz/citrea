@@ -40,7 +40,7 @@ jobs:
 
       - name: Build Project
         env:
-          REPR_GUEST_BUILD: 1
+          SKIP_GUEST_BUILD: 1
         run: |
           cargo build --release
 
@@ -76,7 +76,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Project
         env:
-          REPR_GUEST_BUILD: 1
+          SKIP_GUEST_BUILD: 1
         run: |
           source $HOME/.cargo/env
           cargo build --release

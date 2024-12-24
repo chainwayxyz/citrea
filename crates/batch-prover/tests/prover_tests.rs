@@ -9,7 +9,6 @@ use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockH
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::{BatchProofCircuitInput, Proof, ZkvmHost};
-use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::ProverService;
 use tokio::sync::oneshot;
 
@@ -289,7 +288,7 @@ async fn test_multiple_parallel_proof_run() {
 }
 
 struct TestProver {
-    prover_service: Arc<ParallelProverService<MockDaService, MockZkvm, MockStf>>,
+    prover_service: Arc<ParallelProverService<MockDaService, MockZkvm>>,
     vm: MockZkvm,
 }
 
@@ -305,7 +304,6 @@ fn make_new_prover(thread_pool_size: usize, da_service: Arc<MockDaService>) -> T
                 da_service,
                 vm.clone(),
                 proof_mode,
-                (),
                 thread_pool_size,
                 ledger_db,
             )
@@ -344,7 +342,7 @@ fn make_transition_data(
 }
 
 async fn spawn_prove(
-    prover_service: Arc<ParallelProverService<MockDaService, MockZkvm, MockStf>>,
+    prover_service: Arc<ParallelProverService<MockDaService, MockZkvm>>,
 ) -> oneshot::Receiver<Vec<Proof>> {
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {

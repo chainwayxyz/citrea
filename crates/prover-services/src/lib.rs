@@ -1,24 +1,23 @@
-use citrea_stf::verifier::StateTransitionVerifier;
-use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::ZkvmHost;
-
 mod parallel;
 pub use parallel::*;
 
-pub enum ProofGenMode<Da, Vm, Stf>
-where
-    Da: DaService,
-    Vm: ZkvmHost,
-    Stf: StateTransitionFunction<Da::Spec>,
-{
+#[derive(Debug, Clone, Copy)]
+pub enum ProofGenMode {
     /// Skips proving.
     Skip,
-    /// The simulator runs the rollup verifier logic without even emulating the zkVM
-    Simulate(StateTransitionVerifier<Stf, Da::Verifier, Vm::Guest>),
     /// The executor runs the rollup verification logic in the zkVM, but does not actually
     /// produce a zk proof
     Execute,
     /// The prover runs the rollup verification logic in the zkVM and produces a zk proof
-    Prove,
+    ProveWithSampling,
+    /// The prover runs the rollup verification logic in the zkVM and produces a zk/fake proof
+    ProveWithSamplingWithFakeProofs(
+        /// Average number of _REAL_ commitments to prove
+        /// If proof_sampling_number is 0, then we always produce real proofs
+        /// Otherwise we prove with a probability of 1/proof_sampling_number,
+        ///  but produce fake proofs with a probability of (1-1/proof_sampling_number).
+        ///
+        /// proof_sampling_number:
+        usize,
+    ),
 }

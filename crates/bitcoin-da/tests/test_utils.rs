@@ -62,6 +62,7 @@ pub async fn get_service(
         da_private_key: Some(da_private_key),
         tx_backup_dir: get_tx_backup_dir(),
         monitoring: None,
+        mempool_space_url: None,
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();

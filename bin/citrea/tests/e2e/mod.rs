@@ -13,11 +13,10 @@ use std::time::Duration;
 use alloy_primitives::{Address, U256};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
-use citrea_primitives::forks::FORKS;
+use citrea_primitives::forks::fork_from_block_number;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
-use sov_modules_api::fork::fork_from_block_number;
 use sov_rollup_interface::rpc::{LastVerifiedBatchProofResponse, SoftConfirmationStatus};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::spec::SpecId;
@@ -654,7 +653,7 @@ async fn test_offchain_contract_storage() {
     wait_for_l2_block(&sequencer_client, 1000, Some(Duration::from_secs(300))).await;
     let seq_height = sequencer_client.eth_block_number().await;
 
-    let seq_fork = fork_from_block_number(FORKS, seq_height);
+    let seq_fork = fork_from_block_number(seq_height);
 
     // Assert we are at fork1
     assert_eq!(seq_fork.spec_id, SpecId::Fork1);
