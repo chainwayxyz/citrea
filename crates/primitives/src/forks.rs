@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use sov_rollup_interface::fork::{fork_pos_from_block_number, Fork};
+use sov_rollup_interface::fork::{fork_pos_from_block_number, verify_forks, Fork};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::Network;
 
