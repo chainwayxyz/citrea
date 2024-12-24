@@ -17,7 +17,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace}
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
-    LightClientCircuitInput, LightClientCircuitOutput, Proof, ZkvmHost,
+    LightClientCircuitInput, LightClientCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
 };
 use sov_stf_runner::ProverService;
 use tokio::select;
@@ -160,14 +160,26 @@ where
         );
 
         let mut assumptions = vec![];
+
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
-                let batch_proof_output = Vm::extract_output::<
+                let last_l2_height = match Vm::extract_output::<
                     <Da as DaService>::Spec,
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
-                .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                let last_l2_height = batch_proof_output.last_l2_height;
+                {
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        Vm::extract_output::<
+                            <Da as DaService>::Spec,
+                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                        >(&proof)
+                        .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
+                        0
+                    }
+                };
                 let current_spec = fork_from_block_number(last_l2_height).spec_id;
                 let batch_proof_method_id = self
                     .batch_proof_code_commitments
@@ -177,9 +189,11 @@ where
                     tracing::error!("Failed to verify batch proof: {:?}", e);
                     continue;
                 }
+
                 assumptions.push(proof);
             }
         }
+
         let previous_l1_height = l1_height - 1;
         let mut light_client_proof_journal = None;
         let l2_last_height = match self
@@ -218,6 +232,8 @@ where
                 Some(soft_confirmation.l2_height)
             }
         };
+
+        tracing::debug!("assumptions len: {:?}", assumptions.len());
 
         let l2_last_height = l2_last_height.ok_or(anyhow!(
             "Could not determine the last L2 height for batch proof"
@@ -268,6 +284,7 @@ where
             },
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
+            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
         };
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(

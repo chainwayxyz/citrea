@@ -1,6 +1,4 @@
 //! This module implements the `ZkvmGuest` trait for the RISC0 VM.
-use std::io::Cursor;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::Write;
@@ -42,18 +40,19 @@ impl Zkvm for Risc0Guest {
 
     type Error = anyhow::Error;
 
-    fn verify(
-        journal: &[u8],
-        code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
+    fn verify(journal: &[u8], code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
         env::verify(code_commitment.0, journal)
             .expect("Guest side verification error should be Infallible");
-        Ok(journal.to_vec())
+        Ok(())
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
         Ok(receipt.journal.bytes)
+    }
+
+    fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
+        Ok(T::try_from_slice(journal)?)
     }
 
     fn verify_and_extract_output<T: BorshDeserialize>(
@@ -62,7 +61,6 @@ impl Zkvm for Risc0Guest {
     ) -> Result<T, Self::Error> {
         env::verify(code_commitment.0, journal)
             .expect("Guest side verification error should be Infallible");
-        let mut reader = Cursor::new(journal);
-        Ok(T::deserialize_reader(&mut reader)?)
+        Ok(T::try_from_slice(journal)?)
     }
 }

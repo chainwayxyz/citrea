@@ -8,10 +8,12 @@ use test_utils::{create_mock_blob, create_prev_lcp_serialized};
 
 use crate::circuit::{run_circuit, LightClientVerificationError};
 
+type Height = u64;
+const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
+
 #[test]
 fn test_light_client_circuit_valid_da_valid_data() {
     let light_client_proof_method_id = [1u32; 8];
-    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
@@ -35,7 +37,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         da_verifier.clone(),
         input,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -67,7 +69,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         da_verifier.clone(),
         input_2,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -82,7 +84,6 @@ fn test_light_client_circuit_valid_da_valid_data() {
 #[test]
 fn test_wrong_order_da_blocks_should_still_work() {
     let light_client_proof_method_id = [1u32; 8];
-    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
@@ -106,7 +107,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         da_verifier.clone(),
         input,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -121,7 +122,6 @@ fn test_wrong_order_da_blocks_should_still_work() {
 #[test]
 fn create_unchainable_outputs_then_chain_them_on_next_block() {
     let light_client_proof_method_id = [1u32; 8];
-    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let block_header_1 = MockBlockHeader::from_height(1);
@@ -145,7 +145,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_verifier.clone(),
         input,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -188,7 +188,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_verifier.clone(),
         input_2,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -204,7 +204,6 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 #[test]
 fn test_header_chain_proof_height_and_hash() {
     let light_client_proof_method_id = [1u32; 8];
-    let batch_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
@@ -228,7 +227,7 @@ fn test_header_chain_proof_height_and_hash() {
         da_verifier.clone(),
         input,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -261,7 +260,7 @@ fn test_header_chain_proof_height_and_hash() {
         da_verifier,
         input_2,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     );
@@ -275,7 +274,6 @@ fn test_header_chain_proof_height_and_hash() {
 fn test_unverifiable_batch_proofs() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
-    let batch_proof_method_id = [2u32; 8];
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
     let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, false);
@@ -298,7 +296,7 @@ fn test_unverifiable_batch_proofs() {
         da_verifier.clone(),
         input,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -316,7 +314,6 @@ fn test_unverifiable_batch_proofs() {
 fn test_unverifiable_prev_light_client_proof() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
-    let batch_proof_method_id = [2u32; 8];
 
     let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
     let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, false);
@@ -339,7 +336,7 @@ fn test_unverifiable_prev_light_client_proof() {
         da_verifier.clone(),
         input,
         l2_genesis_state_root,
-        batch_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     )
@@ -369,7 +366,7 @@ fn test_unverifiable_prev_light_client_proof() {
         da_verifier,
         input_2,
         l2_genesis_state_root,
-        light_client_proof_method_id,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
         Network::Nightly,
     );

@@ -3,7 +3,7 @@ use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
-    ZkvmGuest,
+    OldBatchProofCircuitOutput, ZkvmGuest,
 };
 use sov_rollup_interface::Network;
 
@@ -16,11 +16,14 @@ pub enum LightClientVerificationError {
     InvalidPreviousLightClientProof,
 }
 
+// L2 activation height of the fork, and the batch proof method ID
+type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
+
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
     input: LightClientCircuitInput<DaV::Spec>,
     l2_genesis_root: [u8; 32],
-    batch_proof_method_id: [u32; 8],
+    initial_batch_proof_method_ids: InitialBatchProofMethodIds,
     batch_prover_da_public_key: &[u8],
     network: Network,
 ) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
@@ -41,6 +44,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         } else {
             None
         };
+
+    let batch_proof_method_ids = previous_light_client_proof_output
+        .as_ref()
+        .map_or(initial_batch_proof_method_ids, |o| {
+            o.batch_proof_method_ids.clone()
+        });
 
     let new_da_state = da_verifier
         .verify_header_chain(
@@ -66,15 +75,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let (mut last_state_root, mut last_l2_height) =
-        previous_light_client_proof_output.as_ref().map_or_else(
-            || {
-                // if no previous proof, we start from genesis state root
-                (l2_genesis_root, 0)
-            },
-            |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
-        );
-
     // If we have a previous light client proof, check they can be chained
     // If not, skip for now
     if let Some(previous_output) = &previous_light_client_proof_output {
@@ -89,8 +89,16 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             );
         }
     }
-    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
-    // https://github.com/chainwayxyz/citrea/issues/1401
+
+    let (mut last_state_root, mut last_l2_height) =
+        previous_light_client_proof_output.as_ref().map_or_else(
+            || {
+                // if no previous proof, we start from genesis state root
+                (l2_genesis_root, 0)
+            },
+            |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
+        );
+
     // Parse the batch proof da data
     for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
@@ -101,28 +109,68 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     DaDataLightClient::Complete(proof) => {
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
-                        // TODO: select output version based on the spec
-                        let batch_proof_output: BatchProofCircuitOutput<DaV::Spec, [u8; 32]> =
-                            match G::verify_and_extract_output(
-                                &journal,
-                                &batch_proof_method_id.into(),
-                            ) {
-                                Ok(output) => output,
-                                Err(_) => continue,
-                            };
+
+                        let (
+                            batch_proof_output_initial_state_root,
+                            batch_proof_output_final_state_root,
+                            batch_proof_output_last_l2_height,
+                        ) = if let Ok(output) = G::deserialize_output::<
+                            BatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
+                        >(&journal)
+                        {
+                            (
+                                output.initial_state_root,
+                                output.final_state_root,
+                                output.last_l2_height,
+                            )
+                        } else if let Ok(output) = G::deserialize_output::<
+                            OldBatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
+                        >(&journal)
+                        {
+                            (output.initial_state_root, output.final_state_root, 0)
+                        } else {
+                            continue; // cannot parse the output, skip
+                        };
 
                         // Do not add if last l2 height is smaller or equal to previous output
                         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-                        if batch_proof_output.last_l2_height <= last_l2_height {
+                        if batch_proof_output_last_l2_height <= last_l2_height {
+                            continue;
+                        }
+
+                        let batch_proof_method_id = if batch_proof_method_ids.len() == 1 {
+                            // Check if last l2 height is greater than or equal to the only batch proof method id activation height
+                            if batch_proof_output_last_l2_height >= batch_proof_method_ids[0].0 {
+                                batch_proof_method_ids[0].1
+                            } else {
+                                // If not continue to the next blob
+                                continue;
+                            }
+                        } else {
+                            let idx = match batch_proof_method_ids
+                                // Returns err and the index to be inserted, which is the index of the first element greater than the key
+                                // That is why we need to subtract 1 to get the last element smaller than the key
+                                .binary_search_by_key(
+                                    &batch_proof_output_last_l2_height,
+                                    |(height, _)| *height,
+                                ) {
+                                Ok(idx) => idx,
+                                Err(idx) => idx.saturating_sub(1),
+                            };
+                            batch_proof_method_ids[idx].1
+                        };
+
+                        if G::verify(&journal, &batch_proof_method_id.into()).is_err() {
+                            // if the batch proof is invalid, continue to the next blob
                             continue;
                         }
 
                         recursive_match_state_roots(
                             &mut initial_to_final,
                             &BatchProofInfo::new(
-                                batch_proof_output.initial_state_root,
-                                batch_proof_output.final_state_root,
-                                batch_proof_output.last_l2_height,
+                                batch_proof_output_initial_state_root,
+                                batch_proof_output_final_state_root,
+                                batch_proof_output_last_l2_height,
                             ),
                         );
                     }
@@ -155,5 +203,19 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         latest_da_state: new_da_state,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
+        batch_proof_method_ids,
     })
+}
+
+#[test]
+fn test_binary_search() {
+    let ve = [1, 4, 7, 9, 14];
+    let idx = ve.binary_search(&4); // 1
+    assert_eq!(idx, Ok(1));
+    let idx = ve.binary_search(&100); // 5 - 1
+    assert_eq!(idx, Err(5));
+    let idx = ve.binary_search(&7); // 2
+    assert_eq!(idx, Ok(2));
+    let idx = ve.binary_search(&8); // 3-1
+    assert_eq!(idx, Err(3));
 }

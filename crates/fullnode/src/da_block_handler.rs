@@ -24,7 +24,9 @@ use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{BatchProofCircuitOutput, Proof, ZkvmHost};
+use sov_rollup_interface::zk::{
+    BatchProofCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
+};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -301,11 +303,42 @@ where
         tracing::trace!("ZK proof: {:?}", proof);
 
         // TODO: select output version based on spec
-        let batch_proof_output = Vm::extract_output::<
+        let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
             <Da as DaService>::Spec,
             BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
-        .expect("Proof should be deserializable");
+        {
+            Ok(output) => (
+                fork_from_block_number(output.last_l2_height).spec_id,
+                output,
+            ),
+            Err(e) => {
+                info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                let output = Vm::extract_output::<
+                    <Da as DaService>::Spec,
+                    OldBatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+                >(&proof)
+                .expect("Should be able to extract either pre or post fork 1 output");
+                let batch_proof_output = BatchProofCircuitOutput::<Da::Spec, StateRoot> {
+                    initial_state_root: output.initial_state_root,
+                    final_state_root: output.final_state_root,
+                    state_diff: output.state_diff,
+                    da_slot_hash: output.da_slot_hash,
+                    sequencer_commitments_range: output.sequencer_commitments_range,
+                    sequencer_public_key: output.sequencer_public_key,
+                    sequencer_da_public_key: output.sequencer_da_public_key,
+                    preproven_commitments: output.preproven_commitments,
+                    // We don't have these fields in pre fork 1
+                    // That's why we serve them as 0
+                    prev_soft_confirmation_hash: [0; 32],
+                    final_soft_confirmation_hash: [0; 32],
+                    last_l2_height: 0,
+                };
+                // If we got output of pre fork 1 that means we are in genesis
+                (SpecId::Genesis, batch_proof_output)
+            }
+        };
+
         if batch_proof_output.sequencer_da_public_key != self.sequencer_da_pub_key
             || batch_proof_output.sequencer_public_key != self.sequencer_pub_key
         {
@@ -314,7 +347,6 @@ where
             ).into());
         }
 
-        let last_active_spec_id = fork_from_block_number(batch_proof_output.last_l2_height).spec_id;
         let code_commitment = self
             .code_commitments_by_spec
             .get(&last_active_spec_id)
