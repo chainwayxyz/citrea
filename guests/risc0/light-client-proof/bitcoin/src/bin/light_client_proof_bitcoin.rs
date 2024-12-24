@@ -71,29 +71,6 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
     }
 };
 
-const BATCH_PROOF_METHOD_ID: [u32; 8] = {
-    // TODO: Don't forget to always update devnet, testnet, mainnet method ids just before release
-    let hex_method_id = match NETWORK {
-        Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Devnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Nightly => match option_env!("BATCH_PROOF_METHOD_ID") {
-            Some(hex_method_id) => hex_method_id,
-            None => "",
-        },
-    };
-
-    // Use default nightly batch proof method_id
-    if hex_method_id.is_empty() {
-        citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID
-    } else {
-        match const_hex::const_decode_to_array::<32>(hex_method_id.as_bytes()) {
-            Ok(method_id) => constmuck::cast(method_id),
-            Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
-        }
-    }
-};
-
 const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",

@@ -16,8 +16,6 @@ const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
 const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
     &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
 
-const BATCH_PROOF_METHOD_ID: [u32; 8] = citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID;
-
 const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
     b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
 ) {

@@ -152,7 +152,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             batch_proof_method_ids[idx].1
                         };
 
-                        if let Err(_) = G::verify(&journal, &batch_proof_method_id.into()) {
+                        if G::verify(&journal, &batch_proof_method_id.into()).is_err() {
                             // if the batch proof is invalid, continue to the next blob
                             continue;
                         }
@@ -205,7 +205,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
 #[test]
 fn test_binary_search() {
-    let ve = vec![1, 4, 7, 9, 14];
+    let ve = [1, 4, 7, 9, 14];
     let idx = ve.binary_search(&4); // 1
     assert_eq!(idx, Ok(1));
     let idx = ve.binary_search(&100); // 5 - 1
