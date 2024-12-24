@@ -22,9 +22,9 @@ pub struct SequencerCommitment {
     pub l2_end_block_number: u64,
 }
 
-/// A new batch prover method_id starting to be applied from the l2_block_number (inclusive).
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub struct BatchProverMethodId {
+pub struct BatchProofMethodId {
     /// Merkle root of soft confirmation hashes
     pub method_id: [u8; 32],
     /// Start L2 block's number
@@ -82,8 +82,8 @@ pub enum DaDataLightClient {
     Aggregate(Vec<[u8; 32]>),
     /// A chunk of an aggregate
     Chunk(Vec<u8>),
-    /// A new batch prover method_id
-    BatchProverMethodId(BatchProverMethodId),
+    /// A new batch proof method_id
+    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum

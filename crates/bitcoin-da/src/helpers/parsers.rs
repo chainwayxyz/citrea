@@ -217,7 +217,7 @@ fn parse_relevant_lightclient(
         TransactionKindLightClient::ChunkedPart => {
             light_client::parse_type_2_body(instructions).map(ParsedLightClientTransaction::Chunk)
         }
-        TransactionKindLightClient::BatchProverMethodId => {
+        TransactionKindLightClient::BatchProofMethodId => {
             light_client::parse_type_3_body(instructions)
                 .map(ParsedLightClientTransaction::BatchProverMethodId)
         }

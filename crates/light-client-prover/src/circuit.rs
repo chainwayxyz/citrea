@@ -128,7 +128,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
-                    DaDataLightClient::BatchProverMethodId(_) => todo!(),
+                    DaDataLightClient::BatchProofMethodId(_) => todo!(),
                 }
             }
         }
