@@ -81,6 +81,8 @@ pub struct StoredLightClientProofOutput {
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height after proof.
     pub last_l2_height: u64,
+    /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
+    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
@@ -96,6 +98,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             da_prev_11_timestamps: value.da_prev_11_timestamps,
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
+            batch_proof_method_ids: value.batch_proof_method_ids,
         }
     }
 }

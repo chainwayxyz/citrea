@@ -288,6 +288,7 @@ where
             da_prev_11_timestamps: circuit_output.da_prev_11_timestamps,
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
+            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
         };
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(
