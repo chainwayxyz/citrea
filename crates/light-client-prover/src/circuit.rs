@@ -30,7 +30,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Extract previous light client proof output
     let previous_light_client_proof_output =
         if let Some(journal) = input.previous_light_client_proof_journal {
-            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput>(
+            let prev_output = G::verify_and_deserialize_output::<LightClientCircuitOutput>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )

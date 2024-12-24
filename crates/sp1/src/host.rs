@@ -194,7 +194,7 @@ impl Zkvm for SP1Host {
         Ok(proof.public_values.to_vec())
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {

@@ -149,7 +149,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
         }
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
@@ -259,7 +259,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         }
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         journal: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
