@@ -159,7 +159,7 @@ impl ZkvmHost for Risc0BonsaiHost {
         Ok(serialized_receipt)
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
+    fn extract_output<T: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<T, Self::Error> {
         let receipt: Receipt = bincode::deserialize(proof)?;

@@ -133,7 +133,7 @@ impl ZkvmHost for SP1Host {
         }
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
+    fn extract_output<T: BorshDeserialize>(
         proof: &Proof,
     ) -> Result<T, Self::Error> {
         let public_values = match proof {

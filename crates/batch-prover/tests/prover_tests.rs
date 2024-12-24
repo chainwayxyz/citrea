@@ -358,7 +358,6 @@ async fn spawn_prove(
 
 fn extract_output_header(proof: &Vec<u8>) -> MockBlockHeader {
     MockZkvm::extract_output::<
-        MockDaSpec,
         BatchProofCircuitInput<'static, [u8; 0], Vec<u8>, MockDaSpec, ()>,
     >(proof)
     .unwrap()
