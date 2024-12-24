@@ -23,6 +23,7 @@ digest = { workspace = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true }
 serde = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true, optional = true }
 # TODO: Remove tokio when https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161 is resolved
 tokio = { workspace = true, optional = true }

@@ -1802,6 +1802,7 @@ dependencies = [
  "digest",
  "hex",
  "serde",
+ "sha2",
  "thiserror",
 ]
 
