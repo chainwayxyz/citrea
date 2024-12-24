@@ -1,3 +1,5 @@
+use std::io::Cursor;
+
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
@@ -94,7 +96,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
     // https://github.com/chainwayxyz/citrea/issues/1401
     // Parse the batch proof da data
-    'blobs: for blob in input.da_data {
+    for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
@@ -103,57 +105,61 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     DaDataLightClient::Complete(proof) => {
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
-                        // TODO: select output version based on the spec
+
+                        let mut journal_reader = Cursor::new(journal.clone());
+                        let (
+                            batch_proof_output_initial_state_root,
+                            batch_proof_output_final_state_root,
+                            batch_proof_output_last_l2_height,
+                        ) = if let Ok(output) =
+                            BatchProofCircuitOutput::<DaV::Spec, [u8; 32]>::deserialize_reader(
+                                &mut journal_reader,
+                            ) {
+                            (
+                                output.initial_state_root,
+                                output.final_state_root,
+                                output.last_l2_height,
+                            )
+                        } else if let Ok(output) =
+                            OldBatchProofCircuitOutput::<DaV::Spec, [u8; 32]>::deserialize_reader(
+                                &mut journal_reader,
+                            )
+                        {
+                            (output.initial_state_root, output.final_state_root, 0)
+                        } else {
+                            continue; // cannot parse the output, skip
+                        };
+
+                        // Do not add if last l2 height is smaller or equal to previous output
+                        // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
+                        if batch_proof_output_last_l2_height <= last_l2_height {
+                            continue;
+                        }
 
                         let batch_proof_method_id = if batch_proof_method_ids.len() == 1 {
                             // Check if last l2 height is greater than or equal to the only batch proof method id activation height
-                            if last_l2_height >= batch_proof_method_ids[0].0 {
+                            if batch_proof_output_last_l2_height >= batch_proof_method_ids[0].0 {
                                 batch_proof_method_ids[0].1
                             } else {
                                 // If not continue to the next blob
-                                continue 'blobs;
+                                continue;
                             }
                         } else {
                             let idx = match batch_proof_method_ids
                                 // Returns err and the index to be inserted, which is the index of the first element greater than the key
                                 // That is why we need to subtract 1 to get the last element smaller than the key
-                                .binary_search_by_key(&last_l2_height, |(height, _)| *height)
-                            {
+                                .binary_search_by_key(
+                                    &batch_proof_output_last_l2_height,
+                                    |(height, _)| *height,
+                                ) {
                                 Ok(idx) => idx,
                                 Err(idx) => idx.saturating_sub(1),
                             };
                             batch_proof_method_ids[idx].1
                         };
 
-                        let (
-                            batch_proof_output_initial_state_root,
-                            batch_proof_output_final_state_root,
-                            batch_proof_output_last_l2_height,
-                        ) = match G::verify_and_extract_output::<
-                            BatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
-                        >(&journal, &batch_proof_method_id.into())
-                        {
-                            Ok(output) => (
-                                output.initial_state_root,
-                                output.final_state_root,
-                                output.last_l2_height,
-                            ),
-                            Err(_) => {
-                                if let Ok(output) = G::verify_and_extract_output::<
-                                    OldBatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
-                                >(
-                                    &journal, &batch_proof_method_id.into()
-                                ) {
-                                    (output.initial_state_root, output.final_state_root, 0)
-                                } else {
-                                    continue 'blobs;
-                                }
-                            }
-                        };
-
-                        // Do not add if last l2 height is smaller or equal to previous output
-                        // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-                        if batch_proof_output_last_l2_height <= last_l2_height {
+                        if let Err(_) = G::verify(&journal, &batch_proof_method_id.into()) {
+                            // if the batch proof is invalid, continue to the next blob
                             continue;
                         }
 
