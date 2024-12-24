@@ -13,8 +13,8 @@ const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
     Err(_) => panic!("Can't happen"),
 };
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: [(u64, [u32; 8]); 1] =
-    [(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
+const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] =
+    &[(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
 
 const BATCH_PROOF_METHOD_ID: [u32; 8] = citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID;
 

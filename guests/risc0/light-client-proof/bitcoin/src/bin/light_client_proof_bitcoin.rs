@@ -36,16 +36,38 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: [(u64, [u32; 8]); 1] = {
-    let genesis_hex_method_id = match NETWORK {
-        Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
-        Network::Devnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        Network::Nightly => "0000000000000000000000000000000000000000000000000000000000000000",
-    };
-    match const_hex::const_decode_to_array::<32>(genesis_hex_method_id.as_bytes()) {
-        Ok(method_id) => [(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
-        Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
+const fn decode_to_u32_array(hex: &str) -> [u32; 8] {
+    let bytes = const_hex::const_decode_to_array::<32>(hex.as_bytes());
+    match bytes {
+        Ok(decoded) => constmuck::cast(decoded),
+        Err(_) => panic!("Invalid hex input"), // Replace with compile-time valid fallback if needed
+    }
+}
+
+const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
+    match NETWORK {
+        // TODO: Update
+        Network::Mainnet => &[(0, [0; 8])],
+        Network::Testnet => &[
+            (
+                0,
+                decode_to_u32_array(
+                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
+                ),
+            ),
+            (
+                999999999,
+                decode_to_u32_array(
+                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
+                ),
+            ),
+        ],
+        // TODO: Update
+        Network::Devnet => &[(0, [0; 8])],
+        Network::Nightly => match option_env!("BATCH_PROOF_METHOD_ID") {
+            Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
+            None => &[(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
+        },
     }
 };
 
