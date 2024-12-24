@@ -240,13 +240,11 @@ impl DaVerifier for BitcoinVerifier {
                 block_header,
             ),
             Network::Nightly => {
-                if let Some(latest_da_state) = latest_da_state {
-                    self.verify_header_chain_regtest(latest_da_state, block_header)
-                } else {
-                    // For regtest, if this is the first light client proof, we always
-                    // consider the block valid with respect to its parent block, so
-                    // it can start from anywhere.
-                    let initial_regtest_state = LatestDaState {
+                // For regtest, if this is the first light client proof, we always
+                // consider the block valid with respect to its parent block, so
+                // it can start from anywhere.
+                self.verify_header_chain_regtest(
+                    latest_da_state.unwrap_or(&LatestDaState {
                         block_hash: block_header.prev_hash().to_byte_array(),
                         block_height: block_header.height() - 1,
                         // Total work is irrelevant in regtest
@@ -256,9 +254,9 @@ impl DaVerifier for BitcoinVerifier {
                         epoch_start_time: 0,
                         // Prev 11 timestamps is irrelevant in regtest
                         prev_11_timestamps: [0; 11],
-                    };
-                    self.verify_header_chain_regtest(&initial_regtest_state, block_header)
-                }
+                    }),
+                    block_header,
+                )
             }
         }
     }
