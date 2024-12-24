@@ -13,6 +13,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::mmr::MMRNative;
 use sov_rollup_interface::stf::StateDiff;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
@@ -22,6 +23,10 @@ use super::types::{
     SoftConfirmationNumber, StateKey, StoredBatchProof, StoredLightClientProof,
     StoredSoftConfirmation, StoredVerifiedProof,
 };
+
+/// A list of all tables used by the StateDB. These tables store rollup state - meaning
+/// account balances, nonces, etc.
+pub const MMR_TABLES: &[&str] = &[MMRNodes::table_name()];
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
 /// account balances, nonces, etc.
@@ -319,6 +324,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// Stores the last pruned L2 block number
     (LastPrunedBlock) () => u64
+);
+
+define_table_with_seek_key_codec!(
+    /// Stores the chunks of a light client proof
+    (MMRNodes) () => MMRNative
 );
 
 #[cfg(test)]
