@@ -191,6 +191,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
                 .display()
                 .to_string(),
             monitoring: Default::default(),
+            mempool_space_url: None,
         };
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
