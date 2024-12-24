@@ -15,6 +15,7 @@ use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
+use sov_rollup_interface::mmr::MMRNative;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
@@ -28,6 +29,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::metrics::LIGHT_CLIENT_METRICS;
+
+type Wtxid = [u8; 32];
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
 where
@@ -161,10 +164,13 @@ where
             batch_proofs.len()
         );
 
+        let mut assumptions = vec![];
         let mut mmr_hints = vec![];
 
-        let mut assumptions = vec![];
-        for batch_proof in batch_proofs {
+        let current_block_wtxids: Vec<[u8; 32]> =
+            da_data.iter().map(|b| b.wtxid().unwrap()).collect();
+
+        for (wtxid, batch_proof) in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 let batch_proof_output = Vm::extract_output::<
                     <Da as DaService>::Spec,
@@ -182,25 +188,20 @@ where
                     continue;
                 }
                 assumptions.push(proof);
-            } else if let DaDataLightClient::Aggregate(a, b) = batch_proof {
-                for wtxid in a {
-                    if wtxid not in block {
-                        let (chunk_from_db, proof) = self.ledger_db.get_chunk_with_proof(wtxid, self.mmr_native);
-
+            } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
+                for wtxid in wtxids {
+                    if !current_block_wtxids.contains(&wtxid) {
+                        let (chunk_from_db, proof) = self.mmr_db.generate_proof(wtxid);
                         mmr_hints.push((chunk_from_db, proof));
                     }
                 }
+            } else if let DaDataLightClient::Chunk(body) = batch_proof {
+                // if chunk not used by any aggregate in block {
+                //     self.mmr_native.add_leaf(chunk); // TODO: this should happen after circuit execution
+                //     // to not change tree until proof is generated
 
-                // 2 blocks
-                // block 1 chunk-1
-                // block 2 chunk-2, aggr(chunk-1, chunk-2)
-            } else if let DaDataLightClient::Chunk(c) = batch_proof {
-                if chunk not used by any aggregate in block {
-                    self.mmr_native.add_leaf(chunk); // TODO: this should happen after circuit execution
-                    // to not change tree until proof is generated
-
-                    // also save to db
-                }
+                //     // also save to db
+                // }
             }
         }
         let previous_l1_height = l1_height - 1;
@@ -311,7 +312,7 @@ where
         &self,
         da_data: &mut [<<Da as DaService>::Spec as DaSpec>::BlobTransaction],
         da_slot_hash: [u8; 32], // passing this as an argument is not clever
-    ) -> Vec<DaDataLightClient> {
+    ) -> Vec<(Wtxid, DaDataLightClient)> {
         let mut batch_proofs = Vec::new();
 
         da_data.iter_mut().for_each(|tx| {
@@ -320,7 +321,7 @@ where
                 let data = DaDataLightClient::try_from_slice(tx.full_data());
 
                 if let Ok(proof) = data {
-                    batch_proofs.push(proof);
+                    batch_proofs.push((tx.wtxid(), proof));
                 } else {
                     tracing::warn!(
                         "Found broken DA data in block 0x{}: {:?}",

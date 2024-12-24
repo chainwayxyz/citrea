@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
+use sov_rollup_interface::mmr::{MMRGuest, MMRNode};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     ZkvmGuest,
@@ -62,17 +63,17 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
 
-    let (mut last_state_root, mut last_l2_height, mut unprocessed_chunks) =
+    let (mut last_state_root, mut last_l2_height, mut mmr_guest) =
         previous_light_client_proof_output.as_ref().map_or_else(
             || {
                 // if no previous proof, we start from genesis state root
-                (l2_genesis_root, 0, Default::default())
+                (l2_genesis_root, 0, MMRGuest::new())
             },
             |prev_journal| {
                 (
                     prev_journal.state_root,
                     prev_journal.last_l2_height,
-                    prev_journal.unprocessed_chunks.clone(),
+                    prev_journal.mmr_guest.clone(),
                 )
             },
         );
@@ -92,8 +93,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
     }
 
-    let in_memory_chunks = vec![];
-    let mmr_guest = previous_light_client_proof_output.unwrap().unprocessed_chunks;
+    let mut in_memory_chunks: BTreeMap<[u8; 32], Vec<u8>> = Default::default();
+    let mut mmr_hints = input.mmr_hints.clone();
+
     // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
     // https://github.com/chainwayxyz/citrea/issues/1401
     // Parse the batch proof da data
@@ -116,37 +118,32 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         }
                     }
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
+                        let mut chunks_related = vec![];
+                        for wtxid in &wtx_ids {
+                            if !in_memory_chunks.contains_key(wtxid) {
+                                let (chunk, proof) = mmr_hints.pop_front().unwrap();
 
-                        let chunks_related = vec![];
-                        for wtxid in wtx_ids {
-                            if chunk not in in_memory_chunks {
-                                let (chunk, proof) = input.mmr_hints.pop_front().unwrap();
-
-                                if let Err() = mmr_guest.verify(&chunk, &proof) {
-                                    // circuit not provided with good hints
+                                if !mmr_guest.verify_proof(&chunk, &proof) {
+                                    // circuit not provided with enough hints
                                     continue;
                                 }
 
                                 chunks_related.push(chunk);
                             } else {
-
-                                in_memory_chunks.remove(chunk);
-                                chunks_related.push(chunk);
+                                in_memory_chunks.remove(wtxid);
                             }
                         }
                         let existing_wtx_ids: BTreeSet<[u8; 32]> =
-                            unprocessed_chunks.keys().cloned().collect();
+                            in_memory_chunks.keys().cloned().collect();
                         let aggregate_wtx_ids: BTreeSet<[u8; 32]> =
                             wtx_ids.iter().cloned().collect();
-                        2**16 = 65536
-                        2**32 = 4294967296
-                        2**64 = 18446744073709551616
+
                         // If we have all the chunks, perform verification
                         if aggregate_wtx_ids.is_subset(&existing_wtx_ids) {
                             // Concatenate complete proof
                             let complete_proof = wtx_ids
                                 .iter()
-                                .filter_map(|k| unprocessed_chunks.get(k).cloned())
+                                .filter_map(|k| in_memory_chunks.get(k).cloned())
                                 .flatten()
                                 .collect::<Vec<_>>();
 
@@ -162,13 +159,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             }
 
                             for wtx_id in &aggregate_wtx_ids {
-                                unprocessed_chunks.remove(wtx_id);
+                                in_memory_chunks.remove(wtx_id);
                             }
                         }
                     }
                     DaDataLightClient::Chunk(chunk) => {
                         // Store the chunk in memory
-                        in_memory_chunks.push(chunk);
+                        in_memory_chunks
+                            .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
                     }
                 }
             }
@@ -191,7 +189,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
     if in_memory_chunks.len() > 0 {
-        previous_light_client_proof_output.unwrap().mmr_guest.update(in_memory_chunks);
+        for (wtxid, chunk) in in_memory_chunks {
+            mmr_guest.append(MMRNode::new(wtxid, chunk));
+        }
     }
 
     Ok(LightClientCircuitOutput {
@@ -205,7 +205,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         da_prev_11_timestamps: block_updates.prev_11_timestamps,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
-        unprocessed_chunks: previous_light_client_proof_output.unwrap().unprocessed_chunks,
+        mmr_guest,
     })
 }
 
