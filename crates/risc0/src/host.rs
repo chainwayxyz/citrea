@@ -159,9 +159,7 @@ impl ZkvmHost for Risc0BonsaiHost {
         Ok(serialized_receipt)
     }
 
-    fn extract_output<T: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<T, Self::Error> {
+    fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
         let receipt: Receipt = bincode::deserialize(proof)?;
         let journal = receipt.journal;
 
