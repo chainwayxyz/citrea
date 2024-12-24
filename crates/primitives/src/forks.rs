@@ -63,7 +63,7 @@ pub const DEVNET_FORKS: [Fork; 2] = [
 #[cfg(feature = "testing")]
 pub const NIGHTLY_FORKS: [Fork; 2] = [Fork::new(SpecId::Genesis, 0), Fork::new(SpecId::Fork1, 100)];
 #[cfg(not(feature = "testing"))]
-pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 100)];
+pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
 
 const _CHECK_FORKS: () = {
     if !verify_forks(&MAINNET_FORKS)

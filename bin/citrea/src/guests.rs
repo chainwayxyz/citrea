@@ -45,10 +45,7 @@ lazy_static! {
         HashMap::from(
             [
                 #[cfg(feature = "testing")]
-                (SpecId::Genesis,
-                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
-                ),
+                (SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-0.elf")),
                 (SpecId::Fork1,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                     citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())

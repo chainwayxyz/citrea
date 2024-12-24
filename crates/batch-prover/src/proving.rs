@@ -17,7 +17,7 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerC
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{
-    BatchProofCircuitInput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
+    BatchProofCircuitInput, BatchProofCircuitInputV1, OldBatchProofCircuitOutput, Proof, ZkvmHost,
 };
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
@@ -244,9 +244,12 @@ where
                 .expect("Every fork should have an elf attached")
                 .clone();
 
-            prover_service
-                .add_proof_data((borsh::to_vec(&input)?, vec![], elf))
-                .await;
+            let input = match current_spec {
+                SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
+                _ => borsh::to_vec(&input)?,
+            };
+
+            prover_service.add_proof_data((input, vec![], elf)).await;
         }
     }
 
