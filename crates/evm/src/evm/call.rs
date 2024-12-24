@@ -1,4 +1,4 @@
-// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/revm_utils.rs
+// https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-eth-types/src/revm_utils.rs
 
 use std::cmp::min;
 
