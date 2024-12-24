@@ -160,8 +160,7 @@ where
         );
 
         let mut assumptions = vec![];
-        let bp_len = batch_proofs.len();
-        tracing::warn!("bp_len: {}", bp_len);
+
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 let last_l2_height = match Vm::extract_output::<
@@ -169,10 +168,7 @@ where
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
                 {
-                    Ok(output) => {
-                        tracing::warn!("here");
-                        output.last_l2_height
-                    }
+                    Ok(output) => output.last_l2_height,
                     Err(e) => {
                         info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
                         Vm::extract_output::<
@@ -180,7 +176,6 @@ where
                             OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                         >(&proof)
                         .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                        tracing::warn!("here2");
                         // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
                         0
                     }
@@ -190,17 +185,15 @@ where
                     .batch_proof_code_commitments
                     .get(&current_spec)
                     .expect("Batch proof code commitment not found");
-                tracing::warn!("l1 height: {}", l1_height);
                 if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
                     tracing::error!("Failed to verify batch proof: {:?}", e);
                     continue;
                 }
-                tracing::warn!("pushing");
 
                 assumptions.push(proof);
             }
         }
-        tracing::warn!("assumptions len: {:?}", assumptions.len());
+
         let previous_l1_height = l1_height - 1;
         let mut light_client_proof_journal = None;
         let l2_last_height = match self
@@ -239,7 +232,8 @@ where
                 Some(soft_confirmation.l2_height)
             }
         };
-        tracing::warn!("assumptions len: {:?}", assumptions.len());
+
+        tracing::debug!("assumptions len: {:?}", assumptions.len());
 
         let l2_last_height = l2_last_height.ok_or(anyhow!(
             "Could not determine the last L2 height for batch proof"
@@ -315,11 +309,6 @@ where
 
         da_data.iter_mut().for_each(|tx| {
             // Check for commitment
-            tracing::warn!("tx sender: {:?}", tx.sender().as_ref());
-            tracing::warn!(
-                "batch_prover_da_pub_key: {:?}",
-                self.batch_prover_da_pub_key
-            );
             if tx.sender().as_ref() == self.batch_prover_da_pub_key.as_slice() {
                 let data = DaDataLightClient::try_from_slice(tx.full_data());
 
