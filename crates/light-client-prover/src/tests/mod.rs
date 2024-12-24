@@ -2,13 +2,13 @@ mod test_utils;
 
 use sov_mock_da::{MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::LightClientCircuitInput;
 use test_utils::{create_mock_blob, create_prev_lcp_serialized};
 
 use crate::circuit::{run_circuit, LightClientVerificationError};
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: [(SpecId, [u32; 8]); 1] = [(SpecId::Genesis, [0u32; 8])];
+type Height = u64;
+const INITIAL_BATCH_PROOF_METHOD_IDS: [(Height, [u32; 8]); 1] = [(0, [0u32; 8])];
 
 #[test]
 fn test_light_client_circuit_valid_da_valid_data() {

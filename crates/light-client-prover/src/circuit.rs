@@ -1,5 +1,5 @@
 use borsh::BorshDeserialize;
-use sov_modules_api::{BlobReaderTrait, SpecId};
+use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
@@ -15,7 +15,8 @@ pub enum LightClientVerificationError {
     InvalidPreviousLightClientProof,
 }
 
-type InitialBatchProofMethodIds = Vec<(SpecId, [u32; 8])>;
+// L2 activation height of the fork, and the batch proof method ID
+type InitialBatchProofMethodIds = Vec<(u64, [u32; 8])>;
 
 pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier: DaV,
@@ -141,6 +142,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                             output.final_state_root,
                                             0,
                                         );
+                                    }
+
+                                    if last_l2_height
+                                        < batch_proof_method_ids[batch_proof_index as usize].0
+                                    {
+                                        // If the last l2 height is smaller than the batch proof height, we can skip this batch proof
+                                        continue 'blobs;
                                     }
 
                                     if batch_proof_index == 0 {

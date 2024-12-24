@@ -2,7 +2,6 @@
 use citrea_light_client_prover::circuit::run_circuit;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_mock_da::MockDaVerifier;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmGuest;
 
 risc0_zkvm::guest::entry!(main);
@@ -14,10 +13,8 @@ const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
     Err(_) => panic!("Can't happen"),
 };
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: [(SpecId, [u32; 8]); 1] = [(
-    SpecId::Genesis,
-    citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID,
-)];
+const INITIAL_BATCH_PROOF_METHOD_IDS: [(u64, [u32; 8]); 1] =
+    [(0, citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID)];
 
 const BATCH_PROOF_METHOD_ID: [u32; 8] = citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID;
 

@@ -5,7 +5,6 @@ use citrea_light_client_prover::circuit::run_circuit;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_rollup_interface::da::DaVerifier;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
@@ -37,7 +36,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     }
 };
 
-const INITIAL_BATCH_PROOF_METHOD_IDS: [(SpecId, [u32; 8]); 1] = {
+const INITIAL_BATCH_PROOF_METHOD_IDS: [(u64, [u32; 8]); 1] = {
     let genesis_hex_method_id = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
@@ -45,7 +44,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: [(SpecId, [u32; 8]); 1] = {
         Network::Nightly => "0000000000000000000000000000000000000000000000000000000000000000",
     };
     match const_hex::const_decode_to_array::<32>(genesis_hex_method_id.as_bytes()) {
-        Ok(method_id) => [(SpecId::Genesis, constmuck::cast(method_id))],
+        Ok(method_id) => [(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
         Err(_) => panic!("BATCH_PROOF_METHOD_ID must be valid 32-byte hex string"),
     }
 };
