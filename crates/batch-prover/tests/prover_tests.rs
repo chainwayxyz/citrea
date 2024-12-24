@@ -29,6 +29,7 @@ async fn test_successful_prover_execution() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
 
@@ -68,6 +69,7 @@ async fn test_parallel_proofs_equal_to_limit() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 2nd proof
@@ -75,6 +77,7 @@ async fn test_parallel_proofs_equal_to_limit() {
     prover_service
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            vec![],
             vec![],
         ))
         .await;
@@ -120,6 +123,7 @@ async fn test_parallel_proofs_higher_than_limit() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 2nd proof
@@ -127,6 +131,7 @@ async fn test_parallel_proofs_higher_than_limit() {
     prover_service
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            vec![],
             vec![],
         ))
         .await;
@@ -136,6 +141,7 @@ async fn test_parallel_proofs_higher_than_limit() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 4th proof
@@ -144,6 +150,7 @@ async fn test_parallel_proofs_higher_than_limit() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 5th proof
@@ -151,6 +158,7 @@ async fn test_parallel_proofs_higher_than_limit() {
     prover_service
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
+            vec![],
             vec![],
         ))
         .await;
@@ -218,6 +226,7 @@ async fn test_multiple_parallel_proof_run() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 2nd proof
@@ -225,6 +234,7 @@ async fn test_multiple_parallel_proof_run() {
     prover_service
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            vec![],
             vec![],
         ))
         .await;
@@ -250,6 +260,7 @@ async fn test_multiple_parallel_proof_run() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 2nd proof
@@ -258,6 +269,7 @@ async fn test_multiple_parallel_proof_run() {
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
             vec![],
+            vec![],
         ))
         .await;
     // 3rd proof
@@ -265,6 +277,7 @@ async fn test_multiple_parallel_proof_run() {
     prover_service
         .add_proof_data((
             borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
+            vec![],
             vec![],
         ))
         .await;
@@ -346,7 +359,7 @@ async fn spawn_prove(
 ) -> oneshot::Receiver<Vec<Proof>> {
     let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {
-        let proofs = prover_service.prove(vec![]).await.unwrap();
+        let proofs = prover_service.prove().await.unwrap();
         tx.send(proofs).unwrap();
     });
 

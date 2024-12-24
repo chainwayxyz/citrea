@@ -20,7 +20,7 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, trace};
 
 #[cfg(test)]
 mod test_rpc;
@@ -154,6 +154,11 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     info!("Starting node on {network}");
+
+    trace!("Running with env :");
+    for (key, value) in std::env::vars() {
+        trace!("    {}: {}", key, value);
+    }
 
     match args.da_layer {
         SupportedDaLayer::Mock => {

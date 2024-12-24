@@ -228,32 +228,30 @@ where
     Tx: Clone + BorshSerialize,
 {
     let submitted_proofs = ledger
-        .get_proofs_by_l1_height(l1_block.header().height())
-        .map_err(|e| anyhow!("{e}"))?
+        .get_proofs_by_l1_height(l1_block.header().height())?
         .unwrap_or(vec![]);
 
     // Add each non-proven proof's data to ProverService
-    for input in inputs {
+    for (i, input) in inputs.into_iter().enumerate() {
         if !state_transition_already_proven::<StateRoot, Witness, Da, Tx>(&input, &submitted_proofs)
         {
+            let seq_com = sequencer_commitments.get(i).expect("Commitment exists");
+            let last_l2_height = seq_com.l2_end_block_number;
+
+            let current_spec = fork_from_block_number(last_l2_height).spec_id;
+            let elf = elfs_by_spec
+                .get(&current_spec)
+                .expect("Every fork should have an elf attached")
+                .clone();
+
             prover_service
-                .add_proof_data((borsh::to_vec(&input)?, vec![]))
+                .add_proof_data((borsh::to_vec(&input)?, vec![], elf))
                 .await;
         }
     }
 
-    let last_l2_height = sequencer_commitments
-        .last()
-        .expect("Should have at least 1 commitment")
-        .l2_end_block_number;
-    let current_spec = fork_from_block_number(last_l2_height).spec_id;
-    let elf = elfs_by_spec
-        .get(&current_spec)
-        .expect("Every fork should have an elf attached")
-        .clone();
-
     // Prove all proofs in parallel
-    let proofs = prover_service.prove(elf).await?;
+    let proofs = prover_service.prove().await?;
 
     let txs_and_proofs = prover_service.submit_proofs(proofs).await?;
 
@@ -262,8 +260,7 @@ where
         txs_and_proofs,
         code_commitments_by_spec.clone(),
     )
-    .await
-    .map_err(|e| anyhow!("{e}"))?;
+    .await?;
 
     save_commitments(
         ledger.clone(),

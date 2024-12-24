@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use sov_rollup_interface::fork::{fork_pos_from_block_number, verify_forks, Fork};
+use sov_rollup_interface::fork::{fork_pos_from_block_number, Fork};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::Network;
 
@@ -60,7 +60,10 @@ pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Fork1, 999_999_999),
 ];
 
-pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
+#[cfg(feature = "testing")]
+pub const NIGHTLY_FORKS: [Fork; 2] = [Fork::new(SpecId::Genesis, 0), Fork::new(SpecId::Fork1, 100)];
+#[cfg(not(feature = "testing"))]
+pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 100)];
 
 const _CHECK_FORKS: () = {
     if !verify_forks(&MAINNET_FORKS)

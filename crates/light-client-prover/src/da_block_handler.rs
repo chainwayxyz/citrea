@@ -337,10 +337,14 @@ where
         let prover_service = self.prover_service.as_ref();
 
         prover_service
-            .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
+            .add_proof_data((
+                borsh::to_vec(&circuit_input)?,
+                assumptions,
+                light_client_elf,
+            ))
             .await;
 
-        let proofs = self.prover_service.prove(light_client_elf).await?;
+        let proofs = self.prover_service.prove().await?;
 
         assert_eq!(proofs.len(), 1);
 

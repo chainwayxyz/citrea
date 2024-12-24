@@ -42,16 +42,19 @@ lazy_static! {
     };
     /// The following 2 are used as latest guest builds for tests that use Bitcoin DA.
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
-        let mut m = HashMap::new();
-
-        m.insert(
-            SpecId::Fork1,
-            (
-                Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
-            )
-        );
-        m
+        HashMap::from(
+            [
+                #[cfg(feature = "testing")]
+                (SpecId::Genesis,
+                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+                ),
+                (SpecId::Fork1,
+                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+                )
+            ]
+        )
     };
     pub(crate) static ref LIGHT_CLIENT_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
