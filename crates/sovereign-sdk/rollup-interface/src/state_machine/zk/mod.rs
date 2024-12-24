@@ -75,14 +75,19 @@ pub trait Zkvm: Send + Sync {
     type Error: Debug;
 
     /// Interpret a sequence of a bytes as a proof and attempt to verify it against the code commitment.
-    /// If the proof is valid, return a reference to the public outputs of the proof.
+    /// If the proof is valid, return Ok, else Err.
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error>;
+    ) -> Result<(), Self::Error>;
 
     /// Extracts the raw output without doing any verification.
+    /// The raw output is usually called "journal" which is the serialized output of the zkVM program.
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error>;
+
+    /// Deserialize the output from the proof.
+    /// This is used to extract the output from the zkVM program.
+    fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error>;
 
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.

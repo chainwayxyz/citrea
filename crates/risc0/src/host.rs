@@ -1,5 +1,7 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
+use std::io::Cursor;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;
@@ -208,18 +210,23 @@ impl Zkvm for Risc0BonsaiHost {
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<(), Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
 
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
-        Ok(receipt.journal.bytes)
+        Ok(())
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
         Ok(receipt.journal.bytes)
+    }
+
+    fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
+        let mut reader = Cursor::new(journal);
+        Ok(T::deserialize_reader(&mut reader)?)
     }
 
     fn verify_and_extract_output<T: BorshDeserialize>(

@@ -1,5 +1,3 @@
-use std::io::Cursor;
-
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
@@ -93,8 +91,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
         );
 
-    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
-    // https://github.com/chainwayxyz/citrea/issues/1401
     // Parse the batch proof da data
     for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
@@ -106,24 +102,22 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
 
-                        let mut journal_reader = Cursor::new(journal.clone());
                         let (
                             batch_proof_output_initial_state_root,
                             batch_proof_output_final_state_root,
                             batch_proof_output_last_l2_height,
-                        ) = if let Ok(output) =
-                            BatchProofCircuitOutput::<DaV::Spec, [u8; 32]>::deserialize_reader(
-                                &mut journal_reader,
-                            ) {
+                        ) = if let Ok(output) = G::deserialize_output::<
+                            BatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
+                        >(&journal)
+                        {
                             (
                                 output.initial_state_root,
                                 output.final_state_root,
                                 output.last_l2_height,
                             )
-                        } else if let Ok(output) =
-                            OldBatchProofCircuitOutput::<DaV::Spec, [u8; 32]>::deserialize_reader(
-                                &mut journal_reader,
-                            )
+                        } else if let Ok(output) = G::deserialize_output::<
+                            OldBatchProofCircuitOutput<DaV::Spec, [u8; 32]>,
+                        >(&journal)
                         {
                             (output.initial_state_root, output.final_state_root, 0)
                         } else {
