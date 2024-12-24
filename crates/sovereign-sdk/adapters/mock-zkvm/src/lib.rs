@@ -238,8 +238,12 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
 
     type Error = anyhow::Error;
 
-    fn verify(_journal: &[u8], _code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
-        Ok(())
+    fn verify(journal: &[u8], _code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
+        match mock_journal {
+            MockJournal::Verifiable(_) => Ok(()),
+            MockJournal::Unverifiable(_) => Err(anyhow::anyhow!("Journal is unverifiable")),
+        }
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
