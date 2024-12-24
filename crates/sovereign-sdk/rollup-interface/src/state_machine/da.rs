@@ -7,8 +7,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::zk::{LightClientCircuitOutput, Proof};
-use crate::BasicAddress;
+use crate::zk::Proof;
+use crate::{BasicAddress, Network};
 
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of soft confirmation hashes from L1 start block to L1 end block (inclusive)
@@ -32,24 +32,6 @@ impl core::cmp::Ord for SequencerCommitment {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.l2_start_block_number.cmp(&other.l2_start_block_number)
     }
-}
-
-/// UpdatedDaState is the state after verifying and applying a block
-/// on top of the existing DA state.
-#[derive(Debug, Clone, Default)]
-pub struct UpdatedDaState<Spec: DaSpec> {
-    /// DA block hash
-    pub hash: Spec::SlotHash,
-    /// DA block height
-    pub height: u64,
-    /// DA block latest total work
-    pub total_work: [u8; 32],
-    /// DA block epoch start time
-    pub epoch_start_time: u32,
-    /// DA block's previous 11 timestamps
-    pub prev_11_timestamps: [u32; 11],
-    /// DA block target bits
-    pub current_target_bits: u32,
 }
 
 // TODO: rename to da service request smth smth
@@ -134,6 +116,24 @@ pub trait DaSpec:
     type ChainParams: Send + Sync;
 }
 
+/// Latest da state to verify and apply da block changes
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+pub struct LatestDaState {
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    pub block_hash: [u8; 32],
+    /// Height of the blockchain
+    pub block_height: u64,
+    /// Total work done in the DA blockchain
+    pub total_work: [u8; 32],
+    /// Current target bits of the DA block
+    pub current_target_bits: u32,
+    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
+    pub epoch_start_time: u32,
+    /// The UNIX timestamps in seconds of the previous 11 blocks
+    pub prev_11_timestamps: [u32; 11],
+}
+
 /// A `DaVerifier` implements the logic required to create a zk proof that some data
 /// has been processed.
 ///
@@ -164,9 +164,10 @@ pub trait DaVerifier: Send + Sync {
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error>;
+        network: Network,
+    ) -> Result<LatestDaState, Self::Error>;
 }
 
 #[cfg(feature = "std")]

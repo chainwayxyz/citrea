@@ -5,6 +5,7 @@ use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     OldBatchProofCircuitOutput, ZkvmGuest,
 };
+use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
@@ -24,11 +25,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     l2_genesis_root: [u8; 32],
     initial_batch_proof_method_ids: InitialBatchProofMethodIds,
     batch_prover_da_public_key: &[u8],
-) -> Result<LightClientCircuitOutput<DaV::Spec>, LightClientVerificationError> {
+    network: Network,
+) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
     // Extract previous light client proof output
     let previous_light_client_proof_output =
         if let Some(journal) = input.previous_light_client_proof_journal {
-            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput<DaV::Spec>>(
+            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )
@@ -49,8 +51,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             o.batch_proof_method_ids.clone()
         });
 
-    let block_updates = da_verifier
-        .verify_header_chain(&previous_light_client_proof_output, &input.da_block_header)
+    let new_da_state = da_verifier
+        .verify_header_chain(
+            previous_light_client_proof_output
+                .as_ref()
+                .map(|output| &output.latest_da_state),
+            &input.da_block_header,
+            network,
+        )
         .map_err(|_| LightClientVerificationError::HeaderChainVerificationFailed)?;
 
     // Verify data from da
@@ -191,12 +199,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     Ok(LightClientCircuitOutput {
         state_root: last_state_root,
         light_client_proof_method_id: input.light_client_proof_method_id,
-        da_block_hash: block_updates.hash,
-        da_block_height: block_updates.height,
-        da_total_work: block_updates.total_work,
-        da_current_target_bits: block_updates.current_target_bits,
-        da_epoch_start_time: block_updates.epoch_start_time,
-        da_prev_11_timestamps: block_updates.prev_11_timestamps,
+        latest_da_state: new_da_state,
         unchained_batch_proofs_info: unchained_outputs,
         last_l2_height,
         batch_proof_method_ids,

@@ -3,8 +3,11 @@ use citrea_light_client_prover::circuit::run_circuit;
 use citrea_risc0_adapter::guest::Risc0Guest;
 use sov_mock_da::MockDaVerifier;
 use sov_rollup_interface::zk::ZkvmGuest;
+use sov_rollup_interface::Network;
 
 risc0_zkvm::guest::entry!(main);
+
+const NETWORK: Network = Network::Nightly;
 
 const L2_GENESIS_ROOT: [u8; 32] = match const_hex::const_decode_to_array(
     b"dacb59b0ff5d16985a8418235133eee37758a3ac1b76ab6d1f87c6df20e4d4da",
@@ -36,6 +39,7 @@ pub fn main() {
         L2_GENESIS_ROOT,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &BATCH_PROVER_DA_PUBLIC_KEY,
+        NETWORK,
     )
     .unwrap();
 

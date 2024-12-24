@@ -104,6 +104,7 @@ pub fn main() {
         L2_GENESIS_ROOT,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &BATCH_PROVER_DA_PUBLIC_KEY,
+        NETWORK,
     )
     .unwrap();
 

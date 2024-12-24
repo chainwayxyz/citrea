@@ -52,7 +52,7 @@ pub(crate) fn create_mock_blob(
 }
 
 pub(crate) fn create_prev_lcp_serialized(
-    output: LightClientCircuitOutput<MockDaSpec>,
+    output: LightClientCircuitOutput,
     is_valid: bool,
 ) -> Vec<u8> {
     let serialized = borsh::to_vec(&output).expect("should serialize");
