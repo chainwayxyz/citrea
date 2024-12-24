@@ -2,7 +2,7 @@
 //! previous blocks.
 #![allow(unused)]
 
-// Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
+// Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc-eth-types/src/gas_oracle.rs
 
 use alloy_network::AnyNetwork;
 use alloy_primitives::{B256, U256};
