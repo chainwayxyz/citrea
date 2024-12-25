@@ -143,7 +143,7 @@ pub async fn generate_mock_txs(
     // Send method id update tx
     let method_id = BatchProofMethodId {
         method_id: [0; 8],
-        l2_block_number: 0,
+        activation_l2_height: 0,
     };
     valid_method_ids.push(method_id.clone());
     da_service
@@ -245,7 +245,7 @@ pub async fn generate_mock_txs(
     // Send method id update tx
     let method_id = BatchProofMethodId {
         method_id: [1; 8],
-        l2_block_number: 100,
+        activation_l2_height: 100,
     };
     valid_method_ids.push(method_id.clone());
     da_service
