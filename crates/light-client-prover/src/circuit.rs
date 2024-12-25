@@ -31,7 +31,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Extract previous light client proof output
     let previous_light_client_proof_output =
         if let Some(journal) = input.previous_light_client_proof_journal {
-            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput>(
+            let prev_output = G::verify_and_deserialize_output::<LightClientCircuitOutput>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )
@@ -223,17 +223,4 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         last_l2_height,
         batch_proof_method_ids,
     })
-}
-
-#[test]
-fn test_binary_search() {
-    let ve = [1, 4, 7, 9, 14];
-    let idx = ve.binary_search(&4); // 1
-    assert_eq!(idx, Ok(1));
-    let idx = ve.binary_search(&100); // 5 - 1
-    assert_eq!(idx, Err(5));
-    let idx = ve.binary_search(&7); // 2
-    assert_eq!(idx, Ok(2));
-    let idx = ve.binary_search(&8); // 3-1
-    assert_eq!(idx, Err(3));
 }

@@ -324,7 +324,6 @@ where
         // save proof along with tx id to db, should be queryable by slot number or slot hash
         // TODO: select output version based on spec
         let (last_active_spec_id, circuit_output) = match Vm::extract_output::<
-            <Da as DaService>::Spec,
             BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         {
@@ -335,7 +334,6 @@ where
             Err(e) => {
                 info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
                 let output = Vm::extract_output::<
-                    <Da as DaService>::Spec,
                     OldBatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
                 >(&proof)
                 .expect("Should be able to extract either pre or post fork 1 output");
