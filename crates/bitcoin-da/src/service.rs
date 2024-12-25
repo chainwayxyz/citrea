@@ -383,7 +383,7 @@ impl BitcoinService {
                         self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
                             .await
                     }
-                    _ => panic!("ZKProof tx must be either complete or chunked")
+                    _ => panic!("ZKProof tx must be either complete or chunked"),
                 }
             }
             DaTxRequest::SequencerCommitment(comm) => {
@@ -447,7 +447,7 @@ impl BitcoinService {
                     LightClientTxs::BatchProofMethodId { commit, reveal } => {
                         self.send_complete_transaction(commit, reveal).await
                     }
-                    _ => panic!("Tx must be BatchProofMethodId")
+                    _ => panic!("Tx must be BatchProofMethodId"),
                 }
             }
         }
