@@ -229,6 +229,75 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
+fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address) {
+    // println!("root: {:?}", acc_proof.storage_hash);
+    // println!("proof: {:?}", acc_proof);
+
+    // Verify proof:
+    let expected_root_hash = acc_proof.storage_hash.0.into();
+
+    // construct account key/values to be verified
+    let account_key = [b"Evm/a/\x14", account_address.as_slice()].concat();
+    let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
+    let proved_account = if acc_proof.account_proof[1] == Bytes::from("y") {
+        // Account exists and it's serialized form is:
+        let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
+            // 1 for Some and 32 for length
+            [&[1, 32], acc_proof.code_hash.0.as_slice()].concat()
+        } else {
+            // 0 for None
+            vec![0]
+        };
+        let bytes = [
+            &[32], // balance length
+            acc_proof.balance.as_le_slice(),
+            &acc_proof.nonce.to_le_bytes(),
+            &code_hash_bytes,
+        ]
+        .concat();
+        Some(bytes)
+    } else {
+        // Account does not exist
+        None
+    };
+
+    let acc_storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+        borsh::from_slice(&acc_proof.account_proof[0]).unwrap();
+
+    acc_storage_proof
+        .verify(expected_root_hash, account_hash, proved_account)
+        .expect("Account proof must be valid");
+
+    for storage_proof in &acc_proof.storage_proof {
+        let storage_key = [
+            b"Evm/s/",
+            acc_proof.address.as_slice(),
+            &[32],
+            U256::from_le_slice(storage_proof.key.0.as_slice())
+                .to_be_bytes::<32>()
+                .as_slice(),
+        ]
+        .concat();
+        let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
+
+        let proved_value = if storage_proof.proof[1] == Bytes::from("y") {
+            // Storage value exists and it's serialized form is:
+            let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
+            Some(bytes)
+        } else {
+            // Storage value does not exist
+            None
+        };
+
+        let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+            borsh::from_slice(&storage_proof.proof[0]).unwrap();
+
+        storage_proof
+            .verify(expected_root_hash, key_hash, proved_value)
+            .expect("Account storage proof must be valid");
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     // citrea::initialize_logging(::tracing::Level::INFO);
@@ -294,82 +363,19 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap()
     );
 
-    let acc_zkproof = seq_test_client
+    let acc_proof_latest = seq_test_client
         .eth_get_proof(contract_address, vec![contract_field], None)
         .await
         .unwrap();
+
     {
-        println!("root: {:?}", acc_zkproof.storage_hash);
-        println!("proof: {:?}", acc_zkproof);
-
-        // Verify proof:
-        let expected_root_hash = acc_zkproof.storage_hash.0.into();
-
-        // construct account key/values to be verified
-        let account_key = [b"Evm/a/\x14", contract_address.as_slice()].concat();
-        let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
-        let proved_account = if acc_zkproof.account_proof[1] == Bytes::from("y") {
-            // Account exists and it's serialized form is:
-            let code_hash_bytes = if acc_zkproof.code_hash != KECCAK_EMPTY {
-                // 1 for Some and 32 for length
-                [&[1, 32], acc_zkproof.code_hash.0.as_slice()].concat()
-            } else {
-                // 0 for None
-                vec![0]
-            };
-            let bytes = [
-                &[32], // balance length
-                acc_zkproof.balance.as_le_slice(),
-                &acc_zkproof.nonce.to_le_bytes(),
-                &code_hash_bytes,
-            ]
-            .concat();
-            Some(bytes)
-        } else {
-            // Account does not exist
-            None
-        };
-
-        let acc_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&acc_zkproof.account_proof[0]).unwrap();
-
-        acc_proof
-            .verify(expected_root_hash, account_hash, proved_account)
-            .expect("Account proof must be valid");
-
-        for storage_proof in acc_zkproof.storage_proof {
-            let storage_key = [
-                b"Evm/s/",
-                acc_zkproof.address.as_slice(),
-                &[32],
-                U256::from_le_slice(storage_proof.key.0.as_slice())
-                    .to_be_bytes::<32>()
-                    .as_slice(),
-            ]
-            .concat();
-            let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
-
-            let proved_value = if storage_proof.proof[1] == Bytes::from("y") {
-                // Storage value exists and it's serialized form is:
-                let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
-                Some(bytes)
-            } else {
-                // Storage value does not exist
-                None
-            };
-
+        check_proof(&acc_proof_latest, contract_address);
+        for storage_proof in &acc_proof_latest.storage_proof {
             if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
             }
-
-            let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-                borsh::from_slice(&storage_proof.proof[0]).unwrap();
-
-            storage_proof
-                .verify(expected_root_hash, key_hash, proved_value)
-                .expect("Account storage proof must be valid");
         }
     }
 
@@ -379,76 +385,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
 
     let block_num = seq_test_client.eth_block_number().await;
 
-    fn check_zk_proof(acc_zkproof: &EIP1186AccountProofResponse, account_address: Address) {
-        // println!("root: {:?}", acc_zkproof.storage_hash);
-        // println!("proof: {:?}", acc_zkproof);
-
-        // Verify proof:
-        let expected_root_hash = acc_zkproof.storage_hash.0.into();
-
-        // construct account key/values to be verified
-        let account_key = [b"Evm/a/\x14", account_address.as_slice()].concat();
-        let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
-        let proved_account = if acc_zkproof.account_proof[1] == Bytes::from("y") {
-            // Account exists and it's serialized form is:
-            let code_hash_bytes = if acc_zkproof.code_hash != KECCAK_EMPTY {
-                // 1 for Some and 32 for length
-                [&[1, 32], acc_zkproof.code_hash.0.as_slice()].concat()
-            } else {
-                // 0 for None
-                vec![0]
-            };
-            let bytes = [
-                &[32], // balance length
-                acc_zkproof.balance.as_le_slice(),
-                &acc_zkproof.nonce.to_le_bytes(),
-                &code_hash_bytes,
-            ]
-            .concat();
-            Some(bytes)
-        } else {
-            // Account does not exist
-            None
-        };
-
-        let acc_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-            borsh::from_slice(&acc_zkproof.account_proof[0]).unwrap();
-
-        acc_proof
-            .verify(expected_root_hash, account_hash, proved_account)
-            .expect("Account proof must be valid");
-
-        for storage_proof in &acc_zkproof.storage_proof {
-            let storage_key = [
-                b"Evm/s/",
-                acc_zkproof.address.as_slice(),
-                &[32],
-                U256::from_le_slice(storage_proof.key.0.as_slice())
-                    .to_be_bytes::<32>()
-                    .as_slice(),
-            ]
-            .concat();
-            let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
-
-            let proved_value = if storage_proof.proof[1] == Bytes::from("y") {
-                // Storage value exists and it's serialized form is:
-                let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
-                Some(bytes)
-            } else {
-                // Storage value does not exist
-                None
-            };
-
-            let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
-                borsh::from_slice(&storage_proof.proof[0]).unwrap();
-
-            storage_proof
-                .verify(expected_root_hash, key_hash, proved_value)
-                .expect("Account storage proof must be valid");
-        }
-    }
-
-    let acc_zkproof_1 = seq_test_client
+    let acc_proof_1 = seq_test_client
         .eth_get_proof(
             contract_address,
             vec![contract_field],
@@ -457,7 +394,7 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .unwrap();
 
-    let acc_zkproof_2 = seq_test_client
+    let acc_proof_2 = seq_test_client
         .eth_get_proof(
             contract_address,
             vec![contract_field],
@@ -467,8 +404,8 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     {
-        check_zk_proof(&acc_zkproof_1, contract_address);
-        for storage_proof in &acc_zkproof_1.storage_proof {
+        check_proof(&acc_proof_1, contract_address);
+        for storage_proof in &acc_proof_1.storage_proof {
             if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
@@ -480,15 +417,20 @@ async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
     {
         // Assert historic proof is not the same as the first one queried
         //  because storage root is different -> all proofs are different too.
-        assert_ne!(acc_zkproof_1, acc_zkproof_2);
-        check_zk_proof(&acc_zkproof_2, contract_address);
-        for storage_proof in &acc_zkproof_2.storage_proof {
+        assert_ne!(acc_proof_1, acc_proof_2);
+        check_proof(&acc_proof_2, contract_address);
+        for storage_proof in &acc_proof_2.storage_proof {
             if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
                 // A sanity check to verify we deal with the same value.
                 // This check is not actually required, it's for test purposes only
                 assert_eq!(storage_proof.value, storage_value);
             }
         }
+    }
+
+    {
+        // Assert historic proof is the same as the first one queried.
+        assert_eq!(acc_proof_latest, acc_proof_2);
     }
 
     seq_task.abort();
