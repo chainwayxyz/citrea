@@ -302,3 +302,19 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
 }
+
+#[cfg(feature = "std")]
+/// A cryptographic commitment to the contents of this storage
+pub type StorageRootHash = jmt::RootHash;
+
+#[cfg(not(feature = "std"))]
+/// To bypass nostd builds.
+pub type StorageRootHash = Vec<u8>;
+
+#[cfg(feature = "std")]
+/// Alias to jmt::proof::SparseMerkleProof.
+pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;
+
+#[cfg(not(feature = "std"))]
+/// To bypass nostd builds.
+pub type SparseMerkleProofSha2 = Vec<u8>;

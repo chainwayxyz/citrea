@@ -6,7 +6,7 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{AccessoryWorkingSet, Context, SoftConfirmationHookError, WorkingSet};
 use sov_modules_stf_blueprint::{RuntimeTxHook, SequencerOutcome};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-use sov_state::Storage;
+use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -90,7 +90,7 @@ impl<C: Context, Da: DaSpec> SlotHooks<Da> for Runtime<C, Da> {
     fn begin_slot_hook(
         &self,
         _slot_header: &Da::BlockHeader,
-        _pre_state_root: &<C::Storage as Storage>::Root,
+        _pre_state_root: &StorageRootHash,
         _working_set: &mut sov_modules_api::WorkingSet<C::Storage>,
     ) {
     }
@@ -107,7 +107,7 @@ impl<C: Context, Da: sov_modules_api::DaSpec> FinalizeHook<Da> for Runtime<C, Da
     )]
     fn finalize_hook(
         &self,
-        root_hash: &<C::Storage as Storage>::Root,
+        root_hash: &StorageRootHash,
         accessory_working_set: &mut AccessoryWorkingSet<C::Storage>,
     ) {
         self.evm.finalize_hook(root_hash, accessory_working_set);

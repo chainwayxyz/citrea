@@ -6,10 +6,11 @@ mod trace;
 use std::sync::Arc;
 
 use alloy_network::AnyNetwork;
-use alloy_primitives::{keccak256, Bytes, B256, U256};
-use alloy_rpc_types::{FeeHistory, Index};
+use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
+use alloy_rpc_types::serde_helpers::JsonStorageKey;
+use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
-use citrea_evm::{Evm, Filter};
+use citrea_evm::{DbAccount, Evm, Filter};
 use citrea_sequencer::SequencerRpcClient;
 pub use ethereum::{EthRpcConfig, Ethereum};
 pub use gas_price::fee_history::FeeHistoryCacheConfig;
@@ -19,7 +20,7 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, RpcModule};
-use reth_primitives::BlockNumberOrTag;
+use reth_primitives::{BlockId, BlockNumberOrTag, KECCAK_EMPTY};
 use reth_rpc_eth_api::RpcTransaction;
 use reth_rpc_eth_types::EthApiError;
 use serde_json::{json, Value};
@@ -27,8 +28,9 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::utils::to_jsonrpsee_error_object;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{StateMapAccessor, WorkingSet};
 use sov_rollup_interface::services::da::DaService;
+use sov_state::storage::NativeStorage;
 use tokio::join;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
@@ -86,6 +88,16 @@ pub trait EthereumRpc {
         newest_block: BlockNumberOrTag,
         reward_percentiles: Option<Vec<f64>>,
     ) -> RpcResult<FeeHistory>;
+
+    /// Returns zkproof by EIP-1186.
+    #[method(name = "eth_getProof")]
+    #[blocking]
+    fn eth_get_proof(
+        &self,
+        address: Address,
+        keys: Vec<JsonStorageKey>,
+        block_id: Option<BlockId>,
+    ) -> RpcResult<EIP1186AccountProofResponse>;
 
     /// Returns traces for a block by hash.
     #[method(name = "debug_traceBlockByHash")]
@@ -185,6 +197,7 @@ where
 impl<C, Da> EthereumRpcServer for EthereumRpcServerImpl<C, Da>
 where
     C: sov_modules_api::Context,
+    C::Storage: NativeStorage,
     Da: DaService,
 {
     fn web3_client_version(&self) -> RpcResult<String> {
@@ -231,6 +244,98 @@ where
                 &mut working_set,
             )
             .map_err(to_eth_rpc_error)
+    }
+
+    fn eth_get_proof(
+        &self,
+        address: Address,
+        keys: Vec<JsonStorageKey>,
+        block_id: Option<BlockId>,
+    ) -> RpcResult<EIP1186AccountProofResponse> {
+        use sov_state::storage::{StateCodec, StorageKey};
+
+        let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
+
+        let evm = Evm::<C>::default();
+        let block_number = match block_id {
+            Some(BlockId::Number(block_num)) => block_num,
+            Some(BlockId::Hash(block_hash)) => {
+                let block_number = evm
+                    .get_block_number_by_block_hash(block_hash.block_hash, &mut working_set)
+                    .ok_or_else(|| EthApiError::UnknownBlockOrTxIndex)?;
+                BlockNumberOrTag::Number(block_number)
+            }
+            None => BlockNumberOrTag::Latest,
+        };
+        let block_id_internal = evm.block_number_for_id(&block_number, &mut working_set)?;
+        evm.set_state_to_end_of_evm_block_by_block_id(block_id, &mut working_set)?;
+
+        let version = block_id_internal
+            .checked_add(1) // We need to set block_id to the end
+            .ok_or_else(|| EthApiError::EvmCustom("Block id overflow".into()))?;
+
+        let root_hash = working_set
+            .get_root_hash(version)
+            .map_err(|_| EthApiError::EvmCustom("Root hash not found".into()))?;
+
+        let account = evm
+            .accounts
+            .get(&address, &mut working_set)
+            .unwrap_or_default();
+        let balance = account.balance;
+        let nonce = account.nonce;
+        let code_hash = account.code_hash.unwrap_or(KECCAK_EMPTY);
+
+        let account_key = StorageKey::new(
+            evm.accounts.prefix(),
+            &address,
+            evm.accounts.codec().key_codec(),
+        );
+
+        let account_proof = working_set.get_with_proof(account_key, version);
+        let account_exists = if account_proof.value.is_some() {
+            Bytes::from("y")
+        } else {
+            Bytes::from("n")
+        };
+        let account_proof =
+            borsh::to_vec(&account_proof.proof).expect("Serialization shouldn't fail");
+        let account_proof = Bytes::from(account_proof);
+
+        let db_account = DbAccount::new(address);
+        let mut storage_proof = vec![];
+        for key in keys {
+            let key: U256 = key.0.into();
+            let storage_key = StorageKey::new(
+                db_account.storage.prefix(),
+                &key,
+                db_account.storage.codec().key_codec(),
+            );
+            let value = db_account.storage.get(&key, &mut working_set);
+            let proof = working_set.get_with_proof(storage_key, version);
+            let value_exists = if proof.value.is_some() {
+                Bytes::from("y")
+            } else {
+                Bytes::from("n")
+            };
+            let value_proof = borsh::to_vec(&proof.proof).expect("Serialization shouldn't fail");
+            let value_proof = Bytes::from(value_proof);
+            storage_proof.push(EIP1186StorageProof {
+                key: JsonStorageKey(key.to_le_bytes().into()),
+                value: value.unwrap_or_default(),
+                proof: vec![value_proof, value_exists],
+            });
+        }
+
+        Ok(EIP1186AccountProofResponse {
+            address,
+            balance,
+            nonce,
+            code_hash,
+            storage_hash: root_hash.0.into(),
+            account_proof: vec![account_proof, account_exists],
+            storage_proof,
+        })
     }
 
     fn debug_trace_block_by_hash(
@@ -535,6 +640,7 @@ pub fn create_rpc_module<C, Da>(
 ) -> RpcModule<EthereumRpcServerImpl<C, Da>>
 where
     C: sov_modules_api::Context,
+    C::Storage: NativeStorage,
     Da: DaService,
 {
     // Unpack config
