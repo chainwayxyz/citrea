@@ -593,11 +593,11 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         );
 
         // Send BatchProofMethodId transaction to da
-        let batch_proof_method_id = lcp_output.batch_proof_method_ids[0].1;
+        let new_batch_proof_method_id = [1u32; 8];
         bitcoin_da_service
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
-                    method_id: batch_proof_method_id,
+                    method_id: new_batch_proof_method_id,
                     activation_l2_height: 100,
                 }),
                 1,
@@ -644,7 +644,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             lcp_output.batch_proof_method_ids,
             vec![
                 (0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)
+                (100, new_batch_proof_method_id)
             ],
         );
 
@@ -668,7 +668,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             lcp_output.batch_proof_method_ids,
             vec![
                 (0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)
+                (100, new_batch_proof_method_id)
             ],
         );
 
