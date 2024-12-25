@@ -112,7 +112,6 @@ impl<'a> LedgerDBMigrator<'a> {
 
         for migration in self.migrations {
             if !executed_migrations.contains(&migration.identifier()) {
-                println!("Running migration: {}", migration.identifier().0);
                 debug!("Running migration: {}", migration.identifier().0);
                 if let Err(e) = migration.execute(new_ledger_db.clone(), &mut tables_to_drop) {
                     error!(
@@ -126,10 +125,6 @@ impl<'a> LedgerDBMigrator<'a> {
                     return Err(e);
                 }
             } else {
-                println!(
-                    "Skip previously executed migration: {}",
-                    migration.identifier().0
-                );
                 debug!(
                     "Skip previously executed migration: {}",
                     migration.identifier().0
@@ -148,7 +143,6 @@ impl<'a> LedgerDBMigrator<'a> {
         }
         // Stop using the original ledger DB path, i.e drop locks
         drop(new_ledger_db);
-        println!("tables_to_drop: {:?}", tables_to_drop);
 
         // Now that the lock is gone drop the tables that were migrated
 
