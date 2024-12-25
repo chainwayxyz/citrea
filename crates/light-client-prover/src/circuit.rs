@@ -10,9 +10,9 @@ use sov_rollup_interface::Network;
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
 #[derive(Debug)]
-pub enum LightClientVerificationError {
-    DaTxsCouldntBeVerified,
-    HeaderChainVerificationFailed,
+pub enum LightClientVerificationError<DaV: DaVerifier> {
+    DaTxsCouldntBeVerified(DaV::Error),
+    HeaderChainVerificationFailed(DaV::Error),
     InvalidPreviousLightClientProof,
 }
 
@@ -27,7 +27,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     batch_prover_da_public_key: &[u8],
     method_id_upgrade_authority_da_public_key: &[u8],
     network: Network,
-) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
+) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>> {
     // Extract previous light client proof output
     let previous_light_client_proof_output =
         if let Some(journal) = input.previous_light_client_proof_journal {
@@ -35,7 +35,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )
-            .map_err(|_| LightClientVerificationError::InvalidPreviousLightClientProof)?;
+            .map_err(|_| LightClientVerificationError::<DaV>::InvalidPreviousLightClientProof)?;
             // Ensure method IDs match
             assert_eq!(
                 input.light_client_proof_method_id,
@@ -60,7 +60,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             &input.da_block_header,
             network,
         )
-        .map_err(|_| LightClientVerificationError::HeaderChainVerificationFailed)?;
+        .map_err(|err| LightClientVerificationError::HeaderChainVerificationFailed(err))?;
 
     // Verify data from da
     da_verifier
@@ -71,7 +71,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             input.completeness_proof,
             DaNamespace::ToLightClientProver,
         )
-        .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
+        .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
 
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();

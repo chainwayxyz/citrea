@@ -29,6 +29,7 @@ const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
 /// Number of blocks per epoch
 const BLOCKS_PER_EPOCH: u64 = 2016;
 
+#[derive(Debug)]
 pub struct BitcoinVerifier {
     to_batch_proof_prefix: Vec<u8>,
     to_light_client_prefix: Vec<u8>,

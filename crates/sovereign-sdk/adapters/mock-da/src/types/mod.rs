@@ -160,7 +160,7 @@ pub struct MockDaConfig {
     pub db_path: PathBuf,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 /// DaVerifier used in tests.
 pub struct MockDaVerifier {}
 

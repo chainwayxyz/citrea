@@ -277,7 +277,9 @@ fn test_header_chain_proof_height_and_hash() {
     );
     assert!(matches!(
         res,
-        Err(LightClientVerificationError::HeaderChainVerificationFailed)
+        Err(LightClientVerificationError::HeaderChainVerificationFailed(
+            _
+        ))
     ));
 }
 
