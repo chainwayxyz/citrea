@@ -95,7 +95,7 @@ pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
         Network::Devnet => "000000000000000000000000000000000000000000000000000000000000000000",
         Network::Nightly => match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
             Some(hex_pub_key) => hex_pub_key,
-            None => "000000000000000000000000000000000000000000000000000000000000000000",
+            None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
         },
     };
 

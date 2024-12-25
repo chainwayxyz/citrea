@@ -27,7 +27,7 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_ar
 };
 
 const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
-    b"03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601", // make it same as prover pubkey to make things easier while testing
+    b"0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
 ) {
     Ok(pub_key) => pub_key,
     Err(_) => panic!("Can't happen"),
