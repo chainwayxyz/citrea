@@ -39,7 +39,7 @@ use crate::helpers::builders::batch_proof_namespace::{
     create_seqcommitment_transactions, BatchProvingTxs,
 };
 use crate::helpers::builders::light_client_proof_namespace::{
-    create_zkproof_transactions, LightClientTxs, RawLightClientData,
+    create_light_client_transactions, LightClientTxs, RawLightClientData,
 };
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::merkle_tree;
@@ -353,7 +353,7 @@ impl BitcoinService {
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
-                    create_zkproof_transactions(
+                    create_light_client_transactions(
                         data,
                         da_private_key,
                         prev_utxo,
@@ -426,7 +426,7 @@ impl BitcoinService {
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
-                    create_zkproof_transactions(
+                    create_light_client_transactions(
                         RawLightClientData::BatchProofMethodId(blob),
                         da_private_key,
                         prev_utxo,

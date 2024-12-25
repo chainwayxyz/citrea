@@ -468,7 +468,7 @@ fn create_inscription_transactions() {
 
     let tx_prefix = &[0u8];
     let LightClientTxs::Complete { commit, reveal } =
-        super::light_client_proof_namespace::create_zkproof_transactions(
+        super::light_client_proof_namespace::create_light_client_transactions(
             RawLightClientData::Complete(body.clone()),
             da_private_key,
             None,
