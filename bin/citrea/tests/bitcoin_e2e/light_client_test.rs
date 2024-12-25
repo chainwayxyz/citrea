@@ -653,7 +653,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
         // Wait for light client to process it
         light_client_prover
-            .wait_for_l1_height(method_id_l1_height, None)
+            .wait_for_l1_height(method_id_l1_height + 1, None)
             .await
             .unwrap();
 
