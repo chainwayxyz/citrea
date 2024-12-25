@@ -649,6 +649,24 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             ],
         );
 
+        // Generate one more empty l1 block
+        da.generate(1).await?;
+
+        // Verify that the updated method ids are being used
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(method_id_l1_height + 1)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+        assert_eq!(
+            lcp_output.batch_proof_method_ids,
+            vec![
+                (0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)
+            ],
+        );
+
         Ok(())
     }
 }
