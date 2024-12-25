@@ -185,7 +185,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
             if let Ok(DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
                 method_id,
-                l2_block_number,
+                activation_l2_height,
             })) = data
             {
                 let last_activation_height = batch_proof_method_ids
@@ -193,8 +193,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     .expect("Should be at least one")
                     .0;
 
-                if l2_block_number > last_activation_height {
-                    batch_proof_method_ids.push((l2_block_number, method_id));
+                if activation_l2_height > last_activation_height {
+                    batch_proof_method_ids.push((activation_l2_height, method_id));
                 }
             }
         }

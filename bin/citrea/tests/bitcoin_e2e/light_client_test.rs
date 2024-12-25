@@ -598,7 +598,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     method_id: batch_proof_method_id,
-                    l2_block_number: 100,
+                    activation_l2_height: 100,
                 }),
                 1,
             )

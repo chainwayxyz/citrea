@@ -25,10 +25,10 @@ pub struct SequencerCommitment {
 /// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub struct BatchProofMethodId {
-    /// Merkle root of soft confirmation hashes
+    /// New method id of upcoming fork
     pub method_id: [u32; 8],
-    /// Start L2 block's number
-    pub l2_block_number: u64,
+    /// Activation L2 height of the new method id
+    pub activation_l2_height: u64,
 }
 
 impl core::cmp::PartialOrd for SequencerCommitment {

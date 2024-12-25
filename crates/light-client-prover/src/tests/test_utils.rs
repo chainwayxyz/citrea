@@ -69,7 +69,7 @@ pub(crate) fn create_new_method_id_tx(
 ) -> MockBlob {
     let da_data = DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
         method_id: new_method_id,
-        l2_block_number: activation_height,
+        activation_l2_height: activation_height,
     });
 
     let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
