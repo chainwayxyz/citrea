@@ -53,6 +53,8 @@ pub enum DaTxRequest {
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
     ZKProof(Proof),
+    /// Batch proof method id update for light client
+    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum

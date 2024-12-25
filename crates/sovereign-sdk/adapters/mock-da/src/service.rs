@@ -492,6 +492,11 @@ impl DaService for MockDaService {
                 let req = DaTxRequest::SequencerCommitment(seq_comm);
                 borsh::to_vec(&req).unwrap()
             }
+            DaTxRequest::BatchProofMethodId(method_id) => {
+                tracing::debug!("Adding a batch proof method id tx");
+                let req = DaTxRequest::BatchProofMethodId(method_id);
+                borsh::to_vec(&req).unwrap()
+            }
         };
         let blocks = self.blocks.lock().await;
         let _ = self.add_blob(&blocks, blob, Default::default())?;

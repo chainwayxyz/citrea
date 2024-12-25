@@ -383,6 +383,7 @@ impl BitcoinService {
                         self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
                             .await
                     }
+                    _ => panic!("ZKProof tx must be either complete or chunked")
                 }
             }
             DaTxRequest::SequencerCommitment(comm) => {
@@ -414,6 +415,40 @@ impl BitcoinService {
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
 
                 self.send_complete_transaction(commit, reveal).await
+            }
+            DaTxRequest::BatchProofMethodId(method_id) => {
+                let data = DaDataLightClient::BatchProofMethodId(method_id);
+                let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
+
+                let prefix = self.to_light_client_prefix.clone();
+
+                // create inscribe transactions
+                let inscription_txs = tokio::task::spawn_blocking(move || {
+                    // Since this is CPU bound work, we use spawn_blocking
+                    // to release the tokio runtime execution
+                    create_zkproof_transactions(
+                        RawLightClientData::BatchProofMethodId(blob),
+                        da_private_key,
+                        prev_utxo,
+                        utxos,
+                        address,
+                        fee_sat_per_vbyte,
+                        fee_sat_per_vbyte,
+                        network,
+                        prefix,
+                    )
+                })
+                .await??;
+
+                // write txs to file, it can be used to continue revealing blob if something goes wrong
+                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
+
+                match inscription_txs {
+                    LightClientTxs::BatchProofMethodId { commit, reveal } => {
+                        self.send_complete_transaction(commit, reveal).await
+                    }
+                    _ => panic!("Tx must be BatchProofMethodId")
+                }
             }
         }
     }
