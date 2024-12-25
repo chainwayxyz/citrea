@@ -612,7 +612,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         da.generate(FINALITY_DEPTH).await?;
 
         let method_id_l1_height = da.get_finalized_height().await?;
-        println!("Method id l1 height: {method_id_l1_height}");
 
         // Wait for light client prover to process method id update
         light_client_prover
