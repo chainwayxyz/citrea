@@ -440,6 +440,7 @@ async fn test_light_client_proving_multiple_proofs() -> Result<()> {
         .await
 }
 
+#[derive(Default)]
 struct LightClientBatchProofMethodIdUpdateTest {
     task_manager: TaskManager<()>,
 }
@@ -654,9 +655,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
 #[tokio::test]
 async fn test_light_client_batch_proof_method_id_update() -> Result<()> {
-    TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest {
-        task_manager: Default::default(),
-    })
+    TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest::default())
     .set_citrea_path(get_citrea_path())
     .run()
     .await
