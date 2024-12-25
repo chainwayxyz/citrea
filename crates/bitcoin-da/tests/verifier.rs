@@ -587,7 +587,7 @@ impl TestCase for BitcoinVerifierTest {
             let mut l_txs = l_txs.clone();
 
             let body = {
-                let parsed = parse_light_client_transaction(&l_completeness_proof[0]).unwrap();
+                let parsed = parse_light_client_transaction(&l_completeness_proof[1]).unwrap();
                 match parsed {
                     ParsedLightClientTransaction::Complete(complete) => complete.body, // normally we should decompress the tx body
                     _ => panic!("Should not select zk proof tx other than complete"),
