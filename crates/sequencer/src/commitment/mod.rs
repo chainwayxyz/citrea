@@ -11,8 +11,8 @@ use rs_merkle::MerkleTree;
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::StateDiff;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaData, SequencerCommitment};
-use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
+use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use tokio::select;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
@@ -138,9 +138,9 @@ where
 
         debug!("Sequencer: submitting commitment: {:?}", commitment);
 
-        let da_data = DaData::SequencerCommitment(commitment);
+        let tx_request = DaTxRequest::SequencerCommitment(commitment);
         let (notify, rx) = oneshot::channel();
-        let request = SenderWithNotifier { da_data, notify };
+        let request = TxRequestWithNotifier { tx_request, notify };
         self.da_service
             .get_send_transaction_queue()
             .send(request)

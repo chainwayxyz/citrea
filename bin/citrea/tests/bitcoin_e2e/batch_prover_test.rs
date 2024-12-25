@@ -20,7 +20,7 @@ use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use tokio::time::sleep;
 
@@ -273,7 +273,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         // Send the same commitment that was already proven.
         bitcoin_da_service
             .send_transaction_with_fee_rate(
-                DaData::SequencerCommitment(commitments.first().unwrap().clone()),
+                DaTxRequest::SequencerCommitment(commitments.first().unwrap().clone()),
                 1,
             )
             .await

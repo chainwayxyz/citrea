@@ -23,7 +23,7 @@ use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::compression::decompress_blob;
 use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
 pub const DEFAULT_DA_PRIVATE_KEY: &str =
@@ -140,7 +140,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(commitment))
+        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -151,7 +151,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(commitment))
+        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -160,7 +160,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
@@ -170,13 +170,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong tx prefix
     wrong_prefix_da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             l2_start_block_number: 1246,
             l2_end_block_number: 1268,
@@ -189,13 +189,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong key and signature
     wrong_key_da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             l2_start_block_number: 1246,
             l2_end_block_number: 1268,
@@ -210,7 +210,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(commitment))
+        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -220,7 +220,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 

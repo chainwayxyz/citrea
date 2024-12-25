@@ -48,7 +48,7 @@ impl core::cmp::Ord for SequencerCommitment {
 /// Data written to DA can only be one of these two types
 /// Data written to DA and read from DA is must be borsh serialization of this enum
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaData {
+pub enum DaTxRequest {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
