@@ -10,7 +10,7 @@ use bitcoin_da::spec::proof::InclusionMultiProof;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
 use citrea_common::tasks::manager::TaskManager;
-use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
@@ -31,6 +31,13 @@ impl TestCase for BitcoinVerifierTest {
         // Only run bitcoin regtest
         TestCaseConfig {
             with_sequencer: false,
+            ..Default::default()
+        }
+    }
+
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-limitancestorcount=50", "-limitdescendantcount=50"],
             ..Default::default()
         }
     }
