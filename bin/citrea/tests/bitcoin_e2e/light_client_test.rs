@@ -651,7 +651,13 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         // Generate one more empty l1 block
         da.generate(1).await?;
 
-        // Verify that the updated method ids are being used
+        // Wait for light client to process it
+        light_client_prover
+            .wait_for_l1_height(method_id_l1_height, None)
+            .await
+            .unwrap();
+
+        // Verify that previously updated method ids are being used
         let lcp = light_client_prover
             .client
             .http_client()
