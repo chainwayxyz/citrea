@@ -43,10 +43,7 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
-// TODO: rename to da service request smth smth
-// DaDataOutgoing
-/// Data written to DA can only be one of these two types
-/// Data written to DA and read from DA is must be borsh serialization of this enum
+/// Transaction request to send to the DA queue.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
 pub enum DaTxRequest {
     /// A commitment from the sequencer
