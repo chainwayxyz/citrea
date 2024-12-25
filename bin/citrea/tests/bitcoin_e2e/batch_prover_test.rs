@@ -559,11 +559,31 @@ impl TestCase for ForkElfSwitchingTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
 
+        // send evm tx
+        let evm_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await?;
+
+        let pending_evm_tx = evm_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await
+            .unwrap();
+
         let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations {
             sequencer.client.send_publish_batch_request().await?;
         }
+
+        // assert that evm tx is mined
+        let evm_tx = evm_client
+            .eth_get_transaction_by_hash(pending_evm_tx.tx_hash().clone(), None)
+            .await
+            .unwrap();
+
+        assert!(evm_tx.block_number.is_some());
 
         let height = sequencer
             .client
