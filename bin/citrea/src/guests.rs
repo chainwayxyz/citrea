@@ -52,7 +52,8 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         HashMap::from(
             [
-                (SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-0.elf")), // testnet would also work. guests are the same
+                // this is ELF of genesis fork except for da namespace [1, 1] -> [1] and [2,2] -> [2]
+                (SpecId::Genesis, guest!("../../../resources/guests/risc0/genesis-batch-proof-0-short-prefix")),
                 (SpecId::Fork1,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                     citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
