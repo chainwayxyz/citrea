@@ -211,10 +211,23 @@ where
 
                 assumptions.push(proof);
             } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
-                for wtxid in wtxids {
-                    // Clear the chunk from the unused chunks.
-                    unused_chunks.remove(&wtxid);
+                // Feed all found chunks which are used by the current aggregate into the MMR
+                // so that a new root can be constructed.
+                for wtxid in &wtxids {
+                    if let Some(body) = unused_chunks.get(wtxid) {
+                        mmr_native.append(MMRNode::new(*wtxid, body.clone()));
+                        // Clear the chunk from the unused chunks.
+                        unused_chunks.remove(wtxid);
+                    } else {
+                        return Err(anyhow!(
+                            "Missing chunk with wtxid {} for aggregate",
+                            hex::encode(wtxid)
+                        ));
+                    }
+                }
 
+                // For each of the chunks, construct the inclusion proof and provide it as a hint.
+                for wtxid in wtxids {
                     if !current_block_wtxids.contains(&wtxid) {
                         let Some((chunk_from_db, proof)) = mmr_native.generate_proof(wtxid) else {
                             return Err(anyhow!(
