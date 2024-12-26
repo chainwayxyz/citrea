@@ -512,3 +512,77 @@ fn test_new_method_id_txs() {
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
 }
+
+#[test]
+#[should_panic = "Proof hinted to fail passed"]
+fn test_expect_to_fail_on_correct_proof() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, true);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        expected_to_fail_hint: vec![1],
+    };
+
+    let _ = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+}
+
+#[test]
+#[should_panic = "Proof hinted to pass failed"]
+fn test_expected_to_fail_proof_not_hinted() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, false);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        expected_to_fail_hint: vec![],
+    };
+
+    let _ = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+}
