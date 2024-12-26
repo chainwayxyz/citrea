@@ -114,9 +114,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut in_memory_chunks: BTreeMap<[u8; 32], Vec<u8>> = Default::default();
     let mut mmr_hints = input.mmr_hints.clone();
 
-    // TODO: Test for multiple assumptions to see if the env::verify function does automatic matching between the journal and the assumption or do we need to verify them in order?
-    // https://github.com/chainwayxyz/citrea/issues/1401
-    // Parse the batch proof da data
     for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
@@ -173,7 +170,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 &mut initial_to_final,
                             );
 
-                            if result.is_err() {
+                            if let Err(e) = result {
+                                println!("Error in light client guest: {:?}", e);
                                 continue;
                             }
 
