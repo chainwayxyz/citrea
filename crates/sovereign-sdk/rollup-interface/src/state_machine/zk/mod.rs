@@ -308,3 +308,19 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Hints for the guest MMR tree.
     pub mmr_hints: VecDeque<(MMRNode, MMRInclusionProof)>,
 }
+
+#[cfg(feature = "std")]
+/// A cryptographic commitment to the contents of this storage
+pub type StorageRootHash = jmt::RootHash;
+
+#[cfg(not(feature = "std"))]
+/// To bypass nostd builds.
+pub type StorageRootHash = Vec<u8>;
+
+#[cfg(feature = "std")]
+/// Alias to jmt::proof::SparseMerkleProof.
+pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;
+
+#[cfg(not(feature = "std"))]
+/// To bypass nostd builds.
+pub type SparseMerkleProofSha2 = Vec<u8>;

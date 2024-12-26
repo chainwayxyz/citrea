@@ -27,3 +27,5 @@ pub use crate::witness::ArrayWitness;
 pub type DefaultWitness = ArrayWitness;
 /// The default Hasher type used in merkle proofs for storage access, typically found as a type parameter for [`ProverStorage`].
 pub type DefaultHasher = sha2::Sha256;
+/// A hashed key used to index a JellyfishMerkleTree.
+pub type KeyHash = jmt::KeyHash;

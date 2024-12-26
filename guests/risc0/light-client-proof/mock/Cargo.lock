@@ -1802,6 +1802,7 @@ dependencies = [
  "bytes",
  "digest",
  "hex",
+ "jmt",
  "serde",
  "sha2",
  "thiserror",

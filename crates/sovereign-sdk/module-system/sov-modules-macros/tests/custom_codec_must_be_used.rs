@@ -57,7 +57,7 @@ impl<V> StateValueCodec<V> for CustomCodec {
 }
 
 fn main() {
-    let storage: ZkStorage<DefaultWitness, DefaultHasher> = ZkStorage::new();
+    let storage: ZkStorage<DefaultWitness> = ZkStorage::new();
     let module: TestModule<ZkDefaultContext> = TestModule::default();
 
     catch_unwind(|| {

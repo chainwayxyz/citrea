@@ -10,7 +10,7 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::{Http, HyperClient};
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256, U64};
 // use reth_rpc_types::TransactionReceipt;
-use alloy_rpc_types::AnyNetworkBlock;
+use alloy_rpc_types::{AnyNetworkBlock, EIP1186AccountProofResponse};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
 use citrea_batch_prover::GroupCommitments;
 use citrea_evm::{Filter, LogResponse};
@@ -480,6 +480,18 @@ impl TestClient {
             .await
             .unwrap();
         eth_logs
+    }
+
+    pub(crate) async fn eth_get_proof(
+        &self,
+        address: Address,
+        keys: Vec<U256>,
+        block_number: Option<BlockNumberOrTag>,
+    ) -> Result<EIP1186AccountProofResponse, Box<dyn std::error::Error>> {
+        self.http_client
+            .request("eth_getProof", rpc_params![address, keys, block_number])
+            .await
+            .map_err(|e| e.into())
     }
 
     #[allow(clippy::extra_unused_type_parameters)]

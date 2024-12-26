@@ -10,6 +10,7 @@ use sov_modules_core::{
     StorageValue, Witness,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::zk::StorageRootHash;
 
 use crate::config::Config;
 use crate::{DefaultHasher, DefaultWitness};
@@ -75,8 +76,6 @@ where
 {
     type Witness = DefaultWitness;
     type RuntimeConfig = Config;
-    type Proof = jmt::proof::SparseMerkleProof<DefaultHasher>;
-    type Root = jmt::RootHash;
     type StateUpdate = ProverStateUpdate;
 
     fn get(
@@ -96,7 +95,7 @@ where
         version: Option<Version>,
         witness: &mut Self::Witness,
     ) -> Option<StorageValue> {
-        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
+        let version_to_use = version.unwrap_or_else(|| self.version());
         let val = self
             .native_db
             .get_value_option(key.as_ref(), version_to_use)
@@ -108,7 +107,7 @@ where
 
     #[cfg(feature = "native")]
     fn get_accessory(&self, key: &StorageKey, version: Option<Version>) -> Option<StorageValue> {
-        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version() - 1);
+        let version_to_use = version.unwrap_or_else(|| self.version());
         self.native_db
             .get_value_option(key.as_ref(), version_to_use)
             .unwrap()
@@ -121,13 +120,13 @@ where
         witness: &mut Self::Witness,
     ) -> Result<
         (
-            StateRootTransition<Self::Root>,
+            StateRootTransition<StorageRootHash>,
             Self::StateUpdate,
             StateDiff,
         ),
         anyhow::Error,
     > {
-        let latest_version = self.db.get_next_version() - 1;
+        let latest_version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
         // Handle empty jmt
@@ -214,7 +213,7 @@ where
         accessory_writes: &OrderedReadsAndWrites,
         offchain_writes: &OrderedReadsAndWrites,
     ) {
-        let latest_version = self.db.get_next_version() - 1;
+        let latest_version = self.version();
         self.db
             .put_preimages(
                 state_update
@@ -256,8 +255,8 @@ where
     }
 
     fn open_proof(
-        state_root: Self::Root,
-        state_proof: StorageProof<Self::Proof>,
+        state_root: StorageRootHash,
+        state_proof: StorageProof,
     ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
         let StorageProof { key, value, proof } = state_proof;
         let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
@@ -276,13 +275,13 @@ impl<Q> NativeStorage for ProverStorage<Q>
 where
     Q: QueryManager,
 {
-    fn get_with_proof(&self, key: StorageKey) -> StorageProof<Self::Proof> {
+    fn version(&self) -> u64 {
+        self.db.get_next_version().saturating_sub(1)
+    }
+    fn get_with_proof(&self, key: StorageKey, version: Version) -> StorageProof {
         let merkle = JellyfishMerkleTree::<StateDB<Q>, DefaultHasher>::new(&self.db);
         let (val_opt, proof) = merkle
-            .get_with_proof(
-                KeyHash::with::<DefaultHasher>(key.as_ref()),
-                self.db.get_next_version() - 1,
-            )
+            .get_with_proof(KeyHash::with::<DefaultHasher>(key.as_ref()), version)
             .unwrap();
         StorageProof {
             key,
@@ -291,7 +290,7 @@ where
         }
     }
 
-    fn get_root_hash(&self, version: Version) -> anyhow::Result<jmt::RootHash> {
+    fn get_root_hash(&self, version: Version) -> anyhow::Result<StorageRootHash> {
         let temp_merkle: JellyfishMerkleTree<'_, StateDB<Q>, DefaultHasher> =
             JellyfishMerkleTree::new(&self.db);
         temp_merkle.get_root_hash(version)

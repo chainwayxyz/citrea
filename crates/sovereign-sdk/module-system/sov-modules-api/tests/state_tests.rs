@@ -1,9 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::*;
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
-use sov_state::{
-    ArrayWitness, DefaultHasher, DefaultWitness, Prefix, ProverStorage, Storage, ZkStorage,
-};
+use sov_state::{ArrayWitness, DefaultWitness, Prefix, ProverStorage, Storage, ZkStorage};
 
 enum Operation {
     Merge,
@@ -186,7 +184,7 @@ fn test_witness_round_trip() {
     };
 
     {
-        let storage = ZkStorage::<DefaultWitness, DefaultHasher>::new();
+        let storage = ZkStorage::<DefaultWitness>::new();
         let mut working_set =
             WorkingSet::with_witness(storage.clone(), witness, Default::default());
         state_value.set(&11, &mut working_set);

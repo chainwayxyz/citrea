@@ -1,16 +1,21 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Duration;
 
+use alloy::consensus::constants::KECCAK_EMPTY;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 // use citrea::initialize_logging;
 use alloy_primitives::{Address, Bytes, U256};
+use alloy_rpc_types::EIP1186AccountProofResponse;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{LogsContract, SimpleStorageContract, TestContract};
 use citrea_evm::system_contracts::BitcoinLightClient;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::{BlockId, BlockNumberOrTag};
 use sov_rollup_interface::CITREA_VERSION;
+use sov_state::KeyHash;
+use tokio::time::sleep;
 
 // use sov_demo_rollup::initialize_logging;
 use crate::test_client::TestClient;
@@ -219,6 +224,214 @@ async fn test_genesis_contract_call() -> Result<(), Box<dyn std::error::Error>> 
         U256::from_str("0x0000000000000000000000003200000000000000000000000000000000000001")
             .unwrap()
     );
+
+    seq_task.abort();
+    Ok(())
+}
+
+fn check_proof(acc_proof: &EIP1186AccountProofResponse, account_address: Address) {
+    // println!("root: {:?}", acc_proof.storage_hash);
+    // println!("proof: {:?}", acc_proof);
+
+    // Verify proof:
+    let expected_root_hash = acc_proof.storage_hash.0.into();
+
+    // construct account key/values to be verified
+    let account_key = [b"Evm/a/\x14", account_address.as_slice()].concat();
+    let account_hash = KeyHash::with::<sha2::Sha256>(account_key.clone());
+    let proved_account = if acc_proof.account_proof[1] == Bytes::from("y") {
+        // Account exists and it's serialized form is:
+        let code_hash_bytes = if acc_proof.code_hash != KECCAK_EMPTY {
+            // 1 for Some and 32 for length
+            [&[1, 32], acc_proof.code_hash.0.as_slice()].concat()
+        } else {
+            // 0 for None
+            vec![0]
+        };
+        let bytes = [
+            &[32], // balance length
+            acc_proof.balance.as_le_slice(),
+            &acc_proof.nonce.to_le_bytes(),
+            &code_hash_bytes,
+        ]
+        .concat();
+        Some(bytes)
+    } else {
+        // Account does not exist
+        None
+    };
+
+    let acc_storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+        borsh::from_slice(&acc_proof.account_proof[0]).unwrap();
+
+    acc_storage_proof
+        .verify(expected_root_hash, account_hash, proved_account)
+        .expect("Account proof must be valid");
+
+    for storage_proof in &acc_proof.storage_proof {
+        let storage_key = [
+            b"Evm/s/",
+            acc_proof.address.as_slice(),
+            &[32],
+            U256::from_le_slice(storage_proof.key.0.as_slice())
+                .to_be_bytes::<32>()
+                .as_slice(),
+        ]
+        .concat();
+        let key_hash = KeyHash::with::<sha2::Sha256>(storage_key.clone());
+
+        let proved_value = if storage_proof.proof[1] == Bytes::from("y") {
+            // Storage value exists and it's serialized form is:
+            let bytes = [&[32], storage_proof.value.to_be_bytes::<32>().as_slice()].concat();
+            Some(bytes)
+        } else {
+            // Storage value does not exist
+            None
+        };
+
+        let storage_proof: jmt::proof::SparseMerkleProof<sha2::Sha256> =
+            borsh::from_slice(&storage_proof.proof[0]).unwrap();
+
+        storage_proof
+            .verify(expected_root_hash, key_hash, proved_value)
+            .expect("Account storage proof must be valid");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_eth_get_proof() -> Result<(), Box<dyn std::error::Error>> {
+    // citrea::initialize_logging(::tracing::Level::INFO);
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let rollup_config =
+        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let sequencer_config = SequencerConfig {
+        min_soft_confirmations_per_commitment: 123456,
+        ..Default::default()
+    };
+    let seq_task = tokio::spawn(async {
+        start_rollup(
+            seq_port_tx,
+            GenesisPaths::from_dir("../../resources/genesis/mock-dockerized/"),
+            None,
+            None,
+            rollup_config,
+            Some(sequencer_config),
+        )
+        .await;
+    });
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = make_test_client(seq_port).await?;
+    // call the contract with address 0x3100000000000000000000000000000000000001
+    let contract_address = Address::from_str("0x3100000000000000000000000000000000000001").unwrap();
+
+    let code = seq_test_client
+        .eth_get_code(contract_address, None)
+        .await
+        .unwrap();
+
+    let expected_code = "60806040523661001357610011610017565b005b6100115b61001f610169565b6001600160a01b0316330361015f5760606001600160e01b0319600035166364d3180d60e11b810161005a5761005361019c565b9150610157565b63587086bd60e11b6001600160e01b031982160161007a576100536101f3565b63070d7c6960e41b6001600160e01b031982160161009a57610053610239565b621eb96f60e61b6001600160e01b03198216016100b95761005361026a565b63a39f25e560e01b6001600160e01b03198216016100d9576100536102aa565b60405162461bcd60e51b815260206004820152604260248201527f5472616e73706172656e745570677261646561626c6550726f78793a2061646d60448201527f696e2063616e6e6f742066616c6c6261636b20746f2070726f78792074617267606482015261195d60f21b608482015260a4015b60405180910390fd5b815160208301f35b6101676102be565b565b60007fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035b546001600160a01b0316919050565b60606101a66102ce565b60006101b53660048184610683565b8101906101c291906106c9565b90506101df816040518060200160405280600081525060006102d9565b505060408051602081019091526000815290565b60606000806102053660048184610683565b81019061021291906106fa565b91509150610222828260016102d9565b604051806020016040528060008152509250505090565b60606102436102ce565b60006102523660048184610683565b81019061025f91906106c9565b90506101df81610305565b60606102746102ce565b600061027e610169565b604080516001600160a01b03831660208201529192500160405160208183030381529060405291505090565b60606102b46102ce565b600061027e61035c565b6101676102c961035c565b61036b565b341561016757600080fd5b6102e28361038f565b6000825111806102ef5750805b15610300576102fe83836103cf565b505b505050565b7f7e644d79422f17c01e4894b5f4f588d331ebfa28653d42ae832dc59e38c9798f61032e610169565b604080516001600160a01b03928316815291841660208301520160405180910390a1610359816103fb565b50565b60006103666104a4565b905090565b3660008037600080366000845af43d6000803e80801561038a573d6000f35b3d6000fd5b610398816104cc565b6040516001600160a01b038216907fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b90600090a250565b60606103f4838360405180606001604052806027815260200161083860279139610560565b9392505050565b6001600160a01b0381166104605760405162461bcd60e51b815260206004820152602660248201527f455243313936373a206e65772061646d696e20697320746865207a65726f206160448201526564647265737360d01b606482015260840161014e565b807fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035b80546001600160a01b0319166001600160a01b039290921691909117905550565b60007f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc61018d565b6001600160a01b0381163b6105395760405162461bcd60e51b815260206004820152602d60248201527f455243313936373a206e657720696d706c656d656e746174696f6e206973206e60448201526c1bdd08184818dbdb9d1c9858dd609a1b606482015260840161014e565b807f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc610483565b6060600080856001600160a01b03168560405161057d91906107e8565b600060405180830381855af49150503d80600081146105b8576040519150601f19603f3d011682016040523d82523d6000602084013e6105bd565b606091505b50915091506105ce868383876105d8565b9695505050505050565b60608315610647578251600003610640576001600160a01b0385163b6106405760405162461bcd60e51b815260206004820152601d60248201527f416464726573733a2063616c6c20746f206e6f6e2d636f6e7472616374000000604482015260640161014e565b5081610651565b6106518383610659565b949350505050565b8151156106695781518083602001fd5b8060405162461bcd60e51b815260040161014e9190610804565b6000808585111561069357600080fd5b838611156106a057600080fd5b5050820193919092039150565b80356001600160a01b03811681146106c457600080fd5b919050565b6000602082840312156106db57600080fd5b6103f4826106ad565b634e487b7160e01b600052604160045260246000fd5b6000806040838503121561070d57600080fd5b610716836106ad565b9150602083013567ffffffffffffffff81111561073257600080fd5b8301601f8101851361074357600080fd5b803567ffffffffffffffff81111561075d5761075d6106e4565b604051601f8201601f19908116603f0116810167ffffffffffffffff8111828210171561078c5761078c6106e4565b6040528181528282016020018710156107a457600080fd5b816020840160208301376000602083830101528093505050509250929050565b60005b838110156107df5781810151838201526020016107c7565b50506000910152565b600082516107fa8184602087016107c4565b9190910192915050565b60208152600082518060208401526108238160408501602087016107c4565b601f01601f1916919091016040019291505056fe416464726573733a206c6f772d6c6576656c2064656c65676174652063616c6c206661696c6564";
+    assert_eq!(code.to_vec(), hex::decode(expected_code).unwrap());
+
+    let res: String = seq_test_client
+        .contract_call(
+            contract_address,
+            BitcoinLightClient::get_system_caller().into(),
+            None,
+        )
+        .await
+        .unwrap();
+    let expected_res = "0x000000000000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddead";
+    assert_eq!(res, expected_res);
+
+    let contract_field =
+        U256::from_str("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+            .unwrap();
+
+    let storage_value = seq_test_client
+        .eth_get_storage_at(contract_address, contract_field, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        storage_value,
+        U256::from_str("0x0000000000000000000000003200000000000000000000000000000000000001")
+            .unwrap()
+    );
+
+    let acc_proof_latest = seq_test_client
+        .eth_get_proof(contract_address, vec![contract_field], None)
+        .await
+        .unwrap();
+
+    {
+        check_proof(&acc_proof_latest, contract_address);
+        for storage_proof in &acc_proof_latest.storage_proof {
+            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+                // A sanity check to verify we deal with the same value.
+                // This check is not actually required, it's for test purposes only
+                assert_eq!(storage_proof.value, storage_value);
+            }
+        }
+    }
+
+    seq_test_client.send_publish_batch_request().await;
+
+    sleep(Duration::from_secs(1)).await;
+
+    let block_num = seq_test_client.eth_block_number().await;
+
+    let acc_proof_1 = seq_test_client
+        .eth_get_proof(
+            contract_address,
+            vec![contract_field],
+            Some(BlockNumberOrTag::Number(block_num)),
+        )
+        .await
+        .unwrap();
+
+    let acc_proof_2 = seq_test_client
+        .eth_get_proof(
+            contract_address,
+            vec![contract_field],
+            Some(BlockNumberOrTag::Number(block_num - 1)),
+        )
+        .await
+        .unwrap();
+
+    {
+        check_proof(&acc_proof_1, contract_address);
+        for storage_proof in &acc_proof_1.storage_proof {
+            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+                // A sanity check to verify we deal with the same value.
+                // This check is not actually required, it's for test purposes only
+                assert_eq!(storage_proof.value, storage_value);
+            }
+        }
+    }
+
+    {
+        // Assert historic proof is not the same as the first one queried
+        //  because storage root is different -> all proofs are different too.
+        assert_ne!(acc_proof_1, acc_proof_2);
+        check_proof(&acc_proof_2, contract_address);
+        for storage_proof in &acc_proof_2.storage_proof {
+            if U256::from_le_slice(storage_proof.key.0.as_slice()) == contract_field {
+                // A sanity check to verify we deal with the same value.
+                // This check is not actually required, it's for test purposes only
+                assert_eq!(storage_proof.value, storage_value);
+            }
+        }
+    }
+
+    {
+        // Assert historic proof is the same as the first one queried.
+        assert_eq!(acc_proof_latest, acc_proof_2);
+    }
 
     seq_task.abort();
     Ok(())

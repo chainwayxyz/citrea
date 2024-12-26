@@ -1586,7 +1586,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number
     }
 
-    fn set_state_to_end_of_evm_block_by_block_id(
+    /// Rewind working_set to the given block_id
+    pub fn set_state_to_end_of_evm_block_by_block_id(
         &self,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,

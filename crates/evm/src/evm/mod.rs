@@ -46,22 +46,28 @@ pub const DBACCOUNT_STORAGE_PREFIX: [u8; 6] = *b"Evm/s/";
 /// Prefix for Storage module for evm::Account::keys
 pub const DBACCOUNT_KEYS_PREFIX: [u8; 6] = *b"Evm/k/";
 
-// Stores information about an EVM account
+/// Stores information about an EVM account
 #[derive(Default, Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub(crate) struct AccountInfo {
-    pub(crate) balance: U256,
-    pub(crate) nonce: u64,
-    pub(crate) code_hash: Option<B256>,
+pub struct AccountInfo {
+    /// Balance
+    pub balance: U256,
+    /// Nonce
+    pub nonce: u64,
+    /// Code hash
+    pub code_hash: Option<B256>,
 }
 
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub(crate) struct DbAccount {
-    pub(crate) storage: StateMap<U256, U256, BcsCodec>,
-    pub(crate) keys: StateVec<U256, BcsCodec>,
+pub struct DbAccount {
+    /// Storage
+    pub storage: StateMap<U256, U256, BcsCodec>,
+    /// Keys
+    pub keys: StateVec<U256, BcsCodec>,
 }
 
 impl DbAccount {
+    /// Create a new DbAccount
     pub fn new(address: Address) -> Self {
         Self {
             storage: StateMap::with_codec(Self::create_storage_prefix(address), BcsCodec {}),

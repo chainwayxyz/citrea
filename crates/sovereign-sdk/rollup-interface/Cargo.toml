@@ -22,6 +22,7 @@ bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true }
+jmt = { workspace = true, optional = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true, optional = true }
@@ -43,6 +44,7 @@ std = [
   "bytes",
   "digest/default",
   "hex/default",
+  "jmt",
   "serde/default",
   "thiserror",
 ]
