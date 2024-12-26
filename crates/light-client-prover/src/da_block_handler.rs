@@ -11,11 +11,11 @@ use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
+use sov_db::mmr_db::MmrDB;
 use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
-use sov_rollup_interface::mmr::MMRNative;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
@@ -50,7 +50,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     sequencer_client: Arc<HttpClient>,
-    mmr_native: MMRNative,
+    mmr_db: MmrDB,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -71,6 +71,7 @@ where
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         sequencer_client: Arc<HttpClient>,
+        mmr_db: MmrDB,
     ) -> Self {
         Self {
             _prover_config: prover_config,
@@ -84,6 +85,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
             sequencer_client,
+            mmr_db,
         }
     }
 
@@ -148,6 +150,8 @@ where
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
 
+        let mmr_native = self.mmr_db.get()?.unwrap_or_default();
+
         // Set the l1 height of the l1 hash
         self.ledger_db
             .set_l1_height_of_l1_hash(l1_hash, l1_height)
@@ -191,7 +195,12 @@ where
             } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
                 for wtxid in wtxids {
                     if !current_block_wtxids.contains(&wtxid) {
-                        let (chunk_from_db, proof) = self.mmr_db.generate_proof(wtxid);
+                        let Some((chunk_from_db, proof)) = mmr_native.generate_proof(wtxid) else {
+                            return Err(anyhow!(
+                                "Failed to generate native MMR proof for blobs at height: {}",
+                                l1_height
+                            ));
+                        };
                         mmr_hints.push((chunk_from_db, proof));
                     }
                 }
@@ -264,6 +273,7 @@ where
             da_block_header: l1_block.header().clone(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
+            mmr_hints: mmr_hints.into(),
         };
 
         let proof = self
@@ -290,7 +300,7 @@ where
             da_prev_11_timestamps: circuit_output.da_prev_11_timestamps,
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
-            unprocessed_chunks: circuit_output.unprocessed_chunks,
+            mmr_guest: circuit_output.mmr_guest,
         };
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(
@@ -321,7 +331,7 @@ where
                 let data = DaDataLightClient::try_from_slice(tx.full_data());
 
                 if let Ok(proof) = data {
-                    batch_proofs.push((tx.wtxid(), proof));
+                    batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), proof));
                 } else {
                     tracing::warn!(
                         "Found broken DA data in block 0x{}: {:?}",

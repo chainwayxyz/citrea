@@ -9,11 +9,11 @@ use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{MMRNodes, MMR_TABLES};
 
 #[derive(Clone, Debug)]
-pub struct MMRDB {
+pub struct MmrDB {
     db: Arc<DB>,
 }
 
-impl MMRDB {
+impl MmrDB {
     const DB_PATH_SUFFIX: &'static str = "mmr";
     const DB_NAME: &'static str = "mmr-db";
 

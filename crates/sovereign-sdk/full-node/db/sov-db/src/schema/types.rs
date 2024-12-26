@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LightClientProofOutputRpcResponse,
     LightClientProofResponse, SoftConfirmationResponse, VerifiedBatchProofResponse,
@@ -83,7 +83,7 @@ pub struct StoredLightClientProofOutput {
     /// Last l2 height after proof.
     pub last_l2_height: u64,
     /// A list of unprocessed chunks
-    pub unprocessed_chunks: BTreeMap<[u8; 32], Vec<u8>>,
+    pub mmr_guest: MMRGuest,
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {

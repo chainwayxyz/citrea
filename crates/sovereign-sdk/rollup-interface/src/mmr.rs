@@ -53,7 +53,9 @@ impl MMRNode {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(
+    Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize,
+)]
 pub struct MMRNative {
     pub nodes: Vec<Vec<[u8; 32]>>,
     pub leaf_nodes: Vec<MMRNode>,
