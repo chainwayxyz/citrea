@@ -100,6 +100,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
         );
 
+    // index only incremented on processing of a complete or aggregate DA tx
     let mut current_proof_index = 0u32;
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data

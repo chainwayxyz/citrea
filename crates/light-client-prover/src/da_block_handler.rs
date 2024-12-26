@@ -166,6 +166,9 @@ where
         );
 
         let mut assumptions = vec![];
+        // index only incremented for complete and aggregated proofs, in line with the circuit
+        let mut proof_index = 0u32;
+        let mut expected_to_fail_hint = vec![];
 
         for batch_proof in batch_proofs {
             // TODO handle aggreagates
@@ -177,10 +180,16 @@ where
                     Ok(output) => output.last_l2_height,
                     Err(e) => {
                         info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                        Vm::extract_output::<
+                        if let Err(_) = Vm::extract_output::<
                             OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                         >(&proof)
-                        .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                        {
+                            tracing::info!(
+                                "Failed to extract pre fork1 and fork1 output from proof"
+                            );
+                            proof_index += 1;
+                            continue;
+                        }
                         // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
                         0
                     }
@@ -192,10 +201,14 @@ where
                     .expect("Batch proof code commitment not found");
                 if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
                     tracing::error!("Failed to verify batch proof: {:?}", e);
+                    expected_to_fail_hint.push(proof_index);
+                    proof_index += 1;
                     continue;
                 }
 
                 assumptions.push(proof);
+
+                proof_index += 1;
             }
         }
 
@@ -209,10 +222,14 @@ where
                 let proof = data.proof;
                 let output = data.light_client_proof_output;
                 assumptions.push(proof);
+                // TODO: instead of serializing the stored output
+                // we should just store and push the serialized proof as outputted from the circuit
+                // that way modifications are less error prone
                 light_client_proof_journal = Some(borsh::to_vec(&output)?);
                 Some(output.last_l2_height)
             }
             None => {
+                // TODO: this logic will fail on our initial deplotment
                 let soft_confirmation = self
                     .sequencer_client
                     .get_soft_confirmation_by_number(U64::from(1))
@@ -261,7 +278,7 @@ where
             da_block_header: l1_block.header().clone(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
-            expected_to_fail_hint: todo!(),
+            expected_to_fail_hint,
         };
 
         let proof = self
