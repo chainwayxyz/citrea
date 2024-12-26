@@ -3,7 +3,9 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+#[cfg(feature = "sync")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "sync")]
 use serde::Serialize;
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
 use sov_rollup_interface::zk::{SparseMerkleProofSha2, StorageRootHash};
