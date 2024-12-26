@@ -157,6 +157,13 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
         let output = serialized_proof[33..].to_vec();
         Ok(T::deserialize(&mut &*output)?)
     }
+
+    fn verify_expected_to_fail(
+        _serialized_proof: &[u8],
+        _code_commitment: &Self::CodeCommitment,
+    ) -> Result<(), Self::Error> {
+        unimplemented!("Function not designed for zkVM hosts");
+    }
 }
 
 impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
@@ -266,6 +273,17 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
             MockJournal::Verifiable(journal) => Ok(T::try_from_slice(&journal)?),
             MockJournal::Unverifiable(_) => Err(anyhow::anyhow!("Journal is unverifiable")),
         }
+    }
+
+    /// For mock zk vm guest, there is no difference between a proof that is expected to fail
+    /// and a proof that is expected to pass.
+    fn verify_expected_to_fail(
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
+    ) -> Result<(), Self::Error> {
+        let journal = Self::extract_raw_output(serialized_proof)?;
+
+        Self::verify(journal.as_slice(), code_commitment)
     }
 }
 
