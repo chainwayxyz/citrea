@@ -187,12 +187,11 @@ impl MMRGuest {
 
     pub fn verify_proof(&self, node: &MMRNode, mmr_proof: &MMRInclusionProof) -> bool {
         let mut current_hash = node.hash();
-        for i in 0..mmr_proof.inclusion_proof.len() {
-            let sibling = mmr_proof.inclusion_proof[i];
+        for (i, sibling) in mmr_proof.inclusion_proof.iter().enumerate() {
             if mmr_proof.internal_idx & (1 << i) == 0 {
-                current_hash = hash_pair(current_hash, sibling);
+                current_hash = hash_pair(current_hash, *sibling);
             } else {
-                current_hash = hash_pair(sibling, current_hash);
+                current_hash = hash_pair(*sibling, current_hash);
             }
         }
         if mmr_proof.subroot_idx >= self.subroots.len() {
