@@ -1,17 +1,14 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
-use alloy_primitives::U64;
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
-use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientProofOutput};
-use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -45,7 +42,6 @@ where
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    sequencer_client: Arc<HttpClient>,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -65,7 +61,6 @@ where
         batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
-        sequencer_client: Arc<HttpClient>,
     ) -> Self {
         Self {
             _prover_config: prover_config,
@@ -78,7 +73,6 @@ where
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
-            sequencer_client,
         }
     }
 
@@ -180,9 +174,10 @@ where
                     Ok(output) => output.last_l2_height,
                     Err(e) => {
                         info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                        if let Err(_) = Vm::extract_output::<
+                        if Vm::extract_output::<
                             OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                         >(&proof)
+                        .is_err()
                         {
                             tracing::info!(
                                 "Failed to extract pre fork1 and fork1 output from proof"
@@ -229,29 +224,12 @@ where
                 Some(output.last_l2_height)
             }
             None => {
-                // TODO: this logic will fail on our initial deplotment
-                let soft_confirmation = self
-                    .sequencer_client
-                    .get_soft_confirmation_by_number(U64::from(1))
-                    .await?
-                    .unwrap();
-                let initial_l1_height = soft_confirmation.da_slot_height;
-                // If the prev block is the block before the first processed l1 block
-                // then we don't have a previous light client proof, so just give an info
-                if previous_l1_height == initial_l1_height {
-                    tracing::info!(
-                        "No previous light client proof found for L1 block: {}",
-                        previous_l1_height
-                    );
-                }
-                // If not then we have a problem
-                else {
-                    panic!(
-                        "No previous light client proof found for L1 block: {}",
-                        previous_l1_height
-                    );
-                }
-                Some(soft_confirmation.l2_height)
+                // first time proving a light client proof
+                tracing::warn!(
+                    "Creating initial light client proof on L1 block #{}",
+                    l1_height
+                );
+                Some(0)
             }
         };
 
