@@ -632,6 +632,7 @@ impl TestCase for ForkElfSwitchingTest {
             .await
             .unwrap();
 
+        // TODO: verify first proof with genesis fork method id
         assert_eq!(proofs.len(), 2);
         assert_eq!(
             fork_from_block_number(proofs[0].proof_output.last_l2_height).spec_id,
