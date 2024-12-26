@@ -28,6 +28,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -65,6 +66,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -101,6 +103,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         da_data: vec![blob_2, blob_1],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -141,6 +144,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_data: vec![blob_2, blob_1],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -189,6 +193,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         da_data: vec![blob_1],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -226,6 +231,7 @@ fn test_header_chain_proof_height_and_hash() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -263,6 +269,7 @@ fn test_header_chain_proof_height_and_hash() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
@@ -300,6 +307,7 @@ fn test_unverifiable_batch_proofs() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![1],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -342,6 +350,7 @@ fn test_unverifiable_prev_light_client_proof() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![1],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -377,6 +386,7 @@ fn test_unverifiable_prev_light_client_proof() {
         light_client_proof_method_id,
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let res = run_circuit::<_, MockZkGuest>(
@@ -415,6 +425,7 @@ fn test_new_method_id_txs() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let output_1 = run_circuit::<_, MockZkGuest>(
@@ -446,6 +457,7 @@ fn test_new_method_id_txs() {
         da_data: vec![blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -479,6 +491,7 @@ fn test_new_method_id_txs() {
         da_data: vec![blob_1, blob_2],
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
+        expected_to_fail_hint: vec![],
     };
 
     let output_3 = run_circuit::<_, MockZkGuest>(

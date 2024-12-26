@@ -168,6 +168,7 @@ where
         let mut assumptions = vec![];
 
         for batch_proof in batch_proofs {
+            // TODO handle aggreagates
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 let last_l2_height = match Vm::extract_output::<
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
@@ -260,6 +261,7 @@ where
             da_block_header: l1_block.header().clone(),
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
+            expected_to_fail_hint: todo!(),
         };
 
         let proof = self

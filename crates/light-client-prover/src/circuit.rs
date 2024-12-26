@@ -100,6 +100,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             |prev_journal| (prev_journal.state_root, prev_journal.last_l2_height),
         );
 
+    let mut current_proof_index = 0u32;
+    let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
     for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
@@ -130,12 +132,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         {
                             (output.initial_state_root, output.final_state_root, 0)
                         } else {
+                            current_proof_index += 1;
                             continue; // cannot parse the output, skip
                         };
 
                         // Do not add if last l2 height is smaller or equal to previous output
                         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
                         if batch_proof_output_last_l2_height <= last_l2_height {
+                            current_proof_index += 1;
                             continue;
                         }
 
@@ -145,6 +149,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 batch_proof_method_ids[0].1
                             } else {
                                 // If not continue to the next blob
+                                current_proof_index += 1;
                                 continue;
                             }
                         } else {
@@ -161,8 +166,19 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             batch_proof_method_ids[idx].1
                         };
 
-                        if G::verify(&journal, &batch_proof_method_id.into()).is_err() {
-                            // if the batch proof is invalid, continue to the next blob
+                        // we unwrap_or to u32::MAX because if hint is empty, then it means all proofs are expected to pass
+                        if current_proof_index
+                            != expected_to_fail_hints.peek().copied().unwrap_or(u32::MAX)
+                        {
+                            // if index is not in the expected to fail hints, then it should pass
+                            G::verify(&journal, &batch_proof_method_id.into())
+                                .expect("Proof hinted to pass failed");
+                        } else {
+                            // if index is in the expected to fail hints, then it should fail
+                            G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
+                                .expect_err("Proof hinted to fail passed");
+                            expected_to_fail_hints.next();
+                            current_proof_index += 1;
                             continue;
                         }
 
@@ -174,6 +190,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 batch_proof_output_last_l2_height,
                             ),
                         );
+
+                        current_proof_index += 1;
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
