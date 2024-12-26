@@ -260,6 +260,7 @@ where
                         l1_block,
                         sequencer_commitments,
                         inputs,
+                        self.prover_config.use_latest_elf,
                     )
                     .await?;
                 } else {
@@ -292,6 +293,7 @@ where
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),
+            self.prover_config.use_latest_elf,
         )
         .await?;
 

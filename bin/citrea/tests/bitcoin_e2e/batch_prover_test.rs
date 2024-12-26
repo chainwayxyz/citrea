@@ -529,6 +529,7 @@ async fn parallel_proving_test() -> Result<()> {
 
 struct ForkElfSwitchingTest;
 
+// TODO: add light client prover to this test so that we see it can parse the genesis fork proofs
 #[async_trait]
 impl TestCase for ForkElfSwitchingTest {
     fn test_config() -> TestCaseConfig {
@@ -549,6 +550,13 @@ impl TestCase for ForkElfSwitchingTest {
         // and second batch above fork1
         SequencerConfig {
             min_soft_confirmations_per_commitment: fork_1_height - 5,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -579,7 +587,7 @@ impl TestCase for ForkElfSwitchingTest {
 
         // assert that evm tx is mined
         let evm_tx = evm_client
-            .eth_get_transaction_by_hash(pending_evm_tx.tx_hash().clone(), None)
+            .eth_get_transaction_by_hash(*pending_evm_tx.tx_hash(), None)
             .await
             .unwrap();
 

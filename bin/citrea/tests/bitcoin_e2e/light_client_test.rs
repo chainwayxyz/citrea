@@ -232,7 +232,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         batch_prover
             .client
             .http_client()
-            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
+            .prove(commitment_l1_height, true, Some(GroupCommitments::OneByOne))
             .await
             .unwrap();
 
@@ -357,7 +357,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         batch_prover
             .client
             .http_client()
-            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
+            .prove(commitment_l1_height, true, Some(GroupCommitments::OneByOne))
             .await
             .unwrap();
 
