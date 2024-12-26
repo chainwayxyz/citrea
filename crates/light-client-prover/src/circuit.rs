@@ -223,7 +223,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Collect unchained outputs
     let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
-    if in_memory_chunks.len() > 0 {
+    if in_memory_chunks.is_empty() {
         for (wtxid, chunk) in in_memory_chunks {
             mmr_guest.append(MMRNode::new(wtxid, chunk));
         }

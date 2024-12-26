@@ -127,7 +127,7 @@ impl MMRNative {
                 current_index - 1
             };
             proof.push(self.nodes[current_level][sibling_index as usize]);
-            current_index = current_index / 2;
+            current_index /= 2;
             current_level += 1;
         }
 
@@ -157,7 +157,9 @@ impl MMRNative {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(
+    Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize,
+)]
 pub struct MMRGuest {
     pub subroots: Vec<[u8; 32]>,
     pub size: u32,
