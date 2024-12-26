@@ -20,6 +20,14 @@ lazy_static! {
         let mut m = HashMap::new();
 
         m.insert(
+            SpecId::Genesis,
+            (
+                Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID),
+                citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ELF.to_vec(),
+            ),
+        );
+
+        m.insert(
             SpecId::Fork1,
             (
                 Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID),
@@ -44,7 +52,6 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         HashMap::from(
             [
-                #[cfg(feature = "testing")]
                 (SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-0.elf")), // testnet would also work. guests are the same
                 (SpecId::Fork1,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
