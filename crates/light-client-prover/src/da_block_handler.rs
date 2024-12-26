@@ -12,14 +12,14 @@ use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
-use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
+use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientProofOutput};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
-    LightClientCircuitInput, LightClientCircuitOutput, Proof, ZkvmHost,
+    LightClientCircuitInput, LightClientCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
 };
 use sov_stf_runner::ProverService;
 use tokio::select;
@@ -161,6 +161,12 @@ where
             .da_service
             .extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToLightClientProver);
 
+        // Even though following extract_batch_proofs call does full_data on batch proofs,
+        // we also need to do it for BatchProofMethodId txs
+        da_data.iter_mut().for_each(|tx| {
+            tx.full_data();
+        });
+
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
         tracing::info!(
             "Block {} has {} batch proofs",
@@ -176,12 +182,21 @@ where
 
         for (wtxid, batch_proof) in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
-                let batch_proof_output = Vm::extract_output::<
-                    <Da as DaService>::Spec,
+                let last_l2_height = match Vm::extract_output::<
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
-                .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                let last_l2_height = batch_proof_output.last_l2_height;
+                {
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        Vm::extract_output::<
+                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                        >(&proof)
+                        .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
+                        0
+                    }
+                };
                 let current_spec = fork_from_block_number(last_l2_height).spec_id;
                 let batch_proof_method_id = self
                     .batch_proof_code_commitments
@@ -191,6 +206,7 @@ where
                     tracing::error!("Failed to verify batch proof: {:?}", e);
                     continue;
                 }
+
                 assumptions.push(proof);
             } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
                 for wtxid in wtxids {
@@ -213,6 +229,7 @@ where
                 // }
             }
         }
+
         let previous_l1_height = l1_height - 1;
         let mut light_client_proof_journal = None;
         let last_l2_height = match self
@@ -252,6 +269,8 @@ where
             }
         };
 
+        tracing::debug!("assumptions len: {:?}", assumptions.len());
+
         let l2_last_height = last_l2_height.ok_or(anyhow!(
             "Could not determine the last L2 height for batch proof"
         ))?;
@@ -280,26 +299,29 @@ where
             .prove(light_client_elf, circuit_input, assumptions)
             .await?;
 
-        let circuit_output =
-            Vm::extract_output::<Da::Spec, LightClientCircuitOutput<Da::Spec>>(&proof)
-                .expect("Should deserialize valid proof");
+        let circuit_output = Vm::extract_output::<LightClientCircuitOutput>(&proof)
+            .expect("Should deserialize valid proof");
 
         tracing::info!(
             "Generated proof for L1 block: {l1_height} output={:?}",
             circuit_output
         );
 
+        let latest_da_state = &circuit_output.latest_da_state;
         let stored_proof_output = StoredLightClientProofOutput {
             state_root: circuit_output.state_root,
             light_client_proof_method_id: circuit_output.light_client_proof_method_id,
-            da_block_hash: circuit_output.da_block_hash.into(),
-            da_block_height: circuit_output.da_block_height,
-            da_total_work: circuit_output.da_total_work,
-            da_current_target_bits: circuit_output.da_current_target_bits,
-            da_epoch_start_time: circuit_output.da_epoch_start_time,
-            da_prev_11_timestamps: circuit_output.da_prev_11_timestamps,
+            latest_da_state: StoredLatestDaState {
+                block_hash: latest_da_state.block_hash,
+                block_height: latest_da_state.block_height,
+                total_work: latest_da_state.total_work,
+                current_target_bits: latest_da_state.current_target_bits,
+                epoch_start_time: latest_da_state.epoch_start_time,
+                prev_11_timestamps: latest_da_state.prev_11_timestamps,
+            },
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
+            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
             mmr_guest: circuit_output.mmr_guest,
         };
 

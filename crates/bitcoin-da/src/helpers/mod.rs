@@ -16,6 +16,8 @@ enum TransactionKindLightClient {
     Chunked = 1,
     /// This type of transaction includes chunk parts of body (>= 400kb)
     ChunkedPart = 2,
+    /// This type of transaction includes a new batch proof method_id
+    BatchProofMethodId = 3,
     Unknown(NonZeroU16),
 }
 
@@ -26,6 +28,7 @@ impl TransactionKindLightClient {
             TransactionKindLightClient::Complete => 0u16.to_le_bytes().to_vec(),
             TransactionKindLightClient::Chunked => 1u16.to_le_bytes().to_vec(),
             TransactionKindLightClient::ChunkedPart => 2u16.to_le_bytes().to_vec(),
+            TransactionKindLightClient::BatchProofMethodId => 3u16.to_le_bytes().to_vec(),
             TransactionKindLightClient::Unknown(v) => v.get().to_le_bytes().to_vec(),
         }
     }
@@ -39,6 +42,7 @@ impl TransactionKindLightClient {
             0 => Some(TransactionKindLightClient::Complete),
             1 => Some(TransactionKindLightClient::Chunked),
             2 => Some(TransactionKindLightClient::ChunkedPart),
+            3 => Some(TransactionKindLightClient::BatchProofMethodId),
             n => Some(TransactionKindLightClient::Unknown(
                 NonZeroU16::new(n).expect("Is not zero"),
             )),

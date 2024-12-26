@@ -1,5 +1,4 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use metrics::histogram;
 use risc0_zkvm::sha::Digest;
@@ -160,9 +159,7 @@ impl ZkvmHost for Risc0BonsaiHost {
         Ok(serialized_receipt)
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<T, Self::Error> {
+    fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
         let receipt: Receipt = bincode::deserialize(proof)?;
         let journal = receipt.journal;
 
@@ -208,13 +205,13 @@ impl Zkvm for Risc0BonsaiHost {
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<(), Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
 
         #[allow(clippy::clone_on_copy)]
         receipt.verify(code_commitment.clone())?;
 
-        Ok(receipt.journal.bytes)
+        Ok(())
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -222,7 +219,11 @@ impl Zkvm for Risc0BonsaiHost {
         Ok(receipt.journal.bytes)
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
+        Ok(T::try_from_slice(journal)?)
+    }
+
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {

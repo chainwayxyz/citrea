@@ -11,7 +11,7 @@ use bitcoin_da::service::get_relevant_blobs_from_txs;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
@@ -35,6 +35,13 @@ impl TestCase for BitcoinServiceTest {
         }
     }
 
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-limitancestorcount=50", "-limitdescendantcount=50"],
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let mut task_manager = TaskManager::default();
         let da_node = f.bitcoin_nodes.get(0).unwrap();
@@ -45,7 +52,7 @@ impl TestCase for BitcoinServiceTest {
             to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
         });
 
-        let (block, block_commitments, block_proofs) =
+        let (block, block_commitments, block_proofs, _) =
             generate_mock_txs(&service, da_node, &mut task_manager).await;
         let block_wtxids = block
             .txdata
@@ -59,7 +66,7 @@ impl TestCase for BitcoinServiceTest {
         {
             let (mut txs, inclusion_proof, completeness_proof) =
                 service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
-            assert_eq!(inclusion_proof.wtxids.len(), 29);
+            assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
             // 3 valid commitments, and 1 invalid commitment with wrong public key
             assert_eq!(txs.len(), 4);
@@ -100,15 +107,15 @@ impl TestCase for BitcoinServiceTest {
         {
             let (mut txs, inclusion_proof, completeness_proof) =
                 service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
-            assert_eq!(inclusion_proof.wtxids.len(), 29);
+            assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
-            // 2 complete and 2 aggregate proofs
-            assert_eq!(txs.len(), 4);
+            // 2 complete, 2 aggregate proofs, and 2 method id txs
+            assert_eq!(txs.len(), 6);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)
             assert!(
-                completeness_proof.len() >= 4,
-                "expected completeness proof to have at least 4 txs, it has {}",
+                completeness_proof.len() >= 6,
+                "expected completeness proof to have at least 6 txs, it has {}",
                 completeness_proof.len()
             );
 

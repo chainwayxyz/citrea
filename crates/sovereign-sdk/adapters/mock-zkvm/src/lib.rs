@@ -127,25 +127,34 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
     fn verify(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<(), Self::Error> {
         let proof = MockProof::decode(serialized_proof)?;
         anyhow::ensure!(
             proof.program_id.matches(code_commitment),
             "Proof failed to verify against requested code commitment"
         );
         anyhow::ensure!(proof.is_valid, "Proof is not valid");
-        Ok(serialized_proof[33..].to_vec())
+        Ok(())
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
         Ok(serialized_proof[33..].to_vec())
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
+        match mock_journal {
+            MockJournal::Verifiable(journal) => Ok(T::try_from_slice(&journal)?),
+            MockJournal::Unverifiable(journal) => Ok(T::try_from_slice(&journal)?),
+        }
+    }
+
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
-        let output = Self::verify(serialized_proof, code_commitment)?;
+        Self::verify(serialized_proof, code_commitment)?;
+        let output = serialized_proof[33..].to_vec();
         Ok(T::deserialize(&mut &*output)?)
     }
 }
@@ -192,9 +201,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         Ok(self.committed_data.pop_front().unwrap_or_default())
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<T, Self::Error> {
+    fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
         let data: ProofInfo = borsh::from_slice(proof)?;
 
         T::try_from_slice(&data.hint).map_err(Into::into)
@@ -229,11 +236,12 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
 
     type Error = anyhow::Error;
 
-    fn verify(
-        journal: &[u8],
-        _code_commitment: &Self::CodeCommitment,
-    ) -> Result<Vec<u8>, Self::Error> {
-        Ok(journal.to_vec())
+    fn verify(journal: &[u8], _code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
+        match mock_journal {
+            MockJournal::Verifiable(_) => Ok(()),
+            MockJournal::Unverifiable(_) => Err(anyhow::anyhow!("Journal is unverifiable")),
+        }
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -241,7 +249,15 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         Ok(mock_proof.log)
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
+        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
+        match mock_journal {
+            MockJournal::Verifiable(journal) => Ok(T::try_from_slice(&journal)?),
+            MockJournal::Unverifiable(journal) => Ok(T::try_from_slice(&journal)?),
+        }
+    }
+
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         journal: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {

@@ -23,7 +23,7 @@ use citrea_e2e::node::NodeKind;
 use citrea_e2e::traits::NodeT;
 use citrea_primitives::compression::decompress_blob;
 use citrea_primitives::{MAX_TXBODY_SIZE, TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
-use sov_rollup_interface::da::{DaData, SequencerCommitment};
+use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::DaService;
 
 pub const DEFAULT_DA_PRIVATE_KEY: &str =
@@ -62,6 +62,7 @@ pub async fn get_service(
         da_private_key: Some(da_private_key),
         tx_backup_dir: get_tx_backup_dir(),
         monitoring: None,
+        mempool_space_url: None,
     };
 
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -91,15 +92,21 @@ pub async fn get_service(
 /// - Valid commitments: 3 (6 txs)
 /// - Valid complete proofs: 2 (4 txs)
 /// - Valid chunked proofs: 1 with 2 chunks (6 txs) + 1 with 3 chunks (8 txs)
+/// - Valid method id txs: 2 (4 txs)
 /// - Invalid commitment with wrong public key: 1 (2 txs)
 /// - Invalid commitment with wrong prefix: 1 (2 txs)
 ///
-/// With coinbase transaction, returned block has total of 29 transactions.
+/// With coinbase transaction, returned block has total of 33 transactions.
 pub async fn generate_mock_txs(
     da_service: &BitcoinService,
     da_node: &BitcoinNode,
     task_manager: &mut TaskManager<()>,
-) -> (BitcoinBlock, Vec<SequencerCommitment>, Vec<Vec<u8>>) {
+) -> (
+    BitcoinBlock,
+    Vec<SequencerCommitment>,
+    Vec<Vec<u8>>,
+    Vec<BatchProofMethodId>,
+) {
     // Funding wallet requires block generation, hence we do funding at the beginning
     // to be able to write all transactions into the same block.
     let wrong_prefix_wallet = "wrong_prefix".to_string();
@@ -131,6 +138,18 @@ pub async fn generate_mock_txs(
 
     let mut valid_commitments = vec![];
     let mut valid_proofs = vec![];
+    let mut valid_method_ids = vec![];
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        method_id: [0; 8],
+        activation_l2_height: 0,
+    };
+    valid_method_ids.push(method_id.clone());
+    da_service
+        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
+        .await
+        .expect("Failed to send transaction");
 
     let commitment = SequencerCommitment {
         merkle_root: [13; 32],
@@ -139,7 +158,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(commitment))
+        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -150,7 +169,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(commitment))
+        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -159,7 +178,7 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
@@ -169,13 +188,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong tx prefix
     wrong_prefix_da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             l2_start_block_number: 1246,
             l2_end_block_number: 1268,
@@ -188,13 +207,13 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
         .await
         .expect("Failed to send transaction");
 
     // Sequencer commitment with wrong key and signature
     wrong_key_da_service
-        .send_transaction(DaData::SequencerCommitment(SequencerCommitment {
+        .send_transaction(DaTxRequest::SequencerCommitment(SequencerCommitment {
             merkle_root: [15; 32],
             l2_start_block_number: 1246,
             l2_end_block_number: 1268,
@@ -209,7 +228,7 @@ pub async fn generate_mock_txs(
     };
     valid_commitments.push(commitment.clone());
     da_service
-        .send_transaction(DaData::SequencerCommitment(commitment))
+        .send_transaction(DaTxRequest::SequencerCommitment(commitment))
         .await
         .expect("Failed to send transaction");
 
@@ -219,7 +238,18 @@ pub async fn generate_mock_txs(
 
     valid_proofs.push(blob.clone());
     da_service
-        .send_transaction(DaData::ZKProof(blob))
+        .send_transaction(DaTxRequest::ZKProof(blob))
+        .await
+        .expect("Failed to send transaction");
+
+    // Send method id update tx
+    let method_id = BatchProofMethodId {
+        method_id: [1; 8],
+        activation_l2_height: 100,
+    };
+    valid_method_ids.push(method_id.clone());
+    da_service
+        .send_transaction(DaTxRequest::BatchProofMethodId(method_id))
         .await
         .expect("Failed to send transaction");
 
@@ -227,9 +257,9 @@ pub async fn generate_mock_txs(
     let block_hash = da_node.generate(1).await.unwrap()[0];
 
     let block = da_service.get_block_by_hash(block_hash).await.unwrap();
-    assert_eq!(block.txdata.len(), 29);
+    assert_eq!(block.txdata.len(), 33);
 
-    (block, valid_commitments, valid_proofs)
+    (block, valid_commitments, valid_proofs, valid_method_ids)
 }
 
 #[allow(unused)]

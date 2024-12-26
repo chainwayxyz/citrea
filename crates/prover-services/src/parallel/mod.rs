@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use futures::future;
 use rand::Rng;
 use sov_db::ledger_db::LedgerDB;
-use sov_rollup_interface::da::DaData;
+use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::ProverService;
@@ -166,9 +166,9 @@ where
     }
 
     async fn submit_proof(&self, proof: Proof) -> anyhow::Result<<Da as DaService>::TransactionId> {
-        let da_data = DaData::ZKProof(proof);
+        let tx_request = DaTxRequest::ZKProof(proof);
         self.da_service
-            .send_transaction(da_data)
+            .send_transaction(tx_request)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }

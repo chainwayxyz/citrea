@@ -24,9 +24,9 @@ use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    DaData, DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, SequencerCommitment,
+    DaDataBatchProof, DaDataLightClient, DaNamespace, DaSpec, DaTxRequest, SequencerCommitment,
 };
-use sov_rollup_interface::services::da::{DaService, SenderWithNotifier};
+use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use sov_rollup_interface::zk::Proof;
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -39,7 +39,7 @@ use crate::helpers::builders::batch_proof_namespace::{
     create_seqcommitment_transactions, BatchProvingTxs,
 };
 use crate::helpers::builders::light_client_proof_namespace::{
-    create_zkproof_transactions, LightClientTxs, RawLightClientData,
+    create_light_client_transactions, LightClientTxs, RawLightClientData,
 };
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
 use crate::helpers::merkle_tree;
@@ -81,6 +81,7 @@ pub struct BitcoinServiceConfig {
     pub tx_backup_dir: String,
 
     pub monitoring: Option<MonitoringConfig>,
+    pub mempool_space_url: Option<String>,
 }
 
 impl citrea_common::FromEnv for BitcoinServiceConfig {
@@ -97,6 +98,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
                 history_limit: std::env::var("DA_MONITORING_HISTORY_LIMIT")?.parse()?,
                 max_history_size: std::env::var("DA_MONITORING_MAX_HISTORY_SIZE")?.parse()?,
             }),
+            mempool_space_url: std::env::var("MEMPOOL_SPACE_URL").ok(),
         })
     }
 }
@@ -109,7 +111,7 @@ pub struct BitcoinService {
     da_private_key: Option<SecretKey>,
     to_light_client_prefix: Vec<u8>,
     to_batch_proof_prefix: Vec<u8>,
-    inscribes_queue: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+    inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
     fee: FeeService,
@@ -120,7 +122,7 @@ impl BitcoinService {
     pub async fn new_with_wallet_check(
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+        tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
         let client = Arc::new(
             Client::new(
@@ -153,7 +155,7 @@ impl BitcoinService {
         }
 
         let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
-        let fee = FeeService::new(client.clone(), config.network);
+        let fee = FeeService::new(client.clone(), config.network, config.mempool_space_url);
         Ok(Self {
             client,
             network: config.network,
@@ -170,7 +172,7 @@ impl BitcoinService {
     pub async fn new_without_wallet_check(
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
-        tx: UnboundedSender<SenderWithNotifier<TxidWrapper>>,
+        tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     ) -> Result<Self> {
         let client = Arc::new(
             Client::new(
@@ -195,7 +197,7 @@ impl BitcoinService {
         }
 
         let monitoring = Arc::new(MonitoringService::new(client.clone(), config.monitoring));
-        let fee = FeeService::new(client.clone(), config.network);
+        let fee = FeeService::new(client.clone(), config.network, config.mempool_space_url);
 
         Ok(Self {
             client,
@@ -212,7 +214,7 @@ impl BitcoinService {
 
     pub async fn run_da_queue(
         self: Arc<Self>,
-        mut rx: UnboundedReceiver<SenderWithNotifier<TxidWrapper>>,
+        mut rx: UnboundedReceiver<TxRequestWithNotifier<TxidWrapper>>,
         token: CancellationToken,
     ) {
         trace!("BitcoinDA queue is initialized. Waiting for the first request...");
@@ -239,7 +241,7 @@ impl BitcoinService {
                             };
                             match self
                                 .send_transaction_with_fee_rate(
-                                    request.da_data.clone(),
+                                    request.tx_request.clone(),
                                     fee_sat_per_vbyte,
                                 )
                                 .await
@@ -323,7 +325,7 @@ impl BitcoinService {
     #[instrument(level = "trace", fields(prev_utxo), ret, err)]
     pub async fn send_transaction_with_fee_rate(
         &self,
-        da_data: DaData,
+        tx_request: DaTxRequest,
         fee_sat_per_vbyte: u64,
     ) -> Result<Vec<Txid>> {
         let network = self.network;
@@ -342,8 +344,8 @@ impl BitcoinService {
             .require_network(network)
             .context("Invalid network for address")?;
 
-        match da_data {
-            DaData::ZKProof(zkproof) => {
+        match tx_request {
+            DaTxRequest::ZKProof(zkproof) => {
                 let data = split_proof(zkproof);
 
                 let reveal_light_client_prefix = self.to_light_client_prefix.clone();
@@ -351,7 +353,7 @@ impl BitcoinService {
                 let inscription_txs = tokio::task::spawn_blocking(move || {
                     // Since this is CPU bound work, we use spawn_blocking
                     // to release the tokio runtime execution
-                    create_zkproof_transactions(
+                    create_light_client_transactions(
                         data,
                         da_private_key,
                         prev_utxo,
@@ -381,9 +383,10 @@ impl BitcoinService {
                         self.send_chunked_transaction(commit_chunks, reveal_chunks, commit, reveal)
                             .await
                     }
+                    _ => panic!("ZKProof tx must be either complete or chunked"),
                 }
             }
-            DaData::SequencerCommitment(comm) => {
+            DaTxRequest::SequencerCommitment(comm) => {
                 let data = DaDataBatchProof::SequencerCommitment(comm);
                 let blob = borsh::to_vec(&data).expect("DaDataBatchProof serialize must not fail");
 
@@ -412,6 +415,40 @@ impl BitcoinService {
                 let BatchProvingTxs { commit, reveal } = inscription_txs;
 
                 self.send_complete_transaction(commit, reveal).await
+            }
+            DaTxRequest::BatchProofMethodId(method_id) => {
+                let data = DaDataLightClient::BatchProofMethodId(method_id);
+                let blob = borsh::to_vec(&data).expect("DaDataLightClient serialize must not fail");
+
+                let prefix = self.to_light_client_prefix.clone();
+
+                // create inscribe transactions
+                let inscription_txs = tokio::task::spawn_blocking(move || {
+                    // Since this is CPU bound work, we use spawn_blocking
+                    // to release the tokio runtime execution
+                    create_light_client_transactions(
+                        RawLightClientData::BatchProofMethodId(blob),
+                        da_private_key,
+                        prev_utxo,
+                        utxos,
+                        address,
+                        fee_sat_per_vbyte,
+                        fee_sat_per_vbyte,
+                        network,
+                        prefix,
+                    )
+                })
+                .await??;
+
+                // write txs to file, it can be used to continue revealing blob if something goes wrong
+                inscription_txs.write_to_file(self.tx_backup_dir.clone())?;
+
+                match inscription_txs {
+                    LightClientTxs::BatchProofMethodId { commit, reveal } => {
+                        self.send_complete_transaction(commit, reveal).await
+                    }
+                    _ => panic!("Tx must be BatchProofMethodId"),
+                }
             }
         }
     }
@@ -764,6 +801,9 @@ impl DaService for BitcoinService {
                     ParsedLightClientTransaction::Chunk(_chunk) => {
                         // we ignore them for now
                     }
+                    ParsedLightClientTransaction::BatchProverMethodId(_) => {
+                        // ignore because these are not proofs
+                    }
                 }
             }
         }
@@ -822,7 +862,8 @@ impl DaService for BitcoinService {
                         body.extend(chunk);
                     }
                     ParsedLightClientTransaction::Complete(_)
-                    | ParsedLightClientTransaction::Aggregate(_) => {
+                    | ParsedLightClientTransaction::Aggregate(_)
+                    | ParsedLightClientTransaction::BatchProverMethodId(_) => {
                         error!("{}:{}: Expected chunk, got other tx kind", tx_id, chunk_id);
                         continue 'aggregate;
                     }
@@ -995,6 +1036,18 @@ impl DaService for BitcoinService {
                                 relevant_tx.wtxid = Some(wtxid.to_byte_array());
                                 relevant_txs.push(relevant_tx);
                             }
+                            ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
+                                if let Some(hash) = method_id.get_sig_verified_hash() {
+                                    let relevant_tx = BlobWithSender::new(
+                                        method_id.body,
+                                        method_id.public_key,
+                                        hash,
+                                        None,
+                                    );
+
+                                    relevant_txs.push(relevant_tx);
+                                }
+                            }
                         }
                     }
                 }
@@ -1007,12 +1060,12 @@ impl DaService for BitcoinService {
     #[instrument(level = "trace", skip_all)]
     async fn send_transaction(
         &self,
-        da_data: DaData,
+        tx_request: DaTxRequest,
     ) -> Result<<Self as DaService>::TransactionId> {
         let queue = self.get_send_transaction_queue();
         let (tx, rx) = oneshot_channel();
-        queue.send(SenderWithNotifier {
-            da_data,
+        queue.send(TxRequestWithNotifier {
+            tx_request,
             notify: tx,
         })?;
         rx.await?
@@ -1020,7 +1073,7 @@ impl DaService for BitcoinService {
 
     fn get_send_transaction_queue(
         &self,
-    ) -> UnboundedSender<SenderWithNotifier<Self::TransactionId>> {
+    ) -> UnboundedSender<TxRequestWithNotifier<Self::TransactionId>> {
         self.inscribes_queue.clone()
     }
 

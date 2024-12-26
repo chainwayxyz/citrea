@@ -7,8 +7,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::zk::{LightClientCircuitOutput, Proof};
-use crate::BasicAddress;
+use crate::zk::Proof;
+use crate::{BasicAddress, Network};
 
 /// Commitments made to the DA layer from the sequencer.
 /// Has merkle root of soft confirmation hashes from L1 start block to L1 end block (inclusive)
@@ -20,6 +20,15 @@ pub struct SequencerCommitment {
     pub l2_start_block_number: u64,
     /// End L2 block's number
     pub l2_end_block_number: u64,
+}
+
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct BatchProofMethodId {
+    /// New method id of upcoming fork
+    pub method_id: [u32; 8],
+    /// Activation L2 height of the new method id
+    pub activation_l2_height: u64,
 }
 
 impl core::cmp::PartialOrd for SequencerCommitment {
@@ -34,34 +43,15 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
-/// UpdatedDaState is the state after verifying and applying a block
-/// on top of the existing DA state.
-#[derive(Debug, Clone, Default)]
-pub struct UpdatedDaState<Spec: DaSpec> {
-    /// DA block hash
-    pub hash: Spec::SlotHash,
-    /// DA block height
-    pub height: u64,
-    /// DA block latest total work
-    pub total_work: [u8; 32],
-    /// DA block epoch start time
-    pub epoch_start_time: u32,
-    /// DA block's previous 11 timestamps
-    pub prev_11_timestamps: [u32; 11],
-    /// DA block target bits
-    pub current_target_bits: u32,
-}
-
-// TODO: rename to da service request smth smth
-// DaDataOutgoing
-/// Data written to DA can only be one of these two types
-/// Data written to DA and read from DA is must be borsh serialization of this enum
+/// Transaction request to send to the DA queue.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaData {
+pub enum DaTxRequest {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
     ZKProof(Proof),
+    /// Batch proof method id update for light client
+    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
@@ -73,6 +63,8 @@ pub enum DaDataLightClient {
     Aggregate(Vec<[u8; 32]>, Vec<[u8; 32]>),
     /// A chunk of an aggregate
     Chunk(Vec<u8>),
+    /// A new batch proof method_id
+    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
@@ -134,6 +126,24 @@ pub trait DaSpec:
     type ChainParams: Send + Sync;
 }
 
+/// Latest da state to verify and apply da block changes
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+pub struct LatestDaState {
+    /// Proved DA block's header hash
+    /// This is used to compare the previous DA block hash with first batch proof's DA block hash
+    pub block_hash: [u8; 32],
+    /// Height of the blockchain
+    pub block_height: u64,
+    /// Total work done in the DA blockchain
+    pub total_work: [u8; 32],
+    /// Current target bits of the DA block
+    pub current_target_bits: u32,
+    /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
+    pub epoch_start_time: u32,
+    /// The UNIX timestamps in seconds of the previous 11 blocks
+    pub prev_11_timestamps: [u32; 11],
+}
+
 /// A `DaVerifier` implements the logic required to create a zk proof that some data
 /// has been processed.
 ///
@@ -164,9 +174,10 @@ pub trait DaVerifier: Send + Sync {
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(
         &self,
-        previous_light_client_proof_output: &Option<LightClientCircuitOutput<Self::Spec>>,
+        latest_da_state: Option<&LatestDaState>,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-    ) -> Result<UpdatedDaState<Self::Spec>, Self::Error>;
+        network: Network,
+    ) -> Result<LatestDaState, Self::Error>;
 }
 
 #[cfg(feature = "std")]
