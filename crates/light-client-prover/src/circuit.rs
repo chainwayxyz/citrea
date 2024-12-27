@@ -134,8 +134,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         }
                     }
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
-                        let mut chunks_related = vec![];
+                        let mut aggregate_chunks = vec![];
                         for wtxid in &wtx_ids {
+                            // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
+                            // We use the hints to verify the existence of the chunk.
                             if !in_memory_chunks.contains_key(wtxid) {
                                 let (chunk, proof) = mmr_hints.pop_front().unwrap();
 
@@ -144,22 +146,29 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                     continue;
                                 }
 
-                                chunks_related.push(chunk);
+                                aggregate_chunks.push(chunk);
                             } else {
                                 in_memory_chunks.remove(wtxid);
+
+                                let chunk = in_memory_chunks
+                                    .get(wtxid)
+                                    .expect("Chunk with wtxid should exist at this point")
+                                    .to_vec();
+                                aggregate_chunks.push(MMRNode::new(*wtxid, chunk));
                             }
                         }
+
                         let existing_wtx_ids: BTreeSet<[u8; 32]> =
-                            in_memory_chunks.keys().cloned().collect();
+                            aggregate_chunks.iter().map(|c| c.wtxid).collect();
                         let aggregate_wtx_ids: BTreeSet<[u8; 32]> =
                             wtx_ids.iter().cloned().collect();
 
                         // If we have all the chunks, perform verification
                         if aggregate_wtx_ids.is_subset(&existing_wtx_ids) {
                             // Concatenate complete proof
-                            let complete_proof = wtx_ids
+                            let complete_proof = aggregate_chunks
                                 .iter()
-                                .filter_map(|k| in_memory_chunks.get(k).cloned())
+                                .map(|n| n.body.clone())
                                 .flatten()
                                 .collect::<Vec<_>>();
 
@@ -223,10 +232,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Collect unchained outputs
     let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
-    if in_memory_chunks.is_empty() {
-        for (wtxid, chunk) in in_memory_chunks {
-            mmr_guest.append(MMRNode::new(wtxid, chunk));
-        }
+    for (wtxid, chunk) in in_memory_chunks {
+        mmr_guest.append(MMRNode::new(wtxid, chunk));
     }
 
     Ok(LightClientCircuitOutput {

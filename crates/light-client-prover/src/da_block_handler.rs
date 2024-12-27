@@ -226,7 +226,11 @@ where
                     }
                 }
 
-                // For each of the chunks, construct the inclusion proof and provide it as a hint.
+                // For each of the remaining chunks, if the chunk is not contained by any
+                // aggregate in the current block, this tells us that it has been already seen in a previous
+                // L1 block.
+                // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
+                // from which we can generate a hint for the guest MMR.
                 for wtxid in wtxids {
                     if !current_block_wtxids.contains(&wtxid) {
                         let Some((chunk_from_db, proof)) = mmr_native.generate_proof(wtxid) else {
