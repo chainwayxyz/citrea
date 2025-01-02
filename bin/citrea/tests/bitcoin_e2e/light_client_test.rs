@@ -181,6 +181,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         BatchProverConfig {
             enable_recovery: false,
             proof_sampling_number: 99999999,
+            use_latest_elf: false,
             ..Default::default()
         }
     }

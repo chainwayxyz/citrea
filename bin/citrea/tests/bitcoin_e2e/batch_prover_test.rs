@@ -9,8 +9,8 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
-    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
-    TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
+    SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::full_node::FullNode;
@@ -18,6 +18,7 @@ use citrea_e2e::node::{Config, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
+use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::forks::{fork_from_block_number, get_forks};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -536,6 +537,7 @@ impl TestCase for ForkElfSwitchingTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
+            with_light_client_prover: true,
             ..Default::default()
         }
     }
@@ -561,11 +563,20 @@ impl TestCase for ForkElfSwitchingTest {
         }
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
         let batch_prover = f.batch_prover.as_ref().unwrap();
         let full_node = f.full_node.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
 
         // send evm tx
         let evm_client = make_test_client(SocketAddr::new(
@@ -632,7 +643,6 @@ impl TestCase for ForkElfSwitchingTest {
             .await
             .unwrap();
 
-        // TODO: verify first proof with genesis fork method id
         assert_eq!(proofs.len(), 2);
         assert_eq!(
             fork_from_block_number(proofs[0].proof_output.last_l2_height).spec_id,
@@ -642,6 +652,22 @@ impl TestCase for ForkElfSwitchingTest {
             fork_from_block_number(proofs[1].proof_output.last_l2_height).spec_id,
             SpecId::Fork1
         );
+
+        light_client_prover
+            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height + FINALITY_DEPTH)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(lcp
+            .light_client_proof_output
+            .unchained_batch_proofs_info
+            .is_empty());
 
         Ok(())
     }

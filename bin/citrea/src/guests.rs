@@ -65,6 +65,13 @@ lazy_static! {
         let mut m = HashMap::new();
 
         m.insert(
+            SpecId::Genesis,
+            (
+                Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
+                citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ELF.to_vec(),
+            )
+        );
+        m.insert(
             SpecId::Fork1,
             (
                 Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
