@@ -179,9 +179,6 @@ where
         let mut unused_chunks = BTreeMap::<Wtxid, Vec<u8>>::new();
         let mut mmr_hints = vec![];
 
-        let current_block_wtxids: Vec<[u8; 32]> =
-            da_data.iter().map(|b| b.wtxid().unwrap()).collect();
-
         for (wtxid, batch_proof) in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 let last_l2_height = match Vm::extract_output::<
@@ -211,28 +208,21 @@ where
 
                 assumptions.push(proof);
             } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
-                // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
-                for wtxid in &wtxids {
-                    if unused_chunks.contains_key(wtxid) {
-                        // Clear the chunk from the unused chunks.
-                        unused_chunks.remove(wtxid);
-                    }
-                }
-
-                // For each of the remaining chunks, if the chunk is not contained by any
+                // For each of the chunks, if the chunk is not contained by any
                 // aggregate in the current block, this tells us that it has been already seen in a previous
                 // L1 block.
                 // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
                 // from which we can generate a hint for the guest MMR.
                 for wtxid in wtxids {
-                    if !current_block_wtxids.contains(&wtxid) {
-                        let Some((chunk_from_db, proof)) = mmr_native.generate_proof(wtxid) else {
-                            return Err(anyhow!(
-                                "Failed to generate native MMR proof for blobs at height: {}",
-                                l1_height
-                            ));
-                        };
-                        mmr_hints.push((chunk_from_db, proof));
+                    // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
+                    if unused_chunks.contains_key(&wtxid) {
+                        // Clear the chunk from the unused chunks.
+                        unused_chunks.remove(&wtxid);
+                    } else {
+                        let hint = mmr_native
+                            .generate_proof(wtxid)
+                            .map(|(chunk_from_db, proof)| (chunk_from_db, proof));
+                        mmr_hints.push(hint);
                     }
                 }
             } else if let DaDataLightClient::Chunk(body) = batch_proof {

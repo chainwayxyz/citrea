@@ -146,7 +146,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 aggregate_chunks.push(MMRNode::new(*wtxid, chunk));
                                 in_memory_chunks.remove(wtxid);
                             } else {
-                                while let Some((chunk, proof)) = mmr_hints.pop_front() {
+                                while let Some(hint) = mmr_hints.pop_front() {
+                                    // If hint was not provided, which could happen due to the non-existence of the chunk
+                                    // in the same block as aggregate, we skip trying to prove the aggregate.
+                                    let Some((chunk, proof)) = hint else {
+                                        continue 'wtxids_loop;
+                                    };
                                     if !mmr_guest.verify_proof(&chunk, &proof) {
                                         // circuit not provided with enough hints
                                         continue 'wtxids_loop;

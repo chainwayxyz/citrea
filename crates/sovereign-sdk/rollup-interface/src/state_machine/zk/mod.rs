@@ -306,7 +306,7 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
     /// Hints for the guest MMR tree.
-    pub mmr_hints: VecDeque<(MMRNode, MMRInclusionProof)>,
+    pub mmr_hints: VecDeque<Option<(MMRNode, MMRInclusionProof)>>,
 }
 
 #[cfg(feature = "std")]
