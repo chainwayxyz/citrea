@@ -71,7 +71,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "const-hex",
- "derive_more 1.0.0",
+ "derive_more",
  "hex-literal",
  "itoa",
  "paste",
@@ -705,12 +705,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -809,19 +803,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_more"
-version = "0.99.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
-dependencies = [
- "convert_case",
- "proc-macro2",
- "quote",
- "rustc_version",
- "syn 2.0.87",
 ]
 
 [[package]]
@@ -1957,7 +1938,7 @@ dependencies = [
  "anyhow",
  "bech32 0.9.1",
  "borsh",
- "derive_more 0.99.18",
+ "derive_more",
  "digest",
  "ed25519-dalek",
  "hex",
@@ -1977,7 +1958,7 @@ dependencies = [
  "anyhow",
  "bech32 0.9.1",
  "borsh",
- "derive_more 0.99.18",
+ "derive_more",
  "digest",
  "hex",
  "jmt",
