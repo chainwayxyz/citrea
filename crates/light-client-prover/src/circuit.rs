@@ -167,10 +167,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             batch_proof_method_ids[idx].1
                         };
 
-                        // we unwrap_or to u32::MAX because if hint is empty, then it means all proofs are expected to pass
-                        if current_proof_index
-                            != expected_to_fail_hints.peek().copied().unwrap_or(u32::MAX)
+                        if expected_to_fail_hints
+                            .next_if(|&x| x == current_proof_index)
+                            .is_some()
                         {
+                            // if index is in the expected to fail hints, then it should fail
+                            G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
+                                .expect_err("Proof hinted to fail passed");
+                        } else {
                             // if index is not in the expected to fail hints, then it should pass
                             G::verify(&journal, &batch_proof_method_id.into())
                                 .expect("Proof hinted to pass failed");
@@ -182,11 +186,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                     batch_proof_output_last_l2_height,
                                 ),
                             );
-                        } else {
-                            // if index is in the expected to fail hints, then it should fail
-                            G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
-                                .expect_err("Proof hinted to fail passed");
-                            expected_to_fail_hints.next();
                         }
 
                         current_proof_index += 1;
