@@ -9,7 +9,7 @@ use citrea_primitives::forks::fork_from_block_number;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientProofOutput};
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace, LatestDaState};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
@@ -211,9 +211,25 @@ where
         {
             Some(data) => {
                 let proof = data.proof;
-                let output = data.light_client_proof_output;
                 assumptions.push(proof);
-                // TODO: instead of serializing the stored output
+
+                let db_output = data.light_client_proof_output;
+                let output = LightClientCircuitOutput {
+                    state_root: db_output.state_root,
+                    light_client_proof_method_id: db_output.light_client_proof_method_id,
+                    latest_da_state: LatestDaState {
+                        block_hash: db_output.latest_da_state.block_hash,
+                        block_height: db_output.latest_da_state.block_height,
+                        total_work: db_output.latest_da_state.total_work,
+                        current_target_bits: db_output.latest_da_state.current_target_bits,
+                        epoch_start_time: db_output.latest_da_state.epoch_start_time,
+                        prev_11_timestamps: db_output.latest_da_state.prev_11_timestamps,
+                    },
+                    unchained_batch_proofs_info: db_output.unchained_batch_proofs_info,
+                    last_l2_height: db_output.last_l2_height,
+                    batch_proof_method_ids: db_output.batch_proof_method_ids,
+                };
+                // TODO: instead of serializing the output
                 // we should just store and push the serialized proof as outputted from the circuit
                 // that way modifications are less error prone
                 (Some(borsh::to_vec(&output)?), output.last_l2_height)
