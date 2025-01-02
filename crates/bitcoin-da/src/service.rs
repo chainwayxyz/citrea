@@ -1012,21 +1012,21 @@ impl DaService for BitcoinService {
                             ParsedLightClientTransaction::Complete(complete) => {
                                 if let Some(hash) = complete.get_sig_verified_hash() {
                                     let blob = decompress_blob(&complete.body);
-                                    let relevant_tx =
+                                    let mut relevant_tx =
                                         BlobWithSender::new(blob, complete.public_key, hash, None);
-
+                                    relevant_tx.wtxid = Some(wtxid.to_byte_array());
                                     relevant_txs.push(relevant_tx);
                                 }
                             }
                             ParsedLightClientTransaction::Aggregate(aggregate) => {
                                 if let Some(hash) = aggregate.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
+                                    let mut relevant_tx = BlobWithSender::new(
                                         aggregate.body,
                                         aggregate.public_key,
                                         hash,
                                         None,
                                     );
-
+                                    relevant_tx.wtxid = Some(wtxid.to_byte_array());
                                     relevant_txs.push(relevant_tx);
                                 }
                             }
@@ -1038,13 +1038,13 @@ impl DaService for BitcoinService {
                             }
                             ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
                                 if let Some(hash) = method_id.get_sig_verified_hash() {
-                                    let relevant_tx = BlobWithSender::new(
+                                    let mut relevant_tx = BlobWithSender::new(
                                         method_id.body,
                                         method_id.public_key,
                                         hash,
                                         None,
                                     );
-
+                                    relevant_tx.wtxid = Some(wtxid.to_byte_array());
                                     relevant_txs.push(relevant_tx);
                                 }
                             }
