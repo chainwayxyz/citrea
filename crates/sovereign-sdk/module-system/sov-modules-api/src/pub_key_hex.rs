@@ -16,7 +16,7 @@ use crate::default_signature::DefaultPublicKey;
     Display,
 )]
 #[serde(try_from = "String", into = "String")]
-#[display("{}", "hex")]
+#[display("{}", hex)]
 pub struct PublicKeyHex {
     hex: String,
 }
