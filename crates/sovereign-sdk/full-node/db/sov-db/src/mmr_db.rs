@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use std::sync::Arc;
 
-use sov_rollup_interface::mmr::{MMRNative, NodeStore};
+use sov_rollup_interface::mmr::NodeStore;
 use sov_schema_db::DB;
 use tracing::instrument;
 
