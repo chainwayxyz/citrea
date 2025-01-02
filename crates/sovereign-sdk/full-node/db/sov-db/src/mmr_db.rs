@@ -50,7 +50,7 @@ impl NodeStore for MmrDB {
         index: usize,
         node: sov_rollup_interface::mmr::MMRNode,
     ) -> anyhow::Result<()> {
-        Ok(self.db.put::<MMRNodes>(&(level, index), &node)?)
+        self.db.put::<MMRNodes>(&(level, index), &node)
     }
 
     fn load_node(
@@ -70,6 +70,6 @@ impl NodeStore for MmrDB {
     }
 
     fn set_tree_size(&mut self, size: usize) -> anyhow::Result<()> {
-        Ok(self.db.put::<MMRTreeSize>(&(), &size)?)
+        self.db.put::<MMRTreeSize>(&(), &size)
     }
 }
