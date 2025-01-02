@@ -205,8 +205,7 @@ where
         }
 
         let previous_l1_height = l1_height - 1;
-        let mut light_client_proof_journal = None;
-        let l2_last_height = match self
+        let (light_client_proof_journal, l2_last_height) = match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
@@ -217,8 +216,7 @@ where
                 // TODO: instead of serializing the stored output
                 // we should just store and push the serialized proof as outputted from the circuit
                 // that way modifications are less error prone
-                light_client_proof_journal = Some(borsh::to_vec(&output)?);
-                output.last_l2_height
+                (Some(borsh::to_vec(&output)?), output.last_l2_height)
             }
             None => {
                 // first time proving a light client proof
@@ -226,7 +224,7 @@ where
                     "Creating initial light client proof on L1 block #{}",
                     l1_height
                 );
-                0
+                (None, 0)
             }
         };
 
