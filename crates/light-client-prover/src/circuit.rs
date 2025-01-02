@@ -108,6 +108,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             if let Ok(data) = data {
                 match data {
                     DaDataLightClient::Complete(proof) => {
+                        // TODO: don't panic here, ignore if cant extract
                         let journal =
                             G::extract_raw_output(&proof).expect("DaData proofs must be valid");
 
@@ -135,7 +136,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
                         // Do not add if last l2 height is smaller or equal to previous output
                         // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-                        if batch_proof_output_last_l2_height <= last_l2_height {
+                        if batch_proof_output_last_l2_height <= last_l2_height
+                            && last_l2_height != 0
+                        {
                             continue;
                         }
 
