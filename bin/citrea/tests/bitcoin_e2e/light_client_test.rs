@@ -173,7 +173,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 20,
+            min_soft_confirmations_per_commitment: 50,
             da_update_interval_ms: 500,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_size: 2000,
