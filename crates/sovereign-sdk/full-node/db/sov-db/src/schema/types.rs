@@ -2,13 +2,16 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
     LightClientProofOutputRpcResponse, LightClientProofResponse, SoftConfirmationResponse,
     VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
-use sov_rollup_interface::zk::{BatchProofInfo, CumulativeStateDiff, Proof};
+use sov_rollup_interface::zk::{
+    BatchProofInfo, CumulativeStateDiff, LightClientCircuitOutput, Proof,
+};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,
@@ -109,6 +112,48 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
             batch_proof_method_ids: value.batch_proof_method_ids,
+        }
+    }
+}
+
+impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
+    fn from(circuit_output: LightClientCircuitOutput) -> Self {
+        let latest_da_state = circuit_output.latest_da_state;
+        StoredLightClientProofOutput {
+            state_root: circuit_output.state_root,
+            light_client_proof_method_id: circuit_output.light_client_proof_method_id,
+            latest_da_state: StoredLatestDaState {
+                block_hash: latest_da_state.block_hash,
+                block_height: latest_da_state.block_height,
+                total_work: latest_da_state.total_work,
+                current_target_bits: latest_da_state.current_target_bits,
+                epoch_start_time: latest_da_state.epoch_start_time,
+                prev_11_timestamps: latest_da_state.prev_11_timestamps,
+            },
+            unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
+            last_l2_height: circuit_output.last_l2_height,
+            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
+        }
+    }
+}
+
+impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
+    fn from(db_output: StoredLightClientProofOutput) -> Self {
+        let latest_da_state = db_output.latest_da_state;
+        LightClientCircuitOutput {
+            state_root: db_output.state_root,
+            light_client_proof_method_id: db_output.light_client_proof_method_id,
+            latest_da_state: LatestDaState {
+                block_hash: latest_da_state.block_hash,
+                block_height: latest_da_state.block_height,
+                total_work: latest_da_state.total_work,
+                current_target_bits: latest_da_state.current_target_bits,
+                epoch_start_time: latest_da_state.epoch_start_time,
+                prev_11_timestamps: latest_da_state.prev_11_timestamps,
+            },
+            unchained_batch_proofs_info: db_output.unchained_batch_proofs_info,
+            last_l2_height: db_output.last_l2_height,
+            batch_proof_method_ids: db_output.batch_proof_method_ids,
         }
     }
 }
