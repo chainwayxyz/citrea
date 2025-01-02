@@ -174,23 +174,20 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             // if index is not in the expected to fail hints, then it should pass
                             G::verify(&journal, &batch_proof_method_id.into())
                                 .expect("Proof hinted to pass failed");
+                            recursive_match_state_roots(
+                                &mut initial_to_final,
+                                &BatchProofInfo::new(
+                                    batch_proof_output_initial_state_root,
+                                    batch_proof_output_final_state_root,
+                                    batch_proof_output_last_l2_height,
+                                ),
+                            );
                         } else {
                             // if index is in the expected to fail hints, then it should fail
                             G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
                                 .expect_err("Proof hinted to fail passed");
                             expected_to_fail_hints.next();
-                            current_proof_index += 1;
-                            continue;
                         }
-
-                        recursive_match_state_roots(
-                            &mut initial_to_final,
-                            &BatchProofInfo::new(
-                                batch_proof_output_initial_state_root,
-                                batch_proof_output_final_state_root,
-                                batch_proof_output_last_l2_height,
-                            ),
-                        );
 
                         current_proof_index += 1;
                     }

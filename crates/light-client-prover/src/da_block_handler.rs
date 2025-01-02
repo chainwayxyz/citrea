@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
@@ -197,11 +196,9 @@ where
                 if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
                     tracing::error!("Failed to verify batch proof: {:?}", e);
                     expected_to_fail_hint.push(proof_index);
-                    proof_index += 1;
-                    continue;
+                } else {
+                    assumptions.push(proof);
                 }
-
-                assumptions.push(proof);
 
                 proof_index += 1;
             }
@@ -221,7 +218,7 @@ where
                 // we should just store and push the serialized proof as outputted from the circuit
                 // that way modifications are less error prone
                 light_client_proof_journal = Some(borsh::to_vec(&output)?);
-                Some(output.last_l2_height)
+                output.last_l2_height
             }
             None => {
                 // first time proving a light client proof
@@ -229,15 +226,12 @@ where
                     "Creating initial light client proof on L1 block #{}",
                     l1_height
                 );
-                Some(0)
+                0
             }
         };
 
         tracing::debug!("assumptions len: {:?}", assumptions.len());
 
-        let l2_last_height = l2_last_height.ok_or(anyhow!(
-            "Could not determine the last L2 height for batch proof"
-        ))?;
         let current_fork = fork_from_block_number(l2_last_height);
         let light_client_proof_code_commitment = self
             .light_client_proof_code_commitments
