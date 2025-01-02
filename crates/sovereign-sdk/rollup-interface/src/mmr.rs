@@ -1,10 +1,18 @@
 #![allow(missing_docs)]
+
 use alloc::vec;
 use alloc::vec::Vec;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+pub trait NodeStore: Clone {
+    fn save_node(&mut self, level: usize, index: usize, node: MMRNode) -> anyhow::Result<()>;
+    fn load_node(&self, level: usize, index: usize) -> anyhow::Result<Option<MMRNode>>;
+    fn get_tree_size(&self) -> usize;
+    fn set_tree_size(&mut self, size: usize) -> anyhow::Result<()>;
+}
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
 pub struct MMRInclusionProof {
@@ -24,12 +32,11 @@ impl MMRInclusionProof {
 
     pub fn get_subroot(&self, leaf: [u8; 32]) -> [u8; 32] {
         let mut current_hash = leaf;
-        for i in 0..self.inclusion_proof.len() {
-            let sibling = self.inclusion_proof[i];
+        for (i, sibling) in self.inclusion_proof.iter().enumerate() {
             if self.internal_idx & (1 << i) == 0 {
-                current_hash = hash_pair(current_hash, sibling);
+                current_hash = hash_pair(current_hash, *sibling);
             } else {
-                current_hash = hash_pair(sibling, current_hash);
+                current_hash = hash_pair(*sibling, current_hash);
             }
         }
         current_hash
@@ -58,24 +65,43 @@ impl MMRNode {
 #[derive(
     Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize,
 )]
-pub struct MMRNative {
-    pub nodes: Vec<Vec<[u8; 32]>>,
-    pub leaf_nodes: Vec<MMRNode>,
+pub struct MMRNative<S: NodeStore> {
+    pub(crate) store: S,
+    nodes: Vec<Vec<[u8; 32]>>,
+    leaves: Vec<MMRNode>,
 }
 
-impl MMRNative {
-    pub fn new() -> Self {
-        MMRNative {
+impl<S: NodeStore> MMRNative<S> {
+    pub fn new(store: S) -> Self {
+        let mut mmr = MMRNative {
+            store: store.clone(),
             nodes: vec![vec![]],
-            leaf_nodes: vec![],
+            leaves: vec![],
+        };
+
+        // Initialize with existing leaves
+        let current_size = store.get_tree_size();
+
+        for i in 0..current_size {
+            let Ok(Some(node)) = store.load_node(0, i) else {
+                break;
+            };
+            let _ = mmr.append(node);
         }
+
+        mmr
     }
 
-    pub fn append(&mut self, node: MMRNode) {
+    pub fn append(&mut self, node: MMRNode) -> anyhow::Result<()> {
         let hash = node.hash();
-        self.leaf_nodes.push(node);
         self.nodes[0].push(hash);
+        self.leaves.push(node.clone());
+
+        let current_size = self.store.get_tree_size();
+        self.store.save_node(0, current_size, node.clone())?;
+        self.store.set_tree_size(current_size + 1)?;
         self.recalculate_peaks();
+        Ok(())
     }
 
     fn recalculate_peaks(&mut self) {
@@ -109,10 +135,7 @@ impl MMRNative {
     }
 
     pub fn generate_proof(&self, wtxid: [u8; 32]) -> Option<(MMRNode, MMRInclusionProof)> {
-        let index = self
-            .leaf_nodes
-            .iter()
-            .position(|node| node.wtxid == wtxid)? as u32;
+        let index = self.leaves.iter().position(|node| node.wtxid == wtxid)? as u32;
 
         let mut proof: Vec<[u8; 32]> = vec![];
         let mut current_index = index;
@@ -133,7 +156,7 @@ impl MMRNative {
 
         let (subroot_idx, internal_idx) = self.get_helpers_from_index(index);
         let mmr_proof = MMRInclusionProof::new(subroot_idx, internal_idx, proof);
-        Some((self.leaf_nodes[index as usize].clone(), mmr_proof))
+        Some((self.leaves[index as usize].clone(), mmr_proof))
     }
 
     fn get_helpers_from_index(&self, index: u32) -> (usize, u32) {
@@ -212,9 +235,44 @@ pub fn hash_pair(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
 mod tests {
     use super::*;
 
+    #[derive(Clone)]
+    struct InMemoryStore {
+        storage: std::collections::HashMap<(usize, usize), MMRNode>,
+        tree_size: usize,
+    }
+
+    impl InMemoryStore {
+        fn new() -> Self {
+            InMemoryStore {
+                storage: std::collections::HashMap::new(),
+                tree_size: 0,
+            }
+        }
+    }
+
+    impl NodeStore for InMemoryStore {
+        fn save_node(&mut self, level: usize, index: usize, node: MMRNode) -> anyhow::Result<()> {
+            self.storage.insert((level, index), node);
+            Ok(())
+        }
+
+        fn load_node(&self, level: usize, index: usize) -> anyhow::Result<Option<MMRNode>> {
+            Ok(self.storage.get(&(level, index)).cloned())
+        }
+
+        fn get_tree_size(&self) -> usize {
+            self.tree_size
+        }
+
+        fn set_tree_size(&mut self, size: usize) -> anyhow::Result<()> {
+            self.tree_size = size;
+            Ok(())
+        }
+    }
+
     #[test]
     fn test_mmr_native() {
-        let mut mmr = MMRNative::new();
+        let mut mmr = MMRNative::new(InMemoryStore::new());
         let mut nodes = vec![];
 
         for i in 0..42 {
@@ -223,7 +281,7 @@ mod tests {
             let node = MMRNode::new(wtxid, body);
             nodes.push(node.clone());
 
-            mmr.append(node);
+            mmr.append(node).unwrap();
 
             for j in 0..=i {
                 let proof_node = nodes[j as usize].clone();
@@ -235,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_native_proof_with_guest_verification() {
-        let mut mmr_native = MMRNative::new();
+        let mut mmr_native = MMRNative::new(InMemoryStore::new());
         let mut mmr_guest = MMRGuest::new();
 
         for i in 0..42 {
@@ -244,7 +302,7 @@ mod tests {
             let node = MMRNode::new(wtxid, body);
 
             // Append to both Native and Guest
-            mmr_native.append(node.clone());
+            mmr_native.append(node.clone()).unwrap();
             mmr_guest.append(node.clone());
 
             // Generate proof in Native and verify in Guest
@@ -260,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_consistency_between_native_and_guest() {
-        let mut mmr_native = MMRNative::new();
+        let mut mmr_native = MMRNative::new(InMemoryStore::new());
         let mut mmr_guest = MMRGuest::new();
 
         for i in 0..10 {
@@ -268,7 +326,7 @@ mod tests {
             let body = vec![i as u8; 8];
             let node = MMRNode::new(wtxid, body);
 
-            mmr_native.append(node.clone());
+            mmr_native.append(node.clone()).unwrap();
             mmr_guest.append(node.clone());
         }
 
@@ -279,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_large_dataset_verification() {
-        let mut mmr_native = MMRNative::new();
+        let mut mmr_native = MMRNative::new(InMemoryStore::new());
         let mut mmr_guest = MMRGuest::new();
         let mut nodes = vec![];
 
@@ -289,13 +347,35 @@ mod tests {
             let node = MMRNode::new(wtxid, body);
             nodes.push(node.clone());
 
-            mmr_native.append(node.clone());
+            mmr_native.append(node.clone()).unwrap();
             mmr_guest.append(node.clone());
         }
 
         for node in nodes {
             let (_, mmr_proof) = mmr_native.generate_proof(node.wtxid).unwrap();
             assert!(mmr_guest.verify_proof(&node, &mmr_proof));
+        }
+    }
+
+    #[test]
+    fn test_mmr_with_store() {
+        let store = InMemoryStore::new();
+        let mut mmr = MMRNative::new(store);
+
+        for i in 0..42 {
+            let wtxid = [i as u8; 32];
+            let body = vec![i as u8; 8];
+            let node = MMRNode::new(wtxid, body);
+            mmr.append(node).unwrap();
+        }
+
+        let mmr = MMRNative::new(mmr.store.clone());
+        for i in 0..42 {
+            let wtxid = [i as u8; 32];
+            let body = vec![i as u8; 8];
+            let node = MMRNode::new(wtxid, body);
+            let (_, proof) = mmr.generate_proof(wtxid).unwrap();
+            assert!(mmr.verify_proof(node, &proof));
         }
     }
 }
