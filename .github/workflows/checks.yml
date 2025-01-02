@@ -236,7 +236,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-dir
+          name: e2e-test-dir-coverage
           path: ${{ runner.temp }}/coverage
 
       - name: Upload coverage
@@ -428,7 +428,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-dir
+          name: e2e-test-dir-test
           path: ${{ runner.temp }}/test
 
   system-contracts:
