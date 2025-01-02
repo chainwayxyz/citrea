@@ -151,58 +151,7 @@ where
             tx.full_data();
         });
 
-        let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
-        tracing::info!(
-            "Block {} has {} batch proofs",
-            l1_height,
-            batch_proofs.len()
-        );
-
         let mut assumptions = vec![];
-        // index only incremented for complete and aggregated proofs, in line with the circuit
-        let mut proof_index = 0u32;
-        let mut expected_to_fail_hint = vec![];
-
-        for batch_proof in batch_proofs {
-            // TODO handle aggreagates
-            if let DaDataLightClient::Complete(proof) = batch_proof {
-                let last_l2_height = match Vm::extract_output::<
-                    BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                >(&proof)
-                {
-                    Ok(output) => output.last_l2_height,
-                    Err(e) => {
-                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                        if Vm::extract_output::<
-                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                        >(&proof)
-                        .is_err()
-                        {
-                            tracing::info!(
-                                "Failed to extract pre fork1 and fork1 output from proof"
-                            );
-                            proof_index += 1;
-                            continue;
-                        }
-                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
-                        0
-                    }
-                };
-                let current_spec = fork_from_block_number(last_l2_height).spec_id;
-                let batch_proof_method_id = self
-                    .batch_proof_code_commitments
-                    .get(&current_spec)
-                    .expect("Batch proof code commitment not found");
-                if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
-                    tracing::error!("Failed to verify batch proof: {:?}", e);
-                    expected_to_fail_hint.push(proof_index);
-                } else {
-                    assumptions.push(proof);
-                }
-
-                proof_index += 1;
-            }
-        }
 
         let previous_l1_height = l1_height - 1;
         let (light_client_proof_journal, l2_last_height) = match self
@@ -229,6 +178,64 @@ where
                 (None, 0)
             }
         };
+
+        let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
+        tracing::info!(
+            "Block {} has {} batch proofs",
+            l1_height,
+            batch_proofs.len()
+        );
+
+        // index only incremented for complete and aggregated proofs, in line with the circuit
+        let mut proof_index = 0u32;
+        let mut expected_to_fail_hint = vec![];
+
+        for batch_proof in batch_proofs {
+            // TODO handle aggreagates
+            if let DaDataLightClient::Complete(proof) = batch_proof {
+                let batch_proof_last_l2_height = match Vm::extract_output::<
+                    BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                >(&proof)
+                {
+                    Ok(output) => output.last_l2_height,
+                    Err(e) => {
+                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                        if Vm::extract_output::<
+                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                        >(&proof)
+                        .is_err()
+                        {
+                            tracing::info!(
+                                "Failed to extract pre fork1 and fork1 output from proof"
+                            );
+                            proof_index += 1;
+                            continue;
+                        }
+                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
+                        0
+                    }
+                };
+
+                if batch_proof_last_l2_height <= l2_last_height {
+                    proof_index += 1;
+                    continue;
+                }
+
+                let current_spec = fork_from_block_number(batch_proof_last_l2_height).spec_id;
+                let batch_proof_method_id = self
+                    .batch_proof_code_commitments
+                    .get(&current_spec)
+                    .expect("Batch proof code commitment not found");
+                if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
+                    tracing::error!("Failed to verify batch proof: {:?}", e);
+                    expected_to_fail_hint.push(proof_index);
+                } else {
+                    assumptions.push(proof);
+                }
+
+                proof_index += 1;
+            }
+        }
 
         tracing::debug!("assumptions len: {:?}", assumptions.len());
 
