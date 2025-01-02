@@ -88,6 +88,25 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
     }
 };
 
+pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
+    let hex_pub_key = match NETWORK {
+        Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Devnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Nightly => match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
+            Some(hex_pub_key) => hex_pub_key,
+            None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+        },
+    };
+
+    match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {
+        Ok(pub_key) => pub_key,
+        Err(_) => {
+            panic!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY must be valid 33-byte hex string")
+        }
+    }
+};
+
 pub fn main() {
     let guest = Risc0Guest::new();
 
@@ -104,6 +123,7 @@ pub fn main() {
         L2_GENESIS_ROOT,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &BATCH_PROVER_DA_PUBLIC_KEY,
+        &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY,
         NETWORK,
     )
     .unwrap();

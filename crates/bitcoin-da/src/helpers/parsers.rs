@@ -18,6 +18,8 @@ pub enum ParsedLightClientTransaction {
     Aggregate(ParsedAggregate),
     /// Kind 2
     Chunk(ParsedChunk),
+    /// Kind 3
+    BatchProverMethodId(ParsedBatchProverMethodId),
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +51,13 @@ pub struct ParsedChunk {
 
 #[derive(Debug, Clone)]
 pub struct ParsedSequencerCommitment {
+    pub body: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub public_key: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedBatchProverMethodId {
     pub body: Vec<u8>,
     pub signature: Vec<u8>,
     pub public_key: Vec<u8>,
@@ -107,6 +116,18 @@ impl VerifyParsed for ParsedAggregate {
 }
 
 impl VerifyParsed for ParsedSequencerCommitment {
+    fn public_key(&self) -> &[u8] {
+        &self.public_key
+    }
+    fn signature(&self) -> &[u8] {
+        &self.signature
+    }
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
+
+impl VerifyParsed for ParsedBatchProverMethodId {
     fn public_key(&self) -> &[u8] {
         &self.public_key
     }
@@ -196,6 +217,10 @@ fn parse_relevant_lightclient(
         TransactionKindLightClient::ChunkedPart => {
             light_client::parse_type_2_body(instructions).map(ParsedLightClientTransaction::Chunk)
         }
+        TransactionKindLightClient::BatchProofMethodId => {
+            light_client::parse_type_3_body(instructions)
+                .map(ParsedLightClientTransaction::BatchProverMethodId)
+        }
         TransactionKindLightClient::Unknown(n) => Err(ParserError::InvalidHeaderType(n)),
     }
 }
@@ -262,8 +287,8 @@ mod light_client {
     use bitcoin::script::Instruction::{Op, PushBytes};
 
     use super::{
-        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedChunk, ParsedComplete,
-        ParserError,
+        read_instr, read_opcode, read_push_bytes, ParsedAggregate, ParsedBatchProverMethodId,
+        ParsedChunk, ParsedComplete, ParserError,
     };
 
     // Parse transaction body of Type0
@@ -416,6 +441,49 @@ mod light_client {
         }
 
         Ok(ParsedChunk { body })
+    }
+
+    // Parse transaction body of Type3
+    pub(super) fn parse_type_3_body(
+        instructions: &mut dyn Iterator<Item = Result<Instruction<'_>, ParserError>>,
+    ) -> Result<ParsedBatchProverMethodId, ParserError> {
+        let op_false = read_push_bytes(instructions)?;
+        if !op_false.is_empty() {
+            // OP_FALSE = OP_PUSHBYTES_0
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        if OP_IF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = read_push_bytes(instructions)?;
+        let public_key = read_push_bytes(instructions)?;
+        let body = read_push_bytes(instructions)?;
+
+        if OP_ENDIF != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_NIP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
+        let signature = signature.as_bytes().to_vec();
+        let public_key = public_key.as_bytes().to_vec();
+        let body = body.as_bytes().to_vec();
+
+        Ok(ParsedBatchProverMethodId {
+            body,
+            signature,
+            public_key,
+        })
     }
 }
 

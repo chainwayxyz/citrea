@@ -48,7 +48,7 @@ pub trait ZkvmHost: Zkvm + Clone {
     fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error>;
 
     /// Extracts public input and receipt from the proof.
-    fn extract_output<Da: DaSpec, T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;
+    fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;
 
     /// Host recovers pending proving sessions and returns proving results
     fn recover_proving_sessions(&self) -> Result<Vec<Proof>, anyhow::Error>;
@@ -93,7 +93,7 @@ pub trait Zkvm: Send + Sync {
     /// Same as [`verify`](Zkvm::verify), except that instead of returning the output
     /// as a serialized array, it returns a state transition structure.
     /// TODO: specify a deserializer for the output
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error>;
@@ -423,3 +423,19 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
 }
+
+#[cfg(feature = "std")]
+/// A cryptographic commitment to the contents of this storage
+pub type StorageRootHash = jmt::RootHash;
+
+#[cfg(not(feature = "std"))]
+/// To bypass nostd builds.
+pub type StorageRootHash = Vec<u8>;
+
+#[cfg(feature = "std")]
+/// Alias to jmt::proof::SparseMerkleProof.
+pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;
+
+#[cfg(not(feature = "std"))]
+/// To bypass nostd builds.
+pub type SparseMerkleProofSha2 = Vec<u8>;

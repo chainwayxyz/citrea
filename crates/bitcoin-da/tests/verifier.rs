@@ -10,7 +10,7 @@ use bitcoin_da::spec::proof::InclusionMultiProof;
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
 use citrea_common::tasks::manager::TaskManager;
-use citrea_e2e::config::TestCaseConfig;
+use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
@@ -35,12 +35,19 @@ impl TestCase for BitcoinVerifierTest {
         }
     }
 
+    fn bitcoin_config() -> BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-limitancestorcount=50", "-limitdescendantcount=50"],
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let mut task_manager = TaskManager::default();
         let da_node = f.bitcoin_nodes.get(0).unwrap();
 
         let service = get_default_service(&mut task_manager, &da_node.config).await;
-        let (block, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
+        let (block, _, _, _) = generate_mock_txs(&service, da_node, &mut task_manager).await;
 
         let (mut b_txs, b_inclusion_proof, b_completeness_proof) =
             service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToBatchProver);
@@ -580,7 +587,7 @@ impl TestCase for BitcoinVerifierTest {
             let mut l_txs = l_txs.clone();
 
             let body = {
-                let parsed = parse_light_client_transaction(&l_completeness_proof[0]).unwrap();
+                let parsed = parse_light_client_transaction(&l_completeness_proof[1]).unwrap();
                 match parsed {
                     ParsedLightClientTransaction::Complete(complete) => complete.body, // normally we should decompress the tx body
                     _ => panic!("Should not select zk proof tx other than complete"),

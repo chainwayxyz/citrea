@@ -6,7 +6,7 @@ use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
 use sov_rollup_interface::spec::SpecId as CitreaSpecId;
-use sov_state::Storage;
+use sov_rollup_interface::zk::StorageRootHash;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -14,10 +14,7 @@ use crate::evm::primitive_types::Block;
 use crate::evm::system_events::SystemEvent;
 use crate::{citrea_spec_id_to_evm_spec_id, Evm};
 
-impl<C: sov_modules_api::Context> Evm<C>
-where
-    <C::Storage as Storage>::Root: Into<[u8; 32]>,
-{
+impl<C: sov_modules_api::Context> Evm<C> {
     /// Logic executed at the beginning of the slot. Here we set the state root of the previous head.
     #[cfg_attr(
         feature = "native",
@@ -319,7 +316,7 @@ where
     #[cfg_attr(not(feature = "native"), allow(unused_variables))]
     pub fn finalize_hook(
         &self,
-        root_hash: &<C::Storage as Storage>::Root,
+        root_hash: &StorageRootHash,
         accessory_working_set: &mut AccessoryWorkingSet<C::Storage>,
     ) {
         #[cfg(feature = "native")]
@@ -342,8 +339,7 @@ where
                 expected_block_number, block.header.number
             );
 
-            let root_hash_bytes: [u8; 32] = root_hash.clone().into();
-            block.header.state_root = root_hash_bytes.into();
+            block.header.state_root = root_hash.0.into();
 
             let sealed_block = block.seal();
 

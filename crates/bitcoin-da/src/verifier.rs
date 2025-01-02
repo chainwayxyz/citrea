@@ -29,6 +29,7 @@ const EXPECTED_EPOCH_TIMESPAN: u32 = 60 * 60 * 24 * 14;
 /// Number of blocks per epoch
 const BLOCKS_PER_EPOCH: u64 = 2016;
 
+#[derive(Debug)]
 pub struct BitcoinVerifier {
     to_batch_proof_prefix: Vec<u8>,
     to_light_client_prefix: Vec<u8>,
@@ -146,6 +147,16 @@ impl DaVerifier for BitcoinVerifier {
                             }
                             ParsedLightClientTransaction::Chunk(_chunk) => {
                                 // ignore
+                            }
+                            ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
+                                if let Some(blob_content) =
+                                    verified_blob_content(&method_id, &mut blobs_iter)?
+                                {
+                                    // assert tx content is not modified
+                                    if blob_content != method_id.body {
+                                        return Err(ValidationError::BlobContentWasModified);
+                                    }
+                                }
                             }
                         }
                     }

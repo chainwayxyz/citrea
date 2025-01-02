@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
-use sov_rollup_interface::da::{DaDataLightClient, DaNamespace, DaVerifier};
+use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     OldBatchProofCircuitOutput, ZkvmGuest,
@@ -10,9 +10,9 @@ use sov_rollup_interface::Network;
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
 
 #[derive(Debug)]
-pub enum LightClientVerificationError {
-    DaTxsCouldntBeVerified,
-    HeaderChainVerificationFailed,
+pub enum LightClientVerificationError<DaV: DaVerifier> {
+    DaTxsCouldntBeVerified(DaV::Error),
+    HeaderChainVerificationFailed(DaV::Error),
     InvalidPreviousLightClientProof,
 }
 
@@ -25,16 +25,17 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     l2_genesis_root: [u8; 32],
     initial_batch_proof_method_ids: InitialBatchProofMethodIds,
     batch_prover_da_public_key: &[u8],
+    method_id_upgrade_authority_da_public_key: &[u8],
     network: Network,
-) -> Result<LightClientCircuitOutput, LightClientVerificationError> {
+) -> Result<LightClientCircuitOutput, LightClientVerificationError<DaV>> {
     // Extract previous light client proof output
     let previous_light_client_proof_output =
         if let Some(journal) = input.previous_light_client_proof_journal {
-            let prev_output = G::verify_and_extract_output::<LightClientCircuitOutput>(
+            let prev_output = G::verify_and_deserialize_output::<LightClientCircuitOutput>(
                 &journal,
                 &input.light_client_proof_method_id.into(),
             )
-            .map_err(|_| LightClientVerificationError::InvalidPreviousLightClientProof)?;
+            .map_err(|_| LightClientVerificationError::<DaV>::InvalidPreviousLightClientProof)?;
             // Ensure method IDs match
             assert_eq!(
                 input.light_client_proof_method_id,
@@ -45,7 +46,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             None
         };
 
-    let batch_proof_method_ids = previous_light_client_proof_output
+    let mut batch_proof_method_ids = previous_light_client_proof_output
         .as_ref()
         .map_or(initial_batch_proof_method_ids, |o| {
             o.batch_proof_method_ids.clone()
@@ -59,7 +60,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             &input.da_block_header,
             network,
         )
-        .map_err(|_| LightClientVerificationError::HeaderChainVerificationFailed)?;
+        .map_err(|err| LightClientVerificationError::HeaderChainVerificationFailed(err))?;
 
     // Verify data from da
     da_verifier
@@ -70,7 +71,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             input.completeness_proof,
             DaNamespace::ToLightClientProver,
         )
-        .map_err(|_| LightClientVerificationError::DaTxsCouldntBeVerified)?;
+        .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
 
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = std::collections::BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
@@ -176,6 +177,24 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                     DaDataLightClient::Aggregate(_) => todo!(),
                     DaDataLightClient::Chunk(_) => todo!(),
+                    DaDataLightClient::BatchProofMethodId(_) => {} // if coming from batch prover, ignore
+                }
+            }
+        } else if blob.sender().as_ref() == method_id_upgrade_authority_da_public_key {
+            let data = DaDataLightClient::try_from_slice(blob.verified_data());
+
+            if let Ok(DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                method_id,
+                activation_l2_height,
+            })) = data
+            {
+                let last_activation_height = batch_proof_method_ids
+                    .last()
+                    .expect("Should be at least one")
+                    .0;
+
+                if activation_l2_height > last_activation_height {
+                    batch_proof_method_ids.push((activation_l2_height, method_id));
                 }
             }
         }
@@ -204,17 +223,4 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         last_l2_height,
         batch_proof_method_ids,
     })
-}
-
-#[test]
-fn test_binary_search() {
-    let ve = [1, 4, 7, 9, 14];
-    let idx = ve.binary_search(&4); // 1
-    assert_eq!(idx, Ok(1));
-    let idx = ve.binary_search(&100); // 5 - 1
-    assert_eq!(idx, Err(5));
-    let idx = ve.binary_search(&7); // 2
-    assert_eq!(idx, Ok(2));
-    let idx = ve.binary_search(&8); // 3-1
-    assert_eq!(idx, Err(3));
 }

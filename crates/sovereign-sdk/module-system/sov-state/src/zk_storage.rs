@@ -2,56 +2,52 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use jmt::KeyHash;
-use sha2::Digest;
 use sov_modules_core::{
     OrderedReadsAndWrites, Storage, StorageKey, StorageProof, StorageValue, Witness,
 };
 use sov_rollup_interface::stf::{StateDiff, StateRootTransition};
+use sov_rollup_interface::zk::StorageRootHash;
+
+use crate::DefaultHasher;
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default)]
-pub struct ZkStorage<W, H>
+pub struct ZkStorage<W>
 where
     W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
 {
-    _phantom_hasher: PhantomData<(W, H)>,
+    _phantom_data: PhantomData<W>,
 }
 
-impl<W, H> Clone for ZkStorage<W, H>
+impl<W> Clone for ZkStorage<W>
 where
     W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
 {
     fn clone(&self) -> Self {
         Self {
-            _phantom_hasher: Default::default(),
+            _phantom_data: Default::default(),
         }
     }
 }
 
-impl<W, H> ZkStorage<W, H>
+impl<W> ZkStorage<W>
 where
     W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
 {
     /// Creates a new [`ZkStorage`] instance. Identical to [`Default::default`].
     pub fn new() -> Self {
         Self {
-            _phantom_hasher: Default::default(),
+            _phantom_data: Default::default(),
         }
     }
 }
 
-impl<W, H> Storage for ZkStorage<W, H>
+impl<W> Storage for ZkStorage<W>
 where
     W: Witness + Send + Sync,
-    H: Digest<OutputSize = sha2::digest::typenum::U32>,
 {
     type Witness = W;
     type RuntimeConfig = ();
-    type Proof = jmt::proof::SparseMerkleProof<H>;
-    type Root = jmt::RootHash;
     type StateUpdate = ();
 
     fn get(
@@ -78,7 +74,7 @@ where
         witness: &mut Self::Witness,
     ) -> Result<
         (
-            StateRootTransition<Self::Root>,
+            StateRootTransition<StorageRootHash>,
             Self::StateUpdate,
             StateDiff,
         ),
@@ -88,9 +84,9 @@ where
 
         // For each value that's been read from the tree, verify the provided smt proof
         for (key, read_value) in state_accesses.ordered_reads {
-            let key_hash = KeyHash::with::<H>(key.key.as_ref());
+            let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
-            let proof: jmt::proof::SparseMerkleProof<H> = witness.get_hint();
+            let proof: jmt::proof::SparseMerkleProof<DefaultHasher> = witness.get_hint();
             match read_value {
                 Some(val) => proof.verify_existence(
                     jmt::RootHash(prev_state_root),
@@ -108,7 +104,7 @@ where
             .ordered_writes
             .into_iter()
             .map(|(key, value)| {
-                let key_hash = KeyHash::with::<H>(key.key.as_ref());
+                let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
 
                 let key_bytes = Arc::try_unwrap(key.key).unwrap_or_else(|arc| (*arc).clone());
                 let value_bytes =
@@ -120,7 +116,7 @@ where
             })
             .collect::<Vec<_>>();
 
-        let update_proof: jmt::proof::UpdateMerkleProof<H> = witness.get_hint();
+        let update_proof: jmt::proof::UpdateMerkleProof<DefaultHasher> = witness.get_hint();
         let new_root: [u8; 32] = witness.get_hint();
         update_proof
             .verify_update(
@@ -149,11 +145,11 @@ where
     }
 
     fn open_proof(
-        state_root: Self::Root,
-        state_proof: StorageProof<Self::Proof>,
+        state_root: StorageRootHash,
+        state_proof: StorageProof,
     ) -> Result<(StorageKey, Option<StorageValue>), anyhow::Error> {
         let StorageProof { key, value, proof } = state_proof;
-        let key_hash = KeyHash::with::<H>(key.as_ref());
+        let key_hash = KeyHash::with::<DefaultHasher>(key.as_ref());
 
         proof.verify(state_root, key_hash, value.as_ref().map(|v| v.value()))?;
         Ok((key, value))

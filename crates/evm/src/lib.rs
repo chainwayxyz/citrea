@@ -78,7 +78,7 @@ pub struct Evm<C: sov_modules_api::Context> {
 
     /// Mapping from account address to account state.
     #[state(rename = "a")]
-    pub(crate) accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
+    pub accounts: sov_modules_api::StateMap<Address, AccountInfo, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state(rename = "c")]

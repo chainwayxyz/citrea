@@ -18,7 +18,7 @@ use citrea_primitives::TO_BATCH_PROOF_PREFIX;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_rollup_interface::da::{BlobReaderTrait, DaData};
+use sov_rollup_interface::da::{BlobReaderTrait, DaTxRequest};
 use sov_rollup_interface::rpc::SequencerCommitmentResponse;
 use tokio::time::sleep;
 
@@ -309,11 +309,11 @@ impl SequencerSendCommitmentsToDaTest {
 
         let data = BlobReaderTrait::full_data(&mut blob);
 
-        let commitment = DaData::try_from_slice(data).unwrap();
+        let commitment = DaTxRequest::try_from_slice(data).unwrap();
 
-        matches!(commitment, DaData::SequencerCommitment(_));
+        matches!(commitment, DaTxRequest::SequencerCommitment(_));
 
-        let DaData::SequencerCommitment(commitment) = commitment else {
+        let DaTxRequest::SequencerCommitment(commitment) = commitment else {
             panic!("Expected SequencerCommitment, got {:?}", commitment);
         };
 

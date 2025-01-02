@@ -55,7 +55,7 @@ impl Zkvm for Risc0Guest {
         Ok(T::try_from_slice(journal)?)
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         journal: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {

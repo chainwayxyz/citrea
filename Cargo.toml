@@ -65,6 +65,7 @@ byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.2.1", default-features = false }
 chrono = { version = "0.4.37", default-features = false }
 clap = { version = "4.4.10", features = ["derive"] }
+const-hex = "1.12"
 crypto-bigint = { version = "0.5.5" }
 digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
 derive_more = { version = "0.99.11", default-features = false }

@@ -4,7 +4,7 @@ use sov_mock_da::{MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::zk::LightClientCircuitInput;
 use sov_rollup_interface::Network;
-use test_utils::{create_mock_blob, create_prev_lcp_serialized};
+use test_utils::{create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized};
 
 use crate::circuit::{run_circuit, LightClientVerificationError};
 
@@ -16,8 +16,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, true);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -32,6 +32,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32].to_vec();
 
     let output_1 = run_circuit::<_, MockZkGuest>(
         da_verifier.clone(),
@@ -39,6 +40,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -49,8 +51,8 @@ fn test_light_client_circuit_valid_da_valid_data() {
     assert_eq!(output_1.last_l2_height, 3);
 
     // Now get more proofs to see the previous light client part is also working correctly
-    let blob_3 = create_mock_blob([3u8; 32], [4u8; 32], 4, true);
-    let blob_4 = create_mock_blob([4u8; 32], [5u8; 32], 5, true);
+    let blob_3 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
+    let blob_4 = create_mock_batch_proof([4u8; 32], [5u8; 32], 5, true);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -71,6 +73,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -86,8 +89,8 @@ fn test_wrong_order_da_blocks_should_still_work() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, true);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -102,6 +105,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32].to_vec();
 
     let output_1 = run_circuit::<_, MockZkGuest>(
         da_verifier.clone(),
@@ -109,6 +113,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -126,8 +131,8 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let blob_1 = create_mock_blob([2u8; 32], [3u8; 32], 3, true);
-    let blob_2 = create_mock_blob([3u8; 32], [4u8; 32], 4, true);
+    let blob_1 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
+    let blob_2 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
 
     let input = LightClientCircuitInput {
         previous_light_client_proof_journal: None,
@@ -140,6 +145,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32].to_vec();
 
     let output_1 = run_circuit::<_, MockZkGuest>(
         da_verifier.clone(),
@@ -147,6 +153,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -169,7 +176,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
     );
 
     // On the next l1 block, give 1-2 transition
-    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
 
     let block_header_2 = MockBlockHeader::from_height(2);
 
@@ -190,6 +197,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -206,8 +214,8 @@ fn test_header_chain_proof_height_and_hash() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, true);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, true);
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -222,6 +230,7 @@ fn test_header_chain_proof_height_and_hash() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32].to_vec();
 
     let output_1 = run_circuit::<_, MockZkGuest>(
         da_verifier.clone(),
@@ -229,6 +238,7 @@ fn test_header_chain_proof_height_and_hash() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -239,8 +249,8 @@ fn test_header_chain_proof_height_and_hash() {
     assert_eq!(output_1.last_l2_height, 3);
 
     // Now give l1 block with height 3
-    let blob_3 = create_mock_blob([3u8; 32], [4u8; 32], 4, true);
-    let blob_4 = create_mock_blob([4u8; 32], [5u8; 32], 5, true);
+    let blob_3 = create_mock_batch_proof([3u8; 32], [4u8; 32], 4, true);
+    let blob_4 = create_mock_batch_proof([4u8; 32], [5u8; 32], 5, true);
 
     let block_header_2 = MockBlockHeader::from_height(3);
 
@@ -262,11 +272,14 @@ fn test_header_chain_proof_height_and_hash() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     );
     assert!(matches!(
         res,
-        Err(LightClientVerificationError::HeaderChainVerificationFailed)
+        Err(LightClientVerificationError::HeaderChainVerificationFailed(
+            _
+        ))
     ));
 }
 
@@ -275,8 +288,8 @@ fn test_unverifiable_batch_proofs() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, false);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, false);
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -291,6 +304,7 @@ fn test_unverifiable_batch_proofs() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32].to_vec();
 
     let output_1 = run_circuit::<_, MockZkGuest>(
         da_verifier.clone(),
@@ -298,6 +312,7 @@ fn test_unverifiable_batch_proofs() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -315,8 +330,8 @@ fn test_unverifiable_prev_light_client_proof() {
     let light_client_proof_method_id = [1u32; 8];
     let da_verifier = MockDaVerifier {};
 
-    let blob_1 = create_mock_blob([1u8; 32], [2u8; 32], 2, true);
-    let blob_2 = create_mock_blob([2u8; 32], [3u8; 32], 3, false);
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 3, false);
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
@@ -331,6 +346,7 @@ fn test_unverifiable_prev_light_client_proof() {
 
     let l2_genesis_state_root = [1u8; 32];
     let batch_prover_da_pub_key = [9; 32].to_vec();
+    let method_id_upgrade_authority = [11u8; 32].to_vec();
 
     let output_1 = run_circuit::<_, MockZkGuest>(
         da_verifier.clone(),
@@ -338,6 +354,7 @@ fn test_unverifiable_prev_light_client_proof() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     )
     .unwrap();
@@ -368,10 +385,117 @@ fn test_unverifiable_prev_light_client_proof() {
         l2_genesis_state_root,
         INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
         &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
         Network::Nightly,
     );
     assert!(matches!(
         res,
         Err(LightClientVerificationError::InvalidPreviousLightClientProof)
     ));
+}
+
+#[test]
+fn test_new_method_id_txs() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+    };
+
+    let output_1 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+
+    assert_eq!(output_1.batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        output_1.batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+
+    // now try wrong method id
+    let blob_2 = create_new_method_id_tx(10, [3u32; 8], batch_prover_da_pub_key);
+
+    let block_header_2 = MockBlockHeader::from_height(2);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_1, true)),
+        light_client_proof_method_id,
+        da_block_header: block_header_2,
+        da_data: vec![blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+    };
+
+    let output_2 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key,
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+
+    // didn't change
+    assert_eq!(output_2.batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        output_2.batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
+
+    // now try activation height < last activationg height and activation height = last activation height
+    let blob_1 = create_new_method_id_tx(10, [2u32; 8], method_id_upgrade_authority);
+    let blob_2 = create_new_method_id_tx(3, [2u32; 8], method_id_upgrade_authority);
+
+    let block_header_3 = MockBlockHeader::from_height(3);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(create_prev_lcp_serialized(output_2, true)),
+        light_client_proof_method_id,
+        da_block_header: block_header_3,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+    };
+
+    let output_3 = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+
+    // didn't change
+    assert_eq!(output_3.batch_proof_method_ids.len(), 2);
+    assert_eq!(
+        output_3.batch_proof_method_ids,
+        vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
+    );
 }

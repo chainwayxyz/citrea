@@ -1,15 +1,11 @@
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Context, DaSpec, SoftConfirmationHookError, StateValueAccessor, WorkingSet};
-use sov_state::Storage;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
 use crate::{RuleEnforcerData, SoftConfirmationRuleEnforcer};
 
-impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da>
-where
-    <C::Storage as Storage>::Root: Into<[u8; 32]>,
-{
+impl<C: Context, Da: DaSpec> SoftConfirmationRuleEnforcer<C, Da> {
     /// Checks the block count rule.
     /// For every L1 block, the number of L2 blocks should not exceed the max L2 blocks per L1.
     /// If the number of L2 blocks exceeds the max L2 blocks per L1, the soft confirmation should fail and not be accepted by full nodes.

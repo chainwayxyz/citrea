@@ -1531,6 +1531,30 @@ impl<C: sov_modules_api::Context> Evm<C> {
             Some(BlockNumberOrTag::Earliest) => Ok(Some(
                 self.blocks
                     .get(0, &mut working_set.accessory_state())
+                    .or_else(|| {
+                        // upgrading from v0.5.7 to v0.6+ requires a codec change
+                        // this only applies to the sequencer
+                        // which will only query the genesis block and the head block
+                        // right after the upgrade
+                        let prefix = <sov_modules_api::AccessoryStateVec<
+                            SealedBlock,
+                            sov_state::codec::RlpCodec,
+                        > as StateVecAccessor<
+                            SealedBlock,
+                            sov_state::codec::RlpCodec,
+                            sov_state::storage::AccessoryWorkingSet<C::Storage>,
+                        >>::prefix(&self.blocks);
+                        let accessor_with_old_codec = sov_modules_api::AccessoryStateVec::<
+                            crate::primitive_types::DoNotUseSealedBlock,
+                            sov_state::codec::BcsCodec,
+                        >::with_codec(
+                            prefix.clone(), sov_state::codec::BcsCodec
+                        );
+
+                        accessor_with_old_codec
+                            .get(0, &mut working_set.accessory_state())
+                            .map(Into::into)
+                    })
                     .expect("Genesis block must be set"),
             )),
             Some(BlockNumberOrTag::Latest) => Ok(Some(
@@ -1562,7 +1586,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
         block_number
     }
 
-    fn set_state_to_end_of_evm_block_by_block_id(
+    /// Rewind working_set to the given block_id
+    pub fn set_state_to_end_of_evm_block_by_block_id(
         &self,
         block_id: Option<BlockId>,
         working_set: &mut WorkingSet<C::Storage>,

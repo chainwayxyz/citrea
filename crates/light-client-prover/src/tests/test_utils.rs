@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
-use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient};
+use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::zk::{BatchProofCircuitOutput, LightClientCircuitOutput};
 
-pub(crate) fn create_mock_blob(
+pub(crate) fn create_mock_batch_proof(
     initial_state_root: [u8; 32],
     final_state_root: [u8; 32],
     last_l2_height: u64,
@@ -60,4 +60,22 @@ pub(crate) fn create_prev_lcp_serialized(
         true => borsh::to_vec(&MockJournal::Verifiable(serialized)).unwrap(),
         false => borsh::to_vec(&MockJournal::Unverifiable(serialized)).unwrap(),
     }
+}
+
+pub(crate) fn create_new_method_id_tx(
+    activation_height: u64,
+    new_method_id: [u32; 8],
+    pub_key: [u8; 32],
+) -> MockBlob {
+    let da_data = DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+        method_id: new_method_id,
+        activation_l2_height: activation_height,
+    });
+
+    let da_data_ser = borsh::to_vec(&da_data).expect("should serialize");
+
+    let mut blob = MockBlob::new(da_data_ser, MockAddress::new(pub_key), [0u8; 32]);
+    blob.full_data();
+
+    blob
 }

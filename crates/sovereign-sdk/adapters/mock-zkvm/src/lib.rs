@@ -149,7 +149,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
         }
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {
@@ -201,9 +201,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         Ok(self.committed_data.pop_front().unwrap_or_default())
     }
 
-    fn extract_output<Da: sov_rollup_interface::da::DaSpec, T: BorshDeserialize>(
-        proof: &Proof,
-    ) -> Result<T, Self::Error> {
+    fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error> {
         let data: ProofInfo = borsh::from_slice(proof)?;
 
         T::try_from_slice(&data.hint).map_err(Into::into)
@@ -259,7 +257,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
         }
     }
 
-    fn verify_and_extract_output<T: BorshDeserialize>(
+    fn verify_and_deserialize_output<T: BorshDeserialize>(
         journal: &[u8],
         _code_commitment: &Self::CodeCommitment,
     ) -> Result<T, Self::Error> {

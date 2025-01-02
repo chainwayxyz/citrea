@@ -22,7 +22,7 @@ use sov_modules_api::{Address, SpecId, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::DaVerifier;
-use sov_rollup_interface::services::da::SenderWithNotifier;
+use sov_rollup_interface::services::da::TxRequestWithNotifier;
 use sov_state::ProverStorage;
 use sov_stf_runner::ProverGuestRunConfig;
 use tokio::sync::broadcast;
@@ -118,7 +118,7 @@ impl RollupBlueprint for BitcoinRollup {
         require_wallet_check: bool,
         task_manager: &mut TaskManager<()>,
     ) -> Result<Arc<Self::DaService>, anyhow::Error> {
-        let (tx, rx) = unbounded_channel::<SenderWithNotifier<TxidWrapper>>();
+        let (tx, rx) = unbounded_channel::<TxRequestWithNotifier<TxidWrapper>>();
 
         let bitcoin_service = if require_wallet_check {
             BitcoinService::new_with_wallet_check(

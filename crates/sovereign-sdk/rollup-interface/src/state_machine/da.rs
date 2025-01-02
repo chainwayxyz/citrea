@@ -22,6 +22,15 @@ pub struct SequencerCommitment {
     pub l2_end_block_number: u64,
 }
 
+/// A new batch proof method_id starting to be applied from the l2_block_number (inclusive).
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct BatchProofMethodId {
+    /// New method id of upcoming fork
+    pub method_id: [u32; 8],
+    /// Activation L2 height of the new method id
+    pub activation_l2_height: u64,
+}
+
 impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
@@ -34,16 +43,15 @@ impl core::cmp::Ord for SequencerCommitment {
     }
 }
 
-// TODO: rename to da service request smth smth
-// DaDataOutgoing
-/// Data written to DA can only be one of these two types
-/// Data written to DA and read from DA is must be borsh serialization of this enum
+/// Transaction request to send to the DA queue.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, BorshDeserialize, BorshSerialize)]
-pub enum DaData {
+pub enum DaTxRequest {
     /// A commitment from the sequencer
     SequencerCommitment(SequencerCommitment),
     /// Or a zk proof and state diff
     ZKProof(Proof),
+    /// Batch proof method id update for light client
+    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum
@@ -55,6 +63,8 @@ pub enum DaDataLightClient {
     Aggregate(Vec<[u8; 32]>),
     /// A chunk of an aggregate
     Chunk(Vec<u8>),
+    /// A new batch proof method_id
+    BatchProofMethodId(BatchProofMethodId),
 }
 
 /// Data written to DA and read from DA must be the borsh serialization of this enum

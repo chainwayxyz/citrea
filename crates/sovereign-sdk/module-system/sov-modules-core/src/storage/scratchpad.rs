@@ -3,6 +3,8 @@
 use alloc::collections::BTreeMap;
 use core::{fmt, mem};
 
+use sov_rollup_interface::zk::StorageRootHash;
+
 use self::archival_state::ArchivalOffchainWorkingSet;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
@@ -499,12 +501,21 @@ impl<S: Storage> WorkingSet<S> {
     }
 
     /// Fetches given value and provides a proof of it presence/absence.
-    pub fn get_with_proof(&mut self, key: StorageKey) -> StorageProof<<S as Storage>::Proof>
+    pub fn get_with_proof(&mut self, key: StorageKey, version: Version) -> StorageProof
     where
         S: NativeStorage,
     {
         // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
-        self.delta.inner.inner.get_with_proof(key)
+        self.delta.inner.inner.get_with_proof(key, version)
+    }
+
+    /// Get the root hash of the tree.
+    pub fn get_root_hash(&mut self, version: Version) -> Result<StorageRootHash, anyhow::Error>
+    where
+        S: NativeStorage,
+    {
+        // First inner is `RevertableWriter` and second inner is actually a `Storage` instance
+        self.delta.inner.inner.get_root_hash(version)
     }
 }
 

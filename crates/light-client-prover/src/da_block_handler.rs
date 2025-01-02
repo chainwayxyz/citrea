@@ -152,6 +152,12 @@ where
             .da_service
             .extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToLightClientProver);
 
+        // Even though following extract_batch_proofs call does full_data on batch proofs,
+        // we also need to do it for BatchProofMethodId txs
+        da_data.iter_mut().for_each(|tx| {
+            tx.full_data();
+        });
+
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
         tracing::info!(
             "Block {} has {} batch proofs",
@@ -164,7 +170,6 @@ where
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
                 let last_l2_height = match Vm::extract_output::<
-                    <Da as DaService>::Spec,
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
                 {
@@ -172,7 +177,6 @@ where
                     Err(e) => {
                         info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
                         Vm::extract_output::<
-                            <Da as DaService>::Spec,
                             OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                         >(&proof)
                         .map_err(|_| anyhow!("Proof should be deserializable"))?;
@@ -262,7 +266,7 @@ where
             .prove(light_client_elf, circuit_input, assumptions)
             .await?;
 
-        let circuit_output = Vm::extract_output::<Da::Spec, LightClientCircuitOutput>(&proof)
+        let circuit_output = Vm::extract_output::<LightClientCircuitOutput>(&proof)
             .expect("Should deserialize valid proof");
 
         tracing::info!(

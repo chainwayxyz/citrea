@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::ops::{Deref, Range};
 
 use alloy_primitives::{Address, BlockNumber, Bloom, Bytes, Sealable, B256, B64, U256};
 use alloy_rlp::bytes::BufMut;
@@ -246,6 +246,21 @@ impl From<Block<AlloyHeader>> for Block<DoNotUseHeader> {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct DoNotUseSealedBlock {
+    /// Block header.
+    pub(crate) header: SealedHeader<DoNotUseHeader>,
+
+    /// L1 fee rate.
+    pub(crate) l1_fee_rate: u128,
+
+    /// The hash of L1 block that the L2 block corresponds to.  
+    pub(crate) l1_hash: B256,
+
+    /// Transactions in this block.
+    pub(crate) transactions: Range<u64>,
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SealedBlock {
     /// Block header.
     pub(crate) header: SealedHeader<AlloyHeader>,
@@ -365,6 +380,20 @@ impl Decodable for SealedBlock {
             l1_hash,
             transactions: Range { start, end },
         })
+    }
+}
+
+impl From<DoNotUseSealedBlock> for SealedBlock {
+    fn from(value: DoNotUseSealedBlock) -> Self {
+        let alloy_header = AlloyHeader::from(value.header.deref().clone());
+        let sealed = alloy_header.seal_slow();
+        let (header, seal) = sealed.into_parts();
+        Self {
+            header: SealedHeader::new(header, seal),
+            l1_fee_rate: value.l1_fee_rate,
+            l1_hash: value.l1_hash,
+            transactions: value.transactions,
+        }
     }
 }
 

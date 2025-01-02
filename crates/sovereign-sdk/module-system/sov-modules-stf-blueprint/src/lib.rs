@@ -23,7 +23,7 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
     StateTransitionError, StateTransitionFunction,
 };
-use sov_rollup_interface::zk::CumulativeStateDiff;
+use sov_rollup_interface::zk::{CumulativeStateDiff, StorageRootHash};
 use sov_state::Storage;
 
 mod stf_blueprint;
@@ -258,11 +258,7 @@ where
         soft_confirmation: &mut SignedSoftConfirmation<
             <Self as StateTransitionFunction<Da>>::Transaction,
         >,
-    ) -> SoftConfirmationResult<
-        <C::Storage as Storage>::Root,
-        C::Storage,
-        <C::Storage as Storage>::Witness,
-    > {
+    ) -> SoftConfirmationResult<StorageRootHash, C::Storage, <C::Storage as Storage>::Witness> {
         native_debug!(
             "soft confirmation with hash: {:?} from sequencer {:?} has been successfully applied",
             soft_confirmation.hash(),
@@ -318,7 +314,7 @@ where
     RT: Runtime<C, Da>,
 {
     type Transaction = Transaction<C>;
-    type StateRoot = <C::Storage as Storage>::Root;
+    type StateRoot = StorageRootHash;
 
     type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = C::Storage;
@@ -505,7 +501,7 @@ where
             .map(|(_, commitment)| commitment);
 
         // Then verify these soft confirmations.
-        let mut current_state_root = initial_state_root.clone();
+        let mut current_state_root = *initial_state_root;
         let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
