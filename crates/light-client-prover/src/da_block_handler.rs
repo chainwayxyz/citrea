@@ -211,18 +211,11 @@ where
 
                 assumptions.push(proof);
             } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
-                // Feed all found chunks which are used by the current aggregate into the MMR
-                // so that a new root can be constructed.
+                // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
                 for wtxid in &wtxids {
-                    if let Some(body) = unused_chunks.get(wtxid) {
-                        mmr_native.append(MMRNode::new(*wtxid, body.clone()));
+                    if unused_chunks.contains_key(wtxid) {
                         // Clear the chunk from the unused chunks.
                         unused_chunks.remove(wtxid);
-                    } else {
-                        return Err(anyhow!(
-                            "Missing chunk with wtxid {} for aggregate",
-                            hex::encode(wtxid)
-                        ));
                     }
                 }
 

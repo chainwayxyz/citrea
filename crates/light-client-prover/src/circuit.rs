@@ -138,7 +138,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         'wtxids_loop: for wtxid in &wtx_ids {
                             // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
                             // We use the hints to verify the existence of the chunk.
-                            if !in_memory_chunks.contains_key(wtxid) {
+                            if in_memory_chunks.contains_key(wtxid) {
+                                let chunk = in_memory_chunks
+                                    .get(wtxid)
+                                    .expect("Chunk with wtxid should exist at this point")
+                                    .to_vec();
+                                aggregate_chunks.push(MMRNode::new(*wtxid, chunk));
+                                in_memory_chunks.remove(wtxid);
+                            } else {
                                 while let Some((chunk, proof)) = mmr_hints.pop_front() {
                                     if !mmr_guest.verify_proof(&chunk, &proof) {
                                         // circuit not provided with enough hints
@@ -147,19 +154,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
                                     aggregate_chunks.push(chunk);
                                 }
-                            } else {
-                                in_memory_chunks.remove(wtxid);
-
-                                let chunk = in_memory_chunks
-                                    .get(wtxid)
-                                    .expect("Chunk with wtxid should exist at this point")
-                                    .to_vec();
-
-                                // The chunk belongs to the current aggregate, append to MMR guest and
-                                // also keep it to reconstruct the complete proof.
-                                let node = MMRNode::new(*wtxid, chunk);
-                                mmr_guest.append(node.clone());
-                                aggregate_chunks.push(node);
                             }
                         }
 
