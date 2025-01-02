@@ -52,6 +52,7 @@ impl TestCase for LightClientProvingTest {
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
             enable_recovery: false,
+            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -187,6 +188,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         BatchProverConfig {
             enable_recovery: false,
             proof_sampling_number: 99999999,
+            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -475,6 +477,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
             enable_recovery: false,
+            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -597,7 +600,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         // Verify the current batch proof method ids
         assert_eq!(
             lcp_output.batch_proof_method_ids,
-            vec![(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
+            vec![
+                (
+                    0,
+                    [
+                        1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
+                        402126456, 572125060
+                    ]
+                ),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)
+            ],
         );
 
         // Send BatchProofMethodId transaction to da
@@ -606,7 +618,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .send_transaction_with_fee_rate(
                 DaTxRequest::BatchProofMethodId(BatchProofMethodId {
                     method_id: new_batch_proof_method_id,
-                    activation_l2_height: 100,
+                    activation_l2_height: 200,
                 }),
                 1,
             )
@@ -637,7 +649,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         // Verify the current batch proof method ids
         assert_eq!(
             lcp_output.batch_proof_method_ids,
-            vec![(0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID)],
+            vec![
+                (
+                    0,
+                    [
+                        1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
+                        402126456, 572125060
+                    ],
+                ),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+            ]
         );
 
         // Assert that method ids are updated
@@ -651,9 +672,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                (0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                (100, new_batch_proof_method_id)
-            ],
+                (
+                    0,
+                    [
+                        1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
+                        402126456, 572125060
+                    ],
+                ),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                (200, new_batch_proof_method_id)
+            ]
         );
 
         // Generate one more empty l1 block
@@ -675,9 +703,16 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                (0, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
-                (100, new_batch_proof_method_id)
-            ],
+                (
+                    0,
+                    [
+                        1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
+                        402126456, 572125060
+                    ],
+                ),
+                (100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                (200, new_batch_proof_method_id)
+            ]
         );
 
         Ok(())

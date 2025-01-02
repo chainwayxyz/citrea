@@ -530,7 +530,6 @@ async fn parallel_proving_test() -> Result<()> {
 
 struct ForkElfSwitchingTest;
 
-// TODO: add light client prover to this test so that we see it can parse the genesis fork proofs
 #[async_trait]
 impl TestCase for ForkElfSwitchingTest {
     fn test_config() -> TestCaseConfig {
@@ -668,6 +667,11 @@ impl TestCase for ForkElfSwitchingTest {
             .light_client_proof_output
             .unchained_batch_proofs_info
             .is_empty());
+
+        assert_eq!(
+            lcp.light_client_proof_output.state_root.to_vec(),
+            proofs[1].proof_output.final_state_root
+        );
 
         Ok(())
     }
