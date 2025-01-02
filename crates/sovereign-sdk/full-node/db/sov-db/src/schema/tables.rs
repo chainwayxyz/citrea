@@ -13,7 +13,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
-use sov_rollup_interface::mmr::MMRNative;
+use sov_rollup_interface::mmr::MMRNode;
 use sov_rollup_interface::stf::StateDiff;
 use sov_schema_db::schema::{KeyDecoder, KeyEncoder, ValueCodec};
 use sov_schema_db::{CodecError, SeekKeyEncoder};
@@ -26,7 +26,7 @@ use super::types::{
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
 /// account balances, nonces, etc.
-pub const MMR_TABLES: &[&str] = &[MMRNodes::table_name()];
+pub const MMR_TABLES: &[&str] = &[MMRNodes::table_name(), MMRTreeSize::table_name()];
 
 /// A list of all tables used by the StateDB. These tables store rollup state - meaning
 /// account balances, nonces, etc.
@@ -328,7 +328,12 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Stores the chunks of a light client proof
-    (MMRNodes) () => MMRNative
+    (MMRNodes) (usize, usize) => MMRNode
+);
+
+define_table_with_seek_key_codec!(
+    /// Stores the MMR tree size
+    (MMRTreeSize) () => usize
 );
 
 #[cfg(test)]

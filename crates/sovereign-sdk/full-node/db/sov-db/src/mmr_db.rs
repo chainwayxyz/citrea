@@ -1,12 +1,12 @@
 #![allow(missing_docs)]
 use std::sync::Arc;
 
-use sov_rollup_interface::mmr::MMRNative;
+use sov_rollup_interface::mmr::{MMRNative, NodeStore};
 use sov_schema_db::DB;
 use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::{MMRNodes, MMR_TABLES};
+use crate::schema::tables::{MMRNodes, MMRTreeSize, MMR_TABLES};
 
 #[derive(Clone, Debug)]
 pub struct MmrDB {
@@ -41,15 +41,35 @@ impl MmrDB {
             db: Arc::new(inner),
         })
     }
+}
 
-    /// Put the preimage of a hashed key into the database. Note that the preimage is not checked for correctness,
-    /// since the DB is unaware of the hash function used by the JMT.
-    pub fn put(&self, mmr_native: MMRNative) -> Result<(), anyhow::Error> {
-        self.db.put::<MMRNodes>(&(), &mmr_native)
+impl NodeStore for MmrDB {
+    fn save_node(
+        &mut self,
+        level: usize,
+        index: usize,
+        node: sov_rollup_interface::mmr::MMRNode,
+    ) -> anyhow::Result<()> {
+        Ok(self.db.put::<MMRNodes>(&(level, index), &node)?)
     }
 
-    /// Get an optional value from the database, given a version and a key hash.
-    pub fn get(&self) -> anyhow::Result<Option<MMRNative>> {
-        self.db.get::<MMRNodes>(&())
+    fn load_node(
+        &self,
+        level: usize,
+        index: usize,
+    ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRNode>> {
+        self.db.get::<MMRNodes>(&(level, index))
+    }
+
+    fn get_tree_size(&self) -> usize {
+        self.db
+            .get::<MMRTreeSize>(&())
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+    }
+
+    fn set_tree_size(&mut self, size: usize) -> anyhow::Result<()> {
+        Ok(self.db.put::<MMRTreeSize>(&(), &size)?)
     }
 }
