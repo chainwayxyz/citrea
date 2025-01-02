@@ -134,6 +134,14 @@ where
             sequencer_commitments[*sequencer_commitments_range.start()].l2_start_block_number;
         let last_l2_height_of_l1 =
             sequencer_commitments[*sequencer_commitments_range.end()].l2_end_block_number;
+
+        tracing::info!(
+            "Providing input for batch proof circuit for L1 block at height: {}, L2 range #{}-#{}",
+            l1_height,
+            first_l2_height_of_l1,
+            last_l2_height_of_l1
+        );
+
         let (
             state_transition_witnesses,
             soft_confirmations,
@@ -250,6 +258,11 @@ where
                 .get(&current_spec)
                 .expect("Every fork should have an elf attached")
                 .clone();
+
+            tracing::info!(
+                "Proving state transition with ELF of spec: {:?}",
+                current_spec
+            );
 
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,

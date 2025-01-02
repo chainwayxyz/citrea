@@ -72,6 +72,13 @@ impl TestCase for BasicProverTest {
         }
     }
 
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            use_latest_elf: false,
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -154,6 +161,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             min_soft_confirmations_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            use_latest_elf: false,
             ..Default::default()
         }
     }
