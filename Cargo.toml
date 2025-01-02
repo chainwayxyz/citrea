@@ -49,74 +49,74 @@ repository = "https://github.com/chainwayxyz/citrea"
 
 [workspace.dependencies]
 # External dependencies
-async-trait = "0.1.71"
-anyhow = { version = "1.0.68", default-features = false }
+async-trait = "0.1.83"
+anyhow = { version = "1.0.95", default-features = false }
 backoff = { version = "0.4.0", features = ["futures", "tokio"] }
 borsh = { version = "1.5", default-features = false, features = ["derive"] }
 # TODO: Consider replacing this serialization format
 #     https://github.com/Sovereign-Labs/sovereign-sdk/issues/283
 bincode = "1.3.3"
-bitcoin = { version = "0.32.2", features = ["serde", "rand"] }
-bitcoincore-rpc = { version = "0.18.0" }
+bitcoin = { version = "0.32.5", features = ["serde", "rand"] }
+bitcoincore-rpc = "0.18.0"
 bcs = "0.1.6"
 bech32 = { version = "0.9.1", default-features = false }
 brotli = "7"
 byteorder = { version = "1.5.0", default-features = false }
-bytes = { version = "1.2.1", default-features = false }
-chrono = { version = "0.4.37", default-features = false }
-clap = { version = "4.4.10", features = ["derive"] }
-const-hex = "1.12"
-crypto-bigint = { version = "0.5.5" }
-digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
-derive_more = { version = "0.99.11", default-features = false }
+bytes = { version = "1.9.0", default-features = false }
+chrono = { version = "0.4.39", default-features = false }
+clap = { version = "4.5.23", features = ["derive"] }
+const-hex = "1.14"
+crypto-bigint = "0.5.5"
+digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
+derive_more = { version = "1", default-features = false }
 ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
 futures = "0.3"
-hyper = { version = "1.4.0" }
+hyper = "1.5.2"
 itertools = { version = "0.13.0", default-features = false }
-jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "fd1c8ef" }
+jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
 jsonrpsee = { version = "0.24.2", features = ["jsonrpsee-types"] }
 lru = "0.12.3"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
-lazy_static = { version = "1.5.0" }
+lazy_static = "1.5.0"
 log-panics = { version = "2", features = ["with-backtrace"] }
 once_cell = { version = "1.19.0", default-features = false, features = ["alloc"] }
-metrics = { version = "0.23.0" }
-metrics-derive = { version = "0.1.0" }
-metrics-exporter-prometheus = { version = "0.15.3" }
-metrics-util = { version = "0.17.0" }
+metrics = "0.23.0"
+metrics-derive = "0.1.0"
+metrics-exporter-prometheus = "0.15.3"
+metrics-util = "0.17.0"
 num_cpus = "1.0"
-parking_lot = { version = "0.12.3" }
-proptest = { version = "1.3.1", default-features = false, features = ["alloc"] }
-pin-project = { version = "1.1.3" }
+parking_lot = "0.12.3"
+proptest = { version = "1.6.0", default-features = false, features = ["alloc"] }
+pin-project = "1.1.3"
 rand = "0.8"
 rayon = "1.8.0"
 rlimit = "0.10.2"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
 rs_merkle = "1.4.2"
-reqwest = { version = "0.12.5", features = ["rustls-tls", "json", "http2"], default-features = false }
+reqwest = { version = "0.12.12", features = ["rustls-tls", "json", "http2"], default-features = false }
 rocksdb = { version = "0.22.0", features = ["lz4"], default-features = false }
-serde = { version = "1.0.192", default-features = false, features = ["alloc", "derive"] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-sha2 = { version = "0.10.8", default-features = false }
+serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+sha2 = { version = "0.10.8", default-features = false, features = ["asm"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 secp256k1 = { version = "0.29.0", default-features = false, features = ["global-context", "recovery"] }
 thiserror = "1.0.50"
-tracing = { version = "0.1.40", default-features = false, features = ["attributes"] }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json", "fmt"] }
+tracing = { version = "0.1.41", default-features = false, features = ["attributes"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fmt"] }
 toml = "0.8.0"
 tempfile = "3.8"
-tokio = { version = "1.40", features = ["full"] }
-tokio-util = { version = "0.7.12", features = ["rt"] }
+tokio = { version = "1.42", features = ["full"] }
+tokio-util = { version = "0.7.13", features = ["rt"] }
 tower-http = { version = "0.5.0", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }
 
 # Risc0 dependencies
-risc0-binfmt = { version = "1.2.0" }
+risc0-binfmt = "1.2.0"
 risc0-zkvm = { version = "1.2.0", default-features = false }
-risc0-zkvm-platform = { version = "1.2.0" }
-risc0-zkp = { version = "1.2.0" }
-risc0-circuit-rv32im = { version = "1.2.0" }
-risc0-build = { version = "1.2.0" }
+risc0-zkvm-platform = "1.2.0"
+risc0-zkp = "1.2.0"
+risc0-circuit-rv32im = "1.2.0"
+risc0-build = "1.2.0"
 
 # EVM dependencies
 revm-inspectors = { version = "=0.8.1", default-features = false }
@@ -139,7 +139,6 @@ reth-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "1ba631ba9581973
 reth-stages = { git = "https://github.com/paradigmxyz/reth", rev = "1ba631ba9581973e7c6cadeea92cfe1802aceb4a", default-features = false }
 
 revm = { version = "14.0.3", features = ["serde"], default-features = false }
-# forcing cargo for this version or else chooses 3.1.1 and there is some dependency conflicts
 revm-primitives = { version = "10.0.0", default-features = false }
 alloy-genesis = { version = "0.4.2", default-features = false }
 alloy-trie = { version = "0.6", default-features = false }
@@ -159,3 +158,9 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "6a87ce3
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = 0
