@@ -181,10 +181,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 println!("Error in light client guest: {:?}", e);
                                 continue;
                             }
-
-                            for wtx_id in &aggregate_wtx_ids {
-                                in_memory_chunks.remove(wtx_id);
-                            }
                         }
                     }
                     DaDataLightClient::Chunk(chunk) => {
