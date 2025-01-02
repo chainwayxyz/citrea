@@ -219,9 +219,7 @@ where
                         // Clear the chunk from the unused chunks.
                         unused_chunks.remove(&wtxid);
                     } else {
-                        let hint = mmr_native
-                            .generate_proof(wtxid)
-                            .map(|(chunk_from_db, proof)| (chunk_from_db, proof));
+                        let hint = mmr_native.generate_proof(wtxid);
                         mmr_hints.push(hint);
                     }
                 }
