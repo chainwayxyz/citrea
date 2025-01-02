@@ -159,3 +159,9 @@ citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "6a87ce3
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = 1
