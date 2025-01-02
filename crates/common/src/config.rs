@@ -601,6 +601,7 @@ mod tests {
         std::env::set_var("PROVING_MODE", "skip");
         std::env::set_var("PROOF_SAMPLING_NUMBER", "500");
         std::env::set_var("ENABLE_RECOVERY", "true");
+        std::env::set_var("USE_LATEST_ELF", "false");
 
         let prover_config = BatchProverConfig::from_env().unwrap();
 
