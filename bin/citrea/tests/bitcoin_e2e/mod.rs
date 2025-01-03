@@ -19,7 +19,7 @@ pub(super) fn get_citrea_path() -> PathBuf {
                 .nth(2)
                 .expect("Failed to find workspace root")
                 .join("target")
-                .join("debug")
+                .join("release")
                 .join("citrea")
         },
         PathBuf::from,
