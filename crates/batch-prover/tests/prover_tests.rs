@@ -26,11 +26,11 @@ async fn test_successful_prover_execution() {
 
     let header_hash = MockHash::from([0; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
 
     // Spawn mock proving in the background
@@ -66,20 +66,20 @@ async fn test_parallel_proofs_equal_to_limit() {
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
 
     // Spawn mock proving in the background
@@ -120,47 +120,47 @@ async fn test_parallel_proofs_higher_than_limit() {
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 3rd proof
     let header_hash_3 = MockHash::from([2; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 4th proof
     let header_hash_4 = MockHash::from([3; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 5th proof
     let header_hash_5 = MockHash::from([4; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
 
     // Spawn mock proving in the background
@@ -223,20 +223,20 @@ async fn test_multiple_parallel_proof_run() {
     // 1st proof
     let header_hash_1 = MockHash::from([0; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_1)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 2nd proof
     let header_hash_2 = MockHash::from([1; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_2)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
 
     // Spawn mock proving in the background
@@ -257,29 +257,29 @@ async fn test_multiple_parallel_proof_run() {
     // 1st proof
     let header_hash_3 = MockHash::from([2; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_3)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 2nd proof
     let header_hash_4 = MockHash::from([3; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_4)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
     // 3rd proof
     let header_hash_5 = MockHash::from([4; 32]);
     prover_service
-        .add_proof_data((
-            borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
-            vec![],
-            vec![],
-        ))
+        .add_proof_data(ProofData {
+            input: borsh::to_vec(&make_transition_data(header_hash_5)).unwrap(),
+            assumptions: vec![],
+            elf: vec![],
+        })
         .await;
 
     // Spawn mock proving in the background
