@@ -155,11 +155,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Starting node on {network}");
 
-    trace!("Running with env :");
-    for (key, value) in std::env::vars() {
-        trace!("    {}: {}", key, value);
-    }
-
     match args.da_layer {
         SupportedDaLayer::Mock => {
             start_rollup::<MockDemoRollup, MockDaConfig>(
