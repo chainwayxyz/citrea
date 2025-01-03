@@ -64,6 +64,7 @@ async fn full_node_verify_proof_and_store() {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
+                use_latest_elf: true,
             }),
             None,
             rollup_config,
@@ -246,6 +247,7 @@ async fn test_batch_prover_prove_rpc() {
                 // Make it impossible for proving to happen
                 proof_sampling_number: 1_000_000,
                 enable_recovery: true,
+                use_latest_elf: true,
             }),
             None,
             rollup_config,
@@ -299,7 +301,7 @@ async fn test_batch_prover_prove_rpc() {
 
     // Trigger proving via the RPC endpoint
     prover_node_test_client
-        .batch_prover_prove(3, Some(GroupCommitments::Normal))
+        .batch_prover_prove(3, true, Some(GroupCommitments::Normal))
         .await;
 
     // wait here until we see from prover's rpc that it finished proving

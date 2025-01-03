@@ -239,6 +239,8 @@ pub struct BatchProverConfig {
     pub proof_sampling_number: usize,
     /// If true prover will try to recover ongoing proving sessions
     pub enable_recovery: bool,
+    /// Whether to always use latest ELF or not
+    pub use_latest_elf: bool,
 }
 
 /// Prover configuration
@@ -263,6 +265,9 @@ impl Default for BatchProverConfig {
             proving_mode: ProverGuestRunConfig::Execute,
             proof_sampling_number: 0,
             enable_recovery: true,
+            // defaults to false. beacuse in production we don't want to accedentially set this to true.
+            // true actually applies to testing mostly.
+            use_latest_elf: false,
         }
     }
 }
@@ -284,6 +289,10 @@ impl FromEnv for BatchProverConfig {
             proving_mode: serde_json::from_str(&format!("\"{}\"", std::env::var("PROVING_MODE")?))?,
             proof_sampling_number: std::env::var("PROOF_SAMPLING_NUMBER")?.parse()?,
             enable_recovery: std::env::var("ENABLE_RECOVERY")?.parse()?,
+            use_latest_elf: std::env::var("USE_LATEST_ELF")?
+                .parse()
+                .ok()
+                .unwrap_or(false),
         })
     }
 }
@@ -529,6 +538,7 @@ mod tests {
             proving_mode = "skip"
             proof_sampling_number = 500
             enable_recovery = true
+            use_latest_elf = false
         "#;
 
         let config_file = create_config_from(config);
@@ -538,6 +548,7 @@ mod tests {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
+            use_latest_elf: false,
         };
         assert_eq!(config, expected);
     }
@@ -590,6 +601,7 @@ mod tests {
         std::env::set_var("PROVING_MODE", "skip");
         std::env::set_var("PROOF_SAMPLING_NUMBER", "500");
         std::env::set_var("ENABLE_RECOVERY", "true");
+        std::env::set_var("USE_LATEST_ELF", "false");
 
         let prover_config = BatchProverConfig::from_env().unwrap();
 
@@ -597,6 +609,7 @@ mod tests {
             proving_mode: ProverGuestRunConfig::Skip,
             proof_sampling_number: 500,
             enable_recovery: true,
+            use_latest_elf: false,
         };
         assert_eq!(prover_config, expected);
     }

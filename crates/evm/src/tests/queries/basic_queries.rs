@@ -1,17 +1,23 @@
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
-use alloy_primitives::{address, b256, TxKind, U64};
+use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
+use alloy_primitives::{address, b256, Address, TxKind, B256, U256, U64};
 use alloy_rpc_types::{
     AnyNetworkBlock, AnyTransactionReceipt, TransactionInput, TransactionRequest,
 };
 use alloy_serde::OtherFields;
 use reth_primitives::{BlockId, BlockNumberOrTag};
 use reth_rpc_eth_types::EthApiError;
-use revm::primitives::{B256, U256};
 use serde_json::json;
+use sov_modules_api::fork::Fork;
+use sov_modules_api::hooks::HookSoftConfirmationInfo;
+use sov_rollup_interface::spec::SpecId as SovSpecId;
 
-use crate::smart_contracts::SimpleStorageContract;
-use crate::tests::queries::init_evm;
+use crate::smart_contracts::{CallerContract, SimpleStorageContract};
+use crate::tests::queries::{init_evm, init_evm_with_caller_contract};
+use crate::tests::utils::get_fork_fn_only_fork1;
+use crate::EstimatedDiffSize;
 
 #[test]
 fn get_block_by_hash_test() {
@@ -24,13 +30,14 @@ fn get_block_by_hash_test() {
 
     let third_block = evm
         .get_block_by_hash(
-            b256!("c8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3"),
+            b256!("27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d"),
             None,
             &mut working_set,
         )
         .unwrap()
         .unwrap();
 
+    // Including genesis
     check_against_third_block(&third_block);
 }
 
@@ -254,7 +261,7 @@ fn get_block_transaction_count_by_number_test() {
 fn call_test() {
     let (evm, mut working_set, _, signer, _) = init_evm();
 
-    let fail_result = evm.get_call(
+    let fail_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(TxKind::Call(address!(
@@ -279,6 +286,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(
@@ -297,7 +305,7 @@ fn call_test() {
         .header
         .hash;
 
-    let call_with_hash_nonce_too_low_result = evm.get_call(
+    let call_with_hash_nonce_too_low_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(TxKind::Call(address!(
@@ -322,9 +330,10 @@ fn call_test() {
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
-    let nonce_too_low_result = evm.get_call(
+    let nonce_too_low_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(TxKind::Call(address!(
@@ -349,6 +358,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -363,7 +373,7 @@ fn call_test() {
         .hash;
 
     let result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(TxKind::Call(address!(
@@ -389,11 +399,12 @@ fn call_test() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
     let call_with_hash_result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(TxKind::Call(address!(
@@ -419,6 +430,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -430,7 +442,7 @@ fn call_test() {
     working_set.unset_archival_version();
 
     let result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(TxKind::Call(address!(
@@ -456,6 +468,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -473,20 +486,22 @@ fn check_against_third_block(block: &AnyNetworkBlock) {
     // details = false
     let inner_block = serde_json::from_value::<AnyNetworkBlock>(json!({
         "baseFeePerGas": "0x2de0b039",
+        "blobGasUsed": "0",
+        "excessBlobGas": "0",
         "difficulty": "0x0",
         "extraData": "0x",
         "gasLimit": "0x1c9c380",
         "gasUsed": "0x2d700",
-        "hash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+        "hash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
         "logsBloom": "0x00000000000000000000000000004000001000000000000000002000000000000000801000000000200000000000000000000000000800000000000000000000000020000000000800000000000000000000000000400000000000000000000008000000000000000000000000000400000000000008000000000000000000040040000000000000000000000800000000001100800000000010000000000000000000044000000000004000000000000000003000000000020001000000000000000000000000000000000000000000000000000000000000010000000000000000000000400000000000000000000000800000010000080000000000000000",
         "miner": "0x0000000000000000000000000000000000000000",
         "mixHash": "0x0808080808080808080808080808080808080808080808080808080808080808",
         "nonce": "0x0000000000000000",
         "number": "0x2",
-        "parentHash": "0x0e5059139f666213cee8b0306dec67ba4ca1f891fdd9e8bcc4acfd63f2b6b428",
+        "parentHash": "0x31d8faf0b907db5eb235801c97410b6013daca9d6c47ae45dfda0a84eef7b5c6",
         "receiptsRoot": "0x2147ba909c0456b68d818b3e1bc80dc83c8c38e0ad3a91de36d0a940c97681de",
         "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-        "size": "0x5c0",
+        "size": "0x5c3",
         "stateRoot": "0x6464646464646464646464646464646464646464646464646464646464646464",
         "timestamp": "0x18",
         "totalDifficulty": "0x0",
@@ -524,19 +539,19 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
     let test_receipts = serde_json::from_value::<Vec<AnyTransactionReceipt>>(json!(
         [
     {
-        "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+        "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
         "blockNumber": "0x2",
         "contractAddress": null,
         "cumulativeGasUsed": "0x13aec",
         "effectiveGasPrice": "0x2de0b039",
         "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead",
         "gasUsed": "0x13aec",
-        "l1DiffSize": "0x231",
+        "l1DiffSize": "0x5e",
         "l1FeeRate": "0x1",
         "logs": [
             {
                 "address": "0x3100000000000000000000000000000000000001",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x000000000000000000000000000000000000000000000000000000000000000208080808080808080808080808080808080808080808080808080808080808082a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
@@ -557,19 +572,19 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "type": "0x2"
     },
     {
-        "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+        "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
         "blockNumber": "0x2",
         "contractAddress": null,
         "cumulativeGasUsed": "0x1a20c",
         "effectiveGasPrice": "0x2de0b039",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "gasUsed": "0x6720",
-        "l1DiffSize": "0x60",
+        "l1DiffSize": "0x1f",
         "l1FeeRate": "0x1",
         "logs": [
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
@@ -586,7 +601,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             },
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x",
@@ -608,19 +623,19 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "type": "0x2"
     },
     {
-        "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+        "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
         "blockNumber": "0x2",
         "contractAddress": null,
         "cumulativeGasUsed": "0x20908",
         "effectiveGasPrice": "0x2de0b039",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "gasUsed": "0x66fc",
-        "l1DiffSize": "0x60",
+        "l1DiffSize": "0x1f",
         "l1FeeRate": "0x1",
         "logs": [
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
@@ -637,7 +652,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             },
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x",
@@ -659,19 +674,19 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "type": "0x2"
     },
     {
-        "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+        "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
         "blockNumber": "0x2",
         "contractAddress": null,
         "cumulativeGasUsed": "0x27004",
         "effectiveGasPrice": "0x2de0b039",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "gasUsed": "0x66fc",
-        "l1DiffSize": "0x60",
+        "l1DiffSize": "0x1f",
         "l1FeeRate": "0x1",
         "logs": [
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
@@ -688,7 +703,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             },
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x",
@@ -710,19 +725,19 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
         "type": "0x2"
     },
     {
-        "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+        "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
         "blockNumber": "0x2",
         "contractAddress": null,
         "cumulativeGasUsed": "0x2d700",
         "effectiveGasPrice": "0x2de0b039",
         "from": "0x9e1abd37ec34bbc688b6a2b7d9387d9256cf1773",
         "gasUsed": "0x66fc",
-        "l1DiffSize": "0x60",
+        "l1DiffSize": "0x1f",
         "l1FeeRate": "0x1",
         "logs": [
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000c48656c6c6f20576f726c64210000000000000000000000000000000000000000",
@@ -739,7 +754,7 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
             },
             {
                 "address": "0x819c5497b157177315e1204f52e588b393771719",
-                "blockHash": "0xc8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3",
+                "blockHash": "0x27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d",
                 "blockNumber": "0x2",
                 "blockTimestamp": "0x18",
                 "data": "0x",
@@ -765,4 +780,192 @@ fn check_against_third_block_receipts(receipts: Vec<AnyTransactionReceipt>) {
     let expected = serde_json::to_string(&test_receipts).unwrap();
 
     assert_eq!(receipts, expected)
+}
+
+#[test]
+fn test_queries_with_forks() {
+    // 0x819c5497b157177315e1204f52e588b393771719 -- Storage contract
+    // 0x5ccda3e6d071a059f00d4f3f25a1adc244eb5c93 -- Caller contract
+
+    let (mut evm, mut working_set, signer, _) = init_evm_with_caller_contract();
+
+    let l2_height = 2;
+
+    let fork_fn = |num: u64| {
+        if num < 3 {
+            Fork::new(SovSpecId::Genesis, 0)
+        } else {
+            Fork::new(SovSpecId::Fork1, 4)
+        }
+    };
+
+    let caller = CallerContract::default();
+    let input_data = caller.call_set_call_data(
+        Address::from_str("0x819c5497b157177315e1204f52e588b393771719").unwrap(),
+        42,
+    );
+
+    let tx_req_contract_call = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(address!(
+            "5ccda3e6d071a059f00d4f3f25a1adc244eb5c93"
+        ))),
+        gas: Some(10000000),
+        gas_price: Some(100),
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+        value: None,
+        input: TransactionInput::new(input_data.into()),
+        nonce: Some(3u64),
+        chain_id: Some(1u64),
+        access_list: None,
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
+        transaction_type: None,
+        sidecar: None,
+        authorization_list: None,
+    };
+
+    let no_access_list_pre_fork = evm.eth_estimate_gas_inner(
+        tx_req_contract_call.clone(),
+        None,
+        &mut working_set,
+        fork_fn,
+    );
+    assert_eq!(
+        no_access_list_pre_fork.clone().unwrap(),
+        U256::from_str("0x54ef").unwrap()
+    );
+
+    let diff_size = evm
+        .eth_estimate_diff_size_inner(
+            tx_req_contract_call.clone(),
+            None,
+            &mut working_set,
+            fork_fn,
+        )
+        .unwrap();
+    assert_eq!(
+        diff_size,
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x54ee","l1DiffSize":"0x60"}])
+            .unwrap()
+    );
+
+    let form_access_list = evm
+        .create_access_list_inner(
+            tx_req_contract_call.clone(),
+            None,
+            &mut working_set,
+            fork_fn,
+        )
+        .unwrap();
+
+    assert_eq!(
+        form_access_list,
+        AccessListWithGasUsed {
+            access_list: AccessList(vec![]),
+            gas_used: U256::from_str("0x54ef").unwrap()
+        }
+    );
+
+    let tx_req_with_access_list = TransactionRequest {
+        access_list: Some(form_access_list.access_list.clone()),
+        ..tx_req_contract_call.clone()
+    };
+
+    let with_access_list =
+        evm.eth_estimate_gas_inner(tx_req_with_access_list, None, &mut working_set, fork_fn);
+    assert_eq!(with_access_list.unwrap(), U256::from_str("0x54ef").unwrap());
+
+    let soft_confirmation_info = HookSoftConfirmationInfo {
+        l2_height,
+        da_slot_hash: [1u8; 32],
+        da_slot_height: 1,
+        da_slot_txs_commitment: [42u8; 32],
+        pre_state_root: [10u8; 32].to_vec(),
+        current_spec: SovSpecId::Fork1,
+        pub_key: vec![],
+        deposit_data: vec![],
+        l1_fee_rate: 0,
+        timestamp: 0,
+    };
+
+    evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
+
+    let no_access_list_post_fork = evm.eth_estimate_gas_inner(
+        tx_req_contract_call.clone(),
+        None,
+        &mut working_set,
+        fork_fn,
+    );
+    // After fork the gas cost is different.
+    assert_eq!(
+        no_access_list_post_fork.clone().unwrap(),
+        U256::from_str("0x788c").unwrap()
+    );
+
+    let form_access_list = evm
+        .create_access_list_inner(
+            tx_req_contract_call.clone(),
+            None,
+            &mut working_set,
+            fork_fn,
+        )
+        .unwrap();
+
+    assert_eq!(
+        form_access_list,
+        AccessListWithGasUsed {
+            access_list: AccessList(vec![AccessListItem {
+                address: address!("819c5497b157177315e1204f52e588b393771719"),
+                storage_keys: vec![b256!(
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                )]
+            }]),
+            gas_used: U256::from_str("0x775e").unwrap()
+        }
+    );
+
+    let tx_req_with_access_list = TransactionRequest {
+        access_list: Some(form_access_list.access_list.clone()),
+        ..tx_req_contract_call.clone()
+    };
+
+    let with_access_list =
+        evm.eth_estimate_gas_inner(tx_req_with_access_list, None, &mut working_set, fork_fn);
+    assert_eq!(with_access_list.unwrap(), U256::from_str("0x775e").unwrap());
+
+    let diff_size = evm
+        .eth_estimate_diff_size_inner(
+            tx_req_contract_call.clone(),
+            None,
+            &mut working_set,
+            fork_fn,
+        )
+        .unwrap();
+
+    assert_eq!(
+        diff_size,
+        serde_json::from_value::<EstimatedDiffSize>(json![{"gas":"0x788b","l1DiffSize":"0x35"}])
+            .unwrap()
+    );
+
+    // Get pre fork estimated gas and expect it to still work same
+    let no_access_list_genesis_after_fork = evm.eth_estimate_gas_inner(
+        tx_req_contract_call.clone(),
+        Some(BlockNumberOrTag::Number(2)),
+        &mut working_set,
+        fork_fn,
+    );
+    assert_eq!(
+        no_access_list_genesis_after_fork.clone().unwrap(),
+        no_access_list_pre_fork.clone().unwrap()
+    );
+
+    assert_ne!(
+        no_access_list_pre_fork.clone().unwrap(),
+        no_access_list_post_fork.unwrap()
+    );
 }

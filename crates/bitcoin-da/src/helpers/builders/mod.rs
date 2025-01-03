@@ -21,6 +21,7 @@ use bitcoin::{
     Address, Amount, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, Transaction, TxIn,
     TxOut, Txid, Witness, XOnlyPublicKey,
 };
+use secp256k1::SECP256K1;
 use serde::Serialize;
 use tracing::{instrument, trace, warn};
 
@@ -464,10 +465,9 @@ fn choose_utxos(
 /// Returns (signature, public_key)
 pub fn sign_blob_with_private_key(blob: &[u8], private_key: &SecretKey) -> (Vec<u8>, Vec<u8>) {
     let message = calculate_sha256(blob);
-    let secp = Secp256k1::new();
-    let public_key = secp256k1::PublicKey::from_secret_key(&secp, private_key);
+    let public_key = secp256k1::PublicKey::from_secret_key(SECP256K1, private_key);
     let msg = secp256k1::Message::from_digest(message);
-    let sig = secp.sign_ecdsa(&msg, private_key);
+    let sig = SECP256K1.sign_ecdsa(&msg, private_key);
     (
         sig.serialize_compact().to_vec(),
         public_key.serialize().to_vec(),

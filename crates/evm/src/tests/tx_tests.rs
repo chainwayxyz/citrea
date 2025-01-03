@@ -7,6 +7,7 @@ use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use bytes::BytesMut;
+use citrea_primitives::forks::fork_from_block_number;
 use reth_primitives::{Signature, TransactionSigned, TransactionSignedEcRecovered};
 use revm::primitives::{BlockEnv, TransactTo, TxEnv};
 
@@ -152,7 +153,7 @@ fn prepare_call_block_env() {
 
     let sealed_block = &block.clone().seal();
 
-    let block_env = sealed_block_to_block_env(&sealed_block.header);
+    let block_env = sealed_block_to_block_env(&sealed_block.header, &fork_from_block_number);
 
     assert_eq!(block_env.number, U256::from(block.header.number));
     assert_eq!(block_env.coinbase, block.header.beneficiary);

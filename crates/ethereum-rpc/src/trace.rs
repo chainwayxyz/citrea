@@ -6,6 +6,7 @@ use alloy_rpc_types_trace::geth::{
     GethDebugTracerType, GethDebugTracingOptions, GethTrace, NoopFrame, TraceResult,
 };
 use citrea_evm::Evm;
+use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use reth_primitives::BlockNumberOrTag;
@@ -121,8 +122,13 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
 ) -> Result<Vec<TraceResult>, ErrorObjectOwned> {
     // If opts is None or if opts.tracer is None, then do not check cache or insert cache, just perform the operation
     if opts.as_ref().map_or(true, |o| o.tracer.is_none()) {
-        let traces =
-            evm.trace_block_transactions_by_number(block_number, opts, trace_idx, working_set)?;
+        let traces = evm.trace_block_transactions_by_number(
+            block_number,
+            opts,
+            trace_idx,
+            working_set,
+            fork_from_block_number,
+        )?;
         return match trace_idx {
             Some(idx) => Ok(vec![traces[idx].clone()]),
             None => Ok(traces),
@@ -150,6 +156,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
         Some(cache_options),
         None,
         working_set,
+        fork_from_block_number,
     )?;
     ethereum
         .trace_cache

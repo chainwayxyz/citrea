@@ -75,6 +75,7 @@ pub trait BatchProverRpc {
     async fn prove(
         &self,
         l1_height: u64,
+        use_latest_elf: bool,
         group_commitments: Option<GroupCommitments>,
     ) -> RpcResult<()>;
 }
@@ -202,6 +203,7 @@ where
     async fn prove(
         &self,
         l1_height: u64,
+        use_latest_elf: bool,
         group_commitments: Option<GroupCommitments>,
     ) -> RpcResult<()> {
         let l1_block: <Da as DaService>::FilteredBlock = self
@@ -243,6 +245,7 @@ where
             &l1_block,
             sequencer_commitments,
             inputs,
+            use_latest_elf,
         )
         .await
         .map_err(|e| {

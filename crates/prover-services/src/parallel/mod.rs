@@ -7,15 +7,11 @@ use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::{oneshot, Mutex};
 use tracing::{info, warn};
 
 use crate::ProofGenMode;
-
-pub(crate) type Input = Vec<u8>;
-pub(crate) type Assumptions = Vec<Vec<u8>>;
-pub(crate) type ProofData = (Input, Assumptions);
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<Da, Vm>
@@ -104,7 +100,7 @@ where
         Self::new(da_service, vm, proof_mode, thread_pool_size, _ledger_db)
     }
 
-    async fn prove_all(&self, elf: Vec<u8>, proof_queue: Vec<ProofData>) -> Vec<Proof> {
+    async fn prove_all(&self, proof_queue: Vec<ProofData>) -> Vec<Proof> {
         let num_threads = self.thread_pool.current_num_threads();
         info!(
             "Starting parallel proving of {} proofs with {} workers",
@@ -128,7 +124,7 @@ where
             }
 
             info!("Starting proving task {}", idx);
-            let proof_fut = self.prove_one(elf.clone(), proof_data);
+            let proof_fut = self.prove_one(proof_data);
             ongoing_proofs.push(Box::pin(async move {
                 let proof = proof_fut.await;
 
@@ -147,7 +143,14 @@ where
         proofs
     }
 
-    async fn prove_one(&self, elf: Vec<u8>, (input, assumptions): ProofData) -> Proof {
+    async fn prove_one(
+        &self,
+        ProofData {
+            input,
+            assumptions,
+            elf,
+        }: ProofData,
+    ) -> Proof {
         let mut vm = self.vm.clone();
         let proof_mode = self.proof_mode;
 
@@ -187,7 +190,7 @@ where
         proof_queue.push(proof_data);
     }
 
-    async fn prove(&self, elf: Vec<u8>) -> anyhow::Result<Vec<Proof>> {
+    async fn prove(&self) -> anyhow::Result<Vec<Proof>> {
         let mut proof_queue = self.proof_queue.lock().await;
         if let ProofGenMode::Skip = self.proof_mode {
             tracing::debug!("Skipped proving {} proofs", proof_queue.len());
@@ -204,7 +207,7 @@ where
         let proof_queue = std::mem::take(&mut *proof_queue);
 
         // Prove all
-        Ok(self.prove_all(elf, proof_queue).await)
+        Ok(self.prove_all(proof_queue).await)
     }
 
     async fn submit_proofs(

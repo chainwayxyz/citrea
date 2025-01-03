@@ -9,8 +9,8 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
-    BatchProverConfig, ProverGuestRunConfig, SequencerConfig, SequencerMempoolConfig,
-    TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
+    SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::full_node::FullNode;
@@ -18,8 +18,12 @@ use citrea_e2e::node::{Config, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
+use citrea_light_client_prover::rpc::LightClientProverRpcClient;
+use citrea_primitives::forks::{fork_from_block_number, get_forks};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_ledger_rpc::LedgerRpcClient;
+use sov_modules_api::fork::ForkManager;
+use sov_modules_api::SpecId;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
 use tokio::time::sleep;
@@ -64,6 +68,13 @@ impl TestCase for BasicProverTest {
         TestCaseConfig {
             with_batch_prover: true,
             with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -150,6 +161,13 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             min_soft_confirmations_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -519,6 +537,163 @@ impl TestCase for ParallelProvingTest {
 #[tokio::test]
 async fn parallel_proving_test() -> Result<()> {
     TestCaseRunner::new(ParallelProvingTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct ForkElfSwitchingTest;
+
+#[async_trait]
+impl TestCase for ForkElfSwitchingTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_full_node: true,
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        let fork_1_height = ForkManager::new(get_forks(), 0)
+            .next_fork()
+            .unwrap()
+            .activation_height;
+
+        // Set just below fork1 height so we can generate first soft com txs in genesis
+        // and second batch above fork1
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: fork_1_height - 5,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            use_latest_elf: false,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        // send evm tx
+        let evm_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await?;
+
+        let pending_evm_tx = evm_client
+            .send_eth(Address::random(), None, None, None, 100)
+            .await
+            .unwrap();
+
+        let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
+
+        for _ in 0..min_soft_confirmations {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // assert that evm tx is mined
+        let evm_tx = evm_client
+            .eth_get_transaction_by_hash(*pending_evm_tx.tx_hash(), None)
+            .await
+            .unwrap();
+
+        assert!(evm_tx.block_number.is_some());
+
+        let height = sequencer
+            .client
+            .ledger_get_head_soft_confirmation_height()
+            .await?;
+
+        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
+
+        // Generate softcom in fork1
+        for _ in 0..min_soft_confirmations {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        let height = sequencer
+            .client
+            .ledger_get_head_soft_confirmation_height()
+            .await?;
+        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork1);
+
+        da.wait_mempool_len(4, None).await?;
+
+        da.generate(FINALITY_DEPTH).await?;
+
+        let finalized_height = da.get_finalized_height().await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        // Wait for batch proof tx to hit mempool
+        da.wait_mempool_len(4, None).await?;
+        da.generate(FINALITY_DEPTH).await?;
+
+        full_node
+            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+            .await?;
+        let proofs = wait_for_zkproofs(full_node, finalized_height + FINALITY_DEPTH, None)
+            .await
+            .unwrap();
+
+        assert_eq!(proofs.len(), 2);
+        assert_eq!(
+            fork_from_block_number(proofs[0].proof_output.last_l2_height).spec_id,
+            SpecId::Genesis
+        );
+        assert_eq!(
+            fork_from_block_number(proofs[1].proof_output.last_l2_height).spec_id,
+            SpecId::Fork1
+        );
+
+        light_client_prover
+            .wait_for_l1_height(finalized_height + FINALITY_DEPTH, None)
+            .await?;
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height + FINALITY_DEPTH)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(lcp
+            .light_client_proof_output
+            .unchained_batch_proofs_info
+            .is_empty());
+
+        assert_eq!(
+            lcp.light_client_proof_output.state_root.to_vec(),
+            proofs[1].proof_output.final_state_root
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_fork_elf_switching() -> Result<()> {
+    TestCaseRunner::new(ForkElfSwitchingTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

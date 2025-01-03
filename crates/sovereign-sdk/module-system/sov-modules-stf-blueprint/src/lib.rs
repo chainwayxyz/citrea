@@ -505,8 +505,6 @@ where
         let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
         let mut last_commitment_end_height: Option<u64> = None;
 
-        let mut fork_manager = ForkManager::new(forks, sequencer_commitments_range.0 as u64);
-
         // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
         for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
             sequencer_commitments_iter
@@ -658,6 +656,8 @@ where
 
             let mut l2_height = sequencer_commitment.l2_start_block_number;
 
+            let mut fork_manager = ForkManager::new(forks, l2_height);
+
             // now that we verified the claimed root, we can apply the soft confirmations
             // should panic if the number of witnesses and soft confirmations don't match
             for (mut soft_confirmation, (state_witness, offchain_witness)) in
@@ -672,6 +672,12 @@ where
                     l2_height,
                     "Soft confirmation heights not sequential"
                 );
+
+                // Notify fork manager about the block so that the next spec / fork
+                // is transitioned into if criteria is met.
+                fork_manager
+                    .register_block(l2_height)
+                    .expect("Fork transition failed");
 
                 let result = self
                     .apply_soft_confirmation(
@@ -693,11 +699,6 @@ where
                 current_state_root = result.state_root_transition.final_root;
                 state_diff.extend(result.state_diff);
 
-                // Notify fork manager about the block so that the next spec / fork
-                // is transitioned into if criteria is met.
-                if let Err(e) = fork_manager.register_block(l2_height) {
-                    panic!("Fork transition failed {}", e);
-                }
                 l2_height += 1;
             }
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);

@@ -148,6 +148,7 @@ impl<'txs> UnsignedSoftConfirmationV1<'txs> {
         D::digest(raw.as_slice())
     }
 }
+
 /// Signed version of the `UnsignedSoftConfirmation`
 /// Contains the signature and public key of the sequencer
 #[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -280,5 +281,42 @@ impl<'txs, Tx: Clone> SignedSoftConfirmation<'txs, Tx> {
     /// Sequencer block timestamp
     pub fn timestamp(&self) -> u64 {
         self.timestamp
+    }
+}
+
+/// Signed version of the `UnsignedSoftConfirmation` used in Genesis
+/// Contains the signature and public key of the sequencer
+#[derive(PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct SignedSoftConfirmationV1 {
+    l2_height: u64,
+    hash: [u8; 32],
+    prev_hash: [u8; 32],
+    da_slot_height: u64,
+    da_slot_hash: [u8; 32],
+    da_slot_txs_commitment: [u8; 32],
+    l1_fee_rate: u128,
+    txs: Vec<Vec<u8>>,
+    signature: Vec<u8>,
+    deposit_data: Vec<Vec<u8>>,
+    pub_key: Vec<u8>,
+    timestamp: u64,
+}
+
+impl<'txs, Tx: Clone> From<SignedSoftConfirmation<'txs, Tx>> for SignedSoftConfirmationV1 {
+    fn from(input: SignedSoftConfirmation<'txs, Tx>) -> Self {
+        SignedSoftConfirmationV1 {
+            l2_height: input.l2_height,
+            hash: input.hash,
+            prev_hash: input.prev_hash,
+            da_slot_height: input.da_slot_height,
+            da_slot_hash: input.da_slot_hash,
+            da_slot_txs_commitment: input.da_slot_txs_commitment,
+            l1_fee_rate: input.l1_fee_rate,
+            txs: input.blobs.into_owned(),
+            signature: input.signature,
+            deposit_data: input.deposit_data,
+            pub_key: input.pub_key,
+            timestamp: input.timestamp,
+        }
     }
 }

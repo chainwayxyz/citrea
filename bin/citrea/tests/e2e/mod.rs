@@ -96,6 +96,7 @@ async fn test_all_flow() {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
+                use_latest_elf: true,
             }),
             None,
             rollup_config,
