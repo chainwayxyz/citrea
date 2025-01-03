@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use std::thread::sleep;
 
-use alloy_eips::BlockId;
 use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
 use sha2::Digest;
@@ -734,7 +733,6 @@ fn test_offchain_contract_storage_evm() {
 
     let genesis_cont_evm_code = evm.code.get(&code_hash, &mut working_set).unwrap();
 
-    println!("\nHERE\n");
     // Try to get the code from genesis fork and expect it to exist
     let code = evm
         .get_code_inner(contract_addr, None, &mut working_set, fork_fn)
