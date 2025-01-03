@@ -30,8 +30,8 @@ use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
     create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
-    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, publish_event_message,
-    set_arg_message,
+    get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, get_fork_fn_only_fork1,
+    publish_event_message, set_arg_message,
 };
 use crate::tests::DEFAULT_CHAIN_ID;
 use crate::{
@@ -897,7 +897,14 @@ fn test_block_hash_in_evm() {
 
     for i in 0..=1000 {
         request.input.input = Some(BlockHashContract::default().get_block_hash(i).into());
-        let resp = evm.get_call(request.clone(), None, None, None, &mut working_set);
+        let resp = evm.get_call_inner(
+            request.clone(),
+            None,
+            None,
+            None,
+            &mut working_set,
+            get_fork_fn_only_fork1(),
+        );
         if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
             let block = evm
@@ -917,12 +924,13 @@ fn test_block_hash_in_evm() {
     let latest_block = evm.blocks.get(516, &mut working_set.accessory_state());
     request.input.input = Some(BlockHashContract::default().get_block_hash(516).into());
 
-    let resp = evm.get_call(
+    let resp = evm.get_call_inner(
         request.clone(),
         Some(BlockId::pending()),
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(
@@ -932,12 +940,13 @@ fn test_block_hash_in_evm() {
 
     // but not 260's hash
     request.input.input = Some(BlockHashContract::default().get_block_hash(260).into());
-    let resp = evm.get_call(
+    let resp = evm.get_call_inner(
         request.clone(),
         Some(BlockId::pending()),
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
@@ -1907,7 +1916,7 @@ fn test_call_with_block_overrides() {
 
     // Call with block overrides and check that the hash for 1st block is what we want
     let call_result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: None,
                 to: Some(TxKind::Call(contract_addr)),
@@ -1927,6 +1936,7 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes.clone()),
             }),
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -1935,7 +1945,7 @@ fn test_call_with_block_overrides() {
 
     // Call with block overrides and check that the hash for 2nd block is what we want
     let call_result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: None,
                 to: Some(TxKind::Call(contract_addr)),
@@ -1955,6 +1965,7 @@ fn test_call_with_block_overrides() {
                 block_hash: Some(block_hashes),
             }),
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);

@@ -19,7 +19,7 @@ use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
     LightClientCircuitInput, LightClientCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
 };
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProofData, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -341,10 +341,14 @@ where
         let prover_service = self.prover_service.as_ref();
 
         prover_service
-            .add_proof_data((borsh::to_vec(&circuit_input)?, assumptions))
+            .add_proof_data(ProofData {
+                input: borsh::to_vec(&circuit_input)?,
+                assumptions,
+                elf: light_client_elf,
+            })
             .await;
 
-        let proofs = self.prover_service.prove(light_client_elf).await?;
+        let proofs = self.prover_service.prove().await?;
 
         assert_eq!(proofs.len(), 1);
 

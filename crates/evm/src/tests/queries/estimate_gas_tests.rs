@@ -14,6 +14,7 @@ use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
 use crate::tests::queries::{init_evm, init_evm_single_block, init_evm_with_caller_contract};
 use crate::tests::test_signer::TestSigner;
+use crate::tests::utils::get_fork_fn_only_fork1;
 use crate::{EstimatedDiffSize, Evm};
 
 type C = DefaultContext;
@@ -46,7 +47,12 @@ fn test_payable_contract_value() {
         authorization_list: None,
     };
 
-    let result = evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), &mut working_set);
+    let result = evm.eth_estimate_gas_inner(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        &mut working_set,
+        get_fork_fn_only_fork1(),
+    );
     assert_eq!(result.unwrap(), U256::from_str("0xab13").unwrap());
 }
 
@@ -78,19 +84,21 @@ fn test_tx_request_fields_gas_fork1() {
         authorization_list: None,
     };
 
-    let result_contract_call = evm.eth_estimate_gas(
+    let result_contract_call = evm.eth_estimate_gas_inner(
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         result_contract_call.unwrap(),
         U256::from_str("0x6602").unwrap()
     );
-    let contract_diff_size = evm.eth_estimate_diff_size(
+    let contract_diff_size = evm.eth_estimate_diff_size_inner(
         tx_req_contract_call.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         contract_diff_size.unwrap(),
@@ -103,10 +111,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let contract_diff_size = evm.eth_estimate_diff_size(
+    let contract_diff_size = evm.eth_estimate_diff_size_inner(
         tx_req_no_gas.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         contract_diff_size.unwrap(),
@@ -120,10 +129,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_no_sender = evm.eth_estimate_gas(
+    let result_no_sender = evm.eth_estimate_gas_inner(
         tx_req_no_sender,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(result_no_sender.unwrap(), U256::from_str("0x6602").unwrap());
     working_set.unset_archival_version();
@@ -133,10 +143,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_no_recipient = evm.eth_estimate_gas(
+    let result_no_recipient = evm.eth_estimate_gas_inner(
         tx_req_no_recipient,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         result_no_recipient.unwrap(),
@@ -149,10 +160,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_no_gas = evm.eth_estimate_gas(
+    let result_no_gas = evm.eth_estimate_gas_inner(
         tx_req_no_gas,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(result_no_gas.unwrap(), U256::from_str("0x6602").unwrap());
     working_set.unset_archival_version();
@@ -162,10 +174,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_no_gas_price = evm.eth_estimate_gas(
+    let result_no_gas_price = evm.eth_estimate_gas_inner(
         tx_req_no_gas_price,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         result_no_gas_price.unwrap(),
@@ -178,10 +191,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_no_chain_id = evm.eth_estimate_gas(
+    let result_no_chain_id = evm.eth_estimate_gas_inner(
         tx_req_no_chain_id,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         result_no_chain_id.unwrap(),
@@ -194,10 +208,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_invalid_chain_id = evm.eth_estimate_gas(
+    let result_invalid_chain_id = evm.eth_estimate_gas_inner(
         tx_req_invalid_chain_id,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         result_invalid_chain_id,
@@ -211,10 +226,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let result_no_blob_versioned_hashes = evm.eth_estimate_gas(
+    let result_no_blob_versioned_hashes = evm.eth_estimate_gas_inner(
         tx_req_no_blob_versioned_hashes,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(
         result_no_blob_versioned_hashes.unwrap(),
@@ -227,10 +243,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let create_no_access_list_test = evm.create_access_list(
+    let create_no_access_list_test = evm.create_access_list_inner(
         no_access_list_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(
@@ -256,10 +273,11 @@ fn test_tx_request_fields_gas_fork1() {
         ..tx_req_contract_call.clone()
     };
 
-    let access_list_gas_test = evm.eth_estimate_gas(
+    let access_list_gas_test = evm.eth_estimate_gas_inner(
         access_list_req.clone(),
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     // Wrong access punishment.
@@ -268,10 +286,11 @@ fn test_tx_request_fields_gas_fork1() {
         U256::from_str("0x6e67").unwrap()
     );
 
-    let already_formed_list = evm.create_access_list(
+    let already_formed_list = evm.create_access_list_inner(
         access_list_req,
         Some(BlockNumberOrTag::Latest),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(
@@ -322,11 +341,20 @@ fn test_access_list() {
         authorization_list: None,
     };
 
-    let no_access_list = evm.eth_estimate_gas(tx_req_contract_call.clone(), None, &mut working_set);
+    let no_access_list = evm.eth_estimate_gas_inner(
+        tx_req_contract_call.clone(),
+        None,
+        &mut working_set,
+        get_fork_fn_only_fork1(),
+    );
     assert_eq!(no_access_list.unwrap(), U256::from_str("0x788c").unwrap());
 
-    let form_access_list =
-        evm.create_access_list(tx_req_contract_call.clone(), None, &mut working_set);
+    let form_access_list = evm.create_access_list_inner(
+        tx_req_contract_call.clone(),
+        None,
+        &mut working_set,
+        get_fork_fn_only_fork1(),
+    );
 
     assert_eq!(
         form_access_list.unwrap(),
@@ -351,7 +379,12 @@ fn test_access_list() {
         ..tx_req_contract_call.clone()
     };
 
-    let with_access_list = evm.eth_estimate_gas(tx_req_with_access_list, None, &mut working_set);
+    let with_access_list = evm.eth_estimate_gas_inner(
+        tx_req_with_access_list,
+        None,
+        &mut working_set,
+        get_fork_fn_only_fork1(),
+    );
     assert_eq!(with_access_list.unwrap(), U256::from_str("0x775e").unwrap());
 }
 
@@ -410,29 +443,37 @@ fn test_pending_env() {
     };
 
     let result = evm
-        .eth_estimate_gas(
+        .eth_estimate_gas_inner(
             tx_req.clone(),
             Some(BlockNumberOrTag::Latest),
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
-    let result_pending = evm.eth_estimate_gas(
+    let result_pending = evm.eth_estimate_gas_inner(
         tx_req.clone(),
         Some(BlockNumberOrTag::Pending),
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
     assert_eq!(result_pending.unwrap(), result);
 
     let result = evm
-        .create_access_list(tx_req.clone(), None, &mut working_set)
+        .create_access_list_inner(
+            tx_req.clone(),
+            None,
+            &mut working_set,
+            get_fork_fn_only_fork1(),
+        )
         .unwrap();
 
     let result_pending = evm
-        .create_access_list(
+        .create_access_list_inner(
             tx_req.clone(),
             Some(BlockNumberOrTag::Pending),
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -456,7 +497,12 @@ fn test_estimate_gas_with_input(
         ..Default::default()
     };
 
-    evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), working_set)
+    evm.eth_estimate_gas_inner(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        working_set,
+        get_fork_fn_only_fork1(),
+    )
 }
 
 fn test_estimate_gas_with_value(
@@ -474,5 +520,10 @@ fn test_estimate_gas_with_value(
         ..Default::default()
     };
 
-    evm.eth_estimate_gas(tx_req, Some(BlockNumberOrTag::Latest), working_set)
+    evm.eth_estimate_gas_inner(
+        tx_req,
+        Some(BlockNumberOrTag::Latest),
+        working_set,
+        get_fork_fn_only_fork1(),
+    )
 }

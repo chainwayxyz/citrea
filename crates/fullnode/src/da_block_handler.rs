@@ -302,7 +302,6 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
-        // TODO: select output version based on spec
         let (last_active_spec_id, batch_proof_output) = match Vm::extract_output::<
             BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
         >(&proof)

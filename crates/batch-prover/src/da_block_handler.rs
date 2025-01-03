@@ -260,6 +260,7 @@ where
                         l1_block,
                         sequencer_commitments,
                         inputs,
+                        self.prover_config.use_latest_elf,
                     )
                     .await?;
                 } else {
@@ -292,6 +293,7 @@ where
             self.ledger_db.clone(),
             txs_and_proofs,
             self.code_commitments_by_spec.clone(),
+            self.prover_config.use_latest_elf,
         )
         .await?;
 
@@ -447,7 +449,7 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
     let first_block_number = sequencer_commitments
         .first()
         .ok_or(anyhow!("No Sequencer commitments found"))?
-        .l2_start_block_number;
+        .l2_end_block_number;
     let mut current_spec = fork_from_block_number(first_block_number).spec_id;
 
     let mut range = 0usize..=0usize;
@@ -481,6 +483,12 @@ pub(crate) fn break_sequencer_commitments_into_groups<DB: BatchProverLedgerOps>(
             fork_from_block_number(sequencer_commitment.l2_end_block_number).spec_id;
 
         if commitment_spec != current_spec || state_diff_threshold_reached {
+            tracing::info!(
+                "Adding range: {:?} due to spec change: {} due to state diff threshold: {}",
+                range,
+                commitment_spec != current_spec,
+                state_diff_threshold_reached
+            );
             result_range.push(range);
             // Reset the cumulative state diff to be equal to the current commitment state diff
             cumulative_state_diff = sequencer_commitment_state_diff;
