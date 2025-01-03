@@ -4,6 +4,7 @@ use reth_primitives::{
     TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, KECCAK_EMPTY,
 };
 use revm::primitives::{AccountInfo as ReVmAccountInfo, SpecId, TransactTo, TxEnv, U256};
+#[cfg(feature = "native")]
 use sov_modules_api::fork::Fork;
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
