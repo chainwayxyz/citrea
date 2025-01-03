@@ -675,9 +675,9 @@ where
 
                 // Notify fork manager about the block so that the next spec / fork
                 // is transitioned into if criteria is met.
-                if let Err(e) = fork_manager.register_block(l2_height) {
-                    panic!("Fork transition failed {}", e);
-                }
+                fork_manager
+                    .register_block(l2_height)
+                    .expect("Fork transition failed");
 
                 let result = self
                     .apply_soft_confirmation(
