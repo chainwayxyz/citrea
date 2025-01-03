@@ -35,35 +35,25 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let mut parent_block = if current_spec >= CitreaSpecId::Fork1 {
             match self.head_rlp.get(working_set) {
-                Some(block) => {
-                    println!("getting with fork1 rlp");
-
-                    block.clone().into()
-                }
-                None => {
-                    println!("getting with fork1 normal");
-                    self.head
-                        .get(working_set)
-                        .expect("Head block should always be set")
-                        .clone()
-                }
+                Some(block) => block.clone().into(),
+                None => self
+                    .head
+                    .get(working_set)
+                    .expect("Head block should always be set")
+                    .clone(),
             }
         } else {
-            println!("getting with genesis fork");
             self.head
                 .get(working_set)
                 .expect("Head block should always be set")
                 .clone()
         };
-        println!("parent block: {:?}", parent_block);
 
         parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
 
         if current_spec >= CitreaSpecId::Fork1 {
-            println!("setting with fork1 rlp");
             self.head_rlp.set(&parent_block.clone().into(), working_set);
         } else {
-            println!("setting with genesis fork");
             self.head.set(&parent_block, working_set);
         }
 
@@ -291,7 +281,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             let mut accessory_state = working_set.accessory_state();
 
-            println!("setting pending head: {:?}", block.header.number);
             self.pending_head.set(&block, &mut accessory_state);
 
             let mut tx_index = start_tx_index;
