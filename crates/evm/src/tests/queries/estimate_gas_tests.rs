@@ -3,14 +3,12 @@ use std::str::FromStr;
 use alloy_eips::eip2930::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_primitives::{address, b256, Address, TxKind, U256};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
-use citrea_primitives::forks::FORKS;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::BlockNumberOrTag;
 use reth_rpc_eth_types::RpcInvalidTransactionError;
 use serde_json::json;
 use sov_modules_api::default_context::DefaultContext;
-use sov_modules_api::fork::Fork;
-use sov_modules_api::{Spec, SpecId, WorkingSet};
+use sov_modules_api::{Spec, WorkingSet};
 
 use crate::query::MIN_TRANSACTION_GAS;
 use crate::smart_contracts::{CallerContract, SimpleStorageContract};
@@ -54,10 +52,6 @@ fn test_payable_contract_value() {
 
 #[test]
 fn test_tx_request_fields_gas_fork1() {
-    // override nightly FORKS
-    static OVERRIDE_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
-    FORKS.set(&OVERRIDE_FORKS).expect("couldnt set");
-
     let (evm, mut working_set, signer) = init_evm_single_block();
 
     let tx_req_contract_call = TransactionRequest {
