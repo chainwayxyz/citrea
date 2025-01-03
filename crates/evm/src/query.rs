@@ -641,6 +641,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .balance;
         let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance)?;
 
+        // TODO: should we use inspect_citrea instead?
         let result = match inspect(
             evm_db,
             cfg_env,
@@ -766,6 +767,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
 
+        // TODO: should we use inspect_citrea instead?
         let result = inspect(
             &mut evm_db,
             cfg_env.clone(),
