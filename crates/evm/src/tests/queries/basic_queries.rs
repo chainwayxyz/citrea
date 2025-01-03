@@ -851,15 +851,17 @@ fn test_queries_with_forks() {
             .unwrap()
     );
 
-    let form_access_list = evm.create_access_list_inner(
-        tx_req_contract_call.clone(),
-        None,
-        &mut working_set,
-        fork_fn,
-    );
+    let form_access_list = evm
+        .create_access_list_inner(
+            tx_req_contract_call.clone(),
+            None,
+            &mut working_set,
+            fork_fn,
+        )
+        .unwrap();
 
     assert_eq!(
-        form_access_list.unwrap(),
+        form_access_list,
         AccessListWithGasUsed {
             access_list: AccessList(vec![]),
             gas_used: U256::from_str("0x54ef").unwrap()
@@ -867,7 +869,7 @@ fn test_queries_with_forks() {
     );
 
     let tx_req_with_access_list = TransactionRequest {
-        access_list: Some(AccessList(vec![])),
+        access_list: Some(form_access_list.access_list.clone()),
         ..tx_req_contract_call.clone()
     };
 
@@ -904,15 +906,17 @@ fn test_queries_with_forks() {
         U256::from_str("0x788c").unwrap()
     );
 
-    let form_access_list = evm.create_access_list_inner(
-        tx_req_contract_call.clone(),
-        None,
-        &mut working_set,
-        fork_fn,
-    );
+    let form_access_list = evm
+        .create_access_list_inner(
+            tx_req_contract_call.clone(),
+            None,
+            &mut working_set,
+            fork_fn,
+        )
+        .unwrap();
 
     assert_eq!(
-        form_access_list.unwrap(),
+        form_access_list,
         AccessListWithGasUsed {
             access_list: AccessList(vec![AccessListItem {
                 address: address!("819c5497b157177315e1204f52e588b393771719"),
@@ -925,12 +929,7 @@ fn test_queries_with_forks() {
     );
 
     let tx_req_with_access_list = TransactionRequest {
-        access_list: Some(AccessList(vec![AccessListItem {
-            address: address!("819c5497b157177315e1204f52e588b393771719"),
-            storage_keys: vec![b256!(
-                "0000000000000000000000000000000000000000000000000000000000000000"
-            )],
-        }])),
+        access_list: Some(form_access_list.access_list.clone()),
         ..tx_req_contract_call.clone()
     };
 
