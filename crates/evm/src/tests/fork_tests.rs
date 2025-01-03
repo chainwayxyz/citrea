@@ -5,6 +5,7 @@ use alloy_primitives::{address, keccak256, Address, Bytes, TxKind};
 use revm::primitives::U256;
 use sha2::Digest;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{Context, Module, StateMapAccessor, StateVecAccessor};
@@ -676,6 +677,14 @@ fn test_offchain_contract_storage_evm() {
     let (config, dev_signer, contract_addr) =
         get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
 
+    let fork_fn = |num: u64| {
+        if num < 3 {
+            Fork::new(SovSpecId::Genesis, 0)
+        } else {
+            Fork::new(SovSpecId::Fork1, 4)
+        }
+    };
+
     let (mut evm, mut working_set) = get_evm_with_spec(&config, SovSpecId::Genesis);
     let l1_fee_rate = 0;
     let mut l2_height = 2;
@@ -757,12 +766,13 @@ fn test_offchain_contract_storage_evm() {
     let evm_code = evm.code.get(&code_hash, &mut working_set).unwrap();
 
     let code = evm
-        .get_code(
+        .get_code_inner(
             contract_addr,
             Some(alloy_eips::BlockId::Number(
                 alloy_eips::BlockNumberOrTag::Latest,
             )),
             &mut working_set,
+            fork_fn,
         )
         .unwrap();
 

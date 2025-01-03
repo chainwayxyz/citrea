@@ -23,7 +23,7 @@ use crate::system_contracts::{BridgeWrapper, ProxyAdmin};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee, get_evm,
-    get_evm_config_starting_base_fee, publish_event_message,
+    get_evm_config_starting_base_fee, get_fork_fn_only_fork1, publish_event_message,
 };
 use crate::{AccountData, BASE_FEE_VAULT, L1_FEE_VAULT, SYSTEM_SIGNER};
 
@@ -122,7 +122,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(system_account.nonce, 3);
 
     let hash = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_block_hash(1)),
@@ -132,11 +132,12 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
     let merkle_root = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_witness_root_by_number(1)),
@@ -146,6 +147,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -244,7 +246,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(l1_fee_vault.balance, U256::from(52 + L1_FEE_OVERHEAD));
 
     let hash = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_block_hash(2)),
@@ -254,11 +256,12 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
     let merkle_root = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_witness_root_by_number(2)),
@@ -268,6 +271,7 @@ fn test_sys_bitcoin_light_client() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -663,7 +667,7 @@ fn test_upgrade_light_client() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let hash = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_block_hash(0)),
@@ -673,6 +677,7 @@ fn test_upgrade_light_client() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -830,7 +835,7 @@ fn test_change_upgrade_owner() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let provided_new_owner = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(ProxyAdmin::address())),
                 input: TransactionInput::new(ProxyAdmin::owner()),
@@ -840,6 +845,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -849,7 +855,7 @@ fn test_change_upgrade_owner() {
     );
 
     let hash = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 to: Some(TxKind::Call(BitcoinLightClient::address())),
                 input: TransactionInput::new(BitcoinLightClient::get_block_hash(0)),
@@ -859,6 +865,7 @@ fn test_change_upgrade_owner() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 

@@ -4,8 +4,6 @@ use reth_primitives::{
     TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash, KECCAK_EMPTY,
 };
 use revm::primitives::{AccountInfo as ReVmAccountInfo, SpecId, TransactTo, TxEnv, U256};
-#[cfg(feature = "native")]
-use sov_modules_api::fork::Fork;
 
 use super::primitive_types::{RlpEvmTransaction, TransactionSignedAndRecovered};
 use super::AccountInfo;
@@ -134,7 +132,7 @@ impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {
 #[cfg(feature = "native")]
 pub(crate) fn sealed_block_to_block_env(
     sealed_header: &reth_primitives::SealedHeader,
-    fork_fn: &impl Fn(u64) -> Fork,
+    fork_fn: &impl Fn(u64) -> sov_modules_api::fork::Fork,
 ) -> revm::primitives::BlockEnv {
     use revm::primitives::BlobExcessGasAndPrice;
 

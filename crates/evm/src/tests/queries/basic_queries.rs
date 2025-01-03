@@ -12,6 +12,7 @@ use serde_json::json;
 
 use crate::smart_contracts::SimpleStorageContract;
 use crate::tests::queries::init_evm;
+use crate::tests::utils::get_fork_fn_only_fork1;
 
 #[test]
 fn get_block_by_hash_test() {
@@ -254,7 +255,7 @@ fn get_block_transaction_count_by_number_test() {
 fn call_test() {
     let (evm, mut working_set, _, signer, _) = init_evm();
 
-    let fail_result = evm.get_call(
+    let fail_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(TxKind::Call(address!(
@@ -279,6 +280,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(
@@ -297,7 +299,7 @@ fn call_test() {
         .header
         .hash;
 
-    let call_with_hash_nonce_too_low_result = evm.get_call(
+    let call_with_hash_nonce_too_low_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(TxKind::Call(address!(
@@ -322,9 +324,10 @@ fn call_test() {
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
-    let nonce_too_low_result = evm.get_call(
+    let nonce_too_low_result = evm.get_call_inner(
         TransactionRequest {
             from: Some(signer.address()),
             to: Some(TxKind::Call(address!(
@@ -349,6 +352,7 @@ fn call_test() {
         None,
         None,
         &mut working_set,
+        get_fork_fn_only_fork1(),
     );
 
     assert_eq!(call_with_hash_nonce_too_low_result, nonce_too_low_result);
@@ -363,7 +367,7 @@ fn call_test() {
         .hash;
 
     let result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(TxKind::Call(address!(
@@ -389,11 +393,12 @@ fn call_test() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
     let call_with_hash_result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(TxKind::Call(address!(
@@ -419,6 +424,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
@@ -430,7 +436,7 @@ fn call_test() {
     working_set.unset_archival_version();
 
     let result = evm
-        .get_call(
+        .get_call_inner(
             TransactionRequest {
                 from: Some(signer.address()),
                 to: Some(TxKind::Call(address!(
@@ -456,6 +462,7 @@ fn call_test() {
             None,
             None,
             &mut working_set,
+            get_fork_fn_only_fork1(),
         )
         .unwrap();
 
