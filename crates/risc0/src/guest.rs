@@ -55,12 +55,13 @@ impl Zkvm for Risc0Guest {
         serialized_proof: &[u8],
         code_commitment: &Self::CodeCommitment,
     ) -> Result<(), Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        let receipt: Receipt = bincode::deserialize(serialized_proof)
+            .map_err(|_| Risc0GuestError::FailedToDeserialize)?;
 
         #[allow(clippy::clone_on_copy)]
-        receipt.verify(code_commitment.0)?;
-
-        Ok(())
+        receipt
+            .verify(code_commitment.0)
+            .map_err(|_| Risc0GuestError::ProofVerificationFailed)
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -88,4 +89,6 @@ impl Zkvm for Risc0Guest {
 pub enum Risc0GuestError {
     /// Failed to deserialize something
     FailedToDeserialize,
+    /// Proof verification failed
+    ProofVerificationFailed,
 }
