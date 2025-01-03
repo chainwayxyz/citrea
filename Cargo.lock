@@ -1317,6 +1317,7 @@ dependencies = [
  "pin-project",
  "rand",
  "reqwest",
+ "secp256k1",
  "serde",
  "serde_json",
  "sha2",

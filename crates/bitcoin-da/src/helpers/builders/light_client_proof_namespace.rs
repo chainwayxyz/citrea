@@ -11,8 +11,9 @@ use bitcoin::hashes::Hash;
 use bitcoin::key::{TapTweak, TweakedPublicKey, UntweakedKeypair};
 use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_NIP};
 use bitcoin::script::PushBytesBuf;
-use bitcoin::secp256k1::{Secp256k1, SecretKey, XOnlyPublicKey};
+use bitcoin::secp256k1::{SecretKey, XOnlyPublicKey};
 use bitcoin::{Address, Amount, Network, Transaction};
+use secp256k1::SECP256K1;
 use serde::Serialize;
 use sov_rollup_interface::da::DaDataLightClient;
 use tracing::{instrument, trace, warn};
@@ -176,8 +177,7 @@ pub fn create_inscription_type_0(
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
     // Create reveal key
-    let secp256k1 = Secp256k1::new();
-    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let kind = TransactionKindLightClient::Complete;
@@ -231,10 +231,10 @@ pub fn create_inscription_type_0(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, &secp256k1);
+            build_taproot(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
+        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
         let fee = get_size_reveal(
@@ -277,7 +277,7 @@ pub fn create_inscription_type_0(
             reveal_script,
             control_block,
             &key_pair,
-            &secp256k1,
+            SECP256K1,
         );
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
@@ -287,7 +287,7 @@ pub fn create_inscription_type_0(
             // check if first N bytes equal to the given prefix
             if reveal_hash.starts_with(reveal_tx_prefix) {
                 // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
+                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
                 let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
                 assert_eq!(
                     Address::p2tr_tweaked(
@@ -314,7 +314,7 @@ pub fn create_inscription_type_0(
                     &mut reveal_tx,
                     tapscript_hash,
                     &key_pair,
-                    &secp256k1,
+                    SECP256K1,
                 );
             }
         }
@@ -339,8 +339,7 @@ pub fn create_inscription_type_1(
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
     // Create reveal key
-    let secp256k1 = Secp256k1::new();
-    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let mut commit_chunks: Vec<Transaction> = vec![];
@@ -367,10 +366,10 @@ pub fn create_inscription_type_1(
         let reveal_script = reveal_script_builder.push_opcode(OP_ENDIF).into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, &secp256k1);
+            build_taproot(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
+        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
         let fee = get_size_reveal(
@@ -428,11 +427,11 @@ pub fn create_inscription_type_1(
             reveal_script,
             control_block,
             &key_pair,
-            &secp256k1,
+            SECP256K1,
         );
 
         // check if inscription locked to the correct address
-        let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
+        let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
         let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
         assert_eq!(
             Address::p2tr_tweaked(
@@ -525,10 +524,10 @@ pub fn create_inscription_type_1(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, &secp256k1);
+            build_taproot(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
+        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
         let fee = get_size_reveal(
@@ -570,7 +569,7 @@ pub fn create_inscription_type_1(
             reveal_script,
             control_block,
             &key_pair,
-            &secp256k1,
+            SECP256K1,
         );
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
@@ -581,7 +580,7 @@ pub fn create_inscription_type_1(
             // check if first N bytes equal to the given prefix
             if reveal_hash.starts_with(reveal_tx_prefix) {
                 // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
+                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
                 let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
                 assert_eq!(
                     Address::p2tr_tweaked(
@@ -610,7 +609,7 @@ pub fn create_inscription_type_1(
                     &mut reveal_tx,
                     tapscript_hash,
                     &key_pair,
-                    &secp256k1,
+                    SECP256K1,
                 );
             }
         }
@@ -635,8 +634,7 @@ pub fn create_inscription_type_2(
     reveal_tx_prefix: &[u8],
 ) -> Result<LightClientTxs, anyhow::Error> {
     // Create reveal key
-    let secp256k1 = Secp256k1::new();
-    let key_pair = UntweakedKeypair::new(&secp256k1, &mut rand::thread_rng());
+    let key_pair = UntweakedKeypair::new(SECP256K1, &mut rand::thread_rng());
     let (public_key, _parity) = XOnlyPublicKey::from_keypair(&key_pair);
 
     let kind = TransactionKindLightClient::BatchProofMethodId;
@@ -690,10 +688,10 @@ pub fn create_inscription_type_2(
         let reveal_script = reveal_script_builder.into_script();
 
         let (control_block, merkle_root, tapscript_hash) =
-            build_taproot(&reveal_script, public_key, &secp256k1);
+            build_taproot(&reveal_script, public_key, SECP256K1);
 
         // create commit tx address
-        let commit_tx_address = Address::p2tr(&secp256k1, public_key, merkle_root, network);
+        let commit_tx_address = Address::p2tr(SECP256K1, public_key, merkle_root, network);
 
         let reveal_value = REVEAL_OUTPUT_AMOUNT;
         let fee = get_size_reveal(
@@ -736,7 +734,7 @@ pub fn create_inscription_type_2(
             reveal_script,
             control_block,
             &key_pair,
-            &secp256k1,
+            SECP256K1,
         );
 
         let min_commit_value = Amount::from_sat(fee + reveal_value);
@@ -746,7 +744,7 @@ pub fn create_inscription_type_2(
             // check if first N bytes equal to the given prefix
             if reveal_hash.starts_with(reveal_tx_prefix) {
                 // check if inscription locked to the correct address
-                let recovery_key_pair = key_pair.tap_tweak(&secp256k1, merkle_root);
+                let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
                 let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
                 assert_eq!(
                     Address::p2tr_tweaked(
@@ -773,7 +771,7 @@ pub fn create_inscription_type_2(
                     &mut reveal_tx,
                     tapscript_hash,
                     &key_pair,
-                    &secp256k1,
+                    SECP256K1,
                 );
             }
         }

@@ -4,8 +4,8 @@ use bitcoin::blockdata::script::Instruction;
 use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
-use bitcoin::secp256k1::{ecdsa, Message, Secp256k1};
-use bitcoin::{secp256k1, Opcode, Script, Transaction};
+use bitcoin::{Opcode, Script, Transaction};
+use secp256k1::{self, ecdsa, Message, SECP256K1};
 use thiserror::Error;
 
 use super::calculate_sha256;
@@ -76,11 +76,9 @@ pub trait VerifyParsed {
         let hash = calculate_sha256(self.body());
         let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
 
-        let secp = Secp256k1::new();
-
         if public_key.is_ok()
             && signature.is_ok()
-            && secp
+            && SECP256K1
                 .verify_ecdsa(&message, &signature.unwrap(), &public_key.unwrap())
                 .is_ok()
         {
