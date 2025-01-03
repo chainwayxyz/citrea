@@ -85,7 +85,7 @@ fn test_state_change() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SpecId::Genesis,
+        current_spec: SpecId::Fork1,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 1,
@@ -289,7 +289,7 @@ fn test_eip1559_fields_call() {
         high_fee_result,
         Err(RpcInvalidTransactionError::InsufficientFunds {
             cost: U256::from_str("34028236692093846346337460743176821145500000").unwrap(),
-            balance: U256::from(99999573573123175976u128)
+            balance: U256::from(99999573573123177934u128)
         }
         .into())
     );
