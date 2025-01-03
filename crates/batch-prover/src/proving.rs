@@ -19,7 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{
     BatchProofCircuitInput, BatchProofCircuitInputV1, OldBatchProofCircuitOutput, Proof, ZkvmHost,
 };
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
@@ -269,7 +269,13 @@ where
                 _ => borsh::to_vec(&input)?,
             };
 
-            prover_service.add_proof_data((input, vec![], elf)).await;
+            prover_service
+                .add_proof_data(ProofData {
+                    input,
+                    assumptions: vec![],
+                    elf,
+                })
+                .await;
         }
     }
 

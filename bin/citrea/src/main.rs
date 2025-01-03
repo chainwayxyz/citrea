@@ -20,7 +20,7 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, info, instrument};
 
 #[cfg(test)]
 mod test_rpc;

@@ -72,10 +72,26 @@ pub enum ProverServiceError {
     Other(#[from] anyhow::Error),
 }
 
-pub(crate) type Input = Vec<u8>;
-pub(crate) type Assumptions = Vec<Vec<u8>>;
-pub(crate) type Elf = Vec<u8>;
-pub(crate) type ProofData = (Input, Assumptions, Elf);
+/// Borsh serialized input to the guest
+pub type Input = Vec<u8>;
+
+/// Vector of assumption to the proving session
+pub type Assumptions = Vec<Vec<u8>>;
+
+/// Elf used in the proving session
+pub type Elf = Vec<u8>;
+
+/// Data used for generating a proof.
+pub struct ProofData {
+    /// The input data to be processed
+    pub input: Input,
+
+    /// Collection of assumptions used in the proving process
+    pub assumptions: Assumptions,
+
+    /// The ELF binary to be used
+    pub elf: Elf,
+}
 
 /// This service is responsible for ZK proof generation.
 /// The proof generation process involves the following stages:

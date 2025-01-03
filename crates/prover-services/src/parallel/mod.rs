@@ -7,16 +7,11 @@ use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::da::DaTxRequest;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::{oneshot, Mutex};
 use tracing::{info, warn};
 
 use crate::ProofGenMode;
-
-pub(crate) type Input = Vec<u8>;
-pub(crate) type Assumptions = Vec<Vec<u8>>;
-pub(crate) type Elf = Vec<u8>;
-pub(crate) type ProofData = (Input, Assumptions, Elf);
 
 /// Prover service that generates proofs in parallel.
 pub struct ParallelProverService<Da, Vm>
@@ -148,7 +143,14 @@ where
         proofs
     }
 
-    async fn prove_one(&self, (input, assumptions, elf): ProofData) -> Proof {
+    async fn prove_one(
+        &self,
+        ProofData {
+            input,
+            assumptions,
+            elf,
+        }: ProofData,
+    ) -> Proof {
         let mut vm = self.vm.clone();
         let proof_mode = self.proof_mode;
 
