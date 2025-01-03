@@ -222,6 +222,9 @@ jobs:
       - name: Load Docker image
         run: docker load < /tmp/docker/bitcoin.tar
 
+      - name: Debug
+        run: echo "${{ github.workspace }}"" && ls ${{ github.workspace }}
+
       - name: Run coverage
         run: make coverage
         env:
