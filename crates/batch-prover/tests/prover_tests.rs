@@ -9,7 +9,7 @@ use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockH
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
 use sov_rollup_interface::zk::{BatchProofCircuitInput, Proof, ZkvmHost};
-use sov_stf_runner::ProverService;
+use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread")]
