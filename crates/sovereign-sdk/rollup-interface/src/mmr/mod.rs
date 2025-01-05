@@ -1,0 +1,78 @@
+#![allow(missing_docs)]
+
+use alloc::vec::Vec;
+
+use anyhow::Result;
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+mod guest;
+#[cfg(any(feature = "native", feature = "testing"))]
+mod native;
+#[cfg(test)]
+mod tests;
+
+pub use guest::*;
+#[cfg(any(feature = "native", feature = "testing"))]
+pub use native::*;
+
+pub type MMRNodeHash = [u8; 32];
+pub type Wtxid = [u8; 32];
+
+pub trait NodeStore {
+    fn save_node(&mut self, level: usize, index: usize, hash: MMRNodeHash) -> Result<()>;
+    fn load_node(&self, level: usize, index: usize) -> Result<Option<MMRNodeHash>>;
+    fn save_chunk(&mut self, wtxid: Wtxid, chunk: MMRChunk) -> Result<()>;
+    fn load_chunk(&self, wtxid: Wtxid) -> Result<Option<MMRChunk>>;
+    fn get_tree_size(&self) -> usize;
+    fn set_tree_size(&mut self, size: usize) -> Result<()>;
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+pub struct MMRInclusionProof {
+    pub subroot_idx: usize,
+    pub internal_idx: u32,
+    pub inclusion_proof: Vec<MMRNodeHash>,
+}
+
+impl MMRInclusionProof {
+    pub fn new(subroot_idx: usize, internal_idx: u32, inclusion_proof: Vec<MMRNodeHash>) -> Self {
+        MMRInclusionProof {
+            subroot_idx,
+            internal_idx,
+            inclusion_proof,
+        }
+    }
+
+    pub fn get_subroot(&self, leaf: MMRNodeHash) -> MMRNodeHash {
+        let mut current_hash = leaf;
+        for (i, sibling) in self.inclusion_proof.iter().enumerate() {
+            if self.internal_idx & (1 << i) == 0 {
+                current_hash = hash_pair(current_hash, *sibling);
+            } else {
+                current_hash = hash_pair(*sibling, current_hash);
+            }
+        }
+        current_hash
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+pub struct MMRChunk {
+    pub wtxid: Wtxid,
+    pub body: Vec<u8>,
+}
+
+impl MMRChunk {
+    pub fn new(wtxid: Wtxid, body: Vec<u8>) -> Self {
+        MMRChunk { wtxid, body }
+    }
+}
+
+pub fn hash_pair(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+    let mut hasher = Sha256::default();
+    hasher.update(left);
+    hasher.update(right);
+    hasher.finalize().into()
+}

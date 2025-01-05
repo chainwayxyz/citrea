@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::vec;
 
 use anyhow::anyhow;
 use borsh::BorshDeserialize;
@@ -138,12 +137,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         'wtxids_loop: for wtxid in &wtx_ids {
                             // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
                             // We use the hints to verify the existence of the chunk.
-                            if in_memory_chunks.contains_key(wtxid) {
-                                let chunk = in_memory_chunks
-                                    .get(wtxid)
-                                    .expect("Chunk with wtxid should exist at this point")
-                                    .to_vec();
-                                aggregate_chunks.push(MMRChunk::new(*wtxid, chunk));
+                            if let Some(chunk) = in_memory_chunks.get(wtxid) {
+                                aggregate_chunks.push(MMRChunk::new(*wtxid, chunk.clone()));
                                 in_memory_chunks.remove(wtxid);
                             } else {
                                 while let Some(hint) = mmr_hints.pop_front() {

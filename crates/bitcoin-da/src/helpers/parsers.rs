@@ -134,10 +134,10 @@ impl VerifyParsed for ParsedSequencerCommitment {
 
 impl VerifyParsed for ParsedChunk {
     fn public_key(&self) -> &[u8] {
-        &[0]
+        unimplemented!("public_key call Should not be used with chunks")
     }
     fn signature(&self) -> &[u8] {
-        &[0]
+        unimplemented!("signature call Should not be used with chunks")
     }
     fn body(&self) -> &[u8] {
         &self.body
