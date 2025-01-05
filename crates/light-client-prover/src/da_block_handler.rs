@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
-use std::vec;
 
 use alloy_primitives::U64;
 use anyhow::anyhow;
@@ -16,7 +15,7 @@ use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientPr
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
-use sov_rollup_interface::mmr::{MMRChunk, MMRNative};
+use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::{
@@ -30,8 +29,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::metrics::LIGHT_CLIENT_METRICS;
-
-type Wtxid = [u8; 32];
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
 where
@@ -51,7 +48,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     sequencer_client: Arc<HttpClient>,
-    mmr_db: MmrDB,
+    mmr_native: MMRNative<MmrDB>,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -74,6 +71,7 @@ where
         sequencer_client: Arc<HttpClient>,
         mmr_db: MmrDB,
     ) -> Self {
+        let mmr_native = MMRNative::new(mmr_db);
         Self {
             _prover_config: prover_config,
             prover_service,
@@ -86,7 +84,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
             sequencer_client,
-            mmr_db,
+            mmr_native,
         }
     }
 
@@ -137,7 +135,8 @@ where
             let l1_block = self
                 .queued_l1_blocks
                 .front()
-                .expect("Pending l1 blocks cannot be empty");
+                .expect("Pending l1 blocks cannot be empty")
+                .clone();
 
             self.process_l1_block(l1_block).await?;
 
@@ -147,11 +146,9 @@ where
         Ok(())
     }
 
-    async fn process_l1_block(&self, l1_block: &Da::FilteredBlock) -> anyhow::Result<()> {
+    async fn process_l1_block(&mut self, l1_block: Da::FilteredBlock) -> anyhow::Result<()> {
         let l1_hash = l1_block.header().hash().into();
         let l1_height = l1_block.header().height();
-
-        let mut mmr_native = MMRNative::new(self.mmr_db.clone());
 
         // Set the l1 height of the l1 hash
         self.ledger_db
@@ -160,7 +157,7 @@ where
 
         let (mut da_data, inclusion_proof, completeness_proof) = self
             .da_service
-            .extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToLightClientProver);
+            .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
 
         // Even though following extract_batch_proofs call does full_data on batch proofs,
         // we also need to do it for BatchProofMethodId txs
@@ -180,52 +177,59 @@ where
         let mut mmr_hints = vec![];
 
         for (wtxid, batch_proof) in batch_proofs {
-            if let DaDataLightClient::Complete(proof) = batch_proof {
-                let last_l2_height = match Vm::extract_output::<
-                    BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                >(&proof)
-                {
-                    Ok(output) => output.last_l2_height,
-                    Err(e) => {
-                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                        Vm::extract_output::<
-                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                        >(&proof)
-                        .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
-                        0
+            match batch_proof {
+                DaDataLightClient::Complete(proof) => {
+                    let last_l2_height = match Vm::extract_output::<
+                        BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                    >(&proof)
+                    {
+                        Ok(output) => output.last_l2_height,
+                        Err(e) => {
+                            info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                            Vm::extract_output::<
+                                OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                            >(&proof)
+                            .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                            // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
+                            0
+                        }
+                    };
+                    let current_spec = fork_from_block_number(last_l2_height).spec_id;
+                    let batch_proof_method_id = self
+                        .batch_proof_code_commitments
+                        .get(&current_spec)
+                        .expect("Batch proof code commitment not found");
+                    if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
+                        tracing::error!("Failed to verify batch proof: {:?}", e);
+                        continue;
                     }
-                };
-                let current_spec = fork_from_block_number(last_l2_height).spec_id;
-                let batch_proof_method_id = self
-                    .batch_proof_code_commitments
-                    .get(&current_spec)
-                    .expect("Batch proof code commitment not found");
-                if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
-                    tracing::error!("Failed to verify batch proof: {:?}", e);
+
+                    assumptions.push(proof);
+                }
+                DaDataLightClient::Aggregate(_txids, wtxids) => {
+                    // For each of the chunks, if the chunk is not contained by any
+                    // aggregate in the current block, this tells us that it has been already seen in a previous
+                    // L1 block.
+                    // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
+                    // from which we can generate a hint for the guest MMR.
+                    for wtxid in wtxids {
+                        // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
+                        if unused_chunks.contains_key(&wtxid) {
+                            // Clear the chunk from the unused chunks.
+                            unused_chunks.remove(&wtxid);
+                        } else {
+                            let hint = self.mmr_native.generate_proof(wtxid)?;
+                            mmr_hints.push(hint);
+                        }
+                    }
+                }
+                DaDataLightClient::Chunk(body) => {
+                    // For now, this chunk is unused by any aggregate in the block.
+                    unused_chunks.insert(wtxid, body);
+                }
+                _ => {
                     continue;
                 }
-
-                assumptions.push(proof);
-            } else if let DaDataLightClient::Aggregate(_txids, wtxids) = batch_proof {
-                // For each of the chunks, if the chunk is not contained by any
-                // aggregate in the current block, this tells us that it has been already seen in a previous
-                // L1 block.
-                // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
-                // from which we can generate a hint for the guest MMR.
-                for wtxid in wtxids {
-                    // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
-                    if unused_chunks.contains_key(&wtxid) {
-                        // Clear the chunk from the unused chunks.
-                        unused_chunks.remove(&wtxid);
-                    } else {
-                        let hint = mmr_native.generate_proof(wtxid)?;
-                        mmr_hints.push(hint);
-                    }
-                }
-            } else if let DaDataLightClient::Chunk(body) = batch_proof {
-                // For now, this chunk is unused by any aggregate in the block.
-                unused_chunks.insert(wtxid, body);
             }
         }
 
@@ -233,7 +237,7 @@ where
         // Up until this point, the proof has been generated by aggregates in the block,
         // so it's okay to update the MMR tree now.
         for (wtxid, body) in unused_chunks.into_iter() {
-            mmr_native.append(MMRChunk::new(wtxid, body))?;
+            self.mmr_native.append(MMRChunk::new(wtxid, body))?;
         }
 
         let previous_l1_height = l1_height - 1;
