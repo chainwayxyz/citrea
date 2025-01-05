@@ -19,7 +19,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::da::{DaSpec, LatestDaState};
-use crate::mmr::{MMRGuest, MMRInclusionProof, MMRNode};
+use crate::mmr::{MMRChunk, MMRGuest, MMRInclusionProof};
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 
@@ -306,7 +306,7 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
     /// Hints for the guest MMR tree.
-    pub mmr_hints: VecDeque<Option<(MMRNode, MMRInclusionProof)>>,
+    pub mmr_hints: VecDeque<Option<(MMRChunk, MMRInclusionProof)>>,
 }
 
 #[cfg(feature = "std")]

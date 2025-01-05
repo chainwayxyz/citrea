@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
-use sov_rollup_interface::mmr::{MMRGuest, MMRNode};
+use sov_rollup_interface::mmr::{MMRChunk, MMRGuest};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     OldBatchProofCircuitOutput, ZkvmGuest,
@@ -143,7 +143,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                     .get(wtxid)
                                     .expect("Chunk with wtxid should exist at this point")
                                     .to_vec();
-                                aggregate_chunks.push(MMRNode::new(*wtxid, chunk));
+                                aggregate_chunks.push(MMRChunk::new(*wtxid, chunk));
                                 in_memory_chunks.remove(wtxid);
                             } else {
                                 while let Some(hint) = mmr_hints.pop_front() {
@@ -232,7 +232,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
     for (wtxid, chunk) in in_memory_chunks {
-        mmr_guest.append(MMRNode::new(wtxid, chunk));
+        mmr_guest.append(MMRChunk::new(wtxid, chunk));
     }
 
     Ok(LightClientCircuitOutput {

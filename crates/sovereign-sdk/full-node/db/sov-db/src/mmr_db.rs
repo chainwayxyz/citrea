@@ -6,7 +6,7 @@ use sov_schema_db::DB;
 use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::{MMRNodes, MMRTreeSize, MMR_TABLES};
+use crate::schema::tables::{MMRChunks, MMRNodes, MMRTreeSize, MMR_TABLES};
 
 #[derive(Clone, Debug)]
 pub struct MmrDB {
@@ -48,16 +48,16 @@ impl NodeStore for MmrDB {
         &mut self,
         level: usize,
         index: usize,
-        node: sov_rollup_interface::mmr::MMRNode,
+        node_hash: sov_rollup_interface::mmr::MMRNodeHash,
     ) -> anyhow::Result<()> {
-        self.db.put::<MMRNodes>(&(level, index), &node)
+        self.db.put::<MMRNodes>(&(level, index), &node_hash)
     }
 
     fn load_node(
         &self,
         level: usize,
         index: usize,
-    ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRNode>> {
+    ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRNodeHash>> {
         self.db.get::<MMRNodes>(&(level, index))
     }
 
@@ -71,5 +71,20 @@ impl NodeStore for MmrDB {
 
     fn set_tree_size(&mut self, size: usize) -> anyhow::Result<()> {
         self.db.put::<MMRTreeSize>(&(), &size)
+    }
+
+    fn save_chunk(
+        &mut self,
+        wtxid: sov_rollup_interface::mmr::Wtxid,
+        chunk: sov_rollup_interface::mmr::MMRChunk,
+    ) -> anyhow::Result<()> {
+        self.db.put::<MMRChunks>(&wtxid, &chunk)
+    }
+
+    fn load_chunk(
+        &self,
+        wtxid: sov_rollup_interface::mmr::Wtxid,
+    ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRChunk>> {
+        self.db.get::<MMRChunks>(&wtxid)
     }
 }
