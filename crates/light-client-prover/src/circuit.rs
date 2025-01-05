@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
-use sov_rollup_interface::mmr::{MMRChunk, MMRGuest};
+use sov_rollup_interface::mmr::{MMRChunk, MMRGuest, Wtxid};
 use sov_rollup_interface::zk::{
     BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
     OldBatchProofCircuitOutput, ZkvmGuest,
@@ -110,7 +110,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         }
     }
 
-    let mut in_memory_chunks: BTreeMap<[u8; 32], Vec<u8>> = Default::default();
+    let mut in_memory_chunks: BTreeMap<Wtxid, Vec<u8>> = Default::default();
     let mut mmr_hints = input.mmr_hints.clone();
 
     for blob in input.da_data {
@@ -157,10 +157,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             }
                         }
 
-                        let existing_wtx_ids: BTreeSet<[u8; 32]> =
+                        let existing_wtx_ids: BTreeSet<Wtxid> =
                             aggregate_chunks.iter().map(|c| c.wtxid).collect();
-                        let aggregate_wtx_ids: BTreeSet<[u8; 32]> =
-                            wtx_ids.iter().cloned().collect();
+                        let aggregate_wtx_ids: BTreeSet<Wtxid> = wtx_ids.iter().cloned().collect();
 
                         // Make sure we have all the chunks, perform verification
                         if aggregate_wtx_ids.is_subset(&existing_wtx_ids) {
