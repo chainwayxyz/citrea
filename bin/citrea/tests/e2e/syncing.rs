@@ -299,7 +299,6 @@ async fn test_prover_sync_with_commitments() -> Result<(), anyhow::Error> {
                 proving_mode: sov_stf_runner::ProverGuestRunConfig::Execute,
                 proof_sampling_number: 0,
                 enable_recovery: true,
-                use_latest_elf: true,
             }),
             None,
             rollup_config,

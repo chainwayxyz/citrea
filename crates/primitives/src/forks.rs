@@ -16,7 +16,7 @@ pub fn use_network_forks(network: Network) {
         Network::Mainnet => &MAINNET_FORKS,
         Network::Testnet => &TESTNET_FORKS,
         Network::Devnet => &DEVNET_FORKS,
-        Network::Nightly => &NIGHTLY_FORKS,
+        Network::Nightly | Network::Regtest => &NIGHTLY_FORKS,
     };
 
     #[cfg(not(feature = "testing"))]
@@ -56,12 +56,12 @@ pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
 
 pub const TESTNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Fork1, 999_999_999),
+    Fork::new(SpecId::Fork1, u64::MAX),
 ];
 
 pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Fork1, 999_999_999),
+    Fork::new(SpecId::Fork1, u64::MAX),
 ];
 
 #[cfg(feature = "testing")]

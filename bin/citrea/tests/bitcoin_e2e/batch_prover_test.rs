@@ -72,13 +72,6 @@ impl TestCase for BasicProverTest {
         }
     }
 
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            use_latest_elf: false,
-            ..Default::default()
-        }
-    }
-
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
         let sequencer = f.sequencer.as_ref().unwrap();
@@ -161,13 +154,6 @@ impl TestCase for SkipPreprovenCommitmentsTest {
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
             min_soft_confirmations_per_commitment: 1,
-            ..Default::default()
-        }
-    }
-
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -555,6 +541,21 @@ impl TestCase for ForkElfSwitchingTest {
         }
     }
 
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            initial_da_height: 171,
+            enable_recovery: false,
+            ..Default::default()
+        }
+    }
+
+    fn test_env() -> TestCaseEnv {
+        TestCaseEnv {
+            test: vec![("CITREA_NETWORK", "regtest")],
+            ..Default::default()
+        }
+    }
+
     fn sequencer_config() -> SequencerConfig {
         let fork_1_height = ForkManager::new(get_forks(), 0)
             .next_fork()
@@ -565,21 +566,6 @@ impl TestCase for ForkElfSwitchingTest {
         // and second batch above fork1
         SequencerConfig {
             min_soft_confirmations_per_commitment: fork_1_height - 5,
-            ..Default::default()
-        }
-    }
-
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            use_latest_elf: false,
-            ..Default::default()
-        }
-    }
-
-    fn light_client_prover_config() -> LightClientProverConfig {
-        LightClientProverConfig {
-            initial_da_height: 171,
-            enable_recovery: false,
             ..Default::default()
         }
     }
@@ -636,6 +622,7 @@ impl TestCase for ForkElfSwitchingTest {
         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork1);
 
         da.wait_mempool_len(4, None).await?;
+        println!("got 4 seq txs");
 
         da.generate(FINALITY_DEPTH).await?;
 
@@ -693,6 +680,8 @@ impl TestCase for ForkElfSwitchingTest {
 
 #[tokio::test]
 async fn test_fork_elf_switching() -> Result<()> {
+    std::env::set_var("CITREA_NETWORK", "regtest");
+
     TestCaseRunner::new(ForkElfSwitchingTest)
         .set_citrea_path(get_citrea_path())
         .run()

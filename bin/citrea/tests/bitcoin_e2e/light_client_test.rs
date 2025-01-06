@@ -52,7 +52,6 @@ impl TestCase for LightClientProvingTest {
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
             enable_recovery: false,
-            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -188,7 +187,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         BatchProverConfig {
             enable_recovery: false,
             proof_sampling_number: 99999999,
-            use_latest_elf: false,
             ..Default::default()
         }
     }
@@ -240,11 +238,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         batch_prover
             .client
             .http_client()
-            .prove(
-                commitment_l1_height,
-                false,
-                Some(GroupCommitments::OneByOne),
-            )
+            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
             .await
             .unwrap();
 
@@ -369,11 +363,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         batch_prover
             .client
             .http_client()
-            .prove(
-                commitment_l1_height,
-                false,
-                Some(GroupCommitments::OneByOne),
-            )
+            .prove(commitment_l1_height, Some(GroupCommitments::OneByOne))
             .await
             .unwrap();
 
@@ -477,7 +467,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
     fn batch_prover_config() -> BatchProverConfig {
         BatchProverConfig {
             enable_recovery: false,
-            use_latest_elf: false,
             ..Default::default()
         }
     }

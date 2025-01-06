@@ -250,7 +250,7 @@ impl DaVerifier for BitcoinVerifier {
                 latest_da_state.unwrap_or(&INITIAL_SIGNET_STATE),
                 block_header,
             ),
-            Network::Nightly => {
+            Network::Nightly | Network::Regtest => {
                 // For regtest, if this is the first light client proof, we always
                 // consider the block valid with respect to its parent block, so
                 // it can start from anywhere.

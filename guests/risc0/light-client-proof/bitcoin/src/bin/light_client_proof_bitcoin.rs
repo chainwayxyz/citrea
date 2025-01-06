@@ -24,7 +24,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
         // TODO: Update this after finding out the first batch prover output of the next release
         Network::Testnet => "05183faf24857f0fa6d4a7738fe5ef14b7ebe88be0f66e6f87f461485554d531",
         Network::Devnet => "c23eb4eec08765750400f6e98567ef1977dc86334318f5424b7783c4080c0a36",
-        Network::Nightly => match option_env!("L2_GENESIS_ROOT") {
+        Network::Nightly | Network::Regtest => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
             None => "dacb59b0ff5d16985a8418235133eee37758a3ac1b76ab6d1f87c6df20e4d4da",
         },
@@ -64,7 +64,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
         ],
         // TODO: Update
         Network::Devnet => &[(0, [0; 8])],
-        Network::Nightly => match option_env!("BATCH_PROOF_METHOD_ID") {
+        Network::Nightly | Network::Regtest => match option_env!("BATCH_PROOF_METHOD_ID") {
             Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
             None => &[
                 (
@@ -84,7 +84,7 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
         Network::Mainnet => "030000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42",
         Network::Devnet => "03fc6fb2ef68368009c895d2d4351dcca4109ec2f5f327291a0553570ce769f5e5",
-        Network::Nightly => match option_env!("PROVER_DA_PUB_KEY") {
+        Network::Nightly | Network::Regtest => match option_env!("PROVER_DA_PUB_KEY") {
             Some(hex_pub_key) => hex_pub_key,
             None => "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601",
         },
@@ -101,10 +101,12 @@ pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
         Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "000000000000000000000000000000000000000000000000000000000000000000",
         Network::Devnet => "000000000000000000000000000000000000000000000000000000000000000000",
-        Network::Nightly => match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
-            Some(hex_pub_key) => hex_pub_key,
-            None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
-        },
+        Network::Nightly | Network::Regtest => {
+            match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
+                Some(hex_pub_key) => hex_pub_key,
+                None => "0313c4ff65eb94999e0ac41cfe21592baa52910f5a5ada9074b816de4f560189db",
+            }
+        }
     };
 
     match const_hex::const_decode_to_array(hex_pub_key.as_bytes()) {

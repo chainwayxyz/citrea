@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use alloy_primitives::Address;
-use citrea_common::{BatchProverConfig, SequencerConfig};
+use citrea_common::SequencerConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
@@ -330,10 +330,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(BatchProverConfig {
-                        use_latest_elf: true,
-                        ..Default::default()
-                    }),
+                    None,
                     None,
                     rollup_config,
                     None,
@@ -402,10 +399,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(BatchProverConfig {
-                        use_latest_elf: true,
-                        ..Default::default()
-                    }),
+                    None,
                     None,
                     rollup_config,
                     None,
@@ -458,10 +452,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 start_rollup(
                     prover_node_port_tx,
                     GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-                    Some(BatchProverConfig {
-                        use_latest_elf: true,
-                        ..Default::default()
-                    }),
+                    None,
                     None,
                     rollup_config,
                     None,

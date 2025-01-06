@@ -1,7 +1,7 @@
 use core::fmt::Display;
 
 /// The network currently running.
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub enum Network {
     /// Mainnet
     #[default]
@@ -12,6 +12,9 @@ pub enum Network {
     Devnet,
     /// Nightly
     Nightly,
+    #[cfg(feature = "testing")]
+    /// Regtest
+    Regtest,
 }
 
 impl Display for Network {
@@ -28,6 +31,8 @@ impl Network {
             b"testnet" => Some(Network::Testnet),
             b"devnet" => Some(Network::Devnet),
             b"nightly" => Some(Network::Nightly),
+            #[cfg(feature = "testing")]
+            b"regtest" => Some(Network::Regtest),
             _ => None,
         }
     }

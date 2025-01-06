@@ -18,7 +18,7 @@ pub use rollup::*;
 
 /// The network currently running.
 #[derive(clap::ValueEnum, Copy, Clone, Default, Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "lowercase")]
 pub enum NetworkArg {
     /// Mainnet
     #[default]
@@ -27,6 +27,11 @@ pub enum NetworkArg {
     Testnet,
     /// Devnet
     Devnet,
+    /// Nightly
+    Nightly,
+    #[cfg(feature = "testing")]
+    /// Regtest
+    Regtest,
 }
 
 impl From<NetworkArg> for Network {
@@ -35,6 +40,9 @@ impl From<NetworkArg> for Network {
             NetworkArg::Mainnet => Network::Mainnet,
             NetworkArg::Testnet => Network::Testnet,
             NetworkArg::Devnet => Network::Devnet,
+            NetworkArg::Nightly => Network::Nightly,
+            #[cfg(feature = "testing")]
+            NetworkArg::Regtest => Network::Regtest,
         }
     }
 }
