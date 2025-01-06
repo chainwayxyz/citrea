@@ -246,6 +246,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
     last_l2_height: u64,
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
 ) -> anyhow::Result<()> {
+    // TODO: don't panic here, ignore if cant extract
     let journal = G::extract_raw_output(&proof).expect("DaData proofs must be valid");
 
     let (
@@ -270,7 +271,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
 
     // Do not add if last l2 height is smaller or equal to previous output
     // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
-    if batch_proof_output_last_l2_height <= last_l2_height {
+    if batch_proof_output_last_l2_height <= last_l2_height && last_l2_height != 0 {
         return Err(anyhow!(
             "Last L2 height is less than proof's last l2 height"
         ));

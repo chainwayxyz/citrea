@@ -1,6 +1,6 @@
 /// Prefix for the reveal transaction ids - batch proof namespace.
 #[cfg(feature = "testing")]
-pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1];
+pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1]; // since we changed the prefix to 1 genesis fork proving tests fail
 #[cfg(not(feature = "testing"))]
 pub const TO_BATCH_PROOF_PREFIX: &[u8] = &[1, 1];
 

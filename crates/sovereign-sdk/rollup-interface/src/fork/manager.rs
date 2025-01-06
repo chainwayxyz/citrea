@@ -32,6 +32,11 @@ impl<'a> ForkManager<'a> {
         self.forks[self.active_fork_idx]
     }
 
+    #[cfg(feature = "testing")]
+    pub fn next_fork(&self) -> Option<&Fork> {
+        self.forks.get(self.active_fork_idx + 1)
+    }
+
     pub fn register_block(&mut self, height: u64) -> anyhow::Result<()> {
         // Skip if we are already at the last fork
         if self.active_fork_idx == self.forks.len() - 1 {

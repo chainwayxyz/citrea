@@ -38,7 +38,7 @@ impl ZkvmGuest for Risc0Guest {
 impl Zkvm for Risc0Guest {
     type CodeCommitment = Risc0MethodId;
 
-    type Error = anyhow::Error;
+    type Error = Risc0GuestError;
 
     fn verify(journal: &[u8], code_commitment: &Self::CodeCommitment) -> Result<(), Self::Error> {
         env::verify(code_commitment.0, journal)
@@ -47,12 +47,13 @@ impl Zkvm for Risc0Guest {
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        let receipt: Receipt = bincode::deserialize(serialized_proof)?;
+        let receipt: Receipt = bincode::deserialize(serialized_proof)
+            .map_err(|_| Risc0GuestError::FailedToDeserialize)?;
         Ok(receipt.journal.bytes)
     }
 
     fn deserialize_output<T: BorshDeserialize>(journal: &[u8]) -> Result<T, Self::Error> {
-        Ok(T::try_from_slice(journal)?)
+        T::try_from_slice(journal).map_err(|_| Risc0GuestError::FailedToDeserialize)
     }
 
     fn verify_and_deserialize_output<T: BorshDeserialize>(
@@ -61,6 +62,13 @@ impl Zkvm for Risc0Guest {
     ) -> Result<T, Self::Error> {
         env::verify(code_commitment.0, journal)
             .expect("Guest side verification error should be Infallible");
-        Ok(T::try_from_slice(journal)?)
+        T::try_from_slice(journal).map_err(|_| Risc0GuestError::FailedToDeserialize)
     }
+}
+
+#[derive(Debug)]
+/// Error type for Risc0Guest
+pub enum Risc0GuestError {
+    /// Failed to deserialize something
+    FailedToDeserialize,
 }

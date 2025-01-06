@@ -26,7 +26,7 @@ use crate::common::Bech32ParseError;
     Display,
 )]
 #[serde(try_from = "String", into = "String")]
-#[display(fmt = "{}", "value")]
+#[display("{}", value)]
 pub struct AddressBech32 {
     value: String,
 }

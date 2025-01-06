@@ -4,7 +4,11 @@ use sov_rollup_interface::fork::{fork_pos_from_block_number, verify_forks, Fork}
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::Network;
 
+#[cfg(not(feature = "testing"))]
 static FORKS: OnceLock<&'static [Fork]> = OnceLock::new();
+
+#[cfg(feature = "testing")]
+pub static FORKS: OnceLock<&'static [Fork]> = OnceLock::new();
 
 /// Set forks globally based on the network. Must be called once at the start of the application.
 pub fn use_network_forks(network: Network) {
@@ -60,6 +64,9 @@ pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Fork1, 999_999_999),
 ];
 
+#[cfg(feature = "testing")]
+pub const NIGHTLY_FORKS: [Fork; 2] = [Fork::new(SpecId::Genesis, 0), Fork::new(SpecId::Fork1, 100)];
+#[cfg(not(feature = "testing"))]
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
 
 const _CHECK_FORKS: () = {

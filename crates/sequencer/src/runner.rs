@@ -425,6 +425,10 @@ where
             .lock()
             .fetch_deposits(self.config.deposit_mempool_fetch_limit);
 
+        // Register this new block with the fork manager to active
+        // the new fork on the next block
+        self.fork_manager.register_block(l2_height)?;
+
         let active_fork_spec = self.fork_manager.active_fork().spec_id;
 
         let soft_confirmation_info = HookSoftConfirmationInfo {
@@ -583,10 +587,6 @@ where
                     SlotNumber(da_block.header().height()),
                     SoftConfirmationNumber(l2_height),
                 )?;
-
-                // Register this new block with the fork manager to active
-                // the new fork on the next block
-                self.fork_manager.register_block(l2_height)?;
 
                 let l1_height = da_block.header().height();
                 info!(

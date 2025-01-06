@@ -158,6 +158,7 @@ impl Default for EvmConfig {
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {
+    // TODO: maybe be able to genesis with Fork1
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,

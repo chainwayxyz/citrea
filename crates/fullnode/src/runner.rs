@@ -255,6 +255,11 @@ where
                 .clone()
                 .try_into()
                 .context("Failed to parse transactions")?;
+
+        // Register this new block with the fork manager to active
+        // the new fork on the next block.
+        self.fork_manager.register_block(l2_height)?;
+
         let current_spec = self.fork_manager.active_fork().spec_id;
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             current_spec,
@@ -295,10 +300,6 @@ where
             SlotNumber(current_l1_block.header().height()),
             SoftConfirmationNumber(l2_height),
         )?;
-
-        // Register this new block with the fork manager to active
-        // the new fork on the next block.
-        self.fork_manager.register_block(l2_height)?;
 
         // Only errors when there are no receivers
         let _ = self.soft_confirmation_tx.send(l2_height);

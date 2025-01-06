@@ -8,6 +8,7 @@ use lazy_static::lazy_static;
 use reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT;
 use reth_primitives::KECCAK_EMPTY;
 use sov_modules_api::default_context::DefaultContext;
+use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
 use sov_modules_api::{Module, Spec, WorkingSet};
 use sov_prover_storage_manager::{new_orphan_storage, SnapshotManager};
@@ -325,4 +326,8 @@ pub(crate) fn get_evm_test_config() -> EvmConfig {
     };
     config_push_contracts(&mut config, None);
     config
+}
+
+pub(crate) fn get_fork_fn_only_fork1() -> impl Fn(u64) -> Fork {
+    |_: u64| Fork::new(SovSpecId::Fork1, 0)
 }

@@ -46,7 +46,7 @@ fn logs_for_filter_test() {
     let available_res = evm.eth_get_logs(
         Filter {
             block_option: FilterBlockOption::AtBlockHash(b256!(
-                "c8f53d2fb3a04b566938033716492ea98b203139a52bc9286bea45e7613e3bd3"
+                "27e01fc6e3aad6bde81589b349a9ecd036c60621625ed9e837cf1bb9f72c0d1d"
             )),
             address: FilterSet::default(),
             topics: [
