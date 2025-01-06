@@ -16,7 +16,9 @@ pub fn use_network_forks(network: Network) {
         Network::Mainnet => &MAINNET_FORKS,
         Network::Testnet => &TESTNET_FORKS,
         Network::Devnet => &DEVNET_FORKS,
-        Network::Nightly | Network::Regtest => &NIGHTLY_FORKS,
+        Network::Nightly => &NIGHTLY_FORKS,
+        #[cfg(feature = "testing")]
+        Network::Regtest => &NIGHTLY_FORKS,
     };
 
     #[cfg(not(feature = "testing"))]
