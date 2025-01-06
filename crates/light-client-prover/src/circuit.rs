@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
@@ -12,6 +11,8 @@ use sov_rollup_interface::zk::{
 use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};
+
+type CircuitError = &'static str;
 
 #[derive(Debug)]
 pub enum LightClientVerificationError<DaV: DaVerifier> {
@@ -245,7 +246,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
     batch_proof_method_ids: &InitialBatchProofMethodIds,
     last_l2_height: u64,
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
-) -> anyhow::Result<()> {
+) -> Result<(), CircuitError> {
     // TODO: don't panic here, ignore if cant extract
     let journal = G::extract_raw_output(&proof).expect("DaData proofs must be valid");
 
@@ -266,15 +267,13 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
     {
         (output.initial_state_root, output.final_state_root, 0)
     } else {
-        return Err(anyhow!("Failed to parse proof"));
+        return Err("Failed to parse proof");
     };
 
     // Do not add if last l2 height is smaller or equal to previous output
     // This is to defend against replay attacks, for example if somehow there is the script of batch proof 1 we do not need to go through it again
     if batch_proof_output_last_l2_height <= last_l2_height && last_l2_height != 0 {
-        return Err(anyhow!(
-            "Last L2 height is less than proof's last l2 height"
-        ));
+        return Err("Last L2 height is less than proof's last l2 height");
     }
 
     let batch_proof_method_id = if batch_proof_method_ids.len() == 1 {
@@ -299,7 +298,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
 
     if G::verify(&journal, &batch_proof_method_id.into()).is_err() {
         // if the batch proof is invalid, continue to the next blob
-        return Err(anyhow!("Failed to verify proof"));
+        return Err("Failed to verify proof");
     }
 
     recursive_match_state_roots(
