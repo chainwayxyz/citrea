@@ -550,6 +550,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ contains(github.event_name, 'pull_request') || github.event_name == 'push' }}
     concurrency:
+      group: spelling-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     steps:
     - name: check-spelling
