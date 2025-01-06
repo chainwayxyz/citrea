@@ -546,7 +546,7 @@ jobs:
           docker load < /tmp/docker/bitcoin.tar
 
   spelling:
-    name: Check Spelling
+    name: spelling
     runs-on: ubuntu-latest
     if: ${{ contains(github.event_name, 'pull_request') || github.event_name == 'push' }}
     concurrency:
