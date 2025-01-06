@@ -216,7 +216,7 @@ where
                     }
                 };
 
-                if batch_proof_last_l2_height <= l2_last_height {
+                if batch_proof_last_l2_height <= l2_last_height && l2_last_height != 0 {
                     proof_index += 1;
                     continue;
                 }
