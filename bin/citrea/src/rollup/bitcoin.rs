@@ -180,7 +180,6 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
                 .collect(),
-            #[cfg(feature = "testing")]
             Network::Regtest => BATCH_PROOF_REGTEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
@@ -206,7 +205,6 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
                 .collect(),
-            #[cfg(feature = "testing")]
             Network::Regtest => LIGHT_CLIENT_LATEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
@@ -234,7 +232,6 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),
-            #[cfg(feature = "testing")]
             Network::Regtest => BATCH_PROOF_REGTEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
@@ -262,7 +259,6 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),
-            #[cfg(feature = "testing")]
             Network::Regtest => LIGHT_CLIENT_LATEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))

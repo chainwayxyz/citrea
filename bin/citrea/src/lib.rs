@@ -29,7 +29,6 @@ pub enum NetworkArg {
     Devnet,
     /// Nightly
     Nightly,
-    #[cfg(feature = "testing")]
     /// Regtest
     Regtest,
 }
@@ -41,7 +40,6 @@ impl From<NetworkArg> for Network {
             NetworkArg::Testnet => Network::Testnet,
             NetworkArg::Devnet => Network::Devnet,
             NetworkArg::Nightly => Network::Nightly,
-            #[cfg(feature = "testing")]
             NetworkArg::Regtest => Network::Regtest,
         }
     }

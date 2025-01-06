@@ -12,7 +12,6 @@ pub enum Network {
     Devnet,
     /// Nightly
     Nightly,
-    #[cfg(feature = "testing")]
     /// Regtest
     Regtest,
 }
