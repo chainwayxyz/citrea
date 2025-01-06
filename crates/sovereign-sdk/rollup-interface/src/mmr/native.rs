@@ -84,7 +84,7 @@ impl<S: NodeStore> MMRNative<S> {
             current_level += 1;
         }
 
-        let (subroot_idx, internal_idx) = self.get_helpers_from_index(index as u32);
+        let (subroot_idx, internal_idx) = self.get_helpers_from_index(index);
         let mmr_proof = MMRInclusionProof::new(subroot_idx, internal_idx, proof);
         Ok(Some((chunk, mmr_proof)))
     }
@@ -119,7 +119,7 @@ impl<S: NodeStore> MMRNative<S> {
         let xor = self.store.get_tree_size() ^ index;
         let xor_leading_digit = 31 - xor.leading_zeros();
         let internal_idx = index & ((1 << xor_leading_digit) - 1);
-        let leading_zeros_size = 31 - (self.store.get_tree_size() as u32).leading_zeros();
+        let leading_zeros_size = 31 - self.store.get_tree_size().leading_zeros();
         let mut subtree_idx = 0;
         for i in xor_leading_digit + 1..=leading_zeros_size {
             if self.store.get_tree_size() & (1 << i) != 0 {
