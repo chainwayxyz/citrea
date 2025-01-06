@@ -4,9 +4,9 @@ use super::*;
 
 #[derive(Clone)]
 struct InMemoryStore {
-    storage: BTreeMap<(usize, usize), MMRNodeHash>,
+    storage: BTreeMap<(u32, u32), MMRNodeHash>,
     chunks: BTreeMap<MMRNodeHash, MMRChunk>,
-    tree_size: usize,
+    tree_size: u32,
 }
 
 impl InMemoryStore {
@@ -20,12 +20,12 @@ impl InMemoryStore {
 }
 
 impl NodeStore for InMemoryStore {
-    fn save_node(&mut self, level: usize, index: usize, hash: MMRNodeHash) -> Result<()> {
+    fn save_node(&mut self, level: u32, index: u32, hash: MMRNodeHash) -> Result<()> {
         self.storage.insert((level, index), hash);
         Ok(())
     }
 
-    fn load_node(&self, level: usize, index: usize) -> Result<Option<MMRNodeHash>> {
+    fn load_node(&self, level: u32, index: u32) -> Result<Option<MMRNodeHash>> {
         Ok(self.storage.get(&(level, index)).cloned())
     }
 
@@ -38,11 +38,11 @@ impl NodeStore for InMemoryStore {
         Ok(self.chunks.get(&hash).cloned())
     }
 
-    fn get_tree_size(&self) -> usize {
+    fn get_tree_size(&self) -> u32 {
         self.tree_size
     }
 
-    fn set_tree_size(&mut self, size: usize) -> Result<()> {
+    fn set_tree_size(&mut self, size: u32) -> Result<()> {
         self.tree_size = size;
         Ok(())
     }

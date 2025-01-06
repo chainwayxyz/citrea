@@ -332,7 +332,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Stores the chunk's hash of an MMR
-    (MMRNodes) (usize, usize) => MMRNodeHash
+    (MMRNodes) (u32, u32) => MMRNodeHash
 );
 
 define_table_with_seek_key_codec!(
@@ -342,7 +342,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// Stores the MMR tree size
-    (MMRTreeSize) () => usize
+    (MMRTreeSize) () => u32
 );
 
 #[cfg(test)]

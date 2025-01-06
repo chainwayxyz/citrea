@@ -21,23 +21,23 @@ pub type MMRNodeHash = [u8; 32];
 pub type Wtxid = [u8; 32];
 
 pub trait NodeStore {
-    fn save_node(&mut self, level: usize, index: usize, hash: MMRNodeHash) -> Result<()>;
-    fn load_node(&self, level: usize, index: usize) -> Result<Option<MMRNodeHash>>;
+    fn save_node(&mut self, level: u32, index: u32, hash: MMRNodeHash) -> Result<()>;
+    fn load_node(&self, level: u32, index: u32) -> Result<Option<MMRNodeHash>>;
     fn save_chunk(&mut self, wtxid: Wtxid, chunk: MMRChunk) -> Result<()>;
     fn load_chunk(&self, wtxid: Wtxid) -> Result<Option<MMRChunk>>;
-    fn get_tree_size(&self) -> usize;
-    fn set_tree_size(&mut self, size: usize) -> Result<()>;
+    fn get_tree_size(&self) -> u32;
+    fn set_tree_size(&mut self, size: u32) -> Result<()>;
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
 pub struct MMRInclusionProof {
-    pub subroot_idx: usize,
+    pub subroot_idx: u32,
     pub internal_idx: u32,
     pub inclusion_proof: Vec<MMRNodeHash>,
 }
 
 impl MMRInclusionProof {
-    pub fn new(subroot_idx: usize, internal_idx: u32, inclusion_proof: Vec<MMRNodeHash>) -> Self {
+    pub fn new(subroot_idx: u32, internal_idx: u32, inclusion_proof: Vec<MMRNodeHash>) -> Self {
         MMRInclusionProof {
             subroot_idx,
             internal_idx,

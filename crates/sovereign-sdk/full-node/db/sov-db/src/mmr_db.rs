@@ -46,8 +46,8 @@ impl MmrDB {
 impl NodeStore for MmrDB {
     fn save_node(
         &mut self,
-        level: usize,
-        index: usize,
+        level: u32,
+        index: u32,
         node_hash: sov_rollup_interface::mmr::MMRNodeHash,
     ) -> anyhow::Result<()> {
         self.db.put::<MMRNodes>(&(level, index), &node_hash)
@@ -55,13 +55,13 @@ impl NodeStore for MmrDB {
 
     fn load_node(
         &self,
-        level: usize,
-        index: usize,
+        level: u32,
+        index: u32,
     ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRNodeHash>> {
         self.db.get::<MMRNodes>(&(level, index))
     }
 
-    fn get_tree_size(&self) -> usize {
+    fn get_tree_size(&self) -> u32 {
         self.db
             .get::<MMRTreeSize>(&())
             .ok()
@@ -69,7 +69,7 @@ impl NodeStore for MmrDB {
             .unwrap_or_default()
     }
 
-    fn set_tree_size(&mut self, size: usize) -> anyhow::Result<()> {
+    fn set_tree_size(&mut self, size: u32) -> anyhow::Result<()> {
         self.db.put::<MMRTreeSize>(&(), &size)
     }
 

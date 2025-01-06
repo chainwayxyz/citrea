@@ -13,7 +13,7 @@ use super::{hash_pair, MMRChunk, MMRInclusionProof, MMRNodeHash, NodeStore, Wtxi
 )]
 pub struct MMRNative<S: NodeStore> {
     pub store: S,
-    pub cache: BTreeMap<(usize, usize), MMRNodeHash>,
+    pub cache: BTreeMap<(u32, u32), MMRNodeHash>,
 }
 
 impl<S: NodeStore> MMRNative<S> {
@@ -89,7 +89,7 @@ impl<S: NodeStore> MMRNative<S> {
         Ok(Some((chunk, mmr_proof)))
     }
 
-    fn load_node(&mut self, level: usize, index: usize) -> Result<Option<MMRNodeHash>> {
+    fn load_node(&mut self, level: u32, index: u32) -> Result<Option<MMRNodeHash>> {
         if let Some(&hash) = self.cache.get(&(level, index)) {
             Ok(Some(hash))
         } else {
@@ -103,7 +103,7 @@ impl<S: NodeStore> MMRNative<S> {
         }
     }
 
-    fn find_chunk_index(&mut self, hash: MMRNodeHash) -> Result<Option<usize>> {
+    fn find_chunk_index(&mut self, hash: MMRNodeHash) -> Result<Option<u32>> {
         let size = self.store.get_tree_size();
         for i in 0..size {
             if let Some(node_hash) = self.load_node(0, i)? {
@@ -115,11 +115,11 @@ impl<S: NodeStore> MMRNative<S> {
         Ok(None)
     }
 
-    fn get_helpers_from_index(&self, index: u32) -> (usize, u32) {
-        let xor = (self.store.get_tree_size() as u32) ^ index;
-        let xor_leading_digit = 31 - xor.leading_zeros() as usize;
+    fn get_helpers_from_index(&self, index: u32) -> (u32, u32) {
+        let xor = self.store.get_tree_size() ^ index;
+        let xor_leading_digit = 31 - xor.leading_zeros();
         let internal_idx = index & ((1 << xor_leading_digit) - 1);
-        let leading_zeros_size = 31 - (self.store.get_tree_size() as u32).leading_zeros() as usize;
+        let leading_zeros_size = 31 - (self.store.get_tree_size() as u32).leading_zeros();
         let mut subtree_idx = 0;
         for i in xor_leading_digit + 1..=leading_zeros_size {
             if self.store.get_tree_size() & (1 << i) != 0 {
@@ -132,7 +132,7 @@ impl<S: NodeStore> MMRNative<S> {
     pub fn verify_proof(&mut self, chunk: MMRChunk, mmr_proof: &MMRInclusionProof) -> bool {
         let subroot = mmr_proof.get_subroot(chunk.wtxid);
         let subroots = self.get_subroots();
-        subroots[mmr_proof.subroot_idx] == subroot
+        subroots[mmr_proof.subroot_idx as usize] == subroot
     }
 
     pub(crate) fn get_subroots(&mut self) -> Vec<MMRNodeHash> {

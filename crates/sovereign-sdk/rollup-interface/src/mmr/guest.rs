@@ -46,10 +46,10 @@ impl MMRGuest {
             }
         }
 
-        if mmr_proof.subroot_idx >= self.subroots.len() {
+        if mmr_proof.subroot_idx >= self.subroots.len() as u32 {
             return false; // Subroot index is out of bounds
         }
 
-        self.subroots[mmr_proof.subroot_idx] == current_hash
+        self.subroots[mmr_proof.subroot_idx as usize] == current_hash
     }
 }
