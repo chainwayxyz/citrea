@@ -7,7 +7,6 @@ use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
-use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientProofOutput};
@@ -169,25 +168,19 @@ where
 
         for batch_proof in batch_proofs {
             if let DaDataLightClient::Complete(proof) = batch_proof {
-                let last_l2_height = match Vm::extract_output::<
+                if let Err(e) = Vm::extract_output::<
                     BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
                 >(&proof)
                 {
-                    Ok(output) => output.last_l2_height,
-                    Err(e) => {
-                        info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                        Vm::extract_output::<
-                            OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                        >(&proof)
-                        .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                        // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
-                        0
-                    }
-                };
-                let current_spec = fork_from_block_number(last_l2_height).spec_id;
+                    info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                    Vm::extract_output::<
+                        OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                    >(&proof)
+                    .map_err(|_| anyhow!("Proof should be deserializable"))?;
+                }
                 let batch_proof_method_id = self
                     .batch_proof_code_commitments
-                    .get(&current_spec)
+                    .get(&SpecId::Genesis)
                     .expect("Batch proof code commitment not found");
                 if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
                     tracing::error!("Failed to verify batch proof: {:?}", e);
@@ -200,7 +193,7 @@ where
 
         let previous_l1_height = l1_height - 1;
         let mut light_client_proof_journal = None;
-        let l2_last_height = match self
+        match self
             .ledger_db
             .get_light_client_proof_data_by_l1_height(previous_l1_height)?
         {
@@ -209,7 +202,6 @@ where
                 let output = data.light_client_proof_output;
                 assumptions.push(proof);
                 light_client_proof_journal = Some(borsh::to_vec(&output)?);
-                Some(output.last_l2_height)
             }
             None => {
                 let soft_confirmation = self
@@ -233,23 +225,18 @@ where
                         previous_l1_height
                     );
                 }
-                Some(soft_confirmation.l2_height)
             }
         };
 
         tracing::debug!("assumptions len: {:?}", assumptions.len());
 
-        let l2_last_height = l2_last_height.ok_or(anyhow!(
-            "Could not determine the last L2 height for batch proof"
-        ))?;
-        let current_fork = fork_from_block_number(l2_last_height);
         let light_client_proof_code_commitment = self
             .light_client_proof_code_commitments
-            .get(&current_fork.spec_id)
+            .get(&SpecId::Genesis)
             .expect("Fork should have a guest code attached");
         let light_client_elf = self
             .light_client_proof_elfs
-            .get(&current_fork.spec_id)
+            .get(&SpecId::Genesis)
             .expect("Fork should have a guest code attached")
             .clone();
 
