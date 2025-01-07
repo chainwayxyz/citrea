@@ -136,11 +136,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
                         let mut aggregate_chunks = vec![];
                         for wtxid in &wtx_ids {
-                            if let Some(chunk) = in_memory_chunks.get(wtxid) {
+                            if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(wtxid) {
                                 // If the wtxid belongs to a chunk that we've seen in the same L1 block,
                                 // We add it to the aggregate.
-                                aggregate_chunks.push(MMRChunk::new(*wtxid, chunk.clone()));
-                                in_memory_chunks.remove(wtxid);
+                                aggregate_chunks.push(MMRChunk::new(wtxid, chunk.clone()));
                             } else {
                                 // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
                                 // We use the hints to verify the existence of the chunk.
