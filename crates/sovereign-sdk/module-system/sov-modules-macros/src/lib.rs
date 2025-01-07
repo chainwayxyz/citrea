@@ -14,6 +14,7 @@ mod cli_parser;
 mod common;
 mod default_runtime;
 mod dispatch;
+mod fork_codec;
 mod make_constants;
 mod manifest;
 mod module_call_json_schema;
@@ -27,6 +28,7 @@ use default_runtime::DefaultRuntimeMacro;
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
+use fork_codec::derive_fork_codec;
 use make_constants::{make_const, PartialItemConst};
 use module_call_json_schema::derive_module_call_json_schema;
 use module_info::ModuleType;
@@ -212,9 +214,16 @@ pub fn cli_parser(input: TokenStream) -> TokenStream {
     let cli_parser = CliParserMacro::new("Cmd");
     handle_macro_error(cli_parser.cli_macro(input))
 }
+
 #[cfg(feature = "native")]
 #[proc_macro_derive(CliWalletArg)]
 pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
     handle_macro_error(derive_cli_wallet_arg(input))
+}
+
+#[proc_macro_derive(ForkCodec)]
+pub fn fork_codec_derive(input: TokenStream) -> TokenStream {
+    let input: syn::DeriveInput = parse_macro_input!(input);
+    handle_macro_error(derive_fork_codec(input))
 }

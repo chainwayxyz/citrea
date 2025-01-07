@@ -34,6 +34,10 @@ impl BlobReaderTrait for MockBlob {
         self.data.advance(num_bytes);
         self.verified_data()
     }
+
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
+        borsh::to_vec(self)
+    }
 }
 
 /// A [`sov_rollup_interface::da::DaSpec`] suitable for testing.
