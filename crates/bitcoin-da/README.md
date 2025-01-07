@@ -44,7 +44,7 @@ Checking _inclusion_, is easy. We can simply check that the transaction is inclu
 ### The DaService Trait
 
 The `DaService` trait is slightly more complicated than the `DaVerifier`. Thankfully, it exists entirely outside of the
-rollup's state machine - so it never has to be proven in zk. This means that its perfomance is less critical, and that
+rollup's state machine - so it never has to be proven in zk. This means that its performance is less critical, and that
 upgrading it in response to a vulnerability is much easier.
 
 The job of the `DAService` is to allow the Sovereign SDK's node software to communicate with a DA layer. It has two related

@@ -30,7 +30,7 @@ Let's say you decided to contribute through the code. Great! Now, firstly, befor
 
 After that, you may either request a task for yourself from the issues, or open an issue and state that you want to work on it. We, as maintainers, will gladly assign that particular section to you.
 
-#### Continous Integration
+#### Continuous Integration
 
 We have an integrated CI workflow in our repository, with Rust version set to stable. It runs the following on pull requests and pushes to the nightly branch:
 
