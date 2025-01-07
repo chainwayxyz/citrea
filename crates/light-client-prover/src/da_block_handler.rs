@@ -208,7 +208,6 @@ where
                             tracing::info!(
                                 "Failed to extract pre fork1 and fork1 output from proof"
                             );
-                            proof_index += 1;
                             continue;
                         }
                         // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
