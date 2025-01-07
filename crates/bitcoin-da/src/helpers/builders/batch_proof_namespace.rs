@@ -50,8 +50,6 @@ impl TxListWithReveal for BatchProvingTxs {
     }
 }
 
-// TODO: parametrize hardness
-// so tests are easier
 // Creates the batch proof transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]

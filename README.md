@@ -5,21 +5,21 @@
 ![](resources/assets/banner.png)
 
 > [!WARNING]
-> Citrea Testnet is now launched on top of Bitcoin Testnet4. While many key features are completed, Citrea's proper integration with [Bitcoin Mainnet](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) are still ongoing, and it is also going to be audited for the Mainnet. \
+> Citrea Testnet is now launched on top of Bitcoin Testnet4. While many key features are completed, Citrea's proper integration with [Bitcoin Mainnet](https://github.com/bitcoin/bitcoin) and [Clementine](https://github.com/chainwayxyz/clementine) is still ongoing, and it is also going to be audited for the Mainnet. \
 > \
 > Follow our [website](https://citrea.xyz) & [social media accounts](https://twitter.com/citrea_xyz) for announcements regarding the next phases of Citrea. \
 > \
 > Citrea uses **BTC** as its native token. **There's no Citrea token**. Please beware of scams! \
 > \
-> Please also note that **BTC** and **cBTC** of Citrea Testnet does not carry any real value.
+> Please also note that **BTC** and **cBTC** of Citrea Testnet do not carry any real value.
 
 ## What is Citrea?
 
 Citrea is the first rollup that enhances the capabilities of Bitcoin blockspace with zero-knowledge technology, **making it possible to build everything on Bitcoin**.
 
-Every transaction occuring on Citrea, is fully secured by zero-knowledge proofs and optimistically verified by Bitcoin via BitVM. The execution environment of Citrea is trustless with respect to Bitcoin and is accessible to all participants of the Bitcoin Network.
+Every transaction occurring on Citrea, is fully secured by zero-knowledge proofs and optimistically verified by Bitcoin via BitVM. The execution environment of Citrea is trustless with respect to Bitcoin and is accessible to all participants of the Bitcoin Network.
 
-Citrea's vision is to build scalable infrastructure that advances Bitcoin into its next phase, foundation for world's finance. Citrea represents **Bitcoin Security at Scale** with its execution shard that keeps the settlement and data availability on-chain, on-Bitcoin.
+Citrea's vision is to build scalable infrastructure that advances Bitcoin into its next phase, the foundation for world's finance. Citrea represents **Bitcoin Security at Scale** with its execution shard that keeps the settlement and data availability on-chain, on-Bitcoin.
 
 ## FAQ
 

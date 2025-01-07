@@ -40,7 +40,6 @@ pub fn register_healthcheck_rpc<T: Send + Sync + 'static>(
             return Ok::<(), ErrorObjectOwned>(());
         };
 
-        // TODO: if the first blocks are not being produced properly, this might cause healthcheck to always return Ok
         if head_batch_num < BLOCK_NUM_THRESHOLD {
             return Ok::<(), ErrorObjectOwned>(());
         }
