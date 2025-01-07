@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
     Deserialize,
     Hash,
 )]
+#[repr(u8)]
 #[borsh(use_discriminant = true)]
 pub enum SpecId {
     /// Genesis spec
