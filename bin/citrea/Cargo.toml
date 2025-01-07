@@ -82,6 +82,7 @@ borsh = { workspace = true }
 hex = { workspace = true }
 jmt = { workspace = true }
 reqwest = { workspace = true }
+risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rs_merkle = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
