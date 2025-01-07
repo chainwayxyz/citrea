@@ -179,6 +179,8 @@ where
         });
 
         signal::ctrl_c().await.expect("Failed to listen ctrl+c");
+        self.task_manager.abort().await;
+
         Ok(())
     }
 
