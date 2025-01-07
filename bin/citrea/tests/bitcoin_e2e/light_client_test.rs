@@ -836,9 +836,9 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap();
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
-            [1u8; 32],
             [2u8; 32],
-            fork1_height * 2,
+            [3u8; 32],
+            fork1_height * 3,
             method_ids[1].1,
         );
         let _ = bitcoin_da_service
@@ -847,9 +847,9 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap();
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [1u8; 32],
             [2u8; 32],
-            [3u8; 32],
-            fork1_height * 3,
+            fork1_height * 2,
             method_ids[1].1,
         );
         let _ = bitcoin_da_service
