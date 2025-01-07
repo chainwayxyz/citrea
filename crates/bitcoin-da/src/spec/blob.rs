@@ -81,4 +81,21 @@ impl BlobReaderTrait for BlobWithSender {
         self.blob.advance(num_bytes);
         self.verified_data()
     }
+
+    fn serialize_v1(&self) -> anyhow::Result<Vec<u8>> {
+        let v1 = BlobWithSenderV1 {
+            hash: self.hash,
+            sender: self.sender.clone(),
+            blob: &self.blob,
+        };
+        Ok(borsh::to_vec(&v1)?)
+    }
+}
+
+#[derive(BorshSerialize)]
+/// Internal type to ease serialization process
+struct BlobWithSenderV1<'a> {
+    hash: [u8; 32],
+    sender: AddressWrapper,
+    blob: &'a CountedBufReader<BlobBuf>,
 }
