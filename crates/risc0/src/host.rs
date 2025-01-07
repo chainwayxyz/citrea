@@ -234,4 +234,13 @@ impl Zkvm for Risc0BonsaiHost {
 
         Ok(T::deserialize(&mut receipt.journal.bytes.as_slice())?)
     }
+
+    fn verify_expected_to_fail(
+        _serialized_proof: &[u8],
+        _code_commitment: &Self::CodeCommitment,
+    ) -> Result<(), Self::Error> {
+        unimplemented!(
+            "Risc0 host can use verify function to show proof fails. This function is not needed."
+        )
+    }
 }

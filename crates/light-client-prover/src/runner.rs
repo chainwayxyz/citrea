@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
@@ -33,7 +32,6 @@ where
     rpc_config: RpcConfig,
     da_service: Arc<Da>,
     ledger_db: DB,
-    sequencer_client: HttpClient,
     prover_service: Arc<Ps>,
     prover_config: LightClientProverConfig,
     task_manager: TaskManager<()>,
@@ -65,14 +63,12 @@ where
         mmr_db: MmrDB,
         task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
-        let sequencer_client_url = runner_config.sequencer_client_url.clone();
         Ok(Self {
             _runner_config: runner_config,
             public_keys,
             rpc_config,
             da_service,
             ledger_db,
-            sequencer_client: HttpClientBuilder::default().build(sequencer_client_url)?,
             prover_service,
             prover_config,
             task_manager,
@@ -164,7 +160,6 @@ where
         let batch_proof_commitments_by_spec = self.batch_proof_commitments_by_spec.clone();
         let light_client_proof_commitment = self.light_client_proof_commitment.clone();
         let light_client_proof_elfs = self.light_client_proof_elfs.clone();
-        let sequencer_client = self.sequencer_client.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<Vm, Da, Ps, DB>::new(
@@ -176,7 +171,6 @@ where
                 batch_proof_commitments_by_spec,
                 light_client_proof_commitment,
                 light_client_proof_elfs,
-                Arc::new(sequencer_client),
                 mmr_db,
             );
             l1_block_handler

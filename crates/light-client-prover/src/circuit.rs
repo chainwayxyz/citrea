@@ -114,6 +114,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut in_memory_chunks: BTreeMap<Wtxid, Vec<u8>> = Default::default();
     let mut mmr_hints = input.mmr_hints.clone();
 
+    // index only incremented on processing of a complete or aggregate DA tx
+    let mut current_proof_index = 0u32;
+    let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
+    // Parse the batch proof da data
     for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
@@ -121,16 +125,18 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             if let Ok(data) = data {
                 match data {
                     DaDataLightClient::Complete(proof) => {
-                        let result = process_complete_proof::<DaV, G>(
+                        let expected_to_fail = expected_to_fail_hints
+                            .next_if(|&x| x == current_proof_index)
+                            .is_some();
+                        match process_complete_proof::<DaV, G>(
                             proof,
                             &batch_proof_method_ids,
                             last_l2_height,
                             &mut initial_to_final,
-                        );
-
-                        if let Err(e) = result {
-                            println!("Error in light client guest: {:?}", e);
-                            continue;
+                            expected_to_fail,
+                        ) {
+                            Ok(()) => current_proof_index += 1,
+                            Err(e) => println!("Error processing complete proof: {e}"),
                         }
                     }
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
@@ -139,7 +145,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(wtxid) {
                                 // If the wtxid belongs to a chunk that we've seen in the same L1 block,
                                 // We add it to the aggregate.
-                                aggregate_chunks.push(MMRChunk::new(wtxid, chunk.clone()));
+                                aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
                             } else {
                                 // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
                                 // We use the hints to verify the existence of the chunk.
@@ -166,20 +172,22 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         }
                         // Concatenate complete proof
                         let complete_proof = aggregate_chunks
-                            .iter()
-                            .flat_map(|n| n.body.clone())
+                            .into_iter()
+                            .flat_map(|n| n.body)
                             .collect::<Vec<_>>();
 
-                        let result = process_complete_proof::<DaV, G>(
+                        let expected_to_fail = expected_to_fail_hints
+                            .next_if(|&x| x == current_proof_index)
+                            .is_some();
+                        match process_complete_proof::<DaV, G>(
                             complete_proof,
                             &batch_proof_method_ids,
                             last_l2_height,
                             &mut initial_to_final,
-                        );
-
-                        if let Err(e) = result {
-                            println!("Error in light client guest: {:?}", e);
-                            continue;
+                            expected_to_fail,
+                        ) {
+                            Ok(()) => current_proof_index += 1,
+                            Err(e) => println!("Error processing aggregated proof: {e}"),
                         }
                     }
                     DaDataLightClient::Chunk(chunk) => {
@@ -245,9 +253,11 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
     batch_proof_method_ids: &InitialBatchProofMethodIds,
     last_l2_height: u64,
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
+    expected_to_fail: bool,
 ) -> Result<(), CircuitError> {
-    // TODO: don't panic here, ignore if cant extract
-    let journal = G::extract_raw_output(&proof).expect("DaData proofs must be valid");
+    let Ok(journal) = G::extract_raw_output(&proof) else {
+        return Err("Failed to extract output from proof");
+    };
 
     let (
         batch_proof_output_initial_state_root,
@@ -276,13 +286,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     let batch_proof_method_id = if batch_proof_method_ids.len() == 1 {
-        // Check if last l2 height is greater than or equal to the only batch proof method id activation height
-        if batch_proof_output_last_l2_height >= batch_proof_method_ids[0].0 {
-            batch_proof_method_ids[0].1
-        } else {
-            // If not continue to the next blob
-            return Ok(());
-        }
+        batch_proof_method_ids[0].1
     } else {
         let idx = match batch_proof_method_ids
             // Returns err and the index to be inserted, which is the index of the first element greater than the key
@@ -295,19 +299,23 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         batch_proof_method_ids[idx].1
     };
 
-    if G::verify(&journal, &batch_proof_method_id.into()).is_err() {
-        // if the batch proof is invalid, continue to the next blob
-        return Err("Failed to verify proof");
+    if expected_to_fail {
+        // if index is in the expected to fail hints, then it should fail
+        G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
+            .expect_err("Proof hinted to fail passed");
+    } else {
+        // if index is not in the expected to fail hints, then it should pass
+        G::verify(&journal, &batch_proof_method_id.into())
+            .expect("Proof hinted to pass failed");
+        recursive_match_state_roots(
+            initial_to_final,
+            &BatchProofInfo::new(
+                batch_proof_output_initial_state_root,
+                batch_proof_output_final_state_root,
+                batch_proof_output_last_l2_height,
+            ),
+        );
     }
-
-    recursive_match_state_roots(
-        initial_to_final,
-        &BatchProofInfo::new(
-            batch_proof_output_initial_state_root,
-            batch_proof_output_final_state_root,
-            batch_proof_output_last_l2_height,
-        ),
-    );
 
     Ok(())
 }

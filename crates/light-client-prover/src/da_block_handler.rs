@@ -1,18 +1,14 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 
-use alloy_primitives::U64;
-use anyhow::anyhow;
 use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
-use jsonrpsee::http_client::HttpClient;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
-use sov_db::schema::types::{SlotNumber, StoredLatestDaState, StoredLightClientProofOutput};
-use sov_ledger_rpc::LedgerRpcClient;
+use sov_db::schema::types::{SlotNumber, StoredLightClientProofOutput};
 use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, DaSpec, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace};
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
@@ -26,7 +22,7 @@ use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::metrics::LIGHT_CLIENT_METRICS;
 
@@ -47,7 +43,6 @@ where
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
-    sequencer_client: Arc<HttpClient>,
     mmr_native: MMRNative<MmrDB>,
 }
 
@@ -68,7 +63,6 @@ where
         batch_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
-        sequencer_client: Arc<HttpClient>,
         mmr_db: MmrDB,
     ) -> Self {
         let mmr_native = MMRNative::new(mmr_db);
@@ -83,7 +77,6 @@ where
             light_client_proof_elfs,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
-            sequencer_client,
             mmr_native,
         }
     }
@@ -165,6 +158,34 @@ where
             tx.full_data();
         });
 
+        let mut assumptions = vec![];
+
+        let previous_l1_height = l1_height - 1;
+        let (light_client_proof_journal, l2_last_height) = match self
+            .ledger_db
+            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
+        {
+            Some(data) => {
+                let proof = data.proof;
+                assumptions.push(proof);
+
+                let db_output = data.light_client_proof_output;
+                let output = LightClientCircuitOutput::from(db_output);
+                // TODO: instead of serializing the output
+                // we should just store and push the serialized proof as outputted from the circuit
+                // that way modifications are less error prone
+                (Some(borsh::to_vec(&output)?), output.last_l2_height)
+            }
+            None => {
+                // first time proving a light client proof
+                tracing::warn!(
+                    "Creating initial light client proof on L1 block #{}",
+                    l1_height
+                );
+                (None, 0)
+            }
+        };
+
         let batch_proofs = self.extract_batch_proofs(&mut da_data, l1_hash).await;
         tracing::info!(
             "Block {} has {} batch proofs",
@@ -175,36 +196,27 @@ where
         let mut assumptions = vec![];
         let mut unused_chunks = BTreeMap::<Wtxid, Vec<u8>>::new();
         let mut mmr_hints = vec![];
+        // index only incremented for complete and aggregated proofs, in line with the circuit
+        let mut proof_index = 0u32;
+        let mut expected_to_fail_hint = vec![];
 
         for (wtxid, batch_proof) in batch_proofs {
             match batch_proof {
                 DaDataLightClient::Complete(proof) => {
-                    let last_l2_height = match Vm::extract_output::<
-                        BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                    >(&proof)
-                    {
-                        Ok(output) => output.last_l2_height,
-                        Err(e) => {
-                            info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
-                            Vm::extract_output::<
-                                OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
-                            >(&proof)
-                            .map_err(|_| anyhow!("Proof should be deserializable"))?;
-                            // If this is a pre fork 1 proof, then we need to convert it to post fork 1 proof
-                            0
-                        }
-                    };
-                    let current_spec = fork_from_block_number(last_l2_height).spec_id;
-                    let batch_proof_method_id = self
-                        .batch_proof_code_commitments
-                        .get(&current_spec)
-                        .expect("Batch proof code commitment not found");
-                    if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
-                        tracing::error!("Failed to verify batch proof: {:?}", e);
-                        continue;
-                    }
+                    match self.verify_complete_proof(&proof, l2_last_height) {
+                        Ok(is_valid) => {
+                            if is_valid {
+                                assumptions.push(proof);
+                            } else {
+                                expected_to_fail_hint.push(proof_index);
+                            }
 
-                    assumptions.push(proof);
+                            proof_index += 1;
+                        }
+                        Err(err) => {
+                            error!("Batch proof verification failed: {err}");
+                        }
+                    }
                 }
                 DaDataLightClient::Aggregate(_txids, wtxids) => {
                     // For each of the chunks, if the chunk is not contained by any
@@ -212,14 +224,38 @@ where
                     // L1 block.
                     // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
                     // from which we can generate a hint for the guest MMR.
+                    let mut complete_proof = vec![];
                     for wtxid in wtxids {
                         // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
-                        if unused_chunks.contains_key(&wtxid) {
-                            // Clear the chunk from the unused chunks.
-                            unused_chunks.remove(&wtxid);
+                        if let Some(chunk) = unused_chunks.remove(&wtxid) {
+                            complete_proof.extend(chunk);
                         } else {
                             let hint = self.mmr_native.generate_proof(wtxid)?;
-                            mmr_hints.push(hint);
+                            if let Some((chunk, _)) = hint.as_ref() {
+                                complete_proof.extend_from_slice(&chunk.body);
+                                mmr_hints.push(hint);
+                            } else {
+                                // This aggregate is not provable since we don't have all the chunks yet.
+                                // Push None and continue next proof
+                                mmr_hints.push(None);
+                                continue;
+                            }
+
+                        }
+                    }
+
+                    match self.verify_complete_proof(&complete_proof, l2_last_height) {
+                        Ok(is_valid) => {
+                            if is_valid {
+                                assumptions.push(complete_proof);
+                            } else {
+                                expected_to_fail_hint.push(proof_index);
+                            }
+
+                            proof_index += 1;
+                        }
+                        Err(err) => {
+                            error!("Aggregated batch proof verification failed: {err}");
                         }
                     }
                 }
@@ -233,6 +269,8 @@ where
             }
         }
 
+        tracing::debug!("assumptions len: {:?}", assumptions.len());
+
         // Add unused chunks to MMR native.
         // Up until this point, the proof has been generated by aggregates in the block,
         // so it's okay to update the MMR tree now.
@@ -240,50 +278,6 @@ where
             self.mmr_native.append(MMRChunk::new(wtxid, body))?;
         }
 
-        let previous_l1_height = l1_height - 1;
-        let mut light_client_proof_journal = None;
-        let last_l2_height = match self
-            .ledger_db
-            .get_light_client_proof_data_by_l1_height(previous_l1_height)?
-        {
-            Some(data) => {
-                let proof = data.proof;
-                let output = data.light_client_proof_output;
-                assumptions.push(proof);
-                light_client_proof_journal = Some(borsh::to_vec(&output)?);
-                Some(output.last_l2_height)
-            }
-            None => {
-                let soft_confirmation = self
-                    .sequencer_client
-                    .get_soft_confirmation_by_number(U64::from(1))
-                    .await?
-                    .unwrap();
-                let initial_l1_height = soft_confirmation.da_slot_height;
-                // If the prev block is the block before the first processed l1 block
-                // then we don't have a previous light client proof, so just give an info
-                if previous_l1_height == initial_l1_height {
-                    tracing::info!(
-                        "No previous light client proof found for L1 block: {}",
-                        previous_l1_height
-                    );
-                }
-                // If not then we have a problem
-                else {
-                    panic!(
-                        "No previous light client proof found for L1 block: {}",
-                        previous_l1_height
-                    );
-                }
-                Some(soft_confirmation.l2_height)
-            }
-        };
-
-        tracing::debug!("assumptions len: {:?}", assumptions.len());
-
-        let l2_last_height = last_l2_height.ok_or(anyhow!(
-            "Could not determine the last L2 height for batch proof"
-        ))?;
         let current_fork = fork_from_block_number(l2_last_height);
         let light_client_proof_code_commitment = self
             .light_client_proof_code_commitments
@@ -303,6 +297,7 @@ where
             light_client_proof_method_id: light_client_proof_code_commitment.clone().into(),
             previous_light_client_proof_journal: light_client_proof_journal,
             mmr_hints: mmr_hints.into(),
+            expected_to_fail_hint,
         };
 
         let proof = self
@@ -317,23 +312,7 @@ where
             circuit_output
         );
 
-        let latest_da_state = &circuit_output.latest_da_state;
-        let stored_proof_output = StoredLightClientProofOutput {
-            state_root: circuit_output.state_root,
-            light_client_proof_method_id: circuit_output.light_client_proof_method_id,
-            latest_da_state: StoredLatestDaState {
-                block_hash: latest_da_state.block_hash,
-                block_height: latest_da_state.block_height,
-                total_work: latest_da_state.total_work,
-                current_target_bits: latest_da_state.current_target_bits,
-                epoch_start_time: latest_da_state.epoch_start_time,
-                prev_11_timestamps: latest_da_state.prev_11_timestamps,
-            },
-            unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
-            last_l2_height: circuit_output.last_l2_height,
-            batch_proof_method_ids: circuit_output.batch_proof_method_ids,
-            mmr_guest: circuit_output.mmr_guest,
-        };
+        let stored_proof_output = StoredLightClientProofOutput::from(circuit_output);
 
         self.ledger_db.insert_light_client_proof_data_by_l1_height(
             l1_height,
@@ -348,6 +327,49 @@ where
         LIGHT_CLIENT_METRICS.current_l1_block.set(l1_height as f64);
 
         Ok(())
+    }
+
+    fn verify_complete_proof(
+        &self,
+        proof: &Vec<u8>,
+        light_client_l2_height: u64,
+    ) -> anyhow::Result<bool> {
+        let batch_proof_last_l2_height = match Vm::extract_output::<
+            BatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+        >(proof)
+        {
+            Ok(output) => output.last_l2_height,
+            Err(e) => {
+                warn!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
+                if Vm::extract_output::<
+                    OldBatchProofCircuitOutput<<Da as DaService>::Spec, [u8; 32]>,
+                >(proof)
+                .is_err()
+                {
+                    return Err(anyhow::anyhow!("Failed to extract both pre-fork1 and fork1 output from proof"));
+                }
+                0
+            }
+        };
+
+        if batch_proof_last_l2_height <= light_client_l2_height && light_client_l2_height != 0 {
+            return Err(anyhow::anyhow!(
+                "Batch proof l2 height is less than latest light client proof l2 height"
+            ));
+        }
+
+        let current_spec = fork_from_block_number(batch_proof_last_l2_height).spec_id;
+        let batch_proof_method_id = self
+            .batch_proof_code_commitments
+            .get(&current_spec)
+            .expect("Batch proof code commitment not found");
+
+        if let Err(e) = Vm::verify(proof.as_slice(), batch_proof_method_id) {
+            warn!("Failed to verify batch proof: {:?}", e);
+            Ok(false)
+        } else {
+            Ok(true)
+        }
     }
 
     async fn extract_batch_proofs(

@@ -29,6 +29,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -67,6 +68,7 @@ fn test_light_client_circuit_valid_da_valid_data() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -104,6 +106,7 @@ fn test_wrong_order_da_blocks_should_still_work() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -145,6 +148,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -194,6 +198,7 @@ fn create_unchainable_outputs_then_chain_them_on_next_block() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -232,6 +237,7 @@ fn test_header_chain_proof_height_and_hash() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -270,6 +276,7 @@ fn test_header_chain_proof_height_and_hash() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     // Header chain verification must fail because the l1 block 3 was given before l1 block 2
@@ -308,6 +315,7 @@ fn test_unverifiable_batch_proofs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![1],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -351,6 +359,7 @@ fn test_unverifiable_prev_light_client_proof() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![1],
     };
 
     let l2_genesis_state_root = [1u8; 32];
@@ -387,6 +396,7 @@ fn test_unverifiable_prev_light_client_proof() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let res = run_circuit::<_, MockZkGuest>(
@@ -426,6 +436,7 @@ fn test_new_method_id_txs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let output_1 = run_circuit::<_, MockZkGuest>(
@@ -458,6 +469,7 @@ fn test_new_method_id_txs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let output_2 = run_circuit::<_, MockZkGuest>(
@@ -492,6 +504,7 @@ fn test_new_method_id_txs() {
         inclusion_proof: [1u8; 32],
         completeness_proof: (),
         mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
     };
 
     let output_3 = run_circuit::<_, MockZkGuest>(
@@ -511,4 +524,80 @@ fn test_new_method_id_txs() {
         output_3.batch_proof_method_ids,
         vec![(0u64, [0u32; 8]), (10u64, [2u32; 8])]
     );
+}
+
+#[test]
+#[should_panic = "Proof hinted to fail passed"]
+fn test_expect_to_fail_on_correct_proof() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, true);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![1],
+    };
+
+    let _ = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+}
+
+#[test]
+#[should_panic = "Proof hinted to pass failed"]
+fn test_expected_to_fail_proof_not_hinted() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let blob_1 = create_mock_batch_proof([1u8; 32], [2u8; 32], 2, true);
+    let blob_2 = create_mock_batch_proof([2u8; 32], [3u8; 32], 2, false);
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: None,
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        da_data: vec![blob_1, blob_2],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints: Default::default(),
+        expected_to_fail_hint: vec![],
+    };
+
+    let _ = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
 }

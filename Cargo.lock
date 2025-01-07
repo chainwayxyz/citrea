@@ -1806,6 +1806,7 @@ dependencies = [
  "reth-transaction-pool",
  "revm",
  "risc0-binfmt",
+ "risc0-zkvm",
  "rs_merkle",
  "rustc_version_runtime",
  "secp256k1",
