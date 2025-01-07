@@ -305,8 +305,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
             .expect_err("Proof hinted to fail passed");
     } else {
         // if index is not in the expected to fail hints, then it should pass
-        G::verify(&journal, &batch_proof_method_id.into())
-            .expect("Proof hinted to pass failed");
+        G::verify(&journal, &batch_proof_method_id.into()).expect("Proof hinted to pass failed");
         recursive_match_state_roots(
             initial_to_final,
             &BatchProofInfo::new(

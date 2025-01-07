@@ -240,7 +240,6 @@ where
                                 mmr_hints.push(None);
                                 continue;
                             }
-
                         }
                     }
 
