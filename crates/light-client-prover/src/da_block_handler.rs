@@ -193,7 +193,6 @@ where
             batch_proofs.len()
         );
 
-        let mut assumptions = vec![];
         let mut unused_chunks = BTreeMap::<Wtxid, Vec<u8>>::new();
         let mut mmr_hints = vec![];
         // index only incremented for complete and aggregated proofs, in line with the circuit
