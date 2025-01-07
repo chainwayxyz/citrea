@@ -18,6 +18,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::da::BlobReaderTrait;
 use super::soft_confirmation::SignedSoftConfirmationV1;
 use crate::da::{DaSpec, LatestDaState};
 use crate::mmr::{MMRChunk, MMRGuest, MMRInclusionProof};
@@ -288,7 +289,14 @@ impl<StateRoot: borsh::BorshSerialize, Witness: borsh::BorshSerialize, Da: DaSpe
         BorshSerialize::serialize(&self.initial_state_root, writer)?;
         BorshSerialize::serialize(&self.final_state_root, writer)?;
         BorshSerialize::serialize(&self.initial_batch_hash, writer)?;
-        BorshSerialize::serialize(&self.da_data, writer)?;
+
+        // We write each blob tx as serialized into v1
+        BorshSerialize::serialize(&(self.da_data.len() as u32), writer)?;
+        for blob in &self.da_data {
+            let bytes = blob.serialize_v1()?;
+            writer.write_all(&bytes)?;
+        }
+
         // remove last 32 bytes
         let original = borsh::to_vec(&self.da_block_header_of_commitments)?;
         writer.write_all(&original[..original.len() - 32])?;

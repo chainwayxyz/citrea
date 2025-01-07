@@ -82,13 +82,13 @@ impl BlobReaderTrait for BlobWithSender {
         self.verified_data()
     }
 
-    fn serialize_v1(&self) -> anyhow::Result<Vec<u8>> {
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
         let v1 = BlobWithSenderV1 {
             hash: self.hash,
             sender: self.sender.clone(),
             blob: &self.blob,
         };
-        Ok(borsh::to_vec(&v1)?)
+        borsh::to_vec(&v1)
     }
 }
 

@@ -35,8 +35,8 @@ impl BlobReaderTrait for MockBlob {
         self.verified_data()
     }
 
-    fn serialize_v1(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(borsh::to_vec(self)?)
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
+        borsh::to_vec(self)
     }
 }
 

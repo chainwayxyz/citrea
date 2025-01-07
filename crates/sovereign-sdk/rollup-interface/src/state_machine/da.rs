@@ -295,7 +295,7 @@ pub trait BlobReaderTrait:
     }
 
     /// Weird method to serialize blob as v1. Should be removed when a better way is introduced in the future.
-    fn serialize_v1(&self) -> anyhow::Result<Vec<u8>>;
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>>;
 }
 
 /// Trait with collection of trait bounds for a block hash.
