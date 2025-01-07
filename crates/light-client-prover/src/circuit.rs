@@ -111,9 +111,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             if let Ok(data) = data {
                 match data {
                     DaDataLightClient::Complete(proof) => {
-                        // TODO: don't panic here, ignore if cant extract
-                        let journal =
-                            G::extract_raw_output(&proof).expect("DaData proofs must be valid");
+                        let Ok(journal) = G::extract_raw_output(&proof) else {
+                            // cannot parse the output, skip
+                            continue;
+                        };
 
                         let (
                             batch_proof_output_initial_state_root,
