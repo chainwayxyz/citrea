@@ -135,7 +135,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         {
                             (output.initial_state_root, output.final_state_root, 0)
                         } else {
-                            current_proof_index += 1;
                             continue; // cannot parse the output, skip
                         };
 
