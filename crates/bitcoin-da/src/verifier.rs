@@ -35,7 +35,6 @@ pub struct BitcoinVerifier {
     to_light_client_prefix: Vec<u8>,
 }
 
-// TODO: custom errors based on our implementation
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValidationError {
     InvalidBlock,

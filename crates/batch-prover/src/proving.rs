@@ -350,7 +350,6 @@ where
 
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
-        // TODO: select output version based on spec
         let (mut last_active_spec_id, circuit_output) = match Vm::extract_output::<
             BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
         >(&proof)

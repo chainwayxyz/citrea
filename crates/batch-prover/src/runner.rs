@@ -429,7 +429,6 @@ where
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             current_spec,
             self.sequencer_pub_key.as_slice(),
-            // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1247): incorrect pre-state root in case of re-org
             &self.state_root,
             pre_state,
             Default::default(),

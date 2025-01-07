@@ -641,7 +641,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .balance;
         let tx_env = prepare_call_env(&block_env, &mut cfg_env, request, cap_to_balance)?;
 
-        // TODO: should we use inspect_citrea instead?
         let result = match inspect(
             evm_db,
             cfg_env,
@@ -767,7 +766,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let precompiles = get_precompiles(cfg_env.handler_cfg.spec_id);
         let mut inspector = AccessListInspector::new(initial, from, to, precompiles);
 
-        // TODO: should we use inspect_citrea instead?
         let result = inspect(
             &mut evm_db,
             cfg_env.clone(),
@@ -1786,7 +1784,6 @@ pub(crate) fn build_rpc_receipt(
             Call(_) => None,
         },
         effective_gas_price: transaction.effective_gas_price(block_base_fee),
-        // TODO pre-byzantium receipts have a post-transaction state root
         state_root: None,
         // EIP-4844 related
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
@@ -1876,8 +1873,6 @@ fn update_estimated_gas_range(
 
                     // increase the lowest gas limit
                     *lowest_gas_limit = tx_gas_limit;
-
-                    // TODO: for halt l1 fee is calculated as 0, but it should be calculated
                 }
                 err => {
                     // these should be unreachable because we know the transaction succeeds,

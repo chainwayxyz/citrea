@@ -83,7 +83,6 @@ pub(crate) fn trace_transaction<C: sov_modules_api::Context>(
                 GethDebugBuiltInTracerType::NoopTracer => {
                     Ok((NoopFrame::default().into(), Default::default()))
                 }
-                // TODO: either implement or return unsupported
                 GethDebugBuiltInTracerType::MuxTracer => Err(EthApiError::Unsupported("MuxTracer")),
                 GethDebugBuiltInTracerType::FlatCallTracer => {
                     Err(EthApiError::Unsupported("FlatCallTracer"))

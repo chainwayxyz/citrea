@@ -456,6 +456,11 @@ impl<S: Storage> WorkingSet<S> {
         ArchivalJmtWorkingSet::new(&self.delta.inner.inner, version)
     }
 
+    /// Returns a handler for the archival offchain state.
+    fn archival_offchain_state(&mut self, version: Version) -> ArchivalOffchainWorkingSet<S> {
+        ArchivalOffchainWorkingSet::new(&self.offchain_delta.inner.storage, version)
+    }
+
     /// Returns a handler for the archival accessory state (non-JMT state).
     fn archival_accessory_state(&mut self, version: Version) -> ArchivalAccessoryWorkingSet<S> {
         ArchivalAccessoryWorkingSet::new(&self.accessory_delta.inner.storage, version)
@@ -464,12 +469,14 @@ impl<S: Storage> WorkingSet<S> {
     /// Sets archival version for a working set
     pub fn set_archival_version(&mut self, version: Version) {
         self.archival_working_set = Some(self.archival_state(version));
+        self.archival_offchain_working_set = Some(self.archival_offchain_state(version));
         self.archival_accessory_working_set = Some(self.archival_accessory_state(version));
     }
 
     /// Unset archival version
     pub fn unset_archival_version(&mut self) {
         self.archival_working_set = None;
+        self.archival_offchain_working_set = None;
         self.archival_accessory_working_set = None;
     }
 

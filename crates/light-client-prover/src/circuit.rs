@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
@@ -135,52 +135,51 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
                         let mut aggregate_chunks = vec![];
-                        'wtxids_loop: for wtxid in &wtx_ids {
-                            // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
-                            // We use the hints to verify the existence of the chunk.
-                            if let Some(chunk) = in_memory_chunks.get(wtxid) {
-                                aggregate_chunks.push(MMRChunk::new(*wtxid, chunk.clone()));
-                                in_memory_chunks.remove(wtxid);
+                        for wtxid in &wtx_ids {
+                            if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(wtxid) {
+                                // If the wtxid belongs to a chunk that we've seen in the same L1 block,
+                                // We add it to the aggregate.
+                                aggregate_chunks.push(MMRChunk::new(wtxid, chunk.clone()));
                             } else {
-                                while let Some(hint) = mmr_hints.pop_front() {
-                                    // If hint was not provided, which could happen due to the non-existence of the chunk
-                                    // in the same block as aggregate, we skip trying to prove the aggregate.
-                                    let Some((chunk, proof)) = hint else {
-                                        continue 'wtxids_loop;
-                                    };
-                                    if !mmr_guest.verify_proof(&chunk, &proof) {
-                                        // circuit not provided with enough hints
-                                        continue 'wtxids_loop;
-                                    }
+                                // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
+                                // We use the hints to verify the existence of the chunk.
+                                let hint = mmr_hints.pop_front().expect("No more hints left");
 
+                                // If the hint was provided as None, which could happen due to the non-existence of the chunk
+                                // in the same block as aggregate, we skip trying to prove the aggregate.
+                                // TODO: This is an issue we must solve in the future. Since the prover can provide a hint as None,
+                                // it can ignore proofs, opening a censorship attack vector.
+                                let Some((chunk, proof)) = hint else {
+                                    continue; // ignore this aggregate
+                                };
+
+                                if *wtxid != chunk.wtxid {
+                                    panic!("Hint wtxid does not match chunk wtxid!");
+                                }
+
+                                if mmr_guest.verify_proof(&chunk, &proof) {
                                     aggregate_chunks.push(chunk);
+                                } else {
+                                    panic!("Failed to verify MMR proof for hint");
                                 }
                             }
                         }
+                        // Concatenate complete proof
+                        let complete_proof = aggregate_chunks
+                            .iter()
+                            .flat_map(|n| n.body.clone())
+                            .collect::<Vec<_>>();
 
-                        let existing_wtx_ids: BTreeSet<Wtxid> =
-                            aggregate_chunks.iter().map(|c| c.wtxid).collect();
-                        let aggregate_wtx_ids: BTreeSet<Wtxid> = wtx_ids.iter().cloned().collect();
+                        let result = process_complete_proof::<DaV, G>(
+                            complete_proof,
+                            &batch_proof_method_ids,
+                            last_l2_height,
+                            &mut initial_to_final,
+                        );
 
-                        // Make sure we have all the chunks, perform verification
-                        if aggregate_wtx_ids.is_subset(&existing_wtx_ids) {
-                            // Concatenate complete proof
-                            let complete_proof = aggregate_chunks
-                                .iter()
-                                .flat_map(|n| n.body.clone())
-                                .collect::<Vec<_>>();
-
-                            let result = process_complete_proof::<DaV, G>(
-                                complete_proof,
-                                &batch_proof_method_ids,
-                                last_l2_height,
-                                &mut initial_to_final,
-                            );
-
-                            if let Err(e) = result {
-                                println!("Error in light client guest: {:?}", e);
-                                continue;
-                            }
+                        if let Err(e) = result {
+                            println!("Error in light client guest: {:?}", e);
+                            continue;
                         }
                     }
                     DaDataLightClient::Chunk(chunk) => {
