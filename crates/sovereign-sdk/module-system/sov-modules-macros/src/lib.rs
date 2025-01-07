@@ -212,6 +212,7 @@ pub fn cli_parser(input: TokenStream) -> TokenStream {
     let cli_parser = CliParserMacro::new("Cmd");
     handle_macro_error(cli_parser.cli_macro(input))
 }
+
 #[cfg(feature = "native")]
 #[proc_macro_derive(CliWalletArg)]
 pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
