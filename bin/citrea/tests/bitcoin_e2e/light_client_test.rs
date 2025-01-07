@@ -822,75 +822,58 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let method_ids = lcp_output.batch_proof_method_ids;
         let genesis_state_root = lcp_output.state_root;
 
-        let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
-            initial_state_root: genesis_state_root,
-            final_state_root: [1u8; 32],
-            last_l2_height: 1000,
-            da_slot_hash: [0u8; 32].into(),
-            prev_soft_confirmation_hash: [0u8; 32],
-            final_soft_confirmation_hash: [0u8; 32],
-            state_diff: BTreeMap::new(),
-            sequencer_commitments_range: (0, 0),
-            sequencer_da_public_key: [0u8; 32].to_vec(),
-            sequencer_public_key: [0u8; 32].to_vec(),
-            preproven_commitments: vec![],
-        };
+        let fork1_height = method_ids[1].0;
 
-        let output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
-        let random_method_id = [1u32; 8];
-        let claim = ReceiptClaim::ok(random_method_id, output_serialized.clone());
-        let claim = MaybePruned::Value(claim);
-        let fake_receipt = FakeReceipt::new(claim);
-        // Receipt with unverifiable claim
-        let unverifiable_receipt =
-            Receipt::new(InnerReceipt::Fake(fake_receipt), output_serialized.clone());
-        let unverifiable_batch_proof = bincode::serialize(&unverifiable_receipt).unwrap();
-        let _ = bitcoin_da_service
-            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
-            .await
-            .unwrap();
-
-        // Ensure that batch proof is submitted to DA
-        da.wait_mempool_len(2, None).await?;
-
-        // Finalize the DA block which contains the batch proof tx
-        da.generate(FINALITY_DEPTH).await?;
-
-        let batch_proof_l1_height = da.get_finalized_height().await?;
-
-        // Wait for light client prover to process unverifiable batch proof
-        light_client_prover
-            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-            .await
-            .unwrap();
-
-        // Expect light client prover to have generated light client proof without panic but it should not have updated the state root
-        let lcp = light_client_prover
-            .client
-            .http_client()
-            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
-            .await?;
-
-        let lcp_output = lcp.unwrap().light_client_proof_output;
-        assert_eq!(lcp_output.state_root, genesis_state_root);
-
-        // Now send a verifiable batch proof to see the state transition
-        let claim = ReceiptClaim::ok(method_ids[1].1, output_serialized.clone());
-        let claim = MaybePruned::Value(claim);
-        let fake_receipt = FakeReceipt::new(claim);
-        // Receipt with unverifiable claim
-        let verifiable_receipt =
-            Receipt::new(InnerReceipt::Fake(fake_receipt), output_serialized.clone());
-        let verifiable_batch_proof = bincode::serialize(&verifiable_receipt).unwrap();
+        let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
+            genesis_state_root,
+            [1u8; 32],
+            fork1_height + 1,
+            method_ids[1].1,
+        );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
             .await
             .unwrap();
 
-        // Ensure that batch proof is submitted to DA
-        da.wait_mempool_len(2, None).await?;
+        let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [1u8; 32],
+            [2u8; 32],
+            fork1_height * 2,
+            method_ids[1].1,
+        );
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
+            .await
+            .unwrap();
 
-        // Finalize the DA block which contains the batch proof tx
+        let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [2u8; 32],
+            [3u8; 32],
+            fork1_height * 3,
+            method_ids[1].1,
+        );
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
+            .await
+            .unwrap();
+
+        // Give it a random method id to make it unverifiable
+        let random_method_id = [1u32; 8];
+        let unverifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [3u8; 32],
+            [4u8; 32],
+            fork1_height * 4,
+            random_method_id,
+        );
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
+            .await
+            .unwrap();
+
+        // Ensure that all four batch proofs is submitted to DA
+        da.wait_mempool_len(8, None).await?;
+
+        // Finalize the DA block which contains the batch proof txs
         da.generate(FINALITY_DEPTH).await?;
 
         let batch_proof_l1_height = da.get_finalized_height().await?;
@@ -909,8 +892,10 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .await?;
 
         let lcp_output = lcp.unwrap().light_client_proof_output;
-        assert_eq!(lcp_output.state_root, [1u8; 32]);
-        assert_eq!(lcp_output.last_l2_height, 1000);
+
+        // The unverifiable batch proofs should not have updated the state root or the last l2 height
+        assert_eq!(lcp_output.state_root, [3u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height * 3);
 
         Ok(())
     }
@@ -922,4 +907,32 @@ async fn test_light_client_unverifiable_batch_proof() -> Result<()> {
         .set_citrea_path(get_citrea_path())
         .run()
         .await
+}
+
+fn create_serialized_fake_receipt_batch_proof(
+    initial_state_root: [u8; 32],
+    final_state_root: [u8; 32],
+    last_l2_height: u64,
+    method_id: [u32; 8],
+) -> Vec<u8> {
+    let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
+        initial_state_root,
+        final_state_root,
+        last_l2_height,
+        da_slot_hash: [0u8; 32].into(),
+        prev_soft_confirmation_hash: [0u8; 32],
+        final_soft_confirmation_hash: [0u8; 32],
+        state_diff: BTreeMap::new(),
+        sequencer_commitments_range: (0, 0),
+        sequencer_da_public_key: [0u8; 32].to_vec(),
+        sequencer_public_key: [0u8; 32].to_vec(),
+        preproven_commitments: vec![],
+    };
+    let output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
+
+    let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized.clone()));
+    let fake_receipt = FakeReceipt::new(claim);
+    // Receipt with verifiable claim
+    let receipt = Receipt::new(InnerReceipt::Fake(fake_receipt), output_serialized.clone());
+    bincode::serialize(&receipt).unwrap()
 }
