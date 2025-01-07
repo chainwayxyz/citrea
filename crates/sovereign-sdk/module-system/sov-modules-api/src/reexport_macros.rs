@@ -88,6 +88,10 @@ pub use sov_modules_macros::ModuleCallJsonSchema;
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::ModuleInfo;
 
+/// Implements ForkCodec trait. Requires the type to be enum.
+#[cfg(feature = "macros")]
+pub use sov_modules_macros::ForkCodec;
+
 /// Procedural macros to assist with creating new modules.
 #[cfg(feature = "macros")]
 pub mod macros {
