@@ -244,9 +244,6 @@ pub struct BatchProverConfig {
 }
 
 /// Prover configuration
-///
-/// TODO: leaving as the same with batch prover config for now
-/// but it will most probably have different fields in the future
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct LightClientProverConfig {
     /// Prover run mode

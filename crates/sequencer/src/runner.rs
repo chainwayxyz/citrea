@@ -348,9 +348,6 @@ where
                                                 continue;
                                             },
                                             // we won't try to execute system transactions here
-                                            // TODO: there is methods in mempool iterators to mark invalid transactions
-                                            // it might be better to mark them as invalid so we don't try executing the
-                                            // following txs from the adress
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                                 l1_fee_failed_txs.push(*evm_tx.hash());
