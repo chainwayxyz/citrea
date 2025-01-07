@@ -846,6 +846,19 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .await
             .unwrap();
 
+        // Expect unparsable journal to be skipped
+        let unparsable_batch_proof =
+            create_serialized_fake_receipt_batch_proof_with_malformed_journal(
+                [3u8; 32],
+                [5u8; 32],
+                fork1_height * 4,
+                method_ids[1].1,
+            );
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
+            .await
+            .unwrap();
+
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             [1u8; 32],
             [2u8; 32],
@@ -871,7 +884,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap();
 
         // Ensure that all four batch proofs is submitted to DA
-        da.wait_mempool_len(8, None).await?;
+        da.wait_mempool_len(10, None).await?;
 
         // Finalize the DA block which contains the batch proof txs
         da.generate(FINALITY_DEPTH).await?;
@@ -893,9 +906,10 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
 
         let lcp_output = lcp.unwrap().light_client_proof_output;
 
-        // The unverifiable batch proofs should not have updated the state root or the last l2 height
+        // The unverifiable batch proof and malformed journal batch proof should not have updated the state root or the last l2 height
         assert_eq!(lcp_output.state_root, [3u8; 32]);
         assert_eq!(lcp_output.last_l2_height, fork1_height * 3);
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         Ok(())
     }
@@ -934,5 +948,42 @@ fn create_serialized_fake_receipt_batch_proof(
     let fake_receipt = FakeReceipt::new(claim);
     // Receipt with verifiable claim
     let receipt = Receipt::new(InnerReceipt::Fake(fake_receipt), output_serialized.clone());
+    bincode::serialize(&receipt).unwrap()
+}
+
+fn create_serialized_fake_receipt_batch_proof_with_malformed_journal(
+    initial_state_root: [u8; 32],
+    final_state_root: [u8; 32],
+    last_l2_height: u64,
+    method_id: [u32; 8],
+) -> Vec<u8> {
+    let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
+        initial_state_root,
+        final_state_root,
+        last_l2_height,
+        da_slot_hash: [0u8; 32].into(),
+        prev_soft_confirmation_hash: [0u8; 32],
+        final_soft_confirmation_hash: [0u8; 32],
+        state_diff: BTreeMap::new(),
+        sequencer_commitments_range: (0, 0),
+        sequencer_da_public_key: [0u8; 32].to_vec(),
+        sequencer_public_key: [0u8; 32].to_vec(),
+        preproven_commitments: vec![],
+    };
+    let output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
+
+    let mut output_serialized_malformed = vec![1u8];
+    output_serialized_malformed.extend(output_serialized.clone());
+
+    let claim = MaybePruned::Value(ReceiptClaim::ok(
+        method_id,
+        output_serialized_malformed.clone(),
+    ));
+    let fake_receipt = FakeReceipt::new(claim);
+    // Receipt with verifiable claim
+    let receipt = Receipt::new(
+        InnerReceipt::Fake(fake_receipt),
+        output_serialized_malformed.clone(),
+    );
     bincode::serialize(&receipt).unwrap()
 }
