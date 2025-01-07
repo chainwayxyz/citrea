@@ -153,7 +153,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                     continue; // ignore this aggregate
                                 };
 
-                                if chunk.wtxid != chunk.wtxid {
+                                if *wtxid != chunk.wtxid {
                                     panic!("Hint wtxid does not match chunk wtxid!");
                                 }
 
