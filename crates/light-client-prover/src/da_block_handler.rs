@@ -368,8 +368,6 @@ async fn sync_l1<Da>(
     info!("Starting to sync from L1 height {}", l1_height);
 
     'block_sync: loop {
-        // TODO: for a node, the da block at slot_height might not have been finalized yet
-        // should wait for it to be finalized
         let last_finalized_l1_block_header =
             match da_service.get_last_finalized_block_header().await {
                 Ok(header) => header,

@@ -108,8 +108,6 @@ impl TxListWithReveal for LightClientTxs {
     }
 }
 
-// TODO: parametrize hardness
-// so tests are easier
 // Creates the light client transactions (commit and reveal)
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
@@ -161,7 +159,6 @@ pub fn create_light_client_transactions(
     }
 }
 
-// TODO: parametrize hardness so tests are easier
 // Creates the inscription transactions Type 0 - LightClientTxs::Complete
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
@@ -323,7 +320,6 @@ pub fn create_inscription_type_0(
     }
 }
 
-// TODO: parametrize hardness so tests are easier
 // Creates the inscription transactions Type 1 - LightClientTxs::Chunked
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
@@ -618,7 +614,6 @@ pub fn create_inscription_type_1(
     }
 }
 
-// TODO: parametrize hardness so tests are easier
 // Creates the inscription transactions Type 0 - LightClientTxs::BatchProofMethodId
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]

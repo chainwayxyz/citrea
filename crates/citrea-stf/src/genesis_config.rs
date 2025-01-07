@@ -59,8 +59,6 @@ pub fn get_genesis_config<C: Context, Da: DaSpec>(
 pub(crate) fn validate_config<C: Context, Da: DaSpec>(
     genesis_config: <Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig,
 ) -> Result<<Runtime<C, Da> as RuntimeTrait<C, Da>>::GenesisConfig, anyhow::Error> {
-    // TODO
-
     Ok(genesis_config)
 }
 

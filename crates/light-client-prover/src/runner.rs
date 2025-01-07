@@ -178,20 +178,8 @@ where
                 .await
         });
 
-        // Temporary fix
         signal::ctrl_c().await.expect("Failed to listen ctrl+c");
         Ok(())
-
-        // TODO: update this once l2 sync is implemented
-        // loop {
-        //     select! {
-        //         _ = signal::ctrl_c() => {
-        //             info!("Shutting down");
-        //             self.task_manager.abort().await;
-        //             return Ok(());
-        //         }
-        //     }
-        // }
     }
 
     /// Creates a shared RpcContext with all required data.

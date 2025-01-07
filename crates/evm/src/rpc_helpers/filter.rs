@@ -345,7 +345,6 @@ impl Filter {
         false
     }
 
-    /// TODO: Update after deciding on what to do with archival nodes
     pub fn filter_block_range(&self, block_number: &u64) -> bool {
         let mut res = true;
 
