@@ -345,6 +345,7 @@ impl Filter {
         false
     }
 
+    /// Makes sure that provided block number falls within the range of the filter
     pub fn filter_block_range(&self, block_number: &u64) -> bool {
         let mut res = true;
 
