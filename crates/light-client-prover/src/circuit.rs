@@ -149,14 +149,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 continue;
                             }
 
-                            let Some((chunk, _)) = mmr_hints_iter.next() else {
-                                println!(
-                                    "Missing mmr hint, unprovable aggregate {:?}",
-                                    blob.wtxid()
-                                );
-                                continue 'blob_loop;
-                            };
-                            if *wtxid != chunk.wtxid {
+                            let hint = mmr_hints_iter.next();
+                            if hint.is_none() || hint.unwrap().0.wtxid != *wtxid {
                                 println!(
                                     "Missing mmr hint, unprovable aggregate {:?}",
                                     blob.wtxid()
