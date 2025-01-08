@@ -199,7 +199,7 @@ where
         let mut proof_index = 0u32;
         let mut expected_to_fail_hint = vec![];
 
-        for (wtxid, batch_proof) in batch_proofs {
+        'proof_loop: for (wtxid, batch_proof) in batch_proofs {
             match batch_proof {
                 DaDataLightClient::Complete(proof) => {
                     match self.verify_complete_proof(&proof, l2_last_height) {
@@ -226,7 +226,7 @@ where
                                 l1_height,
                                 hex::encode(wtxid)
                             );
-                            continue;
+                            continue 'proof_loop;
                         }
                     }
 
