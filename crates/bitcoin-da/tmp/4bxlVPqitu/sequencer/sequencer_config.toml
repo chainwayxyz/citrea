@@ -1,0 +1,15 @@
+private_key = "1212121212121212121212121212121212121212121212121212121212121212"
+min_soft_confirmations_per_commitment = 4
+test_mode = true
+deposit_mempool_fetch_limit = 10
+da_update_interval_ms = 100
+block_production_interval_ms = 100
+
+[mempool_conf]
+pending_tx_limit = 100000
+pending_tx_size = 200
+queue_tx_limit = 100000
+queue_tx_size = 200
+base_fee_tx_limit = 100000
+base_fee_tx_size = 200
+max_account_slots = 16

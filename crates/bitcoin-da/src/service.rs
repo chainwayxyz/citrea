@@ -42,12 +42,12 @@ use crate::helpers::builders::light_client_proof_namespace::{
     create_light_client_transactions, LightClientTxs, RawLightClientData,
 };
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
-use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
     ParsedLightClientTransaction, VerifyParsed,
 };
+use crate::helpers::{calculate_sha256, merkle_tree};
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -946,6 +946,9 @@ impl DaService for BitcoinService {
             block.header.block_hash()
         );
 
+        for tx in block.txdata.iter() {
+            warn!("wtxid of data: {:?}", tx.compute_wtxid());
+        }
         let prefix = match namespace {
             DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
             DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
@@ -993,6 +996,7 @@ impl DaService for BitcoinService {
         let mut relevant_txs = vec![];
         for tx in &completeness_proof {
             let wtxid = tx.compute_wtxid();
+            println!("wtxid: {:?}", wtxid);
             match namespace {
                 DaNamespace::ToBatchProver => {
                     if let Ok(tx) = parse_batch_proof_transaction(tx) {
@@ -1028,6 +1032,7 @@ impl DaService for BitcoinService {
                                 }
                             }
                             ParsedLightClientTransaction::Aggregate(aggregate) => {
+                                println!("Aggregate in extract blobs:");
                                 if let Some(hash) = aggregate.get_sig_verified_hash() {
                                     let relevant_tx = BlobWithSender::new(
                                         aggregate.body,
@@ -1039,10 +1044,11 @@ impl DaService for BitcoinService {
                                 }
                             }
                             ParsedLightClientTransaction::Chunk(chunk) => {
+                                let hash = calculate_sha256(&chunk.body);
                                 let relevant_tx = BlobWithSender::new(
                                     chunk.body,
                                     vec![0],
-                                    [0; 32],
+                                    hash,
                                     Some(wtxid.to_byte_array()),
                                 );
                                 relevant_txs.push(relevant_tx);

@@ -1,0 +1,39 @@
+[rpc]
+bind_host = "127.0.0.1"
+bind_port = 59086
+max_connections = 100
+max_request_body_size = 10485760
+max_response_body_size = 10485760
+batch_requests_limit = 50
+enable_subscriptions = true
+max_subscriptions_per_connection = 100
+
+[storage]
+path = "tmp/Vwwq0ROanb/dbs/batch-prover-db"
+
+[runner]
+sequencer_client_url = "http://127.0.0.1:59085"
+include_tx_body = true
+sync_blocks_count = 10
+
+[da]
+node_url = "http://127.0.0.1:59084/wallet/batch-prover"
+node_username = "user"
+node_password = "password"
+network = "regtest"
+da_private_key = "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707"
+tx_backup_dir = "tmp/Vwwq0ROanb/inscription_txs"
+
+[da.monitoring]
+check_interval = 1
+history_limit = 100
+max_history_size = 1000000
+
+[public_keys]
+sequencer_public_key = "204040e364c10f2bec9c1fe500a1cd4c247c89d650a01ed7e82caba867877c21"
+sequencer_da_pub_key = "02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9"
+prover_da_pub_key = "03eedab888e45f3bdc3ec9918c491c11e5cf7af0a91f38b97fbc1e135ae4056601"
+
+[telemetry]
+bind_host = "0.0.0.0"
+bind_port = 0

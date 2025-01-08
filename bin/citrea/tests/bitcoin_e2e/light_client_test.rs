@@ -1049,7 +1049,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             [1u8; 32],
             fork1_height + 1,
             method_ids[1].1,
-            Some(state_diff_100kb),
+            Some(state_diff_100kb.clone()),
             false,
         );
         println!("size of proof: {:?}", verifiable_100kb_batch_proof.len());
@@ -1069,11 +1069,13 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         let batch_proof_l1_height = da.get_finalized_height().await?;
 
-        // let block = da.get_block(batch_proof_l1_height).await?;
+        let bhash = da.get_block_hash(batch_proof_l1_height).await?;
 
-        // for tx in block.txdata.iter() {
-        //     println!("tx: {:?}", tx);
-        // }
+        let block = da.get_block(&bhash).await?;
+
+        for tx in block.txdata.iter() {
+            println!("wtxid in test: {:?}", tx.compute_wtxid());
+        }
 
         sequencer.client.send_publish_batch_request().await?;
         // Wait for light client prover to process verifiable batch proof
@@ -1204,82 +1206,52 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         assert_eq!(lcp_output.last_l2_height, fork1_height * 2);
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
-        // let random_method_id = [1u32; 8];
-        // let unverifiable_1mb_batch_proof = create_serialized_fake_receipt_batch_proof(
-        //     genesis_state_root,
-        //     [1u8; 32],
-        //     fork1_height + 1,
-        //     random_method_id,
-        //     Some(state_diff_100kb),
-        //     false,
-        // );
-        // let _ = bitcoin_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_1mb_batch_proof), 1)
-        //     .await
-        //     .unwrap();
+        let random_method_id = [1u32; 8];
 
-        // let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
-        //     [2u8; 32],
-        //     [3u8; 32],
-        //     fork1_height * 3,
-        //     method_ids[1].1,
-        // );
-        // let _ = bitcoin_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
-        //     .await
-        //     .unwrap();
+        // This should result in 3 chunks and 1 aggregate tx
+        let unverifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [2u8; 32],
+            [3u8; 32],
+            fork1_height * 3,
+            random_method_id,
+            Some(state_diff_100kb),
+            false,
+        );
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_100kb_batch_proof), 1)
+            .await
+            .unwrap();
 
-        // let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
-        //     [1u8; 32],
-        //     [2u8; 32],
-        //     fork1_height * 2,
-        //     method_ids[1].1,
-        // );
-        // let _ = bitcoin_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
-        //     .await
-        //     .unwrap();
+        // In total 3 chunks 1 aggregate with all of them having reveal and commit txs we should have 8 txs in mempool
+        da.wait_mempool_len(8, Some(TEN_MINS)).await?;
 
-        // // Give it a random method id to make it unverifiable
+        // Finalize the DA block which contains the batch proof txs
+        da.generate(FINALITY_DEPTH).await?;
 
-        // let unverifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
-        //     [3u8; 32],
-        //     [4u8; 32],
-        //     fork1_height * 4,
-        //     random_method_id,
-        // );
-        // let _ = bitcoin_da_service
-        //     .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
-        //     .await
-        //     .unwrap();
+        // Make sure all of them are in the block
+        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
 
-        // // Ensure that all four batch proofs is submitted to DA
-        // da.wait_mempool_len(10, None).await?;
+        let batch_proof_l1_height = da.get_finalized_height().await?;
 
-        // // Finalize the DA block which contains the batch proof txs
-        // da.generate(FINALITY_DEPTH).await?;
+        // Wait for light client prover to process verifiable batch proof
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
 
-        // let batch_proof_l1_height = da.get_finalized_height().await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
 
-        // // Wait for light client prover to process unverifiable batch proof
-        // light_client_prover
-        //     .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
-        //     .await
-        //     .unwrap();
-
-        // // Expect light client prover to have generated light client proof without panic but it should not have updated the state root
-        // let lcp = light_client_prover
-        //     .client
-        //     .http_client()
-        //     .get_light_client_proof_by_l1_height(batch_proof_l1_height)
-        //     .await?;
-
-        // let lcp_output = lcp.unwrap().light_client_proof_output;
-
-        // // The unverifiable batch proof and malformed journal batch proof should not have updated the state root or the last l2 height
-        // assert_eq!(lcp_output.state_root, [3u8; 32]);
-        // assert_eq!(lcp_output.last_l2_height, fork1_height * 3);
-        // assert!(lcp_output.unchained_batch_proofs_info.is_empty());
+        // The batch proof should NOT have updated the state root and the last l2 height
+        // Because it is not verified
+        assert_eq!(lcp_output.state_root, [2u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height * 2);
+        // Also should not leave unchained outputs
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
 
         Ok(())
     }

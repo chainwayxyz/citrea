@@ -546,12 +546,15 @@ where
     T: VerifyParsed,
     I: Iterator<Item = &'a BlobWithSender>,
 {
+    println!("wtxid in verified_blob_chunk: {:?}", wtxid);
     if let Some(blob_hash) = tx.get_unverified_hash() {
+        println!("blob_hash: {:?}", blob_hash);
         let blob = blobs_iter.next();
 
         let Some(blob) = blob else {
             return Err(ValidationError::ValidBlobNotFoundInBlobs);
         };
+        println!("blob.hash: {:?}", blob.hash);
 
         if blob.hash != blob_hash {
             return Err(ValidationError::BlobWasTamperedWith);

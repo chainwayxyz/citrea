@@ -140,6 +140,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         }
                     }
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
+                        println!("aggregate wtxids: {:?}", wtx_ids);
                         let mut aggregate_chunks = vec![];
                         for wtxid in &wtx_ids {
                             if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(wtxid) {
@@ -174,10 +175,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         // TODO: Continue on error
                         let complete_proof = da_verifier
                             .decompress_chunks(
-                                aggregate_chunks
-                                    .into_iter()
-                                    .flat_map(|n| n.body)
-                                    .collect(),
+                                aggregate_chunks.into_iter().flat_map(|n| n.body).collect(),
                             )
                             .expect("Should decompress and borsh deserialize");
 
@@ -197,6 +195,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                     DaDataLightClient::Chunk(chunk) => {
                         // Store the chunk in memory
+                        println!("Storing chunk in memory");
                         in_memory_chunks
                             .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
                     }
