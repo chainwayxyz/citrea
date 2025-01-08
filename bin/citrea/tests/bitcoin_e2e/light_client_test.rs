@@ -1071,9 +1071,9 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // let block = da.get_block(batch_proof_l1_height).await?;
 
-        for tx in block.txdata.iter() {
-            println!("tx: {:?}", tx);
-        }
+        // for tx in block.txdata.iter() {
+        //     println!("tx: {:?}", tx);
+        // }
 
         sequencer.client.send_publish_batch_request().await?;
         // Wait for light client prover to process verifiable batch proof

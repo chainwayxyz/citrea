@@ -176,8 +176,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             .decompress_chunks(
                                 aggregate_chunks
                                     .into_iter()
-                                    .map(|n| n.body)
-                                    .flatten()
+                                    .flat_map(|n| n.body)
                                     .collect(),
                             )
                             .expect("Should decompress and borsh deserialize");
