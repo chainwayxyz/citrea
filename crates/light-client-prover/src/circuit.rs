@@ -181,29 +181,25 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         let expected_to_fail = expected_to_fail_hints
                             .next_if(|&x| x == current_proof_index)
                             .is_some();
-                        match (
-                            process_complete_proof::<DaV, G>(
-                                &complete_proof,
-                                &batch_proof_method_ids,
-                                last_l2_height,
-                                &mut initial_to_final,
-                                expected_to_fail,
-                            ),
+                        match process_complete_proof::<DaV, G>(
+                            &complete_proof,
+                            &batch_proof_method_ids,
+                            last_l2_height,
+                            &mut initial_to_final,
                             expected_to_fail,
                         ) {
-                            // verified for success
-                            (Ok(()), false) => current_proof_index += 1,
-                            // verified for failure
-                            (Ok(()), true) => {
-                                for (idx, size, wtxid) in used_chunk_ptrs {
-                                    let chunk = complete_proof[idx..idx + size].to_vec();
-                                    in_memory_chunks.insert(wtxid, chunk);
+                            Ok(()) => {
+                                if expected_to_fail {
+                                    for (idx, size, wtxid) in used_chunk_ptrs {
+                                        let chunk = complete_proof[idx..idx + size].to_vec();
+                                        in_memory_chunks.insert(wtxid, chunk);
+                                    }
                                 }
 
                                 current_proof_index += 1;
                             }
                             // serialization or duplicate proof error
-                            (Err(e), _) => {
+                            Err(e) => {
                                 for (idx, size, wtxid) in used_chunk_ptrs {
                                     let chunk = complete_proof[idx..idx + size].to_vec();
                                     in_memory_chunks.insert(wtxid, chunk);

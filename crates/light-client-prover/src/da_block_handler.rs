@@ -203,13 +203,12 @@ where
             match batch_proof {
                 DaDataLightClient::Complete(proof) => {
                     match self.verify_complete_proof(&proof, l2_last_height) {
-                        Ok(is_valid) => {
-                            if is_valid {
-                                assumptions.push(proof);
-                            } else {
-                                expected_to_fail_hint.push(proof_index);
-                            }
-
+                        Ok(true) => {
+                            assumptions.push(proof);
+                            proof_index += 1;
+                        }
+                        Ok(false) => {
+                            expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
                         Err(err) => {
@@ -255,22 +254,22 @@ where
                         }
                         Ok(false) => {
                             error!(
-                                "DA contains invalid aggregate proof, wtxid = {}",
+                                "Aggregate batch proof verification failed. wtxid = {}",
                                 hex::encode(wtxid)
                             );
 
-                            expected_to_fail_hint.push(proof_index);
                             // Re-add chunks in case of failure
                             for (idx, size, wtxid) in used_chunk_ptrs {
                                 let chunk = complete_proof[idx..idx + size].to_vec();
                                 unused_chunks.insert(wtxid, chunk);
                             }
 
+                            expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
                         Err(err) => {
                             error!(
-                                "Aggregated batch proof verification failed. wtxid = {} err = {}",
+                                "Invalid aggregate batch proof found. wtxid = {} err = {}",
                                 hex::encode(wtxid),
                                 err
                             );
