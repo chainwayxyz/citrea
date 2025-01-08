@@ -57,6 +57,7 @@ pub enum ValidationError {
     InvalidTargetHash,
     InvalidTimestamp,
     HeaderInclusionTxCountMismatch,
+    FailedToDeserializeCompleteChunks,
 }
 
 impl DaVerifier for BitcoinVerifier {
@@ -71,14 +72,9 @@ impl DaVerifier for BitcoinVerifier {
         }
     }
 
-    fn chunks_to_complete(
-        &self,
-        chunks: impl Iterator<Item = Vec<u8>>,
-    ) -> Result<Vec<u8>, Self::Error> {
-        let chunks = chunks.flatten().collect::<Vec<u8>>();
-        borsh::from_slice(decompress_blob(&chunks).as_slice())
-            // TODO update error
-            .map_err(|_| ValidationError::InvalidBlock)
+    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
+        borsh::from_slice(decompress_blob(&complete_chunks).as_slice())
+            .map_err(|_| ValidationError::FailedToDeserializeCompleteChunks)
     }
 
     // Verify that the given list of blob transactions is complete and correct.

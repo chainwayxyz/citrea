@@ -350,12 +350,9 @@ impl DaService for MockDaService {
     type Error = anyhow::Error;
     type BlockHash = [u8; 32];
 
-    /// TODO: Docs
-    fn chunks_to_complete(
-        &self,
-        _chunks: impl Iterator<Item = Vec<u8>>,
-    ) -> Result<Vec<u8>, Self::Error> {
-        todo!()
+    /// Decompress and deserialize chunks
+    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
+        Ok(complete_chunks)
     }
 
     /// Gets block at given height

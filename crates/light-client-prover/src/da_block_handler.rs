@@ -268,7 +268,7 @@ where
                     // TODO: Handle error
                     let complete_proof = self
                         .da_service
-                        .chunks_to_complete(complete_proof.into_iter())
+                        .decompress_chunks(complete_proof.into_iter().flatten().collect())
                         .unwrap();
 
                     tracing::warn!(

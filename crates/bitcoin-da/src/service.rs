@@ -754,14 +754,9 @@ impl DaService for BitcoinService {
         Ok(head_block_header.header)
     }
 
-    fn chunks_to_complete(
-        &self,
-        chunks: impl Iterator<Item = Vec<u8>>,
-    ) -> Result<Vec<u8>, Self::Error> {
-        let chunks = chunks.flatten().collect::<Vec<u8>>();
-        borsh::from_slice(decompress_blob(&chunks).as_slice())
-            // TODO update error
-            .map_err(|_| anyhow!("Failed to parse chunks"))
+    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
+        borsh::from_slice(decompress_blob(&complete_chunks).as_slice())
+            .map_err(|_| anyhow!("Failed to parse complete chunks"))
     }
 
     async fn extract_relevant_zk_proofs(

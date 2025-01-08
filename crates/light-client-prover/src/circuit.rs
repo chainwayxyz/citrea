@@ -173,7 +173,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         // Concatenate complete proof
                         // TODO: Continue on error
                         let complete_proof = da_verifier
-                            .chunks_to_complete(aggregate_chunks.into_iter().map(|n| n.body))
+                            .decompress_chunks(
+                                aggregate_chunks
+                                    .into_iter()
+                                    .map(|n| n.body)
+                                    .flatten()
+                                    .collect(),
+                            )
                             .expect("Should decompress and borsh deserialize");
 
                         let expected_to_fail = expected_to_fail_hints

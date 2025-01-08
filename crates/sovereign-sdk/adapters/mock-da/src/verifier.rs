@@ -59,11 +59,8 @@ impl DaVerifier for MockDaVerifier {
 
     type Error = anyhow::Error;
 
-    fn chunks_to_complete(
-        &self,
-        _chunks: impl Iterator<Item = Vec<u8>>,
-    ) -> Result<Vec<u8>, Self::Error> {
-        todo!()
+    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
+        Ok(complete_chunks)
     }
 
     fn new(_params: <Self::Spec as DaSpec>::ChainParams) -> Self {
