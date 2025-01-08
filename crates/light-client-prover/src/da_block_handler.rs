@@ -218,28 +218,30 @@ where
                     }
                 }
                 DaDataLightClient::Aggregate(_txids, wtxids) => {
-                    // For each of the chunks, if the chunk is not contained by any
-                    // aggregate in the current block, this tells us that it has been already seen in a previous
-                    // L1 block.
-                    // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
-                    // from which we can generate a hint for the guest MMR.
+                    // Recollect the complete proof from chunks. Chunks either exist in MMR if they
+                    // were in the previous blocks, or in the current block before the aggregate tx.
                     let mut complete_proof = vec![];
+                    let mut hints = vec![];
                     for wtxid in wtxids {
-                        // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
                         if let Some(chunk) = unused_chunks.remove(&wtxid) {
                             complete_proof.extend(chunk);
                         } else {
                             let hint = self.mmr_native.generate_proof(wtxid)?;
-                            if let Some((chunk, _)) = hint.as_ref() {
+                            if let Some((chunk, proof)) = hint {
                                 complete_proof.extend_from_slice(&chunk.body);
-                                mmr_hints.push(hint);
+                                hints.push((chunk, proof));
                             } else {
-                                // This aggregate is not provable, push None and continue next proof
-                                mmr_hints.push(None);
+                                error!(
+                                    "Da block {} has unprovable aggregate with wtxid {:?}",
+                                    l1_height, wtxid
+                                );
                                 continue;
                             }
                         }
                     }
+
+                    // Only extend circuit mmr hints input if we collected complete proof
+                    mmr_hints.extend(hints);
 
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
                         Ok(is_valid) => {
