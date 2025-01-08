@@ -177,7 +177,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 }
                             }
                         }
- 
+
                         let reinsert_used_chunks = || {
                             for (idx, size, wtxid) in used_chunk_ptrs {
                                 let chunk = complete_proof[idx..idx + size].to_vec();
@@ -187,7 +187,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
                         // Concatenate complete proof
                         // TODO: Continue on error
-                        let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof) else {
+                        let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof)
+                        else {
                             println!("Failed to decompress and deserialize completed chunks");
                             reinsert_used_chunks();
                             continue;

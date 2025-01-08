@@ -277,13 +277,15 @@ where
                         }
                     };
 
-                    let Ok(complete_proof) = self
-                        .da_service
-                        .decompress_chunks(&complete_proof) else {
-                            error!("Failed decompress complete chunks: aggregate_wtxid = {}", hex::encode(wtxid));
-                            reinsert_used_chunks();
-                            continue;
-                        };
+                    let Ok(complete_proof) = self.da_service.decompress_chunks(&complete_proof)
+                    else {
+                        error!(
+                            "Failed to decompress complete chunks of aggregate {}",
+                            hex::encode(wtxid)
+                        );
+                        reinsert_used_chunks();
+                        continue;
+                    };
 
                     tracing::warn!(
                         "complete_proof total len after decompress: {}",
