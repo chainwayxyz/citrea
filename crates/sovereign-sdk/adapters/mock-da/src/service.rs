@@ -350,6 +350,14 @@ impl DaService for MockDaService {
     type Error = anyhow::Error;
     type BlockHash = [u8; 32];
 
+    /// TODO: Docs
+    fn chunks_to_complete(
+        &self,
+        _chunks: impl Iterator<Item = Vec<u8>>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        todo!()
+    }
+
     /// Gets block at given height
     /// If block is not available, waits until it is
     /// It is possible to read non-finalized and last finalized blocks multiple times

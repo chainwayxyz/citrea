@@ -586,7 +586,7 @@ impl BitcoinService {
             {
                 bail!(
                     "{}",
-                    reject_reason.unwrap_or("[testmempoolaccept] Unkown rejection".to_string())
+                    reject_reason.unwrap_or("[testmempoolaccept] Unknown rejection".to_string())
                 )
             }
         }
@@ -754,6 +754,16 @@ impl DaService for BitcoinService {
         Ok(head_block_header.header)
     }
 
+    fn chunks_to_complete(
+        &self,
+        chunks: impl Iterator<Item = Vec<u8>>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        let chunks = chunks.flatten().collect::<Vec<u8>>();
+        borsh::from_slice(decompress_blob(&chunks).as_slice())
+            // TODO update error
+            .map_err(|_| anyhow!("Failed to parse chunks"))
+    }
+
     async fn extract_relevant_zk_proofs(
         &self,
         block: &Self::FilteredBlock,
@@ -844,6 +854,7 @@ impl DaService for BitcoinService {
                         }
                     }
                 };
+
                 let wrapped: TransactionWrapper = tx_raw.into();
                 let parsed = match parse_light_client_transaction(&wrapped) {
                     Ok(r) => r,
@@ -1216,6 +1227,8 @@ impl From<TxidWrapper> for [u8; 32] {
 fn split_proof(zk_proof: Proof) -> RawLightClientData {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob);
+    println!("original_compressed.len() = {}", original_compressed.len());
+    println!("MAX_TXBODY_SIZE = {}", MAX_TXBODY_SIZE);
     if original_compressed.len() < MAX_TXBODY_SIZE {
         let data = DaDataLightClient::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
@@ -1228,6 +1241,7 @@ fn split_proof(zk_proof: Proof) -> RawLightClientData {
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
             chunks.push(blob)
         }
+        println!("chunks.len() = {}", chunks.len());
         RawLightClientData::Chunks(chunks)
     }
 }

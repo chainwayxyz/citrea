@@ -171,10 +171,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             }
                         }
                         // Concatenate complete proof
-                        let complete_proof = aggregate_chunks
-                            .into_iter()
-                            .flat_map(|n| n.body)
-                            .collect::<Vec<_>>();
+                        // TODO: Continue on error
+                        let complete_proof = da_verifier
+                            .chunks_to_complete(aggregate_chunks.into_iter().map(|n| n.body))
+                            .expect("Should decompress and borsh deserialize");
 
                         let expected_to_fail = expected_to_fail_hints
                             .next_if(|&x| x == current_proof_index)

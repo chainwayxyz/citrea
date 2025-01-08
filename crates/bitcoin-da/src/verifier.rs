@@ -71,6 +71,16 @@ impl DaVerifier for BitcoinVerifier {
         }
     }
 
+    fn chunks_to_complete(
+        &self,
+        chunks: impl Iterator<Item = Vec<u8>>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        let chunks = chunks.flatten().collect::<Vec<u8>>();
+        borsh::from_slice(decompress_blob(&chunks).as_slice())
+            // TODO update error
+            .map_err(|_| ValidationError::InvalidBlock)
+    }
+
     // Verify that the given list of blob transactions is complete and correct.
     fn verify_transactions(
         &self,

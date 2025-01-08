@@ -107,6 +107,12 @@ pub trait DaService: Send + Sync + 'static {
         <Self::Spec as DaSpec>::CompletenessProof,
     );
 
+    /// Decompress and deserialize the chunks into a single complete proof.
+    fn chunks_to_complete(
+        &self,
+        chunks: impl Iterator<Item = Vec<u8>>,
+    ) -> Result<Vec<u8>, Self::Error>;
+
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.
     /// Returns nothing if the transaction was successfully sent.
