@@ -218,30 +218,32 @@ where
                     }
                 }
                 DaDataLightClient::Aggregate(_txids, wtxids) => {
-                    // Recollect the complete proof from chunks. Chunks either exist in MMR if they
-                    // were in the previous blocks, or in the current block before the aggregate tx.
+                    // Ensure that aggregate has all the needed chunks
+                    for wid in &wtxids {
+                        if !unused_chunks.contains_key(wid) && !self.mmr_native.contains(*wid)? {
+                            error!(
+                                "Da block {} has unprovable aggregate with wtxid {}",
+                                l1_height,
+                                hex::encode(wtxid)
+                            );
+                            continue;
+                        }
+                    }
+
+                    // Recollect the complete proof from chunks
                     let mut complete_proof = vec![];
-                    let mut hints = vec![];
                     for wtxid in wtxids {
                         if let Some(chunk) = unused_chunks.remove(&wtxid) {
                             complete_proof.extend(chunk);
                         } else {
-                            let hint = self.mmr_native.generate_proof(wtxid)?;
-                            if let Some((chunk, proof)) = hint {
-                                complete_proof.extend_from_slice(&chunk.body);
-                                hints.push((chunk, proof));
-                            } else {
-                                error!(
-                                    "Da block {} has unprovable aggregate with wtxid {:?}",
-                                    l1_height, wtxid
-                                );
-                                continue;
-                            }
+                            let (chunk, proof) = self
+                                .mmr_native
+                                .generate_proof(wtxid)?
+                                .expect("Chunk wtxid must exist");
+                            complete_proof.extend_from_slice(&chunk.body);
+                            mmr_hints.push((chunk, proof));
                         }
                     }
-
-                    // Only extend circuit mmr hints input if we collected complete proof
-                    mmr_hints.extend(hints);
 
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
                         Ok(is_valid) => {

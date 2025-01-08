@@ -118,7 +118,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut current_proof_index = 0u32;
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
-    for blob in input.da_data {
+    'blob_loop: for blob in input.da_data {
         if blob.sender().as_ref() == batch_prover_da_public_key {
             let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
@@ -140,23 +140,38 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         }
                     }
                     DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
-                        let mut aggregate_chunks = vec![];
+                        // Ensure that aggregate has all the needed chunks.
+                        // We can recreate iterator here on every aggregate, because when recreating
+                        // the complete proof, we pop the used hints from the mmr_hints.
+                        let mut mmr_hints_iter = mmr_hints.iter();
                         for wtxid in &wtx_ids {
-                            if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(wtxid) {
+                            if in_memory_chunks.contains_key(wtxid) {
+                                continue;
+                            }
+
+                            let Some((chunk, _)) = mmr_hints_iter.next() else {
+                                println!(
+                                    "Missing mmr hint, unprovable aggregate {:?}",
+                                    blob.wtxid()
+                                );
+                                continue 'blob_loop;
+                            };
+                            if *wtxid != chunk.wtxid {
+                                println!(
+                                    "Missing mmr hint, unprovable aggregate {:?}",
+                                    blob.wtxid()
+                                );
+                                continue 'blob_loop;
+                            }
+                        }
+
+                        let mut aggregate_chunks = vec![];
+                        for wtxid in wtx_ids {
+                            if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(&wtxid) {
                                 aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
                             } else {
-                                let Some((chunk, _)) = mmr_hints.front() else {
-                                    println!("Not enough chunks, aggregate is not provable");
-                                    continue;
-                                };
-                                if chunk.wtxid != *wtxid {
-                                    println!("Next chunk is not for this aggregate, aggregate is not provable");
-                                    continue;
-                                }
-
-                                let (chunk, proof) = mmr_hints
-                                    .pop_front()
-                                    .expect("Already checked first element");
+                                let (chunk, proof) =
+                                    mmr_hints.pop_front().expect("Already checked");
 
                                 if mmr_guest.verify_proof(&chunk, &proof) {
                                     aggregate_chunks.push(chunk);
