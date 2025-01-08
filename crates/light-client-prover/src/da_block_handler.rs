@@ -234,8 +234,7 @@ where
                                 complete_proof.extend_from_slice(&chunk.body);
                                 mmr_hints.push(hint);
                             } else {
-                                // This aggregate is not provable since we don't have all the chunks yet.
-                                // Push None and continue next proof
+                                // This aggregate is not provable, push None and continue next proof
                                 mmr_hints.push(None);
                                 continue;
                             }
