@@ -178,6 +178,9 @@ pub trait DaVerifier: Send + Sync {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
     ) -> Result<LatestDaState, Self::Error>;
+
+    /// Decompress chunks to complete
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 }
 
 #[cfg(feature = "std")]

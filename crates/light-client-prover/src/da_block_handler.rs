@@ -199,6 +199,21 @@ where
         let mut proof_index = 0u32;
         let mut expected_to_fail_hint = vec![];
 
+        for (wtxid, batch_proof) in batch_proofs.clone() {
+            match batch_proof {
+                DaDataLightClient::Chunk(body) => {
+                    tracing::warn!("Chunk wtxid: {:?}", wtxid);
+                    tracing::warn!("Chunk body len: {}", body.len());
+                    // For now, this chunk is unused by any aggregate in the block.
+                    // unused_chunks.insert(wtxid, body);
+                }
+                DaDataLightClient::Aggregate(_, _) => {
+                    tracing::warn!("Aggregate wtxid: {:?}", wtxid)
+                }
+                _ => tracing::warn!("Other wtxid: {:?}", wtxid),
+            }
+        }
+
         'proof_loop: for (wtxid, batch_proof) in batch_proofs {
             match batch_proof {
                 DaDataLightClient::Complete(proof) => {
@@ -233,8 +248,11 @@ where
                     let mut complete_proof = vec![];
                     // Used for re-adding chunks back in case of failure
                     let mut used_chunk_ptrs = vec![];
+                    tracing::warn!("wtxids count: {}", wtxids.len());
                     for wtxid in wtxids {
+                        tracing::warn!("wtxid: {:?}", wtxid);
                         if let Some(chunk) = unused_chunks.remove(&wtxid) {
+                            tracing::warn!("chunk len: {}", chunk.len());
                             used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
                             complete_proof.extend(chunk);
                         } else {
@@ -247,6 +265,31 @@ where
                         }
                     }
 
+                    tracing::warn!(
+                        "complete_proof chunk count before decompress: {}",
+                        complete_proof.len()
+                    );
+
+                    let reinsert_used_chunks = || {
+                        for (idx, size, wtxid) in used_chunk_ptrs {
+                            let chunk = complete_proof[idx..idx + size].to_vec();
+                            unused_chunks.insert(wtxid, chunk);
+                        }
+                    };
+
+                    let Ok(complete_proof) = self
+                        .da_service
+                        .decompress_chunks(&complete_proof) else {
+                            error!("Failed decompress complete chunks: aggregate_wtxid = {}", hex::encode(wtxid));
+                            reinsert_used_chunks();
+                            continue;
+                        };
+
+                    tracing::warn!(
+                        "complete_proof total len after decompress: {}",
+                        complete_proof.len()
+                    );
+
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
                         Ok(true) => {
                             assumptions.push(complete_proof);
@@ -258,11 +301,7 @@ where
                                 hex::encode(wtxid)
                             );
 
-                            // Re-add chunks in case of failure
-                            for (idx, size, wtxid) in used_chunk_ptrs {
-                                let chunk = complete_proof[idx..idx + size].to_vec();
-                                unused_chunks.insert(wtxid, chunk);
-                            }
+                            reinsert_used_chunks();
 
                             expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
@@ -273,15 +312,14 @@ where
                                 hex::encode(wtxid),
                                 err
                             );
-                            // Re-add chunks in case of failure
-                            for (idx, size, wtxid) in used_chunk_ptrs {
-                                let chunk = complete_proof[idx..idx + size].to_vec();
-                                unused_chunks.insert(wtxid, chunk);
-                            }
+
+                            reinsert_used_chunks();
                         }
                     }
                 }
                 DaDataLightClient::Chunk(body) => {
+                    tracing::warn!("Chunk wtxid: {:?}", wtxid);
+                    tracing::warn!("Chunk body len: {}", body.len());
                     // For now, this chunk is unused by any aggregate in the block.
                     unused_chunks.insert(wtxid, body);
                 }
@@ -407,20 +445,32 @@ where
         let mut batch_proofs = Vec::new();
 
         da_data.iter_mut().for_each(|tx| {
-            // Check for commitment
-            if tx.sender().as_ref() == self.batch_prover_da_pub_key.as_slice() {
-                let data = DaDataLightClient::try_from_slice(tx.full_data());
-
-                if let Ok(proof) = data {
-                    batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), proof));
-                } else {
-                    tracing::warn!(
-                        "Found broken DA data in block 0x{}: {:?}",
-                        hex::encode(da_slot_hash),
-                        data
-                    );
+            if let Ok(data) = DaDataLightClient::try_from_slice(tx.full_data()) {
+                match data {
+                    DaDataLightClient::Chunk(_) => {
+                        tracing::warn!(
+                            "Chunk wtxid: {:?}",
+                            tx.wtxid().expect("Blob should have wtxid")
+                        );
+                        batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data))
+                    }
+                    _ => {
+                        tracing::warn!(
+                            "other wtxid: {:?}",
+                            tx.wtxid().expect("Blob should have wtxid")
+                        );
+                        if tx.sender().as_ref() == self.batch_prover_da_pub_key.as_slice() {
+                            batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data));
+                        }
+                    }
                 }
+            } else {
+                tracing::warn!(
+                    "Found broken DA data in block 0x{}",
+                    hex::encode(da_slot_hash)
+                );
             }
+            // Check for commitment
         });
         batch_proofs
     }

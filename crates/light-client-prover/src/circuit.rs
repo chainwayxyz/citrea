@@ -177,6 +177,21 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 }
                             }
                         }
+ 
+                        let reinsert_used_chunks = || {
+                            for (idx, size, wtxid) in used_chunk_ptrs {
+                                let chunk = complete_proof[idx..idx + size].to_vec();
+                                in_memory_chunks.insert(wtxid, chunk);
+                            }
+                        };
+
+                        // Concatenate complete proof
+                        // TODO: Continue on error
+                        let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof) else {
+                            println!("Failed to decompress and deserialize completed chunks");
+                            reinsert_used_chunks();
+                            continue;
+                        };
 
                         let expected_to_fail = expected_to_fail_hints
                             .next_if(|&x| x == current_proof_index)
@@ -190,21 +205,14 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         ) {
                             Ok(()) => {
                                 if expected_to_fail {
-                                    for (idx, size, wtxid) in used_chunk_ptrs {
-                                        let chunk = complete_proof[idx..idx + size].to_vec();
-                                        in_memory_chunks.insert(wtxid, chunk);
-                                    }
+                                    reinsert_used_chunks();
                                 }
 
                                 current_proof_index += 1;
                             }
                             // serialization or duplicate proof error
                             Err(e) => {
-                                for (idx, size, wtxid) in used_chunk_ptrs {
-                                    let chunk = complete_proof[idx..idx + size].to_vec();
-                                    in_memory_chunks.insert(wtxid, chunk);
-                                }
-
+                                reinsert_used_chunks();
                                 println!("Error processing aggregated proof: {e}");
                             }
                         }
