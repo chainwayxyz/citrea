@@ -112,7 +112,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     let mut in_memory_chunks: BTreeMap<Wtxid, Vec<u8>> = Default::default();
-    let mut mmr_hints = input.mmr_hints.clone();
+    let mut mmr_hints = input.mmr_hints;
 
     // index only incremented on processing of a complete or aggregate DA tx
     let mut current_proof_index = 0u32;
