@@ -449,6 +449,16 @@ mod light_client {
             }
         }
 
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_NIP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+
         let body_size: usize = chunks.iter().map(|c| c.len()).sum();
         let mut body = Vec::with_capacity(body_size);
         for chunk in chunks {
