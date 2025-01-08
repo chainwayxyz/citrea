@@ -159,26 +159,21 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             }
                         }
 
-                        let mut aggregate_chunks = vec![];
+                        let mut complete_proof = vec![];
                         for wtxid in wtx_ids {
-                            if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(&wtxid) {
-                                aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
+                            if let Some(chunk_body) = in_memory_chunks.remove(&wtxid) {
+                                complete_proof.extend(chunk_body);
                             } else {
                                 let (chunk, proof) =
                                     mmr_hints.pop_front().expect("Already checked");
 
                                 if mmr_guest.verify_proof(&chunk, &proof) {
-                                    aggregate_chunks.push(chunk);
+                                    complete_proof.extend(chunk.body);
                                 } else {
                                     panic!("Failed to verify MMR proof for hint");
                                 }
                             }
                         }
-                        // Concatenate complete proof
-                        let complete_proof = aggregate_chunks
-                            .into_iter()
-                            .flat_map(|n| n.body)
-                            .collect::<Vec<_>>();
 
                         let expected_to_fail = expected_to_fail_hints
                             .next_if(|&x| x == current_proof_index)
