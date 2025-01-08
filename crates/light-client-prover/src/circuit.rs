@@ -185,8 +185,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             }
                         };
 
-                        // Concatenate complete proof
-                        // TODO: Continue on error
+                        // Decompress complete proof
                         let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof)
                         else {
                             println!("Failed to decompress and deserialize completed chunks");
