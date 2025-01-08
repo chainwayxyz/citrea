@@ -488,6 +488,8 @@ pub fn create_inscription_type_1(
             if let Some(change) = commit_change {
                 utxos.push(change);
             }
+
+            break;
         }
     }
 
