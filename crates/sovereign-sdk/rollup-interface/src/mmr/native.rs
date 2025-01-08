@@ -37,6 +37,10 @@ impl<S: NodeStore> MMRNative<S> {
         Ok(())
     }
 
+    pub fn contains(&self, wtxid: Wtxid) -> Result<bool> {
+        self.store.load_chunk(wtxid).map(|chunk| chunk.is_some())
+    }
+
     fn recalculate_peaks(&mut self) -> Result<()> {
         let mut size = self.store.get_tree_size();
         let mut level = 0;
@@ -60,13 +64,12 @@ impl<S: NodeStore> MMRNative<S> {
         &mut self,
         wtxid: Wtxid,
     ) -> Result<Option<(MMRChunk, MMRInclusionProof)>> {
-        let chunk = self
-            .store
-            .load_chunk(wtxid)?
-            .ok_or_else(|| anyhow::anyhow!("Chunk not found"))?;
+        let Some(chunk) = self.store.load_chunk(wtxid)? else {
+            return Ok(None);
+        };
         let index = self
             .find_chunk_index(chunk.wtxid)?
-            .ok_or_else(|| anyhow::anyhow!("Chunk index not found"))?;
+            .expect("Found chunk in db but could not find its index");
 
         let mut proof: Vec<MMRNodeHash> = vec![];
         let mut current_index = index;
