@@ -129,7 +129,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                             .next_if(|&x| x == current_proof_index)
                             .is_some();
                         match process_complete_proof::<DaV, G>(
-                            proof,
+                            &proof,
                             &batch_proof_method_ids,
                             last_l2_height,
                             &mut initial_to_final,
@@ -160,9 +160,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         }
 
                         let mut complete_proof = vec![];
+                        // Used for re-adding chunks back in case of failure
+                        let mut used_chunk_ptrs = vec![];
                         for wtxid in wtx_ids {
-                            if let Some(chunk_body) = in_memory_chunks.remove(&wtxid) {
-                                complete_proof.extend(chunk_body);
+                            if let Some(chunk) = in_memory_chunks.remove(&wtxid) {
+                                used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
+                                complete_proof.extend(chunk);
                             } else {
                                 let (chunk, proof) =
                                     mmr_hints.pop_front().expect("Already checked");
@@ -178,15 +181,36 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         let expected_to_fail = expected_to_fail_hints
                             .next_if(|&x| x == current_proof_index)
                             .is_some();
-                        match process_complete_proof::<DaV, G>(
-                            complete_proof,
-                            &batch_proof_method_ids,
-                            last_l2_height,
-                            &mut initial_to_final,
+                        match (
+                            process_complete_proof::<DaV, G>(
+                                &complete_proof,
+                                &batch_proof_method_ids,
+                                last_l2_height,
+                                &mut initial_to_final,
+                                expected_to_fail,
+                            ),
                             expected_to_fail,
                         ) {
-                            Ok(()) => current_proof_index += 1,
-                            Err(e) => println!("Error processing aggregated proof: {e}"),
+                            // verified for success
+                            (Ok(()), false) => current_proof_index += 1,
+                            // verified for failure
+                            (Ok(()), true) => {
+                                for (idx, size, wtxid) in used_chunk_ptrs {
+                                    let chunk = complete_proof[idx..idx + size].to_vec();
+                                    in_memory_chunks.insert(wtxid, chunk);
+                                }
+
+                                current_proof_index += 1;
+                            }
+                            // serialization or duplicate proof error
+                            (Err(e), _) => {
+                                for (idx, size, wtxid) in used_chunk_ptrs {
+                                    let chunk = complete_proof[idx..idx + size].to_vec();
+                                    in_memory_chunks.insert(wtxid, chunk);
+                                }
+
+                                println!("Error processing aggregated proof: {e}");
+                            }
                         }
                     }
                     DaDataLightClient::Chunk(chunk) => {
@@ -248,13 +272,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 }
 
 fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
-    proof: Vec<u8>,
+    proof: &[u8],
     batch_proof_method_ids: &InitialBatchProofMethodIds,
     last_l2_height: u64,
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
     expected_to_fail: bool,
 ) -> Result<(), CircuitError> {
-    let Ok(journal) = G::extract_raw_output(&proof) else {
+    let Ok(journal) = G::extract_raw_output(proof) else {
         return Err("Failed to extract output from proof");
     };
 
@@ -300,7 +324,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
 
     if expected_to_fail {
         // if index is in the expected to fail hints, then it should fail
-        G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
+        G::verify_expected_to_fail(proof, &batch_proof_method_id.into())
             .expect_err("Proof hinted to fail passed");
     } else {
         // if index is not in the expected to fail hints, then it should pass

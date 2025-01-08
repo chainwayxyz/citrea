@@ -232,8 +232,11 @@ where
 
                     // Recollect the complete proof from chunks
                     let mut complete_proof = vec![];
+                    // Used for re-adding chunks back in case of failure
+                    let mut used_chunk_ptrs = vec![];
                     for wtxid in wtxids {
                         if let Some(chunk) = unused_chunks.remove(&wtxid) {
+                            used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
                             complete_proof.extend(chunk);
                         } else {
                             let (chunk, proof) = self
@@ -246,17 +249,36 @@ where
                     }
 
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
-                        Ok(is_valid) => {
-                            if is_valid {
-                                assumptions.push(complete_proof);
-                            } else {
-                                expected_to_fail_hint.push(proof_index);
+                        Ok(true) => {
+                            assumptions.push(complete_proof);
+                            proof_index += 1;
+                        }
+                        Ok(false) => {
+                            error!(
+                                "DA contains invalid aggregate proof, wtxid = {}",
+                                hex::encode(wtxid)
+                            );
+
+                            expected_to_fail_hint.push(proof_index);
+                            // Re-add chunks in case of failure
+                            for (idx, size, wtxid) in used_chunk_ptrs {
+                                let chunk = complete_proof[idx..idx + size].to_vec();
+                                unused_chunks.insert(wtxid, chunk);
                             }
 
                             proof_index += 1;
                         }
                         Err(err) => {
-                            error!("Aggregated batch proof verification failed: {err}");
+                            error!(
+                                "Aggregated batch proof verification failed. wtxid = {} err = {}",
+                                hex::encode(wtxid),
+                                err
+                            );
+                            // Re-add chunks in case of failure
+                            for (idx, size, wtxid) in used_chunk_ptrs {
+                                let chunk = complete_proof[idx..idx + size].to_vec();
+                                unused_chunks.insert(wtxid, chunk);
+                            }
                         }
                     }
                 }
@@ -330,6 +352,11 @@ where
         Ok(())
     }
 
+    /// Verifies complete proof. Returns:
+    ///
+    /// - Ok(true) -> proof is successfully parsed, not a duplicate, and verified
+    /// - Ok(false) -> proof is successfully parsed, not a duplicate, but verification failed
+    /// - Err(_) -> proof is either unparseable or a duplicate
     fn verify_complete_proof(
         &self,
         proof: &Vec<u8>,
