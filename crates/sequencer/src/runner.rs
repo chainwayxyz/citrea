@@ -249,7 +249,7 @@ where
     #[allow(clippy::too_many_arguments)]
     async fn dry_run_transactions(
         &mut self,
-        transactions: Box<
+        mut transactions: Box<
             dyn BestTransactions<Item = Arc<ValidPoolTransaction<EthPooledTransaction>>>,
         >,
         pub_key: &[u8],
@@ -279,10 +279,29 @@ where
                 Ok(_) => {
                     match l2_block_mode {
                         L2BlockMode::NotEmpty => {
+                            // Normally, transactions.mark_invalid() calls would give us the same
+                            // functionality as invalid_senders, however,
+                            // in this version of reth, mark_invalid uses transaction.hash() to mark invalid
+                            // which is not desired. This was fixed in later versions, but we can not update
+                            // to those versions because we have to lock our Rust version to 1.81.
+                            //
+                            // When a tx is rejected, its sender is added to invalid_senders set
+                            // because other transactions from the same sender now cannot be included in the block
+                            // since they are auto rejected due to the nonce gap.
+                            let mut invalid_senders = HashSet::new();
+
                             let mut all_txs = vec![];
                             let mut l1_fee_failed_txs = vec![];
 
-                            for evm_tx in transactions {
+                            // using .next() instead of a for loop because its the intended
+                            // behaviour for the BestTransactions implementations
+                            // when we update reth we'll need to call transactions.mark_invalid()
+                            #[allow(clippy::while_let_on_iterator)]
+                            while let Some(evm_tx) = transactions.next() {
+                                if invalid_senders.contains(&evm_tx.transaction_id.sender) {
+                                    continue;
+                                }
+
                                 let mut buf = vec![];
                                 evm_tx
                                     .to_recovered_transaction()
@@ -335,6 +354,7 @@ where
                                                if block_gas_limit - cumulative_gas < MIN_TRANSACTION_GAS {
                                                 break;
                                                } else {
+                                                invalid_senders.insert(evm_tx.transaction_id.sender);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                                }
@@ -344,6 +364,7 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTxTypeNotSupported(_) => panic!("got unsupported tx type"),
                                             // Discard tx if it fails to execute
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmTransactionExecutionError => {
+                                                invalid_senders.insert(evm_tx.transaction_id.sender);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
@@ -351,7 +372,7 @@ where
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmMisplacedSystemTx => panic!("tried to execute system transaction"),
                                             sov_modules_api::SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee => {
                                                 l1_fee_failed_txs.push(*evm_tx.hash());
-
+                                                invalid_senders.insert(evm_tx.transaction_id.sender);
                                                 working_set_to_discard = working_set.revert().to_revertable();
                                                 continue;
                                             },
