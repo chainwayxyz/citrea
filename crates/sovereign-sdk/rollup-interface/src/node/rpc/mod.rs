@@ -11,6 +11,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
+use crate::mmr::MMRGuest;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::zk::{BatchProofInfo, CumulativeStateDiff};
 
@@ -175,6 +176,10 @@ pub struct LightClientProofOutputRpcResponse {
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    /// A map from tx hash to chunk data.
+    /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
+    /// like 32 hashes and some u64
+    pub mmr_guest: MMRGuest,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
