@@ -115,6 +115,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
             batch_proof_method_ids: value.batch_proof_method_ids,
+            mmr_guest: value.mmr_guest,
         }
     }
 }
