@@ -151,12 +151,9 @@ impl DaVerifier for BitcoinVerifier {
                                 }
                             }
                             ParsedLightClientTransaction::Chunk(chunk) => {
-                                if let Some(blob_content) =
-                                    verified_blob_chunk(&chunk, &mut blobs_iter, wtxid)?
-                                {
-                                    if blob_content != chunk.body {
-                                        return Err(ValidationError::BlobContentWasModified);
-                                    }
+                                let blob_content = verified_blob_chunk(&mut blobs_iter, wtxid)?;
+                                if blob_content != chunk.body {
+                                    return Err(ValidationError::BlobContentWasModified);
                                 }
                             }
                             ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
@@ -537,33 +534,24 @@ impl BitcoinVerifier {
     }
 }
 
-fn verified_blob_chunk<'a, T, I>(
-    tx: &T,
+fn verified_blob_chunk<'a, I>(
     blobs_iter: &mut I,
     wtxid: &[u8; 32],
-) -> Result<Option<&'a [u8]>, ValidationError>
+) -> Result<&'a [u8], ValidationError>
 where
-    T: VerifyParsed,
     I: Iterator<Item = &'a BlobWithSender>,
 {
-    if let Some(blob_hash) = tx.get_unverified_hash() {
-        let blob = blobs_iter.next();
+    let blob = blobs_iter.next();
 
-        let Some(blob) = blob else {
-            return Err(ValidationError::ValidBlobNotFoundInBlobs);
-        };
+    let Some(blob) = blob else {
+        return Err(ValidationError::ValidBlobNotFoundInBlobs);
+    };
 
-        if blob.hash != blob_hash {
-            return Err(ValidationError::BlobWasTamperedWith);
-        }
-
-        if blob.wtxid != Some(*wtxid) {
-            return Err(ValidationError::BlobWasTamperedWith);
-        }
-
-        return Ok(Some(blob.verified_data()));
+    if blob.wtxid != Some(*wtxid) {
+        return Err(ValidationError::BlobWasTamperedWith);
     }
-    Ok(None)
+
+    return Ok(blob.verified_data());
 }
 
 // Get associated blob content only if signatures, hashes and public keys match

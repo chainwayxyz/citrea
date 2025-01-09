@@ -1222,8 +1222,7 @@ impl From<TxidWrapper> for [u8; 32] {
 fn split_proof(zk_proof: Proof) -> RawLightClientData {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob);
-    println!("original_compressed.len() = {}", original_compressed.len());
-    println!("MAX_TXBODY_SIZE = {}", MAX_TXBODY_SIZE);
+
     if original_compressed.len() < MAX_TXBODY_SIZE {
         let data = DaDataLightClient::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
@@ -1236,7 +1235,7 @@ fn split_proof(zk_proof: Proof) -> RawLightClientData {
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
             chunks.push(blob)
         }
-        println!("chunks.len() = {}", chunks.len());
+
         RawLightClientData::Chunks(chunks)
     }
 }
