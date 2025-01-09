@@ -151,6 +151,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 let mut aggregate_chunks = vec![];
                                 for wtxid in &wtx_ids {
                                     if let Some((wtxid, chunk)) =
+                                        // If the wtxid belongs to a chunk that we've seen in the same L1 block,
                                         in_memory_chunks.remove_entry(wtxid)
                                     {
                                         aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
