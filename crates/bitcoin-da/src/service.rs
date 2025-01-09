@@ -946,9 +946,6 @@ impl DaService for BitcoinService {
             block.header.block_hash()
         );
 
-        for tx in block.txdata.iter() {
-            warn!("wtxid of data: {:?}", tx.compute_wtxid());
-        }
         let prefix = match namespace {
             DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
             DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
@@ -996,7 +993,6 @@ impl DaService for BitcoinService {
         let mut relevant_txs = vec![];
         for tx in &completeness_proof {
             let wtxid = tx.compute_wtxid();
-            println!("wtxid: {:?}", wtxid);
             match namespace {
                 DaNamespace::ToBatchProver => {
                     if let Ok(tx) = parse_batch_proof_transaction(tx) {
@@ -1032,7 +1028,6 @@ impl DaService for BitcoinService {
                                 }
                             }
                             ParsedLightClientTransaction::Aggregate(aggregate) => {
-                                println!("Aggregate in extract blobs:");
                                 if let Some(hash) = aggregate.get_sig_verified_hash() {
                                     let relevant_tx = BlobWithSender::new(
                                         aggregate.body,
@@ -1228,8 +1223,7 @@ impl From<TxidWrapper> for [u8; 32] {
 fn split_proof(zk_proof: Proof) -> RawLightClientData {
     let original_blob = borsh::to_vec(&zk_proof).expect("zk::Proof serialize must not fail");
     let original_compressed = compress_blob(&original_blob);
-    println!("original_compressed.len() = {}", original_compressed.len());
-    println!("MAX_TXBODY_SIZE = {}", MAX_TXBODY_SIZE);
+
     if original_compressed.len() < MAX_TXBODY_SIZE {
         let data = DaDataLightClient::Complete(zk_proof);
         let blob = borsh::to_vec(&data).expect("zk::Proof serialize must not fail");
@@ -1242,7 +1236,7 @@ fn split_proof(zk_proof: Proof) -> RawLightClientData {
             let blob = borsh::to_vec(&data).expect("zk::Proof Chunk serialize must not fail");
             chunks.push(blob)
         }
-        println!("chunks.len() = {}", chunks.len());
+
         RawLightClientData::Chunks(chunks)
     }
 }

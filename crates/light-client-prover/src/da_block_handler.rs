@@ -199,21 +199,6 @@ where
         let mut proof_index = 0u32;
         let mut expected_to_fail_hint = vec![];
 
-        for (wtxid, batch_proof) in batch_proofs.clone() {
-            match batch_proof {
-                DaDataLightClient::Chunk(body) => {
-                    tracing::warn!("Chunk wtxid: {:?}", wtxid);
-                    tracing::warn!("Chunk body len: {}", body.len());
-                    // For now, this chunk is unused by any aggregate in the block.
-                    // unused_chunks.insert(wtxid, body);
-                }
-                DaDataLightClient::Aggregate(_, _) => {
-                    tracing::warn!("Aggregate wtxid: {:?}", wtxid)
-                }
-                _ => tracing::warn!("Other wtxid: {:?}", wtxid),
-            }
-        }
-
         for (wtxid, batch_proof) in batch_proofs {
             match batch_proof {
                 DaDataLightClient::Complete(proof) => {
@@ -239,12 +224,9 @@ where
                     // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
                     // from which we can generate a hint for the guest MMR.
                     let mut complete_proof = vec![];
-                    tracing::warn!("wtxids count: {}", wtxids.len());
                     for wtxid in wtxids {
-                        tracing::warn!("wtxid: {:?}", wtxid);
                         // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
                         if let Some(chunk) = unused_chunks.remove(&wtxid) {
-                            tracing::warn!("chunk len: {}", chunk.len());
                             complete_proof.push(chunk);
                         } else {
                             let hint = self.mmr_native.generate_proof(wtxid)?;
@@ -260,21 +242,11 @@ where
                         }
                     }
 
-                    tracing::warn!(
-                        "complete_proof chunk count before decompress: {}",
-                        complete_proof.len()
-                    );
-
                     // TODO: Handle error
                     let complete_proof = self
                         .da_service
                         .decompress_chunks(complete_proof.into_iter().flatten().collect())
                         .unwrap();
-
-                    tracing::warn!(
-                        "complete_proof total len after decompress: {}",
-                        complete_proof.len()
-                    );
 
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
                         Ok(is_valid) => {
@@ -417,17 +389,9 @@ where
             if let Ok(data) = DaDataLightClient::try_from_slice(tx.full_data()) {
                 match data {
                     DaDataLightClient::Chunk(_) => {
-                        tracing::warn!(
-                            "Chunk wtxid: {:?}",
-                            tx.wtxid().expect("Blob should have wtxid")
-                        );
                         batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data))
                     }
                     _ => {
-                        tracing::warn!(
-                            "other wtxid: {:?}",
-                            tx.wtxid().expect("Blob should have wtxid")
-                        );
                         if tx.sender().as_ref() == self.batch_prover_da_pub_key.as_slice() {
                             batch_proofs.push((tx.wtxid().expect("Blob should have wtxid"), data));
                         }

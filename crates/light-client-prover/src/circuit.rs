@@ -126,7 +126,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 // No need to check sender for chunk
                 DaDataLightClient::Chunk(chunk) => {
                     // Store the chunk in memory unconditionally
-                    println!("Storing chunk in memory");
                     in_memory_chunks
                         .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
                 }
@@ -149,8 +148,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 }
                             }
                             DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
-                                println!("aggregate wtxid: {:?}", blob.wtxid().clone().unwrap());
-                                println!("aggregate wtxids: {:?}", wtx_ids);
                                 let mut aggregate_chunks = vec![];
                                 for wtxid in &wtx_ids {
                                     if let Some((wtxid, chunk)) =
@@ -221,7 +218,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     // Do recursive matching for previous state root
-    println!("last_state_root: {:?}", last_state_root);
     recursive_match_state_roots(
         &mut initial_to_final,
         &BatchProofInfo::new(last_state_root, last_state_root, last_l2_height),

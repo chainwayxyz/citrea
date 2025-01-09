@@ -943,9 +943,7 @@ struct VerifyChunkedTxsInLightClient {
 impl TestCase for VerifyChunkedTxsInLightClient {
     fn test_config() -> TestCaseConfig {
         TestCaseConfig {
-            with_sequencer: true,
             with_light_client_prover: true,
-            with_full_node: true,
             ..Default::default()
         }
     }
@@ -972,9 +970,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let da = f.bitcoin_nodes.get(0).unwrap();
-        let sequencer = f.sequencer.as_ref().unwrap();
         let light_client_prover = f.light_client_prover.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
 
         let da_config = &da.config;
         let bitcoin_da_service_config = BitcoinServiceConfig {
@@ -1052,7 +1048,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             Some(state_diff_100kb.clone()),
             false,
         );
-        println!("size of proof: {:?}", verifiable_100kb_batch_proof.len());
+
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_100kb_batch_proof), 1)
             .await
@@ -1068,14 +1064,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         da.wait_mempool_len(0, Some(TEN_MINS)).await?;
 
         let batch_proof_l1_height = da.get_finalized_height().await?;
-
-        let bhash = da.get_block_hash(batch_proof_l1_height).await?;
-
-        let block = da.get_block(&bhash).await?;
-
-        for tx in block.txdata.iter() {
-            println!("wtxid in test: {:?}", tx.compute_wtxid());
-        }
 
         // Wait for light client prover to process verifiable batch proof
         light_client_prover
@@ -1113,7 +1101,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             Some(state_diff_130kb),
             false,
         );
-        println!("size of proof: {:?}", verifiable_130kb_batch_proof.len());
+
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_130kb_batch_proof), 1)
             .await
@@ -1124,7 +1112,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
 
         // Get txs from mempool
         let txs = da.get_raw_mempool().await?;
-        println!("txs in mempool: {:?}", txs);
+
         // // Get the first four txs ( first two chunks )
         let first_two_chunks = txs[0..4]
             .iter()
@@ -1144,11 +1132,6 @@ impl TestCase for VerifyChunkedTxsInLightClient {
             .await?
             .assume_checked()
             .to_string();
-
-        println!("address: {:?}", addr);
-        println!("First two chunks: {:?}", first_two_chunks);
-        println!("Last two chunks: {:?}", last_two_chunks);
-        println!("aggregate txs: {:?}", aggregate);
 
         da.generate_block(addr.clone(), first_two_chunks).await?;
         // First two chunks should be in block n
@@ -1284,7 +1267,6 @@ pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec
 
     // Convert size to bytes
     let size_in_bytes = size_in_kb * 1024;
-    println!("Size in bytes: {}", size_in_bytes);
 
     while total_size < size_in_bytes {
         // Generate a random 32-byte key
@@ -1311,17 +1293,8 @@ pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec
         // Update the total size
         total_size += key_size + value_size;
     }
-    println!("Total size: {}", total_size);
 
     map
-}
-
-#[test]
-fn test_random_gen() {
-    let state_diff = create_random_state_diff(1);
-    for (key, value) in state_diff {
-        println!("Key: {:?}, Value: {:?}", key, value);
-    }
 }
 
 fn create_serialized_fake_receipt_batch_proof(
