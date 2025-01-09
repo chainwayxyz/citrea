@@ -167,7 +167,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                         // TODO: This is an issue we must solve in the future. Since the prover can provide a hint as None,
                                         // it can ignore proofs, opening a censorship attack vector.
                                         let Some((chunk, proof)) = hint else {
-                                            continue;
+                                            continue; // ignore this aggregate
                                         };
 
                                         if *wtxid != chunk.wtxid {
@@ -181,6 +181,9 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                         }
                                     }
                                 }
+
+                                // Concatenate complete proof
+                                // TODO: Continue on error
                                 let complete_proof = da_verifier
                                     .decompress_chunks(
                                         aggregate_chunks.into_iter().flat_map(|n| n.body).collect(),
