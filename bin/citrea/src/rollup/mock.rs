@@ -25,7 +25,7 @@ use crate::{CitreaRollupBlueprint, Network};
 
 /// Rollup with MockDa
 pub struct MockDemoRollup {
-    _network: Network,
+    network: Network,
 }
 
 impl CitreaRollupBlueprint for MockDemoRollup {}
@@ -45,7 +45,7 @@ impl RollupBlueprint for MockDemoRollup {
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
-        Self { _network: network }
+        Self { network }
     }
 
     fn create_rpc_methods(
@@ -134,7 +134,7 @@ impl RollupBlueprint for MockDemoRollup {
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone());
+        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,

@@ -10,8 +10,8 @@ use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, SequencerConfig, SequencerMempoolConfig,
-    TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, CitreaMode, LightClientProverConfig, SequencerConfig,
+    SequencerMempoolConfig, TestCaseConfig,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::node::NodeKind;
@@ -40,6 +40,7 @@ impl TestCase for LightClientProvingTest {
             with_batch_prover: true,
             with_light_client_prover: true,
             with_full_node: true,
+            mode: CitreaMode::DevAllForks,
             ..Default::default()
         }
     }
@@ -63,13 +64,6 @@ impl TestCase for LightClientProvingTest {
         LightClientProverConfig {
             enable_recovery: false,
             initial_da_height: 171,
-            ..Default::default()
-        }
-    }
-
-    fn test_env() -> TestCaseEnv {
-        TestCaseEnv {
-            test: vec![("CITREA_NETWORK", "regtest")],
             ..Default::default()
         }
     }
@@ -160,8 +154,6 @@ impl TestCase for LightClientProvingTest {
 
 #[tokio::test]
 async fn test_light_client_proving() -> Result<()> {
-    std::env::set_var("CITREA_NETWORK", "regtest");
-
     TestCaseRunner::new(LightClientProvingTest)
         .set_citrea_path(get_citrea_path())
         .run()
@@ -178,6 +170,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
             with_batch_prover: true,
             with_light_client_prover: true,
             with_full_node: true,
+            mode: CitreaMode::DevAllForks,
             ..Default::default()
         }
     }
@@ -207,13 +200,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         LightClientProverConfig {
             enable_recovery: false,
             initial_da_height: 171,
-            ..Default::default()
-        }
-    }
-
-    fn test_env() -> TestCaseEnv {
-        TestCaseEnv {
-            test: vec![("CITREA_NETWORK", "regtest")],
             ..Default::default()
         }
     }
@@ -453,8 +439,6 @@ impl TestCase for LightClientProvingTestMultipleProofs {
 
 #[tokio::test]
 async fn test_light_client_proving_multiple_proofs() -> Result<()> {
-    std::env::set_var("CITREA_NETWORK", "regtest");
-
     TestCaseRunner::new(LightClientProvingTestMultipleProofs)
         .set_citrea_path(get_citrea_path())
         .run()
@@ -473,6 +457,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             with_sequencer: true,
             with_batch_prover: true,
             with_light_client_prover: true,
+            mode: CitreaMode::DevAllForks,
             ..Default::default()
         }
     }
@@ -496,13 +481,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         LightClientProverConfig {
             enable_recovery: false,
             initial_da_height: 171,
-            ..Default::default()
-        }
-    }
-
-    fn test_env() -> TestCaseEnv {
-        TestCaseEnv {
-            test: vec![("CITREA_NETWORK", "regtest")],
             ..Default::default()
         }
     }
@@ -738,8 +716,6 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
 
 #[tokio::test]
 async fn test_light_client_batch_proof_method_id_update() -> Result<()> {
-    std::env::set_var("CITREA_NETWORK", "regtest");
-
     TestCaseRunner::new(LightClientBatchProofMethodIdUpdateTest::default())
         .set_citrea_path(get_citrea_path())
         .run()

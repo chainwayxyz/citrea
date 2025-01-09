@@ -8,6 +8,7 @@ use risc0_zkvm::{
 };
 use sov_db::ledger_db::LedgerDB;
 use sov_rollup_interface::zk::{Proof, Zkvm, ZkvmHost};
+use sov_rollup_interface::Network;
 use tracing::{debug, info};
 
 use crate::guest::Risc0Guest;
@@ -39,11 +40,13 @@ pub struct Risc0BonsaiHost {
     env: Vec<u8>,
     assumptions: Vec<AssumptionReceipt>,
     _ledger_db: LedgerDB,
+    #[cfg(feature = "testing")]
+    network: Network,
 }
 
 impl Risc0BonsaiHost {
     /// Create a new Risc0Host to prove the given binary.
-    pub fn new(ledger_db: LedgerDB) -> Self {
+    pub fn new(ledger_db: LedgerDB, _network: Network) -> Self {
         match std::env::var("RISC0_PROVER") {
             Ok(prover) => match prover.as_str() {
                 "bonsai" => {
@@ -80,6 +83,8 @@ impl Risc0BonsaiHost {
             env: Default::default(),
             assumptions: vec![],
             _ledger_db: ledger_db,
+            #[cfg(feature = "testing")]
+            network: _network,
         }
     }
 }
@@ -124,12 +129,9 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         #[cfg(feature = "testing")]
         {
-            env.env_var(
-                "CITREA_NETWORK",
-                std::env::var("CITREA_NETWORK")
-                    .as_deref()
-                    .unwrap_or("nightly"),
-            );
+            if self.network == Network::Regtest {
+                env.env_var("ALL_FORKS", "1");
+            }
         }
 
         let env = env.write_slice(&self.env).build().unwrap();

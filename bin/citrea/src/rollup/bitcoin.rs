@@ -266,7 +266,7 @@ impl RollupBlueprint for BitcoinRollup {
         ledger_db: LedgerDB,
         proof_sampling_number: usize,
     ) -> Self::ProverService {
-        let vm = Risc0BonsaiHost::new(ledger_db.clone());
+        let vm = Risc0BonsaiHost::new(ledger_db.clone(), self.network);
         // let vm = SP1Host::new(
         //     include_bytes!("../guests/sp1/batch-prover-bitcoin/elf/zkvm-elf"),
         //     ledger_db.clone(),

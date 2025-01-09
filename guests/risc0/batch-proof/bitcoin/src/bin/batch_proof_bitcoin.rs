@@ -2,7 +2,7 @@
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::BitcoinVerifier;
 use citrea_primitives::forks::{
-    DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, REGTEST_FORKS, TESTNET_FORKS,
+    ALL_FORKS, DEVNET_FORKS, MAINNET_FORKS, NIGHTLY_FORKS, TESTNET_FORKS,
 };
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use citrea_risc0_adapter::guest::Risc0Guest;
@@ -65,14 +65,14 @@ const FORKS: &[Fork] = match NETWORK {
     Network::Testnet => &TESTNET_FORKS,
     Network::Devnet => &DEVNET_FORKS,
     Network::Nightly => &NIGHTLY_FORKS,
-    Network::Regtest => &REGTEST_FORKS,
+    Network::Regtest => &ALL_FORKS,
 };
 
 fn get_forks() -> &'static [Fork] {
     #[cfg(feature = "testing")]
     {
-        if std::env::var("CITREA_NETWORK") == Ok(String::from("regtest")) {
-            return &REGTEST_FORKS;
+        if std::env::var("ALL_FORKS") == Ok(String::from("1")) {
+            return &ALL_FORKS;
         }
     }
     FORKS

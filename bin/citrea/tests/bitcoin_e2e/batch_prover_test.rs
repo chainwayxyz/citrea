@@ -9,7 +9,7 @@ use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::RollupParams;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
+    BatchProverConfig, CitreaMode, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
@@ -19,13 +19,14 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_primitives::forks::{fork_from_block_number, get_forks};
+use citrea_primitives::forks::{fork_from_block_number, get_forks, use_network_forks};
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::fork::ForkManager;
 use sov_modules_api::SpecId;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::VerifiedBatchProofResponse;
+use sov_rollup_interface::Network;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
@@ -537,6 +538,7 @@ impl TestCase for ForkElfSwitchingTest {
             with_batch_prover: true,
             with_full_node: true,
             with_light_client_prover: true,
+            mode: CitreaMode::DevAllForks,
             ..Default::default()
         }
     }
@@ -545,13 +547,6 @@ impl TestCase for ForkElfSwitchingTest {
         LightClientProverConfig {
             initial_da_height: 171,
             enable_recovery: false,
-            ..Default::default()
-        }
-    }
-
-    fn test_env() -> TestCaseEnv {
-        TestCaseEnv {
-            test: vec![("CITREA_NETWORK", "regtest")],
             ..Default::default()
         }
     }
@@ -679,7 +674,7 @@ impl TestCase for ForkElfSwitchingTest {
 
 #[tokio::test]
 async fn test_fork_elf_switching() -> Result<()> {
-    std::env::set_var("CITREA_NETWORK", "regtest");
+    use_network_forks(Network::Regtest);
 
     TestCaseRunner::new(ForkElfSwitchingTest)
         .set_citrea_path(get_citrea_path())
