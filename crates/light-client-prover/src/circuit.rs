@@ -152,13 +152,20 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                                 for wtxid in &wtx_ids {
                                     if let Some((wtxid, chunk)) =
                                         // If the wtxid belongs to a chunk that we've seen in the same L1 block,
+                                        // We add it to the aggregate.
                                         in_memory_chunks.remove_entry(wtxid)
                                     {
                                         aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
                                     } else {
+                                        // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
+                                        // We use the hints to verify the existence of the chunk.
                                         let hint =
                                             mmr_hints.pop_front().expect("No more hints left");
 
+                                        // If the hint was provided as None, which could happen due to the non-existence of the chunk
+                                        // in the same block as aggregate, we skip trying to prove the aggregate.
+                                        // TODO: This is an issue we must solve in the future. Since the prover can provide a hint as None,
+                                        // it can ignore proofs, opening a censorship attack vector.
                                         let Some((chunk, proof)) = hint else {
                                             continue;
                                         };
