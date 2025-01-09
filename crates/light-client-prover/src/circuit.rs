@@ -126,8 +126,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         match data {
             // No need to check sender for chunk
             DaDataLightClient::Chunk(chunk) => {
-                in_memory_chunks
-                    .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
+                in_memory_chunks.insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
             }
             DaDataLightClient::Complete(proof) => {
                 if blob.sender().as_ref() != batch_prover_da_public_key {
@@ -164,10 +163,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 
                     let hint = mmr_hints_iter.next();
                     if hint.is_none() || hint.unwrap().0.wtxid != *wtxid {
-                        println!(
-                            "Missing mmr hint, unprovable aggregate {:?}",
-                            blob.wtxid()
-                        );
+                        println!("Missing mmr hint, unprovable aggregate {:?}", blob.wtxid());
                         continue 'blob_loop;
                     }
                 }
@@ -180,8 +176,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                         used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
                         complete_proof.extend(chunk);
                     } else {
-                        let (chunk, proof) =
-                            mmr_hints.pop_front().expect("Already checked");
+                        let (chunk, proof) = mmr_hints.pop_front().expect("Already checked");
 
                         if mmr_guest.verify_proof(&chunk, &proof) {
                             complete_proof.extend(chunk.body);
@@ -199,8 +194,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 };
 
                 // Decompress complete proof
-                let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof)
-                else {
+                let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof) else {
                     println!("Failed to decompress and deserialize completed chunks");
                     reinsert_used_chunks();
                     continue;
@@ -230,7 +224,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                 }
             }
-            DaDataLightClient::BatchProofMethodId(BatchProofMethodId { method_id, activation_l2_height }) => {
+            DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                method_id,
+                activation_l2_height,
+            }) => {
                 if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
                     continue;
                 }
