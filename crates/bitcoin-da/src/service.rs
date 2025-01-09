@@ -781,7 +781,7 @@ impl DaService for BitcoinService {
                         {
                             // push only when signature is correct
                             let body = decompress_blob(&complete.body);
-                            let data = DaDataLightClient::try_from_slice(&body)
+                            let data = DaDataLightClient::borsh_parse_complete(&body)
                                 .map_err(|e| anyhow!("{}: Failed to parse complete: {e}", tx_id))?;
                             let DaDataLightClient::Complete(zk_proof) = data else {
                                 bail!("{}: Complete: unexpected kind", tx_id);
