@@ -1039,11 +1039,10 @@ impl DaService for BitcoinService {
                                 }
                             }
                             ParsedLightClientTransaction::Chunk(chunk) => {
-                                let hash = calculate_sha256(&chunk.body);
                                 let relevant_tx = BlobWithSender::new(
                                     chunk.body,
                                     vec![0],
-                                    hash,
+                                    [0; 32],
                                     Some(wtxid.to_byte_array()),
                                 );
                                 relevant_txs.push(relevant_tx);

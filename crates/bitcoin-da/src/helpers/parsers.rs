@@ -69,11 +69,6 @@ pub trait VerifyParsed {
     fn signature(&self) -> &[u8];
     fn body(&self) -> &[u8];
 
-    /// Returns the hash of the body
-    fn get_unverified_hash(&self) -> Option<[u8; 32]> {
-        Some(calculate_sha256(self.body()))
-    }
-
     /// Verifies the signature of the inscription and returns the hash of the body
     fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
         let public_key = secp256k1::PublicKey::from_slice(self.public_key());
