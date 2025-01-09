@@ -119,110 +119,109 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
     for blob in input.da_data {
-        if blob.sender().as_ref() == batch_prover_da_public_key {
-            let data = DaDataLightClient::try_from_slice(blob.verified_data());
+        let data = DaDataLightClient::try_from_slice(blob.verified_data());
 
-            if let Ok(data) = data {
-                match data {
-                    DaDataLightClient::Complete(proof) => {
-                        let expected_to_fail = expected_to_fail_hints
-                            .next_if(|&x| x == current_proof_index)
-                            .is_some();
-                        match process_complete_proof::<DaV, G>(
-                            proof,
-                            &batch_proof_method_ids,
-                            last_l2_height,
-                            &mut initial_to_final,
-                            expected_to_fail,
-                        ) {
-                            Ok(()) => current_proof_index += 1,
-                            Err(e) => println!("Error processing complete proof: {e}"),
-                        }
-                    }
-                    DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
-                        println!("aggregate wtxids: {:?}", wtx_ids);
-                        let mut aggregate_chunks = vec![];
-                        for wtxid in &wtx_ids {
-                            if let Some((wtxid, chunk)) = in_memory_chunks.remove_entry(wtxid) {
-                                // If the wtxid belongs to a chunk that we've seen in the same L1 block,
-                                // We add it to the aggregate.
-                                aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
-                            } else {
-                                // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
-                                // We use the hints to verify the existence of the chunk.
-                                let hint = mmr_hints.pop_front().expect("No more hints left");
-
-                                // If the hint was provided as None, which could happen due to the non-existence of the chunk
-                                // in the same block as aggregate, we skip trying to prove the aggregate.
-                                // TODO: This is an issue we must solve in the future. Since the prover can provide a hint as None,
-                                // it can ignore proofs, opening a censorship attack vector.
-                                let Some((chunk, proof)) = hint else {
-                                    continue; // ignore this aggregate
-                                };
-
-                                if *wtxid != chunk.wtxid {
-                                    panic!("Hint wtxid does not match chunk wtxid!");
-                                }
-
-                                if mmr_guest.verify_proof(&chunk, &proof) {
-                                    aggregate_chunks.push(chunk);
-                                } else {
-                                    panic!("Failed to verify MMR proof for hint");
+        if let Ok(data) = data {
+            match data {
+                // No need to check sender for chunk
+                DaDataLightClient::Chunk(chunk) => {
+                    // Store the chunk in memory unconditionally
+                    println!("Storing chunk in memory");
+                    in_memory_chunks
+                        .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
+                }
+                _ => {
+                    if blob.sender().as_ref() == batch_prover_da_public_key {
+                        match data {
+                            DaDataLightClient::Complete(proof) => {
+                                let expected_to_fail = expected_to_fail_hints
+                                    .next_if(|&x| x == current_proof_index)
+                                    .is_some();
+                                match process_complete_proof::<DaV, G>(
+                                    proof,
+                                    &batch_proof_method_ids,
+                                    last_l2_height,
+                                    &mut initial_to_final,
+                                    expected_to_fail,
+                                ) {
+                                    Ok(()) => current_proof_index += 1,
+                                    Err(e) => println!("Error processing complete proof: {e}"),
                                 }
                             }
-                        }
-                        // Concatenate complete proof
-                        // TODO: Continue on error
-                        let complete_proof = da_verifier
-                            .decompress_chunks(
-                                aggregate_chunks.into_iter().flat_map(|n| n.body).collect(),
-                            )
-                            .expect("Should decompress and borsh deserialize");
+                            DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
+                                println!("aggregate wtxid: {:?}", blob.wtxid().clone().unwrap());
+                                println!("aggregate wtxids: {:?}", wtx_ids);
+                                let mut aggregate_chunks = vec![];
+                                for wtxid in &wtx_ids {
+                                    if let Some((wtxid, chunk)) =
+                                        in_memory_chunks.remove_entry(wtxid)
+                                    {
+                                        aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
+                                    } else {
+                                        let hint =
+                                            mmr_hints.pop_front().expect("No more hints left");
 
-                        let expected_to_fail = expected_to_fail_hints
-                            .next_if(|&x| x == current_proof_index)
-                            .is_some();
-                        match process_complete_proof::<DaV, G>(
-                            complete_proof,
-                            &batch_proof_method_ids,
-                            last_l2_height,
-                            &mut initial_to_final,
-                            expected_to_fail,
-                        ) {
-                            Ok(()) => current_proof_index += 1,
-                            Err(e) => println!("Error processing aggregated proof: {e}"),
+                                        let Some((chunk, proof)) = hint else {
+                                            continue;
+                                        };
+
+                                        if *wtxid != chunk.wtxid {
+                                            panic!("Hint wtxid does not match chunk wtxid!");
+                                        }
+
+                                        if mmr_guest.verify_proof(&chunk, &proof) {
+                                            aggregate_chunks.push(chunk);
+                                        } else {
+                                            panic!("Failed to verify MMR proof for hint");
+                                        }
+                                    }
+                                }
+                                let complete_proof = da_verifier
+                                    .decompress_chunks(
+                                        aggregate_chunks.into_iter().flat_map(|n| n.body).collect(),
+                                    )
+                                    .expect("Should decompress and borsh deserialize");
+
+                                let expected_to_fail = expected_to_fail_hints
+                                    .next_if(|&x| x == current_proof_index)
+                                    .is_some();
+                                match process_complete_proof::<DaV, G>(
+                                    complete_proof,
+                                    &batch_proof_method_ids,
+                                    last_l2_height,
+                                    &mut initial_to_final,
+                                    expected_to_fail,
+                                ) {
+                                    Ok(()) => current_proof_index += 1,
+                                    Err(e) => println!("Error processing aggregated proof: {e}"),
+                                }
+                            }
+                            DaDataLightClient::BatchProofMethodId(_)
+                            | DaDataLightClient::Chunk(_) => {} // Ignore
+                        }
+                    } else if blob.sender().as_ref() == method_id_upgrade_authority_da_public_key {
+                        if let DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                            method_id,
+                            activation_l2_height,
+                        }) = data
+                        {
+                            let last_activation_height = batch_proof_method_ids
+                                .last()
+                                .expect("Should be at least one")
+                                .0;
+
+                            if activation_l2_height > last_activation_height {
+                                batch_proof_method_ids.push((activation_l2_height, method_id));
+                            }
                         }
                     }
-                    DaDataLightClient::Chunk(chunk) => {
-                        // Store the chunk in memory
-                        println!("Storing chunk in memory");
-                        in_memory_chunks
-                            .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
-                    }
-                    DaDataLightClient::BatchProofMethodId(_) => {} // if coming from batch prover, ignore
-                }
-            }
-        } else if blob.sender().as_ref() == method_id_upgrade_authority_da_public_key {
-            let data = DaDataLightClient::try_from_slice(blob.verified_data());
-
-            if let Ok(DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
-                method_id,
-                activation_l2_height,
-            })) = data
-            {
-                let last_activation_height = batch_proof_method_ids
-                    .last()
-                    .expect("Should be at least one")
-                    .0;
-
-                if activation_l2_height > last_activation_height {
-                    batch_proof_method_ids.push((activation_l2_height, method_id));
                 }
             }
         }
     }
 
     // Do recursive matching for previous state root
+    println!("last_state_root: {:?}", last_state_root);
     recursive_match_state_roots(
         &mut initial_to_final,
         &BatchProofInfo::new(last_state_root, last_state_root, last_l2_height),
