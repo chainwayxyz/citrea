@@ -169,7 +169,7 @@ Look through the `rollup_config.toml` and apply changes as you wish, if you modi
 And then run the full node by executing this command
 
 ```sh
-./target/release/citrea --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
+./target/release/citrea --network testnet --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
 ```
 
 ### Option 3: Using Docker
