@@ -84,7 +84,10 @@ impl DaDataLightClient {
             Complete(PreFork1Proof),
         }
 
-        if let Ok(prefork1_data) = PreFork1DaDataLightClient::try_from_slice(body) {
+        if let Ok(res) = Self::try_from_slice(body) {
+            Ok(res)
+        } else {
+            let prefork1_data = PreFork1DaDataLightClient::try_from_slice(body)?;
             if let PreFork1DaDataLightClient::Complete(PreFork1Proof::Full(full)) = prefork1_data {
                 Ok(DaDataLightClient::Complete(full))
             } else {
@@ -94,8 +97,6 @@ impl DaDataLightClient {
                     "PreFork1 Complete failed to parse",
                 ))
             }
-        } else {
-            Self::try_from_slice(body)
         }
     }
 }
