@@ -184,3 +184,40 @@ fn test_mmr_with_store() {
         assert!(mmr.verify_proof(node, &proof));
     }
 }
+
+#[test]
+fn test_fool_mmr_verify() {
+    let mut mmr_guest = MMRGuest::new();
+    let mut mmr_native = MMRNative::new(InMemoryStore::new());
+    let mut nodes = vec![];
+
+    for i in 0..42 {
+        let wtxid = [i as u8; 32];
+        let body = vec![i as u8; 80];
+        let node = MMRChunk::new(wtxid, body);
+        nodes.push(node.clone());
+
+        mmr_native.append(node.clone()).unwrap();
+        mmr_guest.append(node);
+    }
+
+    for i in 0..42 {
+        let wtxid = [i as u8; 32];
+        let body = vec![i as u8; 80];
+        let node = MMRChunk::new(wtxid, body);
+        let (chunk_from_tree, proof) = mmr_native.generate_proof(wtxid).unwrap().unwrap();
+
+        assert_eq!(chunk_from_tree.body, node.body);
+        assert_eq!(chunk_from_tree.wtxid, node.wtxid);
+
+        assert!(mmr_guest.verify_proof(&node, &proof));
+    }
+
+    let (chunk_native, proof) = mmr_native.generate_proof([5; 32]).unwrap().unwrap();
+
+    let chunk_wrong_wtxid = MMRChunk::new([6; 32], chunk_native.body);
+    let chunk_wrong_body = MMRChunk::new(chunk_native.wtxid, vec![6; 80]);
+
+    assert!(!mmr_guest.verify_proof(&chunk_wrong_wtxid, &proof));
+    assert!(!mmr_guest.verify_proof(&chunk_wrong_body, &proof));
+}

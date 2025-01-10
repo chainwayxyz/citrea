@@ -23,8 +23,8 @@ pub type Wtxid = [u8; 32];
 pub trait NodeStore {
     fn save_node(&mut self, level: u32, index: u32, hash: MMRNodeHash) -> Result<()>;
     fn load_node(&self, level: u32, index: u32) -> Result<Option<MMRNodeHash>>;
-    fn save_chunk(&mut self, wtxid: Wtxid, chunk: MMRChunk) -> Result<()>;
-    fn load_chunk(&self, wtxid: Wtxid) -> Result<Option<MMRChunk>>;
+    fn save_chunk(&mut self, hash: MMRNodeHash, chunk: MMRChunk) -> Result<()>;
+    fn load_chunk(&self, hash: MMRNodeHash) -> Result<Option<MMRChunk>>;
     fn get_tree_size(&self) -> u32;
     fn set_tree_size(&mut self, size: u32) -> Result<()>;
 }
@@ -68,9 +68,16 @@ impl MMRChunk {
     pub fn new(wtxid: Wtxid, body: Vec<u8>) -> Self {
         MMRChunk { wtxid, body }
     }
+
+    pub fn hash(&self) -> MMRNodeHash {
+        let mut hasher = Sha256::default();
+        hasher.update(self.wtxid);
+        hasher.update(&self.body);
+        hasher.finalize().into()
+    }
 }
 
-pub fn hash_pair(left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+pub fn hash_pair(left: MMRNodeHash, right: MMRNodeHash) -> MMRNodeHash {
     let mut hasher = Sha256::default();
     hasher.update(left);
     hasher.update(right);

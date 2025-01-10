@@ -75,16 +75,16 @@ impl NodeStore for MmrDB {
 
     fn save_chunk(
         &mut self,
-        wtxid: sov_rollup_interface::mmr::Wtxid,
+        hash: sov_rollup_interface::mmr::MMRNodeHash,
         chunk: sov_rollup_interface::mmr::MMRChunk,
     ) -> anyhow::Result<()> {
-        self.db.put::<MMRChunks>(&wtxid, &chunk)
+        self.db.put::<MMRChunks>(&hash, &chunk)
     }
 
     fn load_chunk(
         &self,
-        wtxid: sov_rollup_interface::mmr::Wtxid,
+        hash: sov_rollup_interface::mmr::MMRNodeHash,
     ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRChunk>> {
-        self.db.get::<MMRChunks>(&wtxid)
+        self.db.get::<MMRChunks>(&hash)
     }
 }
