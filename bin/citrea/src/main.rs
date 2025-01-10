@@ -160,7 +160,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     if args.dev_all_forks {
         network = Network::Regtest;
-        use_network_forks(network);
     }
 
     info!("Starting node on {network}");

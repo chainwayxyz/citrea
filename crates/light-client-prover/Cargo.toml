@@ -43,7 +43,6 @@ tempfile = { workspace = true }
 
 [features]
 default = []
-testing = []
 native = [
   "dep:alloy-primitives",
   "dep:citrea-primitives",
