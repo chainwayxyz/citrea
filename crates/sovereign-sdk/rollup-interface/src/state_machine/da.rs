@@ -60,7 +60,7 @@ pub enum DaDataLightClient {
     /// A zk proof and state diff
     Complete(Proof),
     /// A list of tx ids
-    Aggregate(Vec<[u8; 32]>),
+    Aggregate(Vec<[u8; 32]>, Vec<[u8; 32]>),
     /// A chunk of an aggregate
     Chunk(Vec<u8>),
     /// A new batch proof method_id
@@ -161,7 +161,7 @@ pub trait DaSpec:
 }
 
 /// Latest da state to verify and apply da block changes
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+#[derive(Default, Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct LatestDaState {
     /// Proved DA block's header hash
     /// This is used to compare the previous DA block hash with first batch proof's DA block hash
@@ -212,6 +212,9 @@ pub trait DaVerifier: Send + Sync {
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
         network: Network,
     ) -> Result<LatestDaState, Self::Error>;
+
+    /// Decompress chunks to complete
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 }
 
 #[cfg(feature = "std")]
@@ -294,6 +297,9 @@ pub trait BlobReaderTrait:
     /// Returns the hash of the blob as it appears on the DA layer
     fn hash(&self) -> [u8; 32];
 
+    /// Returns the witness transaction ID of the blob as it appears on the DA layer
+    fn wtxid(&self) -> Option<[u8; 32]>;
+
     /// Returns a slice containing all the data accessible to the rollup at this point in time.
     /// When running in native mode, the rollup can extend this slice by calling `advance`. In zk-mode,
     /// the rollup is limited to only the verified data.
@@ -324,6 +330,9 @@ pub trait BlobReaderTrait:
     fn full_data(&mut self) -> &[u8] {
         self.advance(self.total_len())
     }
+
+    /// Weird method to serialize blob as v1. Should be removed when a better way is introduced in the future.
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>>;
 }
 
 /// Trait with collection of trait bounds for a block hash.

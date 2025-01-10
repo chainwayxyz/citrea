@@ -109,12 +109,12 @@ impl TestCase for BitcoinServiceTest {
                 service.extract_relevant_blobs_with_proof(&block, DaNamespace::ToLightClientProver);
             assert_eq!(inclusion_proof.wtxids.len(), 33);
             assert_eq!(inclusion_proof.wtxids[1..], block_wtxids[1..]);
-            // 2 complete, 2 aggregate proofs, and 2 method id txs
-            assert_eq!(txs.len(), 6);
+            // 2 complete, 2 aggregate proofs with 2 chunks for the first and 3 chunks for the second agg, and 2 method id txs
+            assert_eq!(txs.len(), 11);
             // it is >= due to the probability that one of commit transactions ended up
             // with the prefix by chance (reveals are guaranteed to have a certain prefix)
             assert!(
-                completeness_proof.len() >= 6,
+                completeness_proof.len() >= 11,
                 "expected completeness proof to have at least 6 txs, it has {}",
                 completeness_proof.len()
             );

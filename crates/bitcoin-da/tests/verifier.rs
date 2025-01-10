@@ -510,7 +510,8 @@ impl TestCase for BitcoinVerifierTest {
         {
             let mut b_txs = b_txs.clone();
 
-            b_txs[0] = BlobWithSender::new(vec![2; 152], b_txs[0].sender.0.clone(), b_txs[0].hash);
+            b_txs[0] =
+                BlobWithSender::new(vec![2; 152], b_txs[0].sender.0.clone(), b_txs[0].hash, None);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
@@ -527,7 +528,8 @@ impl TestCase for BitcoinVerifierTest {
         {
             let mut l_txs = l_txs.clone();
 
-            l_txs[0] = BlobWithSender::new(vec![2; 152], l_txs[0].sender.0.clone(), l_txs[0].hash);
+            l_txs[0] =
+                BlobWithSender::new(vec![2; 152], l_txs[0].sender.0.clone(), l_txs[0].hash, None);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
@@ -548,7 +550,7 @@ impl TestCase for BitcoinVerifierTest {
             blob.advance(blob.total_len());
             let blob = blob.accumulator().to_vec();
 
-            b_txs[0] = BlobWithSender::new(blob, vec![2; 33], b_txs[0].hash);
+            b_txs[0] = BlobWithSender::new(blob, vec![2; 33], b_txs[0].hash, None);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
@@ -569,7 +571,7 @@ impl TestCase for BitcoinVerifierTest {
             blob.advance(blob.total_len());
             let blob = blob.accumulator().to_vec();
 
-            l_txs[0] = BlobWithSender::new(blob, vec![2; 33], l_txs[0].hash);
+            l_txs[0] = BlobWithSender::new(blob, vec![2; 33], l_txs[0].hash, None);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
@@ -594,7 +596,7 @@ impl TestCase for BitcoinVerifierTest {
                 }
             };
 
-            l_txs[0] = BlobWithSender::new(body, l_txs[0].sender.0.clone(), l_txs[0].hash);
+            l_txs[0] = BlobWithSender::new(body, l_txs[0].sender.0.clone(), l_txs[0].hash, None);
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,

@@ -75,7 +75,7 @@ impl MockProof {
 
     /// Tries to deserialize a proof from a byte slice.
     pub fn decode(input: &[u8]) -> Result<Self, anyhow::Error> {
-        Ok(Self::try_from_slice(input).unwrap())
+        Self::try_from_slice(input).map_err(|e| anyhow::anyhow!(e))
     }
 }
 
@@ -252,7 +252,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkGuest {
     }
 
     fn extract_raw_output(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        let mock_proof = MockProof::decode(serialized_proof).unwrap();
+        let mock_proof = MockProof::decode(serialized_proof)?;
         Ok(mock_proof.log)
     }
 

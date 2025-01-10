@@ -12,6 +12,7 @@ use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::LedgerDBMigrator;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::Spec;
@@ -449,6 +450,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
+        let mmr_db = MmrDB::new(&rocksdb_config)?;
 
         let prover_service = self
             .create_prover_service(
@@ -500,6 +502,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             batch_prover_code_commitments_by_spec,
             light_client_prover_code_commitment,
             light_client_prover_elfs,
+            mmr_db,
             task_manager,
         )?;
 

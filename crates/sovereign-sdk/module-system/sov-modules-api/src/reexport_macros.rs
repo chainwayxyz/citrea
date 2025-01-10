@@ -2,6 +2,9 @@
 /// type.
 #[cfg(feature = "macros")]
 pub use sov_modules_macros::DispatchCall;
+/// Implements ForkCodec trait. Requires the type to be enum.
+#[cfg(feature = "macros")]
+pub use sov_modules_macros::ForkCodec;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
 #[cfg(feature = "macros")]

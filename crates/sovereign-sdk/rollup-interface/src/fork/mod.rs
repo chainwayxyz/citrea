@@ -5,6 +5,8 @@ mod migration;
 #[cfg(test)]
 mod tests;
 
+use alloc::vec::Vec;
+
 pub use manager::*;
 pub use migration::*;
 
@@ -78,4 +80,56 @@ pub fn fork_pos_from_block_number(forks: &[Fork], block_number: u64) -> usize {
         Ok(idx) => idx,
         Err(idx) => idx.saturating_sub(1),
     }
+}
+
+/// ForkCodec is the serialization trait for types that require forking when changed.
+/// Optimal usecase would be the type to be versioned enum, and do untagged enum ser/de.
+///
+/// Example:
+///
+/// ```
+/// use sov_rollup_interface::fork::ForkCodec;
+/// use sov_rollup_interface::spec::SpecId;
+///
+/// #[derive(borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// struct InputV1 {}
+///
+/// #[derive(borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// struct InputV2 {}
+///
+/// enum Input {
+///     V1(InputV1),
+///     V2(InputV2),
+/// }
+///
+/// impl Input {
+///     pub fn new_v1(v1: InputV1) -> Self {
+///         Self::V1(v1)
+///     }
+///
+///     pub fn new_v2(v2: InputV2) -> Self {
+///         Self::V2(v2)
+///     }
+/// }
+///
+/// impl ForkCodec for Input {
+///     fn encode(&self) -> anyhow::Result<Vec<u8>> {
+///         match self {
+///             Self::V1(v1) => Ok(borsh::to_vec(v1)?),
+///             Self::V2(v2) => Ok(borsh::to_vec(v2)?),
+///         }
+///     }
+///
+///     fn decode(bytes: impl AsRef<[u8]>, spec: SpecId) -> anyhow::Result<Self> {
+///         let slice = bytes.as_ref();
+///         match spec {
+///             SpecId::Genesis => Ok(Self::new_v1(borsh::from_slice(slice)?)),
+///             SpecId::Fork1 => Ok(Self::new_v2(borsh::from_slice(slice)?)),
+///         }
+///     }
+/// }
+/// ```
+pub trait ForkCodec: Sized {
+    fn encode(&self) -> anyhow::Result<Vec<u8>>;
+    fn decode(bytes: impl AsRef<[u8]>, spec: SpecId) -> anyhow::Result<Self>;
 }

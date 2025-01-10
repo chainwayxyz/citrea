@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
+use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
     LightClientProofOutputRpcResponse, LightClientProofResponse, SoftConfirmationResponse,
@@ -94,6 +95,8 @@ pub struct StoredLightClientProofOutput {
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    /// A list of unprocessed chunks
+    pub mmr_guest: MMRGuest,
 }
 
 impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
@@ -112,6 +115,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
             batch_proof_method_ids: value.batch_proof_method_ids,
+            mmr_guest: value.mmr_guest,
         }
     }
 }
@@ -133,6 +137,7 @@ impl From<LightClientCircuitOutput> for StoredLightClientProofOutput {
             unchained_batch_proofs_info: circuit_output.unchained_batch_proofs_info,
             last_l2_height: circuit_output.last_l2_height,
             batch_proof_method_ids: circuit_output.batch_proof_method_ids,
+            mmr_guest: circuit_output.mmr_guest,
         }
     }
 }
@@ -154,6 +159,7 @@ impl From<StoredLightClientProofOutput> for LightClientCircuitOutput {
             unchained_batch_proofs_info: db_output.unchained_batch_proofs_info,
             last_l2_height: db_output.last_l2_height,
             batch_proof_method_ids: db_output.batch_proof_method_ids,
+            mmr_guest: db_output.mmr_guest,
         }
     }
 }

@@ -57,6 +57,7 @@ pub enum ValidationError {
     InvalidTargetHash,
     InvalidTimestamp,
     HeaderInclusionTxCountMismatch,
+    FailedToDeserializeCompleteChunks,
 }
 
 impl DaVerifier for BitcoinVerifier {
@@ -69,6 +70,11 @@ impl DaVerifier for BitcoinVerifier {
             to_batch_proof_prefix: params.to_batch_proof_prefix,
             to_light_client_prefix: params.to_light_client_prefix,
         }
+    }
+
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        borsh::from_slice(decompress_blob(complete_chunks).as_slice())
+            .map_err(|_| ValidationError::FailedToDeserializeCompleteChunks)
     }
 
     // Verify that the given list of blob transactions is complete and correct.
@@ -144,8 +150,11 @@ impl DaVerifier for BitcoinVerifier {
                                     }
                                 }
                             }
-                            ParsedLightClientTransaction::Chunk(_chunk) => {
-                                // ignore
+                            ParsedLightClientTransaction::Chunk(chunk) => {
+                                let blob_content = verified_blob_chunk(&mut blobs_iter, wtxid)?;
+                                if blob_content != chunk.body {
+                                    return Err(ValidationError::BlobContentWasModified);
+                                }
                             }
                             ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
                                 if let Some(blob_content) =
@@ -523,6 +532,26 @@ impl BitcoinVerifier {
 
         Ok(())
     }
+}
+
+fn verified_blob_chunk<'a, I>(
+    blobs_iter: &mut I,
+    wtxid: &[u8; 32],
+) -> Result<&'a [u8], ValidationError>
+where
+    I: Iterator<Item = &'a BlobWithSender>,
+{
+    let blob = blobs_iter.next();
+
+    let Some(blob) = blob else {
+        return Err(ValidationError::ValidBlobNotFoundInBlobs);
+    };
+
+    if blob.wtxid != Some(*wtxid) {
+        return Err(ValidationError::BlobWasTamperedWith);
+    }
+
+    return Ok(blob.verified_data());
 }
 
 // Get associated blob content only if signatures, hashes and public keys match

@@ -223,6 +223,7 @@ impl MockDaService {
             zkp_proof,
             self.sequencer_da_address.clone(),
             data_hash,
+            None,
         );
         let header = MockBlockHeader {
             prev_hash: previous_block_hash,
@@ -348,6 +349,11 @@ impl DaService for MockDaService {
     type TransactionId = MockHash;
     type Error = anyhow::Error;
     type BlockHash = [u8; 32];
+
+    /// Decompress and deserialize chunks
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        Ok(complete_chunks.to_vec())
+    }
 
     /// Gets block at given height
     /// If block is not available, waits until it is

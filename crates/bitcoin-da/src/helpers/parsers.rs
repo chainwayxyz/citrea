@@ -125,6 +125,18 @@ impl VerifyParsed for ParsedSequencerCommitment {
     }
 }
 
+impl VerifyParsed for ParsedChunk {
+    fn public_key(&self) -> &[u8] {
+        unimplemented!("public_key call Should not be used with chunks")
+    }
+    fn signature(&self) -> &[u8] {
+        unimplemented!("signature call Should not be used with chunks")
+    }
+    fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
+
 impl VerifyParsed for ParsedBatchProverMethodId {
     fn public_key(&self) -> &[u8] {
         &self.public_key
@@ -430,6 +442,16 @@ mod light_client {
                 Op(OP_ENDIF) => break,
                 Op(_) => return Err(ParserError::UnexpectedOpcode),
             }
+        }
+
+        // Nonce
+        let _nonce = read_push_bytes(instructions)?;
+        if OP_NIP != read_opcode(instructions)? {
+            return Err(ParserError::UnexpectedOpcode);
+        }
+        // END of transaction
+        if instructions.next().is_some() {
+            return Err(ParserError::UnexpectedOpcode);
         }
 
         let body_size: usize = chunks.iter().map(|c| c.len()).sum();

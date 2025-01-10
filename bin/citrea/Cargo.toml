@@ -81,6 +81,7 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 hex = { workspace = true }
 jmt = { workspace = true }
+rand = { workspace = true }
 reqwest = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rs_merkle = { workspace = true }

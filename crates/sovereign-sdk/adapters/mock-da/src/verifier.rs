@@ -17,6 +17,10 @@ impl BlobReaderTrait for MockBlob {
         self.hash
     }
 
+    fn wtxid(&self) -> Option<[u8; 32]> {
+        self.wtxid
+    }
+
     fn verified_data(&self) -> &[u8] {
         self.data.accumulator()
     }
@@ -29,6 +33,10 @@ impl BlobReaderTrait for MockBlob {
     fn advance(&mut self, num_bytes: usize) -> &[u8] {
         self.data.advance(num_bytes);
         self.verified_data()
+    }
+
+    fn serialize_v1(&self) -> borsh::io::Result<Vec<u8>> {
+        borsh::to_vec(self)
     }
 }
 
@@ -50,6 +58,10 @@ impl DaVerifier for MockDaVerifier {
     type Spec = MockDaSpec;
 
     type Error = anyhow::Error;
+
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        Ok(complete_chunks.to_vec())
+    }
 
     fn new(_params: <Self::Spec as DaSpec>::ChainParams) -> Self {
         Self {}

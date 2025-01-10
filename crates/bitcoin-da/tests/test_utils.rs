@@ -444,7 +444,7 @@ pub fn get_blob_with_sender(tx: &Transaction, ty: MockData) -> anyhow::Result<Bl
         }
     };
 
-    Ok(BlobWithSender::new(blob.clone(), public_key, hash))
+    Ok(BlobWithSender::new(blob.clone(), public_key, hash, None))
 }
 
 // For some reason, even though macro is used, it sees it as unused

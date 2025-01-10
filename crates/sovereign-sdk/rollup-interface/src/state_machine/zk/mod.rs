@@ -18,8 +18,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::da::BlobReaderTrait;
 use super::soft_confirmation::SignedSoftConfirmationV1;
 use crate::da::{DaSpec, LatestDaState};
+use crate::mmr::{MMRChunk, MMRGuest, MMRInclusionProof};
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
 
@@ -296,7 +298,14 @@ impl<StateRoot: borsh::BorshSerialize, Witness: borsh::BorshSerialize, Da: DaSpe
         BorshSerialize::serialize(&self.initial_state_root, writer)?;
         BorshSerialize::serialize(&self.final_state_root, writer)?;
         BorshSerialize::serialize(&self.initial_batch_hash, writer)?;
-        BorshSerialize::serialize(&self.da_data, writer)?;
+
+        // We write each blob tx as serialized into v1
+        BorshSerialize::serialize(&(self.da_data.len() as u32), writer)?;
+        for blob in &self.da_data {
+            let bytes = blob.serialize_v1()?;
+            writer.write_all(&bytes)?;
+        }
+
         // remove last 32 bytes
         let original = borsh::to_vec(&self.da_block_header_of_commitments)?;
         writer.write_all(&original[..original.len() - 32])?;
@@ -412,6 +421,10 @@ pub struct LightClientCircuitOutput {
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    /// A map from tx hash to chunk data.
+    /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
+    /// like 32 hashes and some u64
+    pub mmr_guest: MMRGuest,
 }
 
 /// The input of light client proof
@@ -425,13 +438,13 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     pub completeness_proof: Da::CompletenessProof,
     /// DA block header that the batch proofs were found in.
     pub da_block_header: Da::BlockHeader,
-
     /// Light client proof method id
     pub light_client_proof_method_id: [u32; 8],
     /// Light client proof output
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
-
+    /// Hints for the guest MMR tree.
+    pub mmr_hints: VecDeque<(MMRChunk, MMRInclusionProof)>,
     /// Hint for which proofs are expected to fail
     ///
     /// Note: Indices are u32 even though we don't expect that many proofs

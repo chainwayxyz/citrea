@@ -6,6 +6,7 @@ use alloy_primitives::U64;
 use async_trait::async_trait;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, FINALITY_DEPTH};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
+use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::GroupCommitments;
 use citrea_common::tasks::manager::TaskManager;
@@ -19,6 +20,7 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
+use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
@@ -821,6 +823,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             [1u8; 32],
             fork1_height + 1,
             method_ids[1].1,
+            None,
+            false,
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -832,6 +836,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             [3u8; 32],
             fork1_height * 3,
             method_ids[1].1,
+            None,
+            false,
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -839,13 +845,14 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             .unwrap();
 
         // Expect unparsable journal to be skipped
-        let unparsable_batch_proof =
-            create_serialized_fake_receipt_batch_proof_with_malformed_journal(
-                [3u8; 32],
-                [5u8; 32],
-                fork1_height * 4,
-                method_ids[1].1,
-            );
+        let unparsable_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [3u8; 32],
+            [5u8; 32],
+            fork1_height * 4,
+            method_ids[1].1,
+            None,
+            true,
+        );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unparsable_batch_proof), 1)
             .await
@@ -856,6 +863,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             [2u8; 32],
             fork1_height * 2,
             method_ids[1].1,
+            None,
+            false,
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_batch_proof), 1)
@@ -869,6 +878,8 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
             [4u8; 32],
             fork1_height * 4,
             random_method_id,
+            None,
+            false,
         );
         let _ = bitcoin_da_service
             .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_batch_proof), 1)
@@ -915,12 +926,385 @@ async fn test_light_client_unverifiable_batch_proof() -> Result<()> {
         .await
 }
 
+#[derive(Default)]
+struct VerifyChunkedTxsInLightClient {
+    task_manager: TaskManager<()>,
+}
+
+#[async_trait]
+impl TestCase for VerifyChunkedTxsInLightClient {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_light_client_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        LightClientProverConfig {
+            enable_recovery: false,
+            initial_da_height: 171,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            min_soft_confirmations_per_commitment: 10000,
+            ..Default::default()
+        }
+    }
+
+    async fn cleanup(&self) -> Result<()> {
+        self.task_manager.abort().await;
+        Ok(())
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let light_client_prover = f.light_client_prover.as_ref().unwrap();
+
+        let da_config = &da.config;
+        let bitcoin_da_service_config = BitcoinServiceConfig {
+            node_url: format!(
+                "http://127.0.0.1:{}/wallet/{}",
+                da_config.rpc_port,
+                NodeKind::Bitcoin
+            ),
+            node_username: da_config.rpc_user.clone(),
+            node_password: da_config.rpc_password.clone(),
+            network: bitcoin::Network::Regtest,
+            da_private_key: Some(
+                // This is the regtest private key of batch prover
+                "56D08C2DDE7F412F80EC99A0A328F76688C904BD4D1435281EFC9270EC8C8707".to_string(),
+            ),
+            tx_backup_dir: Self::test_config()
+                .dir
+                .join("tx_backup_dir")
+                .display()
+                .to_string(),
+            monitoring: Default::default(),
+            mempool_space_url: None,
+        };
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let bitcoin_da_service = Arc::new(
+            BitcoinService::new_with_wallet_check(
+                bitcoin_da_service_config,
+                RollupParams {
+                    to_light_client_prefix: TO_LIGHT_CLIENT_PREFIX.to_vec(),
+                    to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
+                },
+                tx,
+            )
+            .await
+            .unwrap(),
+        );
+
+        self.task_manager
+            .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
+
+        da.generate(FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height().await?;
+
+        // Wait for light client prover to create light client proof.
+        light_client_prover
+            .wait_for_l1_height(finalized_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(finalized_height)
+            .await?;
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // Get initial method ids and genesis state root
+        let method_ids = lcp_output.batch_proof_method_ids;
+        let genesis_state_root = lcp_output.state_root;
+
+        let fork1_height = method_ids[1].0;
+
+        // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
+        // But the compressed size will go down to 100kb
+        let state_diff_100kb = create_random_state_diff(100);
+
+        // Create a 100kb (compressed size) batch proof (not 1mb because if testing feature is enabled max body size is 39700), this batch proof will consist of 3 chunk and 1 aggregate transactions because 100kb/40kb = 3 chunks
+        let verifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+            genesis_state_root,
+            [1u8; 32],
+            fork1_height + 1,
+            method_ids[1].1,
+            Some(state_diff_100kb.clone()),
+            false,
+        );
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_100kb_batch_proof), 1)
+            .await
+            .unwrap();
+
+        // In total 3 chunks 1 aggregate with all of them having reveal and commit txs we should have 8 txs in mempool
+        da.wait_mempool_len(8, Some(TEN_MINS)).await?;
+
+        // Finalize the DA block which contains the batch proof txs
+        da.generate(FINALITY_DEPTH).await?;
+
+        // Make sure all of them are in the block
+        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+
+        let batch_proof_l1_height = da.get_finalized_height().await?;
+
+        // Wait for light client prover to process verifiable batch proof
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // The batch proof should have updated the state root and the last l2 height
+        assert_eq!(lcp_output.state_root, [1u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height + 1);
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
+
+        // Now generate another proof but this time:
+        // Have 4 chunks and 1 aggregate
+        // First two chunks will should be in block n
+        // Last two chunks should be in block n+1
+        // And the aggregate should be in block n+2
+        // After the block n+2 is processed we should see the state root updated
+        let state_diff_130kb = create_random_state_diff(130);
+
+        let verifiable_130kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [1u8; 32],
+            [2u8; 32],
+            fork1_height * 2,
+            method_ids[1].1,
+            Some(state_diff_130kb),
+            false,
+        );
+
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(verifiable_130kb_batch_proof), 1)
+            .await
+            .unwrap();
+
+        // In total 4 chunks 1 aggregate with all of them having reveal and commit txs we should have 8 txs in mempool
+        da.wait_mempool_len(10, Some(TEN_MINS)).await?;
+
+        // Get txs from mempool
+        let txs = da.get_raw_mempool().await?;
+
+        // // Get the first four txs ( first two chunks )
+        let first_two_chunks = txs[0..4]
+            .iter()
+            .map(|txid| txid.to_string())
+            .collect::<Vec<_>>();
+        let last_two_chunks = txs[4..8]
+            .iter()
+            .map(|txid| txid.to_string())
+            .collect::<Vec<_>>();
+        let aggregate = txs[8..10]
+            .iter()
+            .map(|txid| txid.to_string())
+            .collect::<Vec<_>>();
+
+        let addr = da
+            .get_new_address(None, None)
+            .await?
+            .assume_checked()
+            .to_string();
+
+        da.generate_block(addr.clone(), first_two_chunks).await?;
+        // First two chunks should be in block n
+        da.wait_mempool_len(6, Some(TEN_MINS)).await?;
+
+        da.generate_block(addr.clone(), last_two_chunks).await?;
+        // Last two chunks should be in block n+1
+        da.wait_mempool_len(2, Some(TEN_MINS)).await?;
+
+        da.generate_block(addr.clone(), aggregate).await?;
+        // Aggregate should be in block n+2
+        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+
+        // Finalize the DA block which contains the aggregate txs
+        da.generate(FINALITY_DEPTH - 1).await?;
+
+        let batch_proof_l1_height = da.get_finalized_height().await?;
+
+        // Wait for light client prover to process verifiable batch proof
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+
+        // Expect light client prover to have generated light client proof
+        let lcp_first_chunks = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height - 2)
+            .await?;
+
+        let lcp_output = lcp_first_chunks.unwrap().light_client_proof_output;
+
+        // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
+        assert_eq!(lcp_output.state_root, [1u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height + 1);
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
+        // There are two chunks so the size should be 2
+        assert_eq!(lcp_output.mmr_guest.size, 2);
+
+        let lcp_last_chunks = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height - 1)
+            .await?;
+
+        let lcp_output = lcp_last_chunks.unwrap().light_client_proof_output;
+
+        // The batch proof should not have updated the state root and the last l2 height because these are only the chunks
+        assert_eq!(lcp_output.state_root, [1u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height + 1);
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
+        // There are now four chunks in total so the size should be 4
+        assert_eq!(lcp_output.mmr_guest.size, 4);
+
+        // Expect light client prover to have generated light client proof
+        let lcp_aggregate = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+
+        let lcp_output = lcp_aggregate.unwrap().light_client_proof_output;
+
+        // The batch proof should have updated the state root and the last l2 height
+        assert_eq!(lcp_output.state_root, [2u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height * 2);
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
+
+        let random_method_id = [1u32; 8];
+
+        // This should result in 3 chunks and 1 aggregate tx
+        let unverifiable_100kb_batch_proof = create_serialized_fake_receipt_batch_proof(
+            [2u8; 32],
+            [3u8; 32],
+            fork1_height * 3,
+            random_method_id,
+            Some(state_diff_100kb),
+            false,
+        );
+        let _ = bitcoin_da_service
+            .send_transaction_with_fee_rate(DaTxRequest::ZKProof(unverifiable_100kb_batch_proof), 1)
+            .await
+            .unwrap();
+
+        // In total 3 chunks 1 aggregate with all of them having reveal and commit txs we should have 8 txs in mempool
+        da.wait_mempool_len(8, Some(TEN_MINS)).await?;
+
+        // Finalize the DA block which contains the batch proof txs
+        da.generate(FINALITY_DEPTH).await?;
+
+        // Make sure all of them are in the block
+        da.wait_mempool_len(0, Some(TEN_MINS)).await?;
+
+        let batch_proof_l1_height = da.get_finalized_height().await?;
+
+        // Wait for light client prover to process verifiable batch proof
+        light_client_prover
+            .wait_for_l1_height(batch_proof_l1_height, Some(TEN_MINS))
+            .await
+            .unwrap();
+        let lcp = light_client_prover
+            .client
+            .http_client()
+            .get_light_client_proof_by_l1_height(batch_proof_l1_height)
+            .await?;
+
+        let lcp_output = lcp.unwrap().light_client_proof_output;
+
+        // The batch proof should NOT have updated the state root and the last l2 height
+        // Because it is not verified
+        assert_eq!(lcp_output.state_root, [2u8; 32]);
+        assert_eq!(lcp_output.last_l2_height, fork1_height * 2);
+        // Also should not leave unchained outputs
+        assert!(lcp_output.unchained_batch_proofs_info.is_empty());
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_verify_chunked_txs_in_light_client() -> Result<()> {
+    TestCaseRunner::new(VerifyChunkedTxsInLightClient::default())
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+pub fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Option<Vec<u8>>> {
+    let mut rng = thread_rng();
+    let mut map = BTreeMap::new();
+    let mut total_size: u64 = 0;
+
+    // Convert size to bytes
+    let size_in_bytes = size_in_kb * 1024;
+
+    while total_size < size_in_bytes {
+        // Generate a random 32-byte key
+        let key: Vec<u8> = (0..32).map(|_| rng.gen::<u8>()).collect();
+
+        // Randomly decide if the value is `None` or a `Vec<u8>` of random length
+        let value: Option<Vec<u8>> = if rng.gen_bool(0.1) {
+            None
+        } else {
+            let value_size: usize = rng.gen_range(1..=2048);
+            Some((0..value_size).map(|_| rng.gen::<u8>()).collect())
+        };
+
+        // Calculate the size of the key and value
+        let key_size = key.len() as u64;
+        let value_size = match &value {
+            Some(v) => v.len() as u64 + 1,
+            None => 1,
+        };
+
+        // Add to the map
+        map.insert(key, value);
+
+        // Update the total size
+        total_size += key_size + value_size;
+    }
+
+    map
+}
+
 fn create_serialized_fake_receipt_batch_proof(
     initial_state_root: [u8; 32],
     final_state_root: [u8; 32],
     last_l2_height: u64,
     method_id: [u32; 8],
+    state_diff: Option<BTreeMap<Vec<u8>, Option<Vec<u8>>>>,
+    malformed_journal: bool,
 ) -> Vec<u8> {
+    let sequencer_da_public_key = vec![
+        2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
+        218, 15, 43, 198, 158, 225, 167, 20, 116, 159, 215, 125, 201,
+    ];
+    let sequencer_public_key = vec![
+        32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
+        80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
+    ];
     let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
         initial_state_root,
         final_state_root,
@@ -928,54 +1312,22 @@ fn create_serialized_fake_receipt_batch_proof(
         da_slot_hash: [0u8; 32].into(),
         prev_soft_confirmation_hash: [0u8; 32],
         final_soft_confirmation_hash: [0u8; 32],
-        state_diff: BTreeMap::new(),
+        state_diff: state_diff.unwrap_or_default(),
         sequencer_commitments_range: (0, 0),
-        sequencer_da_public_key: [0u8; 32].to_vec(),
-        sequencer_public_key: [0u8; 32].to_vec(),
+        sequencer_da_public_key,
+        sequencer_public_key,
         preproven_commitments: vec![],
     };
-    let output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
+    let mut output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
+
+    // Distorts the output and make it unparsable
+    if malformed_journal {
+        output_serialized.push(1u8);
+    }
 
     let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized.clone()));
     let fake_receipt = FakeReceipt::new(claim);
     // Receipt with verifiable claim
-    let receipt = Receipt::new(InnerReceipt::Fake(fake_receipt), output_serialized.clone());
-    bincode::serialize(&receipt).unwrap()
-}
-
-fn create_serialized_fake_receipt_batch_proof_with_malformed_journal(
-    initial_state_root: [u8; 32],
-    final_state_root: [u8; 32],
-    last_l2_height: u64,
-    method_id: [u32; 8],
-) -> Vec<u8> {
-    let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
-        initial_state_root,
-        final_state_root,
-        last_l2_height,
-        da_slot_hash: [0u8; 32].into(),
-        prev_soft_confirmation_hash: [0u8; 32],
-        final_soft_confirmation_hash: [0u8; 32],
-        state_diff: BTreeMap::new(),
-        sequencer_commitments_range: (0, 0),
-        sequencer_da_public_key: [0u8; 32].to_vec(),
-        sequencer_public_key: [0u8; 32].to_vec(),
-        preproven_commitments: vec![],
-    };
-    let output_serialized = borsh::to_vec(&batch_proof_output).unwrap();
-
-    let mut output_serialized_malformed = vec![1u8];
-    output_serialized_malformed.extend(output_serialized.clone());
-
-    let claim = MaybePruned::Value(ReceiptClaim::ok(
-        method_id,
-        output_serialized_malformed.clone(),
-    ));
-    let fake_receipt = FakeReceipt::new(claim);
-    // Receipt with verifiable claim
-    let receipt = Receipt::new(
-        InnerReceipt::Fake(fake_receipt),
-        output_serialized_malformed.clone(),
-    );
+    let receipt = Receipt::new(InnerReceipt::Fake(fake_receipt), output_serialized);
     bincode::serialize(&receipt).unwrap()
 }
