@@ -288,8 +288,6 @@ where
                     }
                 }
                 DaDataLightClient::Chunk(body) => {
-                    tracing::warn!("Chunk wtxid: {:?}", wtxid);
-                    tracing::warn!("Chunk body len: {}", body.len());
                     // For now, this chunk is unused by any aggregate in the block.
                     unused_chunks.insert(wtxid, body);
                 }
