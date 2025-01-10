@@ -180,7 +180,7 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
                 .collect(),
-            Network::Regtest => BATCH_PROOF_REGTEST_BITCOIN_GUESTS
+            Network::TestNetworkWithForks => BATCH_PROOF_REGTEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
                 .collect(),
@@ -201,7 +201,7 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
                 .collect(),
-            Network::Nightly | Network::Regtest => LIGHT_CLIENT_LATEST_BITCOIN_GUESTS
+            Network::Nightly | Network::TestNetworkWithForks => LIGHT_CLIENT_LATEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (_, code))| (*k, code.clone()))
                 .collect(),
@@ -228,7 +228,7 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),
-            Network::Regtest => BATCH_PROOF_REGTEST_BITCOIN_GUESTS
+            Network::TestNetworkWithForks => BATCH_PROOF_REGTEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),
@@ -251,7 +251,7 @@ impl RollupBlueprint for BitcoinRollup {
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),
-            Network::Nightly | Network::Regtest => LIGHT_CLIENT_LATEST_BITCOIN_GUESTS
+            Network::Nightly | Network::TestNetworkWithForks => LIGHT_CLIENT_LATEST_BITCOIN_GUESTS
                 .iter()
                 .map(|(k, (id, _))| (*k, *id))
                 .collect(),

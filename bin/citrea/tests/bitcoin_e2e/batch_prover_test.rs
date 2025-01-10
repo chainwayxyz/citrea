@@ -674,7 +674,7 @@ impl TestCase for ForkElfSwitchingTest {
 
 #[tokio::test]
 async fn test_fork_elf_switching() -> Result<()> {
-    use_network_forks(Network::Regtest);
+    use_network_forks(Network::TestNetworkWithForks);
 
     TestCaseRunner::new(ForkElfSwitchingTest)
         .set_citrea_path(get_citrea_path())

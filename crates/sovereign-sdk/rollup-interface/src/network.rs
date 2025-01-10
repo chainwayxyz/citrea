@@ -13,7 +13,7 @@ pub enum Network {
     /// Nightly
     Nightly,
     /// Regtest
-    Regtest,
+    TestNetworkWithForks,
 }
 
 impl Display for Network {
@@ -30,7 +30,7 @@ impl Network {
             b"testnet" => Some(Network::Testnet),
             b"devnet" => Some(Network::Devnet),
             b"nightly" => Some(Network::Nightly),
-            b"regtest" => Some(Network::Regtest),
+            b"testnetworkwithforks" => Some(Network::TestNetworkWithForks),
             _ => None,
         }
     }
