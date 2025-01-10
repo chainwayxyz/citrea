@@ -274,9 +274,6 @@ where
                                 "Aggregate batch proof verification failed. wtxid = {}",
                                 hex::encode(wtxid)
                             );
-
-                            reinsert_used_chunks();
-
                             expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
@@ -286,7 +283,6 @@ where
                                 hex::encode(wtxid),
                                 err
                             );
-
                             reinsert_used_chunks();
                         }
                     }

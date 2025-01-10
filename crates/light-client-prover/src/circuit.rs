@@ -210,13 +210,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     &mut initial_to_final,
                     expected_to_fail,
                 ) {
-                    Ok(()) => {
-                        if expected_to_fail {
-                            reinsert_used_chunks();
-                        }
-
-                        current_proof_index += 1;
-                    }
+                    Ok(()) => current_proof_index += 1,
                     // serialization or duplicate proof error
                     Err(e) => {
                         reinsert_used_chunks();
