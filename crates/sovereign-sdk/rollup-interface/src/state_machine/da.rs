@@ -161,7 +161,7 @@ pub trait DaSpec:
 }
 
 /// Latest da state to verify and apply da block changes
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
+#[derive(Default, Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq)]
 pub struct LatestDaState {
     /// Proved DA block's header hash
     /// This is used to compare the previous DA block hash with first batch proof's DA block hash

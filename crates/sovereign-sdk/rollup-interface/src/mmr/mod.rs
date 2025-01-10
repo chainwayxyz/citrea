@@ -1,5 +1,4 @@
 #![allow(missing_docs)]
-
 use alloc::vec::Vec;
 
 use anyhow::Result;
@@ -10,12 +9,16 @@ use sha2::{Digest, Sha256};
 mod guest;
 #[cfg(any(feature = "native", feature = "testing"))]
 mod native;
+#[cfg(any(feature = "native", feature = "testing"))]
+mod test_utils;
 #[cfg(test)]
 mod tests;
 
 pub use guest::*;
 #[cfg(any(feature = "native", feature = "testing"))]
 pub use native::*;
+#[cfg(any(feature = "native", feature = "testing"))]
+pub use test_utils::*;
 
 pub type MMRNodeHash = [u8; 32];
 pub type Wtxid = [u8; 32];

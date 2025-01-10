@@ -2040,6 +2040,7 @@ dependencies = [
  "metrics",
  "metrics-derive",
  "once_cell",
+ "rand",
  "sov-db",
  "sov-ledger-rpc",
  "sov-mock-da",
