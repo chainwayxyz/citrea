@@ -59,8 +59,8 @@ impl DaVerifier for MockDaVerifier {
 
     type Error = anyhow::Error;
 
-    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
-        Ok(complete_chunks)
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        Ok(complete_chunks.to_vec())
     }
 
     fn new(_params: <Self::Spec as DaSpec>::ChainParams) -> Self {

@@ -351,8 +351,8 @@ impl DaService for MockDaService {
     type BlockHash = [u8; 32];
 
     /// Decompress and deserialize chunks
-    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
-        Ok(complete_chunks)
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        Ok(complete_chunks.to_vec())
     }
 
     /// Gets block at given height

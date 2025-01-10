@@ -108,7 +108,7 @@ pub trait DaService: Send + Sync + 'static {
     );
 
     /// Decompress and deserialize the chunks into a single complete proof.
-    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error>;
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
     /// Send a transaction directly to the DA layer.
     /// blob is the serialized and signed transaction.

@@ -180,7 +180,7 @@ pub trait DaVerifier: Send + Sync {
     ) -> Result<LatestDaState, Self::Error>;
 
     /// Decompress chunks to complete
-    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error>;
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error>;
 }
 
 #[cfg(feature = "std")]

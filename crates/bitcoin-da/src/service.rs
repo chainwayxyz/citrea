@@ -754,8 +754,8 @@ impl DaService for BitcoinService {
         Ok(head_block_header.header)
     }
 
-    fn decompress_chunks(&self, complete_chunks: Vec<u8>) -> Result<Vec<u8>, Self::Error> {
-        borsh::from_slice(decompress_blob(&complete_chunks).as_slice())
+    fn decompress_chunks(&self, complete_chunks: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        borsh::from_slice(decompress_blob(complete_chunks).as_slice())
             .map_err(|_| anyhow!("Failed to parse complete chunks"))
     }
 

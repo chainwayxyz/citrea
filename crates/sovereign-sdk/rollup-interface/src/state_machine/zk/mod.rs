@@ -444,7 +444,7 @@ pub struct LightClientCircuitInput<Da: DaSpec> {
     /// Optional because the first light client proof doesn't have a previous proof
     pub previous_light_client_proof_journal: Option<Vec<u8>>,
     /// Hints for the guest MMR tree.
-    pub mmr_hints: VecDeque<Option<(MMRChunk, MMRInclusionProof)>>,
+    pub mmr_hints: VecDeque<(MMRChunk, MMRInclusionProof)>,
     /// Hint for which proofs are expected to fail
     ///
     /// Note: Indices are u32 even though we don't expect that many proofs

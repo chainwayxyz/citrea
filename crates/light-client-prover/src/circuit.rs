@@ -112,117 +112,127 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     }
 
     let mut in_memory_chunks: BTreeMap<Wtxid, Vec<u8>> = Default::default();
-    let mut mmr_hints = input.mmr_hints.clone();
+    let mut mmr_hints = input.mmr_hints;
 
     // index only incremented on processing of a complete or aggregate DA tx
     let mut current_proof_index = 0u32;
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
-    for blob in input.da_data {
-        let data = DaDataLightClient::try_from_slice(blob.verified_data());
+    'blob_loop: for blob in input.da_data {
+        let Ok(data) = DaDataLightClient::try_from_slice(blob.verified_data()) else {
+            continue;
+        };
 
-        if let Ok(data) = data {
-            match data {
-                // No need to check sender for chunk
-                DaDataLightClient::Chunk(chunk) => {
-                    // Store the chunk in memory unconditionally
-                    in_memory_chunks
-                        .insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
+        match data {
+            // No need to check sender for chunk
+            DaDataLightClient::Chunk(chunk) => {
+                in_memory_chunks.insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
+            }
+            DaDataLightClient::Complete(proof) => {
+                if blob.sender().as_ref() != batch_prover_da_public_key {
+                    continue;
                 }
-                _ => {
-                    if blob.sender().as_ref() == batch_prover_da_public_key {
-                        match data {
-                            DaDataLightClient::Complete(proof) => {
-                                let expected_to_fail = expected_to_fail_hints
-                                    .next_if(|&x| x == current_proof_index)
-                                    .is_some();
-                                match process_complete_proof::<DaV, G>(
-                                    proof,
-                                    &batch_proof_method_ids,
-                                    last_l2_height,
-                                    &mut initial_to_final,
-                                    expected_to_fail,
-                                ) {
-                                    Ok(()) => current_proof_index += 1,
-                                    Err(e) => println!("Error processing complete proof: {e}"),
-                                }
-                            }
-                            DaDataLightClient::Aggregate(_tx_ids, wtx_ids) => {
-                                let mut aggregate_chunks = vec![];
-                                for wtxid in &wtx_ids {
-                                    if let Some((wtxid, chunk)) =
-                                        // If the wtxid belongs to a chunk that we've seen in the same L1 block,
-                                        // We add it to the aggregate.
-                                        in_memory_chunks.remove_entry(wtxid)
-                                    {
-                                        aggregate_chunks.push(MMRChunk::new(wtxid, chunk));
-                                    } else {
-                                        // If the wtxid belongs to a chunk that we've seen in a previous L1 block,
-                                        // We use the hints to verify the existence of the chunk.
-                                        let hint =
-                                            mmr_hints.pop_front().expect("No more hints left");
 
-                                        // If the hint was provided as None, which could happen due to the non-existence of the chunk
-                                        // in the same block as aggregate, we skip trying to prove the aggregate.
-                                        // TODO: This is an issue we must solve in the future. Since the prover can provide a hint as None,
-                                        // it can ignore proofs, opening a censorship attack vector.
-                                        let Some((chunk, proof)) = hint else {
-                                            continue; // ignore this aggregate
-                                        };
+                let expected_to_fail = expected_to_fail_hints
+                    .next_if(|&x| x == current_proof_index)
+                    .is_some();
+                match process_complete_proof::<DaV, G>(
+                    &proof,
+                    &batch_proof_method_ids,
+                    last_l2_height,
+                    &mut initial_to_final,
+                    expected_to_fail,
+                ) {
+                    Ok(()) => current_proof_index += 1,
+                    Err(e) => println!("Error processing complete proof: {e}"),
+                }
+            }
+            DaDataLightClient::Aggregate(_, wtxids) => {
+                if blob.sender().as_ref() != batch_prover_da_public_key {
+                    continue;
+                }
 
-                                        if *wtxid != chunk.wtxid {
-                                            panic!("Hint wtxid does not match chunk wtxid!");
-                                        }
+                // Ensure that aggregate has all the needed chunks.
+                // We can recreate iterator here on every aggregate, because when recreating
+                // the complete proof, we pop the used hints from the mmr_hints.
+                let mut mmr_hints_iter = mmr_hints.iter();
+                for wtxid in &wtxids {
+                    if in_memory_chunks.contains_key(wtxid) {
+                        continue;
+                    }
 
-                                        if mmr_guest.verify_proof(&chunk, &proof) {
-                                            aggregate_chunks.push(chunk);
-                                        } else {
-                                            panic!("Failed to verify MMR proof for hint");
-                                        }
-                                    }
-                                }
+                    let hint = mmr_hints_iter.next();
+                    if hint.is_none() || hint.unwrap().0.wtxid != *wtxid {
+                        println!("Missing mmr hint, unprovable aggregate {:?}", blob.wtxid());
+                        continue 'blob_loop;
+                    }
+                }
 
-                                // Concatenate complete proof
-                                // TODO: Continue on error
-                                let complete_proof = da_verifier
-                                    .decompress_chunks(
-                                        aggregate_chunks.into_iter().flat_map(|n| n.body).collect(),
-                                    )
-                                    .expect("Should decompress and borsh deserialize");
+                let mut complete_proof = vec![];
+                // Used for re-adding chunks back in case of failure
+                let mut used_chunk_ptrs = vec![];
+                for wtxid in wtxids {
+                    if let Some(chunk) = in_memory_chunks.remove(&wtxid) {
+                        used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
+                        complete_proof.extend(chunk);
+                    } else {
+                        let (chunk, proof) = mmr_hints.pop_front().expect("Already checked");
 
-                                let expected_to_fail = expected_to_fail_hints
-                                    .next_if(|&x| x == current_proof_index)
-                                    .is_some();
-                                match process_complete_proof::<DaV, G>(
-                                    complete_proof,
-                                    &batch_proof_method_ids,
-                                    last_l2_height,
-                                    &mut initial_to_final,
-                                    expected_to_fail,
-                                ) {
-                                    Ok(()) => current_proof_index += 1,
-                                    Err(e) => println!("Error processing aggregated proof: {e}"),
-                                }
-                            }
-                            DaDataLightClient::BatchProofMethodId(_)
-                            | DaDataLightClient::Chunk(_) => {} // Ignore
-                        }
-                    } else if blob.sender().as_ref() == method_id_upgrade_authority_da_public_key {
-                        if let DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
-                            method_id,
-                            activation_l2_height,
-                        }) = data
-                        {
-                            let last_activation_height = batch_proof_method_ids
-                                .last()
-                                .expect("Should be at least one")
-                                .0;
-
-                            if activation_l2_height > last_activation_height {
-                                batch_proof_method_ids.push((activation_l2_height, method_id));
-                            }
+                        if mmr_guest.verify_proof(&chunk, &proof) {
+                            complete_proof.extend(chunk.body);
+                        } else {
+                            panic!("Failed to verify MMR proof for hint");
                         }
                     }
+                }
+
+                let reinsert_used_chunks = || {
+                    for (idx, size, wtxid) in used_chunk_ptrs {
+                        let chunk = complete_proof[idx..idx + size].to_vec();
+                        in_memory_chunks.insert(wtxid, chunk);
+                    }
+                };
+
+                // Decompress complete proof
+                let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof) else {
+                    println!("Failed to decompress and deserialize completed chunks");
+                    reinsert_used_chunks();
+                    continue;
+                };
+
+                let expected_to_fail = expected_to_fail_hints
+                    .next_if(|&x| x == current_proof_index)
+                    .is_some();
+                match process_complete_proof::<DaV, G>(
+                    &complete_proof,
+                    &batch_proof_method_ids,
+                    last_l2_height,
+                    &mut initial_to_final,
+                    expected_to_fail,
+                ) {
+                    Ok(()) => current_proof_index += 1,
+                    // serialization or duplicate proof error
+                    Err(e) => {
+                        reinsert_used_chunks();
+                        println!("Error processing aggregated proof: {e}");
+                    }
+                }
+            }
+            DaDataLightClient::BatchProofMethodId(BatchProofMethodId {
+                method_id,
+                activation_l2_height,
+            }) => {
+                if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
+                    continue;
+                }
+
+                let last_activation_height = batch_proof_method_ids
+                    .last()
+                    .expect("Should be at least one")
+                    .0;
+
+                if activation_l2_height > last_activation_height {
+                    batch_proof_method_ids.push((activation_l2_height, method_id));
                 }
             }
         }
@@ -259,13 +269,13 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
 }
 
 fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
-    proof: Vec<u8>,
+    proof: &[u8],
     batch_proof_method_ids: &InitialBatchProofMethodIds,
     last_l2_height: u64,
     initial_to_final: &mut std::collections::BTreeMap<[u8; 32], ([u8; 32], u64)>,
     expected_to_fail: bool,
 ) -> Result<(), CircuitError> {
-    let Ok(journal) = G::extract_raw_output(&proof) else {
+    let Ok(journal) = G::extract_raw_output(proof) else {
         return Err("Failed to extract output from proof");
     };
 
@@ -311,7 +321,7 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
 
     if expected_to_fail {
         // if index is in the expected to fail hints, then it should fail
-        G::verify_expected_to_fail(&proof, &batch_proof_method_id.into())
+        G::verify_expected_to_fail(proof, &batch_proof_method_id.into())
             .expect_err("Proof hinted to fail passed");
     } else {
         // if index is not in the expected to fail hints, then it should pass

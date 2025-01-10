@@ -199,17 +199,16 @@ where
         let mut proof_index = 0u32;
         let mut expected_to_fail_hint = vec![];
 
-        for (wtxid, batch_proof) in batch_proofs {
+        'proof_loop: for (wtxid, batch_proof) in batch_proofs {
             match batch_proof {
                 DaDataLightClient::Complete(proof) => {
                     match self.verify_complete_proof(&proof, l2_last_height) {
-                        Ok(is_valid) => {
-                            if is_valid {
-                                assumptions.push(proof);
-                            } else {
-                                expected_to_fail_hint.push(proof_index);
-                            }
-
+                        Ok(true) => {
+                            assumptions.push(proof);
+                            proof_index += 1;
+                        }
+                        Ok(false) => {
+                            expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
                         Err(err) => {
@@ -218,54 +217,77 @@ where
                     }
                 }
                 DaDataLightClient::Aggregate(_txids, wtxids) => {
-                    // For each of the chunks, if the chunk is not contained by any
-                    // aggregate in the current block, this tells us that it has been already seen in a previous
-                    // L1 block.
-                    // Given that we've updated MMR native with existing chunks, we now have a consistent MMR tree
-                    // from which we can generate a hint for the guest MMR.
-                    let mut complete_proof = vec![];
-                    for wtxid in wtxids {
-                        // Cleanup unused_chunks from wtxids which are actually used by the current aggregate
-                        if let Some(chunk) = unused_chunks.remove(&wtxid) {
-                            complete_proof.push(chunk);
-                        } else {
-                            let hint = self.mmr_native.generate_proof(wtxid)?;
-                            if let Some((chunk, _)) = hint.as_ref() {
-                                complete_proof.push(chunk.body.clone());
-                                mmr_hints.push(hint);
-                            } else {
-                                // This aggregate is not provable since we don't have all the chunks yet.
-                                // Push None and continue next proof
-                                mmr_hints.push(None);
-                                continue;
-                            }
+                    // Ensure that aggregate has all the needed chunks
+                    for wid in &wtxids {
+                        if !unused_chunks.contains_key(wid) && !self.mmr_native.contains(*wid)? {
+                            error!(
+                                "Da block {} has unprovable aggregate with wtxid {}",
+                                l1_height,
+                                hex::encode(wtxid)
+                            );
+                            continue 'proof_loop;
                         }
                     }
 
-                    // TODO: Handle error
-                    let complete_proof = self
-                        .da_service
-                        .decompress_chunks(complete_proof.into_iter().flatten().collect())
-                        .unwrap();
+                    // Recollect the complete proof from chunks
+                    let mut complete_proof = vec![];
+                    // Used for re-adding chunks back in case of failure
+                    let mut used_chunk_ptrs = vec![];
+                    for wtxid in wtxids {
+                        if let Some(chunk) = unused_chunks.remove(&wtxid) {
+                            used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
+                            complete_proof.extend(chunk);
+                        } else {
+                            let (chunk, proof) = self
+                                .mmr_native
+                                .generate_proof(wtxid)?
+                                .expect("Chunk wtxid must exist");
+                            complete_proof.extend_from_slice(&chunk.body);
+                            mmr_hints.push((chunk, proof));
+                        }
+                    }
+
+                    let reinsert_used_chunks = || {
+                        for (idx, size, wtxid) in used_chunk_ptrs {
+                            let chunk = complete_proof[idx..idx + size].to_vec();
+                            unused_chunks.insert(wtxid, chunk);
+                        }
+                    };
+
+                    let Ok(complete_proof) = self.da_service.decompress_chunks(&complete_proof)
+                    else {
+                        error!(
+                            "Failed to decompress complete chunks of aggregate {}",
+                            hex::encode(wtxid)
+                        );
+                        reinsert_used_chunks();
+                        continue;
+                    };
 
                     match self.verify_complete_proof(&complete_proof, l2_last_height) {
-                        Ok(is_valid) => {
-                            if is_valid {
-                                assumptions.push(complete_proof);
-                            } else {
-                                expected_to_fail_hint.push(proof_index);
-                            }
-
+                        Ok(true) => {
+                            assumptions.push(complete_proof);
+                            proof_index += 1;
+                        }
+                        Ok(false) => {
+                            error!(
+                                "Aggregate batch proof verification failed. wtxid = {}",
+                                hex::encode(wtxid)
+                            );
+                            expected_to_fail_hint.push(proof_index);
                             proof_index += 1;
                         }
                         Err(err) => {
-                            error!("Aggregated batch proof verification failed: {err}");
+                            error!(
+                                "Invalid aggregate batch proof found. wtxid = {} err = {}",
+                                hex::encode(wtxid),
+                                err
+                            );
+                            reinsert_used_chunks();
                         }
                     }
                 }
                 DaDataLightClient::Chunk(body) => {
-                    tracing::warn!("Chunk wtxid: {:?}", wtxid);
-                    tracing::warn!("Chunk body len: {}", body.len());
                     // For now, this chunk is unused by any aggregate in the block.
                     unused_chunks.insert(wtxid, body);
                 }
@@ -335,6 +357,11 @@ where
         Ok(())
     }
 
+    /// Verifies complete proof. Returns:
+    ///
+    /// - Ok(true) -> proof is successfully parsed, not a duplicate, and verified
+    /// - Ok(false) -> proof is successfully parsed, not a duplicate, but verification failed
+    /// - Err(_) -> proof is either unparseable or a duplicate
     fn verify_complete_proof(
         &self,
         proof: &Vec<u8>,
