@@ -57,8 +57,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             o.batch_proof_method_ids.clone()
         });
 
-    println!("Da data blob count: {}", input.da_data.len());
-
     let new_da_state = da_verifier
         .verify_header_chain(
             previous_light_client_proof_output
@@ -79,8 +77,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             DaNamespace::ToLightClientProver,
         )
         .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
-
-    println!("Verified header chain, completeness, and inclusion proofs");
 
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
@@ -160,7 +156,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 }
             }
             DaDataLightClient::Aggregate(_, wtxids) => {
-                println!("Found aggregate proof with {} chunks", wtxids.len());
+                println!("Found aggregate proof");
                 if blob.sender().as_ref() != batch_prover_da_public_key {
                     println!(
                         "Aggregate proof sender is not batch prover, wtxid={:?}",
@@ -211,8 +207,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                 }
 
-                println!("Aggregate proof reassembled from chunks");
-
                 let reinsert_used_chunks = || {
                     for (idx, size, wtxid) in used_chunk_ptrs {
                         let chunk = complete_proof[idx..idx + size].to_vec();
@@ -249,6 +243,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 method_id,
                 activation_l2_height,
             }) => {
+                println!("Found batch proof method id");
                 if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
                     println!(
                         "Batch proof method id sender is not upgrade authority, wtxid={:?}",
