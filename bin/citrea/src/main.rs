@@ -11,7 +11,6 @@ use citrea_common::{
     from_toml_path, BatchProverConfig, FromEnv, FullNodeConfig, LightClientProverConfig,
     SequencerConfig,
 };
-use citrea_primitives::forks::use_network_forks;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
