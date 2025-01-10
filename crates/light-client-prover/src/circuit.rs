@@ -57,6 +57,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             o.batch_proof_method_ids.clone()
         });
 
+    println!("Da data blob count: {}", input.da_data.len());
+
     let new_da_state = da_verifier
         .verify_header_chain(
             previous_light_client_proof_output
@@ -77,6 +79,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
             DaNamespace::ToLightClientProver,
         )
         .map_err(|err| LightClientVerificationError::DaTxsCouldntBeVerified(err))?;
+
+    println!("Verified header chain, completeness, and inclusion proofs");
 
     // Mapping from initial state root to final state root and last L2 height
     let mut initial_to_final = BTreeMap::<[u8; 32], ([u8; 32], u64)>::new();
@@ -120,22 +124,30 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Parse the batch proof da data
     'blob_loop: for blob in input.da_data {
         let Ok(data) = DaDataLightClient::try_from_slice(blob.verified_data()) else {
+            println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
             continue;
         };
 
         match data {
             // No need to check sender for chunk
             DaDataLightClient::Chunk(chunk) => {
+                println!("Found chunk");
                 in_memory_chunks.insert(blob.wtxid().expect("Chunk should have a wtxid"), chunk);
             }
             DaDataLightClient::Complete(proof) => {
+                println!("Found complete proof");
                 if blob.sender().as_ref() != batch_prover_da_public_key {
+                    println!(
+                        "Complete proof sender is not batch prover, wtxid={:?}",
+                        blob.wtxid()
+                    );
                     continue;
                 }
 
                 let expected_to_fail = expected_to_fail_hints
                     .next_if(|&x| x == current_proof_index)
                     .is_some();
+                println!("Complete proof expected to fail: {}", expected_to_fail);
                 match process_complete_proof::<DaV, G>(
                     &proof,
                     &batch_proof_method_ids,
@@ -148,7 +160,12 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 }
             }
             DaDataLightClient::Aggregate(_, wtxids) => {
+                println!("Found aggregate proof with {} chunks", wtxids.len());
                 if blob.sender().as_ref() != batch_prover_da_public_key {
+                    println!(
+                        "Aggregate proof sender is not batch prover, wtxid={:?}",
+                        blob.wtxid()
+                    );
                     continue;
                 }
 
@@ -156,8 +173,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 // We can recreate iterator here on every aggregate, because when recreating
                 // the complete proof, we pop the used hints from the mmr_hints.
                 let mut mmr_hints_iter = mmr_hints.iter();
+                let mut in_memory_chunk_count = 0;
                 for wtxid in &wtxids {
                     if in_memory_chunks.contains_key(wtxid) {
+                        in_memory_chunk_count += 1;
                         continue;
                     }
 
@@ -168,9 +187,15 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                 }
 
+                println!(
+                    "Aggregate has all needed chunks, {} from current block, {} from previous blocks",
+                    in_memory_chunk_count,
+                    wtxids.len() - in_memory_chunk_count,
+                );
+
                 let mut complete_proof = vec![];
                 // Used for re-adding chunks back in case of failure
-                let mut used_chunk_ptrs = vec![];
+                let mut used_chunk_ptrs = Vec::with_capacity(in_memory_chunk_count);
                 for wtxid in wtxids {
                     if let Some(chunk) = in_memory_chunks.remove(&wtxid) {
                         used_chunk_ptrs.push((complete_proof.len(), chunk.len(), wtxid));
@@ -186,6 +211,8 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                 }
 
+                println!("Aggregate proof reassembled from chunks");
+
                 let reinsert_used_chunks = || {
                     for (idx, size, wtxid) in used_chunk_ptrs {
                         let chunk = complete_proof[idx..idx + size].to_vec();
@@ -193,7 +220,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                     }
                 };
 
-                // Decompress complete proof
                 let Ok(complete_proof) = da_verifier.decompress_chunks(&complete_proof) else {
                     println!("Failed to decompress and deserialize completed chunks");
                     reinsert_used_chunks();
@@ -203,6 +229,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 let expected_to_fail = expected_to_fail_hints
                     .next_if(|&x| x == current_proof_index)
                     .is_some();
+                println!("Aggregate proof expected to fail: {}", expected_to_fail);
                 match process_complete_proof::<DaV, G>(
                     &complete_proof,
                     &batch_proof_method_ids,
@@ -223,6 +250,10 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
                 activation_l2_height,
             }) => {
                 if blob.sender().as_ref() != method_id_upgrade_authority_da_public_key {
+                    println!(
+                        "Batch proof method id sender is not upgrade authority, wtxid={:?}",
+                        blob.wtxid()
+                    );
                     continue;
                 }
 
@@ -253,8 +284,11 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     // Collect unchained outputs
     let unchained_outputs = collect_unchained_outputs(&initial_to_final, last_l2_height);
 
-    for (wtxid, chunk) in in_memory_chunks {
-        mmr_guest.append(MMRChunk::new(wtxid, chunk));
+    if !in_memory_chunks.is_empty() {
+        println!("Adding {} more chunks to mmr", in_memory_chunks.len());
+        for (wtxid, chunk) in in_memory_chunks {
+            mmr_guest.append(MMRChunk::new(wtxid, chunk));
+        }
     }
 
     Ok(LightClientCircuitOutput {
@@ -318,6 +352,8 @@ fn process_complete_proof<DaV: DaVerifier, G: ZkvmGuest>(
         };
         batch_proof_method_ids[idx].1
     };
+
+    println!("Using batch proof method id {:?}", batch_proof_method_id);
 
     if expected_to_fail {
         // if index is in the expected to fail hints, then it should fail
