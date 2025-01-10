@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
-use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRNative};
+use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRNative, MMRNodeHash};
 use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput};
 use sov_rollup_interface::Network;
 use test_utils::{
@@ -933,6 +933,587 @@ fn test_mmr_hints() {
 
     assert_eq!(output.state_root, [2; 32]);
     assert_eq!(output.last_l2_height, 101);
+}
+
+#[test]
+#[should_panic = "Failed to verify MMR proof for hint"]
+fn test_malformed_mmr_proof_internal_index() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let state_diff = create_random_state_diff(1);
+
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        [2u8; 32],
+        101,
+        true,
+        Some(state_diff),
+    );
+
+    let chunk1 = serialized_mock_proof[0..397].to_vec();
+
+    let chunk2 = serialized_mock_proof[397..397 * 2].to_vec();
+
+    let chunk3 = serialized_mock_proof[397 * 2..].to_vec();
+
+    let aggregate_da_data = DaDataLightClient::Aggregate(
+        vec![[1; 32], [2; 32], [3; 32]],
+        vec![[1; 32], [2; 32], [3; 32]],
+    );
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let mut blob4 = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        Some([4; 32]),
+    );
+    blob4.full_data();
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let mut mmr = MMRNative::new(InMemoryStore::default());
+    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
+    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
+    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
+
+    let mut mmr_guest = MMRGuest::new();
+
+    let (mmr_chunk1, mut mmr_proof1) = mmr
+        .generate_proof([1; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk1.clone());
+
+    let (mmr_chunk2, mut mmr_proof2) = mmr
+        .generate_proof([2; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk2.clone());
+
+    let (mmr_chunk3, mmr_proof3) = mmr
+        .generate_proof([3; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk3.clone());
+
+    // Malform the proofs
+    let internal_idx_proof1 = mmr_proof1.internal_idx;
+    mmr_proof1.internal_idx = mmr_proof2.internal_idx;
+    mmr_proof2.internal_idx = internal_idx_proof1;
+
+    let mut mmr_hints = VecDeque::new();
+    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
+    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
+    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+
+    let lcp_out = LightClientCircuitOutput {
+        state_root: l2_genesis_state_root,
+        light_client_proof_method_id,
+        latest_da_state: LatestDaState {
+            block_hash: block_header_1.prev_hash.0,
+            ..Default::default()
+        },
+        unchained_batch_proofs_info: vec![],
+        last_l2_height: 0,
+        batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        mmr_guest,
+    };
+
+    let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(prev_lcp_out),
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        // Only aggregate is present others are in mmr hints
+        da_data: vec![blob4],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints,
+        expected_to_fail_hint: vec![],
+    };
+
+    run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+}
+
+#[test]
+#[should_panic = "Failed to verify MMR proof for hint"]
+fn test_malformed_mmr_proof_subroot_index() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let state_diff = create_random_state_diff(1);
+
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        [2u8; 32],
+        101,
+        true,
+        Some(state_diff),
+    );
+
+    let chunk1 = serialized_mock_proof[0..397].to_vec();
+
+    let chunk2 = serialized_mock_proof[397..397 * 2].to_vec();
+
+    let chunk3 = serialized_mock_proof[397 * 2..].to_vec();
+
+    let aggregate_da_data = DaDataLightClient::Aggregate(
+        vec![[1; 32], [2; 32], [3; 32]],
+        vec![[1; 32], [2; 32], [3; 32]],
+    );
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let mut blob4 = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        Some([4; 32]),
+    );
+    blob4.full_data();
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let mut mmr = MMRNative::new(InMemoryStore::default());
+    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
+    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
+    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
+
+    let mut mmr_guest = MMRGuest::new();
+
+    let (mmr_chunk1, mut mmr_proof1) = mmr
+        .generate_proof([1; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk1.clone());
+
+    let (mmr_chunk2, mut mmr_proof2) = mmr
+        .generate_proof([2; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk2.clone());
+
+    let (mmr_chunk3, mmr_proof3) = mmr
+        .generate_proof([3; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk3.clone());
+
+    // Malform the proofs
+    mmr_proof1.subroot_idx = 2;
+
+    let mut mmr_hints = VecDeque::new();
+    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
+    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
+    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+
+    let lcp_out = LightClientCircuitOutput {
+        state_root: l2_genesis_state_root,
+        light_client_proof_method_id,
+        latest_da_state: LatestDaState {
+            block_hash: block_header_1.prev_hash.0,
+            ..Default::default()
+        },
+        unchained_batch_proofs_info: vec![],
+        last_l2_height: 0,
+        batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        mmr_guest,
+    };
+
+    let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(prev_lcp_out),
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        // Only aggregate is present others are in mmr hints
+        da_data: vec![blob4],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints,
+        expected_to_fail_hint: vec![],
+    };
+
+    run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+}
+
+#[test]
+#[should_panic = "Failed to verify MMR proof for hint"]
+fn test_malformed_mmr_chunk_body() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let state_diff = create_random_state_diff(1);
+
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        [2u8; 32],
+        101,
+        true,
+        Some(state_diff),
+    );
+
+    let chunk1 = serialized_mock_proof[0..397].to_vec();
+
+    let chunk2 = serialized_mock_proof[397..397 * 2].to_vec();
+
+    let chunk3 = serialized_mock_proof[397 * 2..].to_vec();
+
+    let aggregate_da_data = DaDataLightClient::Aggregate(
+        vec![[1; 32], [2; 32], [3; 32]],
+        vec![[1; 32], [2; 32], [3; 32]],
+    );
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let mut blob4 = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        Some([4; 32]),
+    );
+    blob4.full_data();
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let mut mmr = MMRNative::new(InMemoryStore::default());
+    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
+    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
+    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
+
+    let mut mmr_guest = MMRGuest::new();
+
+    let (mmr_chunk1, mut mmr_proof1) = mmr
+        .generate_proof([1; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk1.clone());
+
+    let (mut mmr_chunk2, mut mmr_proof2) = mmr
+        .generate_proof([2; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk2.clone());
+
+    let (mmr_chunk3, mmr_proof3) = mmr
+        .generate_proof([3; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk3.clone());
+
+    // Malform the second chunk
+    mmr_chunk2.body.extend_from_slice(&[1, 2, 3, 4, 5]);
+
+    let mut mmr_hints = VecDeque::new();
+    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
+    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
+    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+
+    let lcp_out = LightClientCircuitOutput {
+        state_root: l2_genesis_state_root,
+        light_client_proof_method_id,
+        latest_da_state: LatestDaState {
+            block_hash: block_header_1.prev_hash.0,
+            ..Default::default()
+        },
+        unchained_batch_proofs_info: vec![],
+        last_l2_height: 0,
+        batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        mmr_guest,
+    };
+
+    let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(prev_lcp_out),
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        // Only aggregate is present others are in mmr hints
+        da_data: vec![blob4],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints,
+        expected_to_fail_hint: vec![],
+    };
+
+    run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_malformed_mmr_chunk_wtxid() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let state_diff = create_random_state_diff(1);
+
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        [2u8; 32],
+        101,
+        true,
+        Some(state_diff),
+    );
+
+    let chunk1 = serialized_mock_proof[0..397].to_vec();
+
+    let chunk2 = serialized_mock_proof[397..397 * 2].to_vec();
+
+    let chunk3 = serialized_mock_proof[397 * 2..].to_vec();
+
+    let aggregate_da_data = DaDataLightClient::Aggregate(
+        vec![[1; 32], [2; 32], [3; 32]],
+        vec![[1; 32], [2; 32], [3; 32]],
+    );
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let mut blob4 = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        Some([4; 32]),
+    );
+    blob4.full_data();
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let mut mmr = MMRNative::new(InMemoryStore::default());
+    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
+    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
+    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
+
+    let mut mmr_guest = MMRGuest::new();
+
+    let (mmr_chunk1, mut mmr_proof1) = mmr
+        .generate_proof([1; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk1.clone());
+
+    let (mut mmr_chunk2, mut mmr_proof2) = mmr
+        .generate_proof([2; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk2.clone());
+
+    let (mmr_chunk3, mmr_proof3) = mmr
+        .generate_proof([3; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk3.clone());
+
+    // Malform the second chunk wtxid
+    mmr_chunk2.wtxid = [88; 32];
+
+    let mut mmr_hints = VecDeque::new();
+    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
+    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
+    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+
+    let lcp_out = LightClientCircuitOutput {
+        state_root: l2_genesis_state_root,
+        light_client_proof_method_id,
+        latest_da_state: LatestDaState {
+            block_hash: block_header_1.prev_hash.0,
+            ..Default::default()
+        },
+        unchained_batch_proofs_info: vec![],
+        last_l2_height: 0,
+        batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        mmr_guest,
+    };
+
+    let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(prev_lcp_out),
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        // Only aggregate is present others are in mmr hints
+        da_data: vec![blob4],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints,
+        expected_to_fail_hint: vec![],
+    };
+
+    let output = run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
+
+    assert_eq!(output.state_root, l2_genesis_state_root);
+    assert_eq!(output.last_l2_height, 0);
+    assert_eq!(output.mmr_guest.size, 3);
+    assert!(output.unchained_batch_proofs_info.is_empty());
+}
+
+#[test]
+#[should_panic = "Failed to verify MMR proof for hint"]
+fn test_malformed_mmr_inclusion_proof() {
+    let light_client_proof_method_id = [1u32; 8];
+    let da_verifier = MockDaVerifier {};
+
+    let l2_genesis_state_root = [1u8; 32];
+    let batch_prover_da_pub_key = [9; 32];
+    let method_id_upgrade_authority = [11u8; 32];
+
+    let state_diff = create_random_state_diff(1);
+
+    let serialized_mock_proof = create_serialized_mock_proof(
+        l2_genesis_state_root,
+        [2u8; 32],
+        101,
+        true,
+        Some(state_diff),
+    );
+
+    let chunk1 = serialized_mock_proof[0..397].to_vec();
+
+    let chunk2 = serialized_mock_proof[397..397 * 2].to_vec();
+
+    let chunk3 = serialized_mock_proof[397 * 2..].to_vec();
+
+    let aggregate_da_data = DaDataLightClient::Aggregate(
+        vec![[1; 32], [2; 32], [3; 32]],
+        vec![[1; 32], [2; 32], [3; 32]],
+    );
+
+    let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
+
+    let mut blob4 = MockBlob::new(
+        aggregate_serialized,
+        MockAddress::new([9u8; 32]),
+        [0u8; 32],
+        Some([4; 32]),
+    );
+    blob4.full_data();
+
+    let block_header_1 = MockBlockHeader::from_height(1);
+
+    let mut mmr = MMRNative::new(InMemoryStore::default());
+    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
+    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
+    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
+
+    let mut mmr_guest = MMRGuest::new();
+
+    let (mmr_chunk1, mut mmr_proof1) = mmr
+        .generate_proof([1; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk1.clone());
+
+    let (mut mmr_chunk2, mut mmr_proof2) = mmr
+        .generate_proof([2; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk2.clone());
+
+    let (mmr_chunk3, mmr_proof3) = mmr
+        .generate_proof([3; 32])
+        .unwrap()
+        .expect("Chunk wtxid must exist");
+    mmr_guest.append(mmr_chunk3.clone());
+
+    // Malform the second chunk
+    mmr_proof2.inclusion_proof.push(MMRNodeHash::default());
+
+    let mut mmr_hints = VecDeque::new();
+    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
+    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
+    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+
+    let lcp_out = LightClientCircuitOutput {
+        state_root: l2_genesis_state_root,
+        light_client_proof_method_id,
+        latest_da_state: LatestDaState {
+            block_hash: block_header_1.prev_hash.0,
+            ..Default::default()
+        },
+        unchained_batch_proofs_info: vec![],
+        last_l2_height: 0,
+        batch_proof_method_ids: vec![(0, [0, 0, 0, 0, 0, 0, 0, 0])],
+        mmr_guest,
+    };
+
+    let prev_lcp_out = create_prev_lcp_serialized(lcp_out, true);
+
+    let input = LightClientCircuitInput {
+        previous_light_client_proof_journal: Some(prev_lcp_out),
+        light_client_proof_method_id,
+        da_block_header: block_header_1,
+        // Only aggregate is present others are in mmr hints
+        da_data: vec![blob4],
+        inclusion_proof: [1u8; 32],
+        completeness_proof: (),
+        mmr_hints,
+        expected_to_fail_hint: vec![],
+    };
+
+    run_circuit::<_, MockZkGuest>(
+        da_verifier.clone(),
+        input,
+        l2_genesis_state_root,
+        INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+        &batch_prover_da_pub_key.clone(),
+        &method_id_upgrade_authority,
+        Network::Nightly,
+    )
+    .unwrap();
 }
 
 #[test]
