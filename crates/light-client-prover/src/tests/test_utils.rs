@@ -1,9 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
+use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};
 use sov_rollup_interface::zk::{BatchProofCircuitOutput, LightClientCircuitOutput};
 
 pub(crate) fn create_mock_batch_proof(
@@ -155,4 +156,23 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Vec<u8>, Opt
     }
 
     map
+}
+
+pub(crate) fn create_mmr_hints(
+    mmr_guest: &mut MMRGuest,
+    chunks: Vec<([u8; 32], Vec<u8>)>,
+) -> VecDeque<(MMRChunk, MMRInclusionProof)> {
+    let mut mmr = MMRNative::new(InMemoryStore::default());
+    for chunk in chunks.iter() {
+        mmr.append(MMRChunk::new(chunk.0, chunk.1.clone())).unwrap();
+    }
+
+    let mut mmr_hints = VecDeque::new();
+    for chunk in chunks.iter() {
+        let (chunk, proof) = mmr.generate_proof(chunk.0).unwrap().unwrap();
+        mmr_guest.append(chunk.clone());
+        mmr_hints.push_back((chunk, proof));
+    }
+
+    mmr_hints
 }

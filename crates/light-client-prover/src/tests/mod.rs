@@ -9,7 +9,7 @@ use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRNative, MM
 use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput};
 use sov_rollup_interface::Network;
 use test_utils::{
-    create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
+    create_mmr_hints, create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,
     create_random_state_diff, create_serialized_mock_proof,
 };
 
@@ -978,40 +978,20 @@ fn test_malformed_mmr_proof_internal_index() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
-
     let mut mmr_guest = MMRGuest::new();
+    let chunks = vec![
+        ([1; 32], chunk1.clone()),
+        ([2; 32], chunk2.clone()),
+        ([3; 32], chunk3.clone()),
+    ];
 
-    let (mmr_chunk1, mut mmr_proof1) = mmr
-        .generate_proof([1; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk1.clone());
-
-    let (mmr_chunk2, mut mmr_proof2) = mmr
-        .generate_proof([2; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk2.clone());
-
-    let (mmr_chunk3, mmr_proof3) = mmr
-        .generate_proof([3; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk3.clone());
+    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
+    mmr_hints[0].1.internal_idx = 2;
 
     // Malform the proofs
-    let internal_idx_proof1 = mmr_proof1.internal_idx;
-    mmr_proof1.internal_idx = mmr_proof2.internal_idx;
-    mmr_proof2.internal_idx = internal_idx_proof1;
-
-    let mut mmr_hints = VecDeque::new();
-    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
-    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
-    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+    let internal_idx_proof1 = mmr_hints[0].1.internal_idx;
+    mmr_hints[0].1.internal_idx = mmr_hints[1].1.internal_idx;
+    mmr_hints[1].1.internal_idx = internal_idx_proof1;
 
     let lcp_out = LightClientCircuitOutput {
         state_root: l2_genesis_state_root,
@@ -1095,38 +1075,17 @@ fn test_malformed_mmr_proof_subroot_index() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
-
     let mut mmr_guest = MMRGuest::new();
+    let chunks = vec![
+        ([1; 32], chunk1.clone()),
+        ([2; 32], chunk2.clone()),
+        ([3; 32], chunk3.clone()),
+    ];
 
-    let (mmr_chunk1, mut mmr_proof1) = mmr
-        .generate_proof([1; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk1.clone());
-
-    let (mmr_chunk2, mut mmr_proof2) = mmr
-        .generate_proof([2; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk2.clone());
-
-    let (mmr_chunk3, mmr_proof3) = mmr
-        .generate_proof([3; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk3.clone());
+    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
 
     // Malform the proofs
-    mmr_proof1.subroot_idx = 2;
-
-    let mut mmr_hints = VecDeque::new();
-    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
-    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
-    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+    mmr_hints[0].1.subroot_idx = 2;
 
     let lcp_out = LightClientCircuitOutput {
         state_root: l2_genesis_state_root,
@@ -1210,38 +1169,17 @@ fn test_malformed_mmr_chunk_body() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
-
     let mut mmr_guest = MMRGuest::new();
+    let chunks = vec![
+        ([1; 32], chunk1.clone()),
+        ([2; 32], chunk2.clone()),
+        ([3; 32], chunk3.clone()),
+    ];
 
-    let (mmr_chunk1, mut mmr_proof1) = mmr
-        .generate_proof([1; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk1.clone());
+    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
 
-    let (mut mmr_chunk2, mut mmr_proof2) = mmr
-        .generate_proof([2; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk2.clone());
-
-    let (mmr_chunk3, mmr_proof3) = mmr
-        .generate_proof([3; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk3.clone());
-
-    // Malform the second chunk
-    mmr_chunk2.body.extend_from_slice(&[1, 2, 3, 4, 5]);
-
-    let mut mmr_hints = VecDeque::new();
-    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
-    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
-    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+    // Malform the chunk body
+    mmr_hints[0].0.body.extend_from_slice(&[1, 2, 3, 4, 5]);
 
     let lcp_out = LightClientCircuitOutput {
         state_root: l2_genesis_state_root,
@@ -1324,38 +1262,17 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
-
     let mut mmr_guest = MMRGuest::new();
+    let chunks = vec![
+        ([1; 32], chunk1.clone()),
+        ([2; 32], chunk2.clone()),
+        ([3; 32], chunk3.clone()),
+    ];
 
-    let (mmr_chunk1, mut mmr_proof1) = mmr
-        .generate_proof([1; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk1.clone());
+    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
 
-    let (mut mmr_chunk2, mut mmr_proof2) = mmr
-        .generate_proof([2; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk2.clone());
-
-    let (mmr_chunk3, mmr_proof3) = mmr
-        .generate_proof([3; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk3.clone());
-
-    // Malform the second chunk wtxid
-    mmr_chunk2.wtxid = [88; 32];
-
-    let mut mmr_hints = VecDeque::new();
-    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
-    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
-    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+    // Malform the chunk body
+    mmr_hints[0].0.wtxid = [88; 32];
 
     let lcp_out = LightClientCircuitOutput {
         state_root: l2_genesis_state_root,
@@ -1444,38 +1361,17 @@ fn test_malformed_mmr_inclusion_proof() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::default());
-    mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
-    mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
-    mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
-
     let mut mmr_guest = MMRGuest::new();
+    let chunks = vec![
+        ([1; 32], chunk1.clone()),
+        ([2; 32], chunk2.clone()),
+        ([3; 32], chunk3.clone()),
+    ];
 
-    let (mmr_chunk1, mut mmr_proof1) = mmr
-        .generate_proof([1; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk1.clone());
+    let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
 
-    let (mut mmr_chunk2, mut mmr_proof2) = mmr
-        .generate_proof([2; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk2.clone());
-
-    let (mmr_chunk3, mmr_proof3) = mmr
-        .generate_proof([3; 32])
-        .unwrap()
-        .expect("Chunk wtxid must exist");
-    mmr_guest.append(mmr_chunk3.clone());
-
-    // Malform the second chunk
-    mmr_proof2.inclusion_proof.push(MMRNodeHash::default());
-
-    let mut mmr_hints = VecDeque::new();
-    mmr_hints.push_back((mmr_chunk1, mmr_proof1));
-    mmr_hints.push_back((mmr_chunk2, mmr_proof2));
-    mmr_hints.push_back((mmr_chunk3, mmr_proof3));
+    // Malform the chunk body
+    mmr_hints[0].1.inclusion_proof.push(MMRNodeHash::default());
 
     let lcp_out = LightClientCircuitOutput {
         state_root: l2_genesis_state_root,
