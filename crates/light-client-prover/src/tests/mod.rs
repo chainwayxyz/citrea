@@ -863,14 +863,12 @@ fn test_mmr_hints() {
 
     let block_header_1 = MockBlockHeader::from_height(1);
 
-    let mut mmr = MMRNative::new(InMemoryStore::new());
+    let mut mmr = MMRNative::new(InMemoryStore::default());
     mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
     mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
     mmr.append(MMRChunk::new([3; 32], chunk3)).unwrap();
 
     let mut mmr_guest = MMRGuest::new();
-
-    let mmr_chunk1 = MMRChunk::new([1; 32], chunk1);
 
     let (mmr_chunk1, mmr_proof1) = mmr
         .generate_proof([1; 32])
@@ -982,13 +980,13 @@ fn test_malicious_aggregate_should_not_work() {
 
     blob2.full_data();
 
-    let mut mmr = MMRNative::new(InMemoryStore::new());
+    let mut mmr = MMRNative::new(InMemoryStore::default());
     mmr.append(MMRChunk::new([1; 32], chunk1.clone())).unwrap();
     mmr.append(MMRChunk::new([2; 32], chunk2)).unwrap();
 
     let (mmr_chunk1, mmr_proof1) = mmr.generate_proof([1; 32]).unwrap().unwrap();
     let (mmr_chunk2, mmr_proof2) = mmr.generate_proof([2; 32]).unwrap().unwrap();
-    let mut mmr_hints = vec![(mmr_chunk1, mmr_proof1), (mmr_chunk2, mmr_proof2)];
+    let mmr_hints = vec![(mmr_chunk1, mmr_proof1), (mmr_chunk2, mmr_proof2)];
 
     // First block has the two chunks
     let input = LightClientCircuitInput {
@@ -1012,8 +1010,6 @@ fn test_malicious_aggregate_should_not_work() {
         Network::Nightly,
     )
     .unwrap();
-
-    let s = output.mmr_guest.size;
 
     assert_eq!(output.state_root, l2_genesis_state_root);
     assert_eq!(output.last_l2_height, 0);

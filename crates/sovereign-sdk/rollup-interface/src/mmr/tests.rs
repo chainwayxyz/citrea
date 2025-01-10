@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_mmr_native() {
-    let mut mmr = MMRNative::new(InMemoryStore::new());
+    let mut mmr = MMRNative::new(InMemoryStore::default());
     let mut nodes = vec![];
 
     for i in 0..42 {
@@ -23,7 +23,7 @@ fn test_mmr_native() {
 
 #[test]
 fn test_mmr_native_simple() {
-    let store = InMemoryStore::new();
+    let store = InMemoryStore::default();
     let mut mmr = MMRNative::new(store.clone());
 
     let chunk1 = MMRChunk::new([1; 32], vec![10, 20, 30]);
@@ -43,7 +43,7 @@ fn test_mmr_native_simple() {
 
 #[test]
 fn test_native_proof_with_guest_verification() {
-    let mut mmr_native = MMRNative::new(InMemoryStore::new());
+    let mut mmr_native = MMRNative::new(InMemoryStore::default());
     let mut mmr_guest = MMRGuest::new();
 
     for i in 0..42 {
@@ -72,7 +72,7 @@ fn test_native_proof_with_guest_verification() {
 
 #[test]
 fn test_consistency_between_native_and_guest() {
-    let mut mmr_native = MMRNative::new(InMemoryStore::new());
+    let mut mmr_native = MMRNative::new(InMemoryStore::default());
     let mut mmr_guest = MMRGuest::new();
 
     for i in 0..10 {
@@ -91,7 +91,7 @@ fn test_consistency_between_native_and_guest() {
 
 #[test]
 fn test_large_dataset_verification() {
-    let mut mmr_native = MMRNative::new(InMemoryStore::new());
+    let mut mmr_native = MMRNative::new(InMemoryStore::default());
     let mut mmr_guest = MMRGuest::new();
     let mut nodes = vec![];
 
@@ -117,7 +117,7 @@ fn test_large_dataset_verification() {
 
 #[test]
 fn test_mmr_with_store() {
-    let store = InMemoryStore::new();
+    let store = InMemoryStore::default();
     let mut mmr = MMRNative::new(store);
 
     for i in 0..42 {
@@ -140,7 +140,7 @@ fn test_mmr_with_store() {
 #[test]
 fn test_fool_mmr_verify() {
     let mut mmr_guest = MMRGuest::new();
-    let mut mmr_native = MMRNative::new(InMemoryStore::new());
+    let mut mmr_native = MMRNative::new(InMemoryStore::default());
     let mut nodes = vec![];
 
     for i in 0..42 {

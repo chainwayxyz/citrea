@@ -2,21 +2,11 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct InMemoryStore {
     storage: BTreeMap<(u32, u32), MMRNodeHash>,
     chunks: BTreeMap<MMRNodeHash, MMRChunk>,
     tree_size: u32,
-}
-
-impl InMemoryStore {
-    pub fn new() -> Self {
-        InMemoryStore {
-            storage: BTreeMap::new(),
-            chunks: BTreeMap::new(),
-            tree_size: 0,
-        }
-    }
 }
 
 impl NodeStore for InMemoryStore {
