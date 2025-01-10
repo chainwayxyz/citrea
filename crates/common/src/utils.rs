@@ -91,7 +91,7 @@ pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, D
     soft_confirmation: SignedSoftConfirmation<'_, Tx>,
     current_spec: SpecId,
 ) -> SoftConfirmationReceipt<DS> {
-    let tx_hashes = if current_spec >= SpecId::Fork1 {
+    let tx_hashes = if current_spec >= SpecId::Kumquat {
         soft_confirmation
             .txs()
             .iter()

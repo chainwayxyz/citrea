@@ -544,7 +544,7 @@ where
                 );
 
                 let mut signed_soft_confirmation = if active_fork_spec
-                    >= sov_modules_api::SpecId::Fork1
+                    >= sov_modules_api::SpecId::Kumquat
                 {
                     self.sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
                 } else {

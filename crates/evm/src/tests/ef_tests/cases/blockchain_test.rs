@@ -210,7 +210,7 @@ impl Case for BlockchainTestCase {
                 let root = case.genesis_block_header.state_root;
 
                 let current_spec = if case.network == ForkSpec::Cancun {
-                    SovSpecId::Fork1
+                    SovSpecId::Kumquat
                 } else {
                     SovSpecId::Genesis
                 };

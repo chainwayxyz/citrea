@@ -124,7 +124,7 @@ pub fn fork_pos_from_block_number(forks: &[Fork], block_number: u64) -> usize {
 ///         let slice = bytes.as_ref();
 ///         match spec {
 ///             SpecId::Genesis => Ok(Self::new_v1(borsh::from_slice(slice)?)),
-///             SpecId::Fork1 => Ok(Self::new_v2(borsh::from_slice(slice)?)),
+///             SpecId::Kumquat => Ok(Self::new_v2(borsh::from_slice(slice)?)),
 ///         }
 ///     }
 /// }

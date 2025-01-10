@@ -52,11 +52,11 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
             if let Some(ref code) = account_info.code {
                 if !code.is_empty() {
                     if self.current_spec.is_enabled_in(SpecId::CANCUN) {
-                        // If after Fork1, just set the offchain code if doesn't already exist
+                        // If after Kumquat, just set the offchain code if doesn't already exist
                         // for contracts deployed before, self.code is set and they will be moved
                         // to offchain code next time they are read.
                         //
-                        // this if is not &&'ed with the above if, because if we are after Fork1, we
+                        // this if is not &&'ed with the above if, because if we are after Kumquat, we
                         // don't even want to check or set the code in self.code
                         if self
                             .offchain_code
@@ -77,7 +77,7 @@ impl<'a, C: sov_modules_api::Context> DatabaseCommit for EvmDb<'a, C> {
                         .get(&account_info.code_hash, self.working_set)
                         .is_none()
                     {
-                        // If before Fork1, set the code in self.code only if it doesn't already exist
+                        // If before Kumquat, set the code in self.code only if it doesn't already exist
                         self.code
                             .set(&account_info.code_hash, code, self.working_set);
                     }

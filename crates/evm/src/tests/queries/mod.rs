@@ -79,7 +79,7 @@ fn init_evm() -> (
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -90,7 +90,7 @@ fn init_evm() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, LogsContract::default()),
@@ -120,7 +120,7 @@ fn init_evm() -> (
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [99u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -131,7 +131,7 @@ fn init_evm() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             publish_event_message(contract_addr, &dev_signer, 3, "hello2".to_string()),
@@ -162,7 +162,7 @@ fn init_evm() -> (
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [100u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -173,7 +173,7 @@ fn init_evm() -> (
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 7, SimpleStorageContract::default()),
@@ -240,7 +240,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [0u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -253,7 +253,7 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
 
     let sender_address = generate_address::<C>("sender");
 
-    let context = C::new(sender_address, 1, SovSpecId::Fork1, l1_fee_rate);
+    let context = C::new(sender_address, 1, SovSpecId::Kumquat, l1_fee_rate);
 
     evm.call(
         CallMessage {
@@ -314,7 +314,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [0u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -325,7 +325,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer, 0, SimpleStorageContract::default()),
@@ -354,7 +354,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [2u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -365,7 +365,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![create_contract_transaction(
             &dev_signer,

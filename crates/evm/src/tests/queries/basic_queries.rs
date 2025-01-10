@@ -795,7 +795,7 @@ fn test_queries_with_forks() {
         if num < 3 {
             Fork::new(SovSpecId::Genesis, 0)
         } else {
-            Fork::new(SovSpecId::Fork1, 4)
+            Fork::new(SovSpecId::Kumquat, 4)
         }
     };
 
@@ -883,7 +883,7 @@ fn test_queries_with_forks() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate: 0,

@@ -53,21 +53,24 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
     forks[pos]
 }
 
-pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
+pub const MAINNET_FORKS: [Fork; 1] = [Fork::new(SpecId::Kumquat, 0)];
 
 pub const TESTNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Fork1, u64::MAX),
+    Fork::new(SpecId::Kumquat, u64::MAX),
 ];
 
 pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Fork1, u64::MAX),
+    Fork::new(SpecId::Kumquat, u64::MAX),
 ];
 
-pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork1, 0)];
+pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Kumquat, 0)];
 
-pub const ALL_FORKS: [Fork; 2] = [Fork::new(SpecId::Genesis, 0), Fork::new(SpecId::Fork1, 100)];
+pub const ALL_FORKS: [Fork; 2] = [
+    Fork::new(SpecId::Genesis, 0),
+    Fork::new(SpecId::Kumquat, 100),
+];
 
 const _CHECK_FORKS: () = {
     if !verify_forks(&MAINNET_FORKS)

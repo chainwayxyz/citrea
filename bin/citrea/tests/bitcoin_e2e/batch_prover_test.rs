@@ -614,7 +614,7 @@ impl TestCase for ForkElfSwitchingTest {
             .client
             .ledger_get_head_soft_confirmation_height()
             .await?;
-        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork1);
+        assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
 
         da.wait_mempool_len(4, None).await?;
 
@@ -644,7 +644,7 @@ impl TestCase for ForkElfSwitchingTest {
         );
         assert_eq!(
             fork_from_block_number(proofs[1].proof_output.last_l2_height).spec_id,
-            SpecId::Fork1
+            SpecId::Kumquat
         );
 
         light_client_prover

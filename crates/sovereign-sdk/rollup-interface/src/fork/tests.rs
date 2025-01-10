@@ -8,7 +8,7 @@ use crate::spec::SpecId;
 fn test_fork_pos_from_block_number() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
-        Fork::new(SpecId::Fork1, 100),
+        Fork::new(SpecId::Kumquat, 100),
         Fork::new(SpecId::Fork2, 500),
     ];
 
@@ -22,16 +22,16 @@ fn test_fork_pos_from_block_number() {
 fn test_fork_manager() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
-        Fork::new(SpecId::Fork1, 100),
+        Fork::new(SpecId::Kumquat, 100),
         Fork::new(SpecId::Fork2, 500),
     ];
     let mut fork_manager = ForkManager::new(T_FORKS, 0);
     fork_manager.register_block(5).unwrap();
     assert_eq!(fork_manager.active_fork().spec_id, SpecId::Genesis);
     fork_manager.register_block(100).unwrap();
-    assert_eq!(fork_manager.active_fork().spec_id, SpecId::Fork1);
+    assert_eq!(fork_manager.active_fork().spec_id, SpecId::Kumquat);
     fork_manager.register_block(350).unwrap();
-    assert_eq!(fork_manager.active_fork().spec_id, SpecId::Fork1);
+    assert_eq!(fork_manager.active_fork().spec_id, SpecId::Kumquat);
     fork_manager.register_block(500).unwrap();
     assert_eq!(fork_manager.active_fork().spec_id, SpecId::Fork2);
 }
@@ -40,14 +40,14 @@ fn test_fork_manager() {
 fn test_fork_manager_callbacks() {
     static T_FORKS: &[Fork] = &[
         Fork::new(SpecId::Genesis, 0),
-        Fork::new(SpecId::Fork1, 100),
+        Fork::new(SpecId::Kumquat, 100),
         Fork::new(SpecId::Fork2, 500),
     ];
 
     struct Handler {}
     impl ForkMigration for Handler {
         fn fork_activated(&self, fork: &Fork) -> anyhow::Result<()> {
-            if fork.spec_id == SpecId::Fork1 {
+            if fork.spec_id == SpecId::Kumquat {
                 return Err(anyhow!("Called"));
             }
             Ok(())

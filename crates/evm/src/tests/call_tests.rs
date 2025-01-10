@@ -70,7 +70,7 @@ fn call_multiple_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -83,7 +83,7 @@ fn call_multiple_test() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let transactions: Vec<RlpEvmTransaction> = vec![
             create_contract_transaction(&dev_signer1, 0, SimpleStorageContract::default()),
@@ -237,7 +237,7 @@ fn call_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -249,7 +249,7 @@ fn call_test() {
     let set_arg = 999;
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let rlp_transactions = vec![
             create_contract_message(&dev_signer, 0, SimpleStorageContract::default()),
@@ -394,7 +394,7 @@ fn failed_transaction_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -404,7 +404,7 @@ fn failed_transaction_test() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
         let rlp_transactions = vec![create_contract_message(
             &dev_signer,
             0,
@@ -717,7 +717,7 @@ fn self_destruct_test() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -727,7 +727,7 @@ fn self_destruct_test() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
         // selfdestruct to die to address with someone other than the creator of the contract
         evm.call(
             CallMessage {
@@ -814,7 +814,7 @@ fn test_block_hash_in_evm() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -824,7 +824,7 @@ fn test_block_hash_in_evm() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -851,7 +851,7 @@ fn test_block_hash_in_evm() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
-            current_spec: SovSpecId::Fork1,
+            current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -971,7 +971,7 @@ fn test_block_gas_limit() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -981,7 +981,7 @@ fn test_block_gas_limit() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -1036,7 +1036,7 @@ fn test_block_gas_limit() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1046,7 +1046,7 @@ fn test_block_gas_limit() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         // deploy logs contract
         let mut rlp_transactions = vec![create_contract_message(
@@ -1192,7 +1192,7 @@ fn test_l1_fee_success() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [10u8; 32].to_vec(),
-            current_spec: SovSpecId::Fork1,
+            current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -1203,7 +1203,7 @@ fn test_l1_fee_success() {
         {
             let sender_address = generate_address::<C>("sender");
 
-            let context = C::new(sender_address, 2, SovSpecId::Fork1, l1_fee_rate);
+            let context = C::new(sender_address, 2, SovSpecId::Kumquat, l1_fee_rate);
 
             let deploy_message = create_contract_message_with_priority_fee(
                 &dev_signer,
@@ -1376,7 +1376,7 @@ fn test_l1_fee_not_enough_funds() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1387,7 +1387,7 @@ fn test_l1_fee_not_enough_funds() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee_and_gas_limit(
             &dev_signer,
@@ -1509,7 +1509,7 @@ fn test_l1_fee_halt() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1520,7 +1520,7 @@ fn test_l1_fee_halt() {
     {
         let sender_address = generate_address::<C>("sender");
 
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let deploy_message = create_contract_message_with_fee(
             &dev_signer,
@@ -1770,7 +1770,7 @@ fn test_l1_fee_compression_discount() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [99u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1, // Compression discount is enabled
+        current_spec: SovSpecId::Kumquat, // Compression discount is enabled
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1780,7 +1780,7 @@ fn test_l1_fee_compression_discount() {
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
         let sender_address = generate_address::<C>("sender");
-        let context = C::new(sender_address, 3, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, 3, SovSpecId::Kumquat, l1_fee_rate);
         let simple_tx = dev_signer
             .sign_default_transaction_with_priority_fee(
                 TxKind::Call(Address::random()),
@@ -1859,7 +1859,7 @@ fn test_call_with_block_overrides() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1,
+        current_spec: SovSpecId::Kumquat,
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -1870,7 +1870,7 @@ fn test_call_with_block_overrides() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let deploy_message = create_contract_message(&dev_signer, 0, BlockHashContract::default());
 
@@ -1896,7 +1896,7 @@ fn test_call_with_block_overrides() {
             da_slot_height: 1,
             da_slot_txs_commitment: [42u8; 32],
             pre_state_root: [99u8; 32].to_vec(),
-            current_spec: SovSpecId::Fork1,
+            current_spec: SovSpecId::Kumquat,
             pub_key: vec![],
             deposit_data: vec![],
             l1_fee_rate,
@@ -1990,7 +1990,7 @@ fn test_blob_tx() {
         da_slot_height: 1,
         da_slot_txs_commitment: [42u8; 32],
         pre_state_root: [10u8; 32].to_vec(),
-        current_spec: SovSpecId::Fork1, // wont be Fork1 at height 2 currently but we can trick the spec id
+        current_spec: SovSpecId::Kumquat, // wont be Kumquat at height 2 currently but we can trick the spec id
         pub_key: vec![],
         deposit_data: vec![],
         l1_fee_rate,
@@ -2000,7 +2000,7 @@ fn test_blob_tx() {
     let sender_address = generate_address::<C>("sender");
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     {
-        let context = C::new(sender_address, l2_height, SovSpecId::Fork1, l1_fee_rate);
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
 
         let blob_message = dev_signer
             .sign_blob_transaction(Address::ZERO, vec![B256::random()], 0)

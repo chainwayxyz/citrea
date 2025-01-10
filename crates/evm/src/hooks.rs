@@ -33,7 +33,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let current_spec = soft_confirmation_info.current_spec;
 
-        let mut parent_block = if current_spec >= CitreaSpecId::Fork1 {
+        let mut parent_block = if current_spec >= CitreaSpecId::Kumquat {
             match self.head_rlp.get(working_set) {
                 Some(block) => block.clone().into(),
                 None => self
@@ -51,7 +51,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         parent_block.header.state_root = B256::from_slice(&soft_confirmation_info.pre_state_root);
 
-        if current_spec >= CitreaSpecId::Fork1 {
+        if current_spec >= CitreaSpecId::Kumquat {
             self.head_rlp.set(&parent_block.clone().into(), working_set);
         } else {
             self.head.set(&parent_block, working_set);
@@ -168,7 +168,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let current_spec = soft_confirmation_info.current_spec;
 
-        let parent_block = if current_spec >= CitreaSpecId::Fork1 {
+        let parent_block = if current_spec >= CitreaSpecId::Kumquat {
             match self.head_rlp.get(working_set) {
                 Some(block) => block.seal(),
                 None => {
@@ -266,7 +266,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             transactions: start_tx_index..start_tx_index + pending_transactions.len() as u64,
         };
 
-        if current_spec >= CitreaSpecId::Fork1 {
+        if current_spec >= CitreaSpecId::Kumquat {
             self.head_rlp.set(&block, working_set);
         } else {
             self.head.set(&block.clone().into(), working_set);

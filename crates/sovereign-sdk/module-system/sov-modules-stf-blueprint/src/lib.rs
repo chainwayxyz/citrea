@@ -195,7 +195,7 @@ where
         );
 
         // check the claimed hash
-        if current_spec >= SpecId::Fork1 {
+        if current_spec >= SpecId::Kumquat {
             let digest = unsigned.compute_digest::<<C as Spec>::Hasher>();
             let hash = Into::<[u8; 32]>::into(digest);
             if soft_confirmation.hash() != hash {

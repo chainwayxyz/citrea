@@ -59,7 +59,7 @@ where
         txs_new: &[<Self as StateTransitionFunction<Da>>::Transaction],
         sc_workspace: &mut WorkingSet<C::Storage>,
     ) -> Result<(), StateTransitionError> {
-        if soft_confirmation_info.current_spec >= SpecId::Fork1 {
+        if soft_confirmation_info.current_spec >= SpecId::Kumquat {
             for tx in txs_new {
                 self.apply_sov_tx_inner(&soft_confirmation_info, tx, sc_workspace)?;
             }
