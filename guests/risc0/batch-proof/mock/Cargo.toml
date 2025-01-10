@@ -8,7 +8,7 @@ resolver = "2"
 
 [dependencies]
 risc0-zkvm = { version = "1.2.0", default-features = false }
-risc0-zkvm-platform = { version = "1.2.0" }
+risc0-zkvm-platform = { version = "1.2.0", features = ["sys-getenv"] }
 
 anyhow = "1.0.95"
 citrea-primitives = { path = "../../../../crates/primitives" }
