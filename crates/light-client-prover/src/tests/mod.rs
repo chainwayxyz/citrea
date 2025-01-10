@@ -1271,7 +1271,7 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
 
-    // Malform the chunk body
+    // Malform the chunk wtxid
     mmr_hints[0].0.wtxid = [88; 32];
 
     let lcp_out = LightClientCircuitOutput {
@@ -1370,7 +1370,7 @@ fn test_malformed_mmr_inclusion_proof() {
 
     let mut mmr_hints = create_mmr_hints(&mut mmr_guest, chunks);
 
-    // Malform the chunk body
+    // Malform the inclusion proof
     mmr_hints[0].1.inclusion_proof.push(MMRNodeHash::default());
 
     let lcp_out = LightClientCircuitOutput {
