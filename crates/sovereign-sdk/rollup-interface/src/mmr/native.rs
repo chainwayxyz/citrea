@@ -27,11 +27,11 @@ impl<S: NodeStore> MMRNative<S> {
     }
 
     pub fn append(&mut self, chunk: MMRChunk) -> Result<()> {
-        let wtxid = chunk.wtxid;
-        self.store.save_chunk(wtxid, chunk)?;
+        let hash = chunk.hash();
+        self.store.save_chunk(hash, chunk)?;
         let current_size = self.store.get_tree_size();
-        self.store.save_node(0, current_size, wtxid)?;
-        self.cache.insert((0, current_size), wtxid);
+        self.store.save_node(0, current_size, hash)?;
+        self.cache.insert((0, current_size), hash);
         self.store.set_tree_size(current_size + 1)?;
         self.recalculate_peaks()?;
         Ok(())
@@ -64,12 +64,9 @@ impl<S: NodeStore> MMRNative<S> {
         &mut self,
         wtxid: Wtxid,
     ) -> Result<Option<(MMRChunk, MMRInclusionProof)>> {
-        let Some(chunk) = self.store.load_chunk(wtxid)? else {
+        let Some(index) = self.find_chunk_index_with_wtxid(wtxid)? else {
             return Ok(None);
         };
-        let index = self
-            .find_chunk_index(chunk.wtxid)?
-            .expect("Found chunk in db but could not find its index");
 
         let mut proof: Vec<MMRNodeHash> = vec![];
         let mut current_index = index;
@@ -87,8 +84,14 @@ impl<S: NodeStore> MMRNative<S> {
             current_level += 1;
         }
 
+        let chunk = self
+            .store
+            .load_chunk(self.store.load_node(0, index)?.expect("Should be found"))?
+            .expect("Should be found");
+
         let (subroot_idx, internal_idx) = self.get_helpers_from_index(index);
         let mmr_proof = MMRInclusionProof::new(subroot_idx, internal_idx, proof);
+
         Ok(Some((chunk, mmr_proof)))
     }
 
@@ -106,12 +109,15 @@ impl<S: NodeStore> MMRNative<S> {
         }
     }
 
-    fn find_chunk_index(&mut self, hash: MMRNodeHash) -> Result<Option<u32>> {
+    // TODO: Could be implemented better
+    fn find_chunk_index_with_wtxid(&mut self, wtxid: Wtxid) -> Result<Option<u32>> {
         let size = self.store.get_tree_size();
         for i in 0..size {
             if let Some(node_hash) = self.load_node(0, i)? {
-                if node_hash == hash {
-                    return Ok(Some(i));
+                if let Some(chunk) = self.store.load_chunk(node_hash)? {
+                    if chunk.wtxid == wtxid {
+                        return Ok(Some(i));
+                    }
                 }
             }
         }
@@ -133,7 +139,7 @@ impl<S: NodeStore> MMRNative<S> {
     }
 
     pub fn verify_proof(&mut self, chunk: MMRChunk, mmr_proof: &MMRInclusionProof) -> bool {
-        let subroot = mmr_proof.get_subroot(chunk.wtxid);
+        let subroot = mmr_proof.get_subroot(chunk.hash());
         let subroots = self.get_subroots();
         subroots[mmr_proof.subroot_idx as usize] == subroot
     }

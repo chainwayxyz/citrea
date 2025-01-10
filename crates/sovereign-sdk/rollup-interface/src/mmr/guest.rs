@@ -22,7 +22,7 @@ impl MMRGuest {
     }
 
     pub fn append(&mut self, chunk: MMRChunk) {
-        let mut current = chunk.wtxid;
+        let mut current = chunk.hash();
         let mut size = self.size;
 
         while size % 2 == 1 {
@@ -36,7 +36,7 @@ impl MMRGuest {
     }
 
     pub fn verify_proof(&self, chunk: &MMRChunk, mmr_proof: &MMRInclusionProof) -> bool {
-        let mut current_hash = chunk.wtxid;
+        let mut current_hash = chunk.hash();
 
         for (i, sibling) in mmr_proof.inclusion_proof.iter().enumerate() {
             if mmr_proof.internal_idx & (1 << i) == 0 {
