@@ -2090,6 +2090,7 @@ dependencies = [
  "borsh",
  "hex",
  "metrics",
+ "risc0-zkp",
  "risc0-zkvm",
  "serde",
  "sov-db",
