@@ -71,7 +71,9 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
             ),
             (
                 1921835,
-                "b44b5a78d60714131e02829fe5f7575cbaff7586d6d4a7346bd495ea41ccb481",
+                decode_to_u32_array(
+                    "b44b5a78d60714131e02829fe5f7575cbaff7586d6d4a7346bd495ea41ccb481",
+                )
             ),
         ],
         Network::Nightly | Network::TestNetworkWithForks => {
