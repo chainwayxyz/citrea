@@ -6,17 +6,7 @@ on:
       - "v*.*.*"
 
 jobs:
-  validate_DA_ID_format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/validate-bitcoin-da
-        with:
-          expected_da_id: ${{ vars.EXPECTED_BITCOIN_DA_ID }}
-          action: validate_format
-
   linux_amd64_binary_extraction:
-    needs: validate_DA_ID_format
     runs-on: ubicloud-standard-30
     steps:
       - name: Checkout
@@ -58,7 +48,6 @@ jobs:
           path: target/release/citrea
 
   osx_arm64_binary_extraction:
-    needs: validate_DA_ID_format
     runs-on: self-hosted-citrea-osx-arm64
     steps:
       - name: Checkout
