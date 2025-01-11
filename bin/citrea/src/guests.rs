@@ -110,6 +110,8 @@ lazy_static! {
         let mut m = HashMap::new();
 
         m.insert(SpecId::Genesis, guest!("../../../resources/guests/risc0/devnet/batch-0.elf"));
+        m.insert(SpecId::Kumquat, guest!("../../../resources/guests/risc0/devnet/batch-1.elf"));
+
         m
     };
     pub(crate) static ref LIGHT_CLIENT_MAINNET_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
