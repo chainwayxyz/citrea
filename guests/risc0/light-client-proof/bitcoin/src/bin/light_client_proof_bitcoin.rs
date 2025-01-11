@@ -62,8 +62,18 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
                 ),
             ),
         ],
-        // TODO: Update
-        Network::Devnet => &[(0, [0; 8])],
+        Network::Devnet => &[
+            (
+                0,
+                decode_to_u32_array(
+                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
+                ),
+            ),
+            (
+                1921835,
+                "b44b5a78d60714131e02829fe5f7575cbaff7586d6d4a7346bd495ea41ccb481",
+            ),
+        ],
         Network::Nightly | Network::TestNetworkWithForks => {
             match option_env!("BATCH_PROOF_METHOD_ID") {
                 Some(hex_method_id) => &[(0, decode_to_u32_array(hex_method_id))],
