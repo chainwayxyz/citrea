@@ -55,6 +55,7 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
     let mut features = Vec::new();
 
     if std::env::var("CARGO_FEATURE_TESTING").is_ok() {
+        println!("cargo:warning=Building with testing feature");
         features.push("testing".to_string());
     }
 

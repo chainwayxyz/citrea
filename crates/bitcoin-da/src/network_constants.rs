@@ -53,12 +53,21 @@ pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
 };
 
 pub const INITIAL_SIGNET_STATE: LatestDaState = LatestDaState {
-    block_hash: [0; 32],
-    block_height: 0,
-    total_work: [0; 32],
-    current_target_bits: 0,
-    epoch_start_time: 0,
-    prev_11_timestamps: [0; 11],
+    block_hash: [
+        0, 0, 0, 0, 205, 48, 242, 114, 146, 69, 136, 38, 244, 175, 53, 131, 85, 232, 204, 5, 105,
+        182, 13, 206, 145, 123, 119, 143, 218, 93, 176, 244,
+    ],
+    block_height: 17583,
+    total_work: [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 194, 148,
+        96, 108, 27,
+    ],
+    current_target_bits: 0x1d00e6bb,
+    epoch_start_time: 1735751321,
+    prev_11_timestamps: [
+        1736599665, 1736599872, 1736600266, 1736600656, 1736601001, 1736601561, 1736597417,
+        1736597589, 1736597617, 1736599403, 1736599498,
+    ],
 };
 
 #[test]

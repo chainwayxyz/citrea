@@ -62,7 +62,7 @@ pub const TESTNET_FORKS: [Fork; 2] = [
 
 pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Kumquat, u64::MAX),
+    Fork::new(SpecId::Kumquat, 1921835),
 ];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Kumquat, 0)];

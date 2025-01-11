@@ -23,7 +23,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
         // TODO: Update this after finding out the first batch prover output of the next release
         Network::Testnet => "05183faf24857f0fa6d4a7738fe5ef14b7ebe88be0f66e6f87f461485554d531",
-        Network::Devnet => "c23eb4eec08765750400f6e98567ef1977dc86334318f5424b7783c4080c0a36",
+        Network::Devnet => "c6584931466a25793f7f4d6d512d0ce53af4067d3ac61af20df968f5835d3743",
         Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
             None => "dacb59b0ff5d16985a8418235133eee37758a3ac1b76ab6d1f87c6df20e4d4da",
