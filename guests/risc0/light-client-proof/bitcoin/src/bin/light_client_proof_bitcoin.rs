@@ -104,7 +104,7 @@ pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "000000000000000000000000000000000000000000000000000000000000000000",
-        Network::Devnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Devnet => "0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
         Network::Nightly | Network::TestNetworkWithForks => {
             match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
                 Some(hex_pub_key) => hex_pub_key,
