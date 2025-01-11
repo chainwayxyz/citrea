@@ -222,13 +222,12 @@ impl Zkvm for Risc0BonsaiHost {
     ) -> Result<(), Self::Error> {
         let receipt: Receipt = bincode::deserialize(serialized_proof)?;
 
-        #[allow(clippy::clone_on_copy)]
-        let res = receipt.verify(code_commitment.clone());
+        let res = receipt.verify(*code_commitment);
 
         if let Err(VerificationError::InvalidProof) = res {
             tracing::warn!("Proof verification failed, trying risc0 1.0.5 verification...");
 
-            receipt.verify_with_context(&verifier_context_pre_1_1_0(), code_commitment.clone())?;
+            receipt.verify_with_context(&verifier_context_pre_1_1_0(), *code_commitment)?;
 
             tracing::info!("Proof verification succeeded with risc0 1.0.5 context");
 
