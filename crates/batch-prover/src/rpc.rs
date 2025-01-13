@@ -187,14 +187,17 @@ where
             let range_start = input.sequencer_commitments_range.0;
             let range_end = input.sequencer_commitments_range.1;
 
-            let seq_com = sequencer_commitments.get(range_end as usize).expect("Commitment does not exist");
+            let seq_com = sequencer_commitments
+                .get(range_end as usize)
+                .expect("Commitment does not exist");
             let last_l2_height = seq_com.l2_end_block_number;
             let current_spec = fork_from_block_number(last_l2_height).spec_id;
 
             let serialized_circuit_input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input)),
                 _ => borsh::to_vec(&input),
-            }.expect("Risc0 hint serialization is infallible");
+            }
+            .expect("Risc0 hint serialization is infallible");
 
             let response = ProverInputResponse {
                 commitment_range: (range_start, range_end),
@@ -265,7 +268,6 @@ where
         Ok(())
     }
 }
-
 
 pub fn create_rpc_module<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
     rpc_context: RpcContext<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>,
