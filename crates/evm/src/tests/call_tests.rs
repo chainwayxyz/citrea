@@ -510,7 +510,10 @@ fn failed_transaction_test() {
                 }
         ]
     );
-    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
+    let block = evm
+        .blocks_rlp
+        .last(&mut working_set.accessory_state())
+        .unwrap();
     assert_eq!(block.transactions.start, 0);
     assert_eq!(block.transactions.end, 3);
 }
@@ -908,7 +911,7 @@ fn test_block_hash_in_evm() {
         if (260..=515).contains(&i) {
             // Should be equal to the hash in accessory state
             let block = evm
-                .blocks
+                .blocks_rlp
                 .get((i) as usize, &mut working_set.accessory_state());
             assert_eq!(
                 resp.unwrap().to_vec(),
@@ -921,7 +924,7 @@ fn test_block_hash_in_evm() {
     }
 
     // last produced block is 516, eth_call with pending should return latest block's hash
-    let latest_block = evm.blocks.get(516, &mut working_set.accessory_state());
+    let latest_block = evm.blocks_rlp.get(516, &mut working_set.accessory_state());
     request.input.input = Some(BlockHashContract::default().get_block_hash(516).into());
 
     let resp = evm.get_call_inner(
