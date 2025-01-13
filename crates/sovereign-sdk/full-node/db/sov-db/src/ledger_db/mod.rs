@@ -220,14 +220,6 @@ impl SharedLedgerOps for LedgerDB {
         Ok(())
     }
 
-    /// Gets l1 height of l1 hash
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
-        self.db
-            .get::<LastStateDiff>(&())
-            .map(|diff| diff.unwrap_or_default())
-    }
-
     /// Sets l1 height of l1 hash
     #[instrument(level = "trace", skip(self), err, ret)]
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> anyhow::Result<()> {
@@ -670,6 +662,14 @@ impl SequencerLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    /// Gets the latest state diff
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
+        self.db
+            .get::<LastStateDiff>(&())
+            .map(|diff| diff.unwrap_or_default())
     }
 
     /// Get the most recent commitment's l1 height
