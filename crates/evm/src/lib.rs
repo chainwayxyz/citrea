@@ -11,6 +11,7 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
+#[cfg(feature = "native")]
 use primitive_types::DoNotUseSealedBlock;
 #[cfg(feature = "native")]
 use primitive_types::DoNotUseTransactionSignedAndRecovered;

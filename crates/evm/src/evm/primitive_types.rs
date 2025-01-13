@@ -3,9 +3,9 @@ use std::ops::{Deref, Range};
 use alloy_primitives::{Address, BlockNumber, Bloom, Bytes, Sealable, B256, B64, U256};
 use alloy_rlp::bytes::BufMut;
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
-use reth_primitives::{
-    Header as AlloyHeader, SealedHeader, TransactionSigned, TransactionSignedEcRecovered,
-};
+#[cfg(feature = "native")]
+use reth_primitives::TransactionSignedEcRecovered;
+use reth_primitives::{Header as AlloyHeader, SealedHeader, TransactionSigned};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "native")]
