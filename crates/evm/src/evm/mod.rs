@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
 use sov_state::Prefix;
 
-pub(crate) mod compat;
 pub(crate) mod conversions;
 pub(crate) mod db;
 mod db_commit;
@@ -20,6 +19,8 @@ pub(crate) mod system_events;
 
 #[cfg(feature = "native")]
 pub(crate) mod call;
+#[cfg(feature = "native")]
+pub(crate) mod compat;
 
 #[cfg(all(test, feature = "native"))]
 mod tests;

@@ -35,7 +35,7 @@ alloy-eips = { workspace = true }
 alloy-network = { workspace = true, optional = true }
 alloy-primitives = { workspace = true, features = ["rand", "serde"] }
 alloy-rlp = { workspace = true }
-alloy-rpc-types = { workspace = true }
+alloy-rpc-types = { workspace = true, optional = true }
 alloy-rpc-types-eth = { version = "0.4.2", optional = true }
 alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
@@ -90,6 +90,7 @@ native = [
   "reth-transaction-pool",
   "revm-inspectors",
   "reth-provider",
+  "alloy-rpc-types",
   "alloy-rpc-types-eth",
   "alloy-rpc-types-trace",
   "alloy-serde",

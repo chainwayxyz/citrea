@@ -8,6 +8,7 @@ use reth_primitives::{
 };
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "native")]
 use crate::evm::compat::DoNotUseTransactionSigned;
 
 /// Rlp encoded evm transaction.
@@ -184,6 +185,7 @@ pub(crate) struct TransactionSignedAndRecovered {
     pub(crate) block_number: u64,
 }
 
+#[cfg(feature = "native")]
 /// This uses the old version of the TransactionSigned launched testnet with with Reth v1.0.4
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct DoNotUseTransactionSignedAndRecovered {
@@ -195,6 +197,7 @@ pub(crate) struct DoNotUseTransactionSignedAndRecovered {
     pub(crate) block_number: u64,
 }
 
+#[cfg(feature = "native")]
 impl From<DoNotUseTransactionSignedAndRecovered> for TransactionSignedAndRecovered {
     fn from(value: DoNotUseTransactionSignedAndRecovered) -> Self {
         Self {
@@ -205,6 +208,7 @@ impl From<DoNotUseTransactionSignedAndRecovered> for TransactionSignedAndRecover
     }
 }
 
+#[cfg(feature = "native")]
 impl From<DoNotUseTransactionSignedAndRecovered> for TransactionSignedEcRecovered {
     fn from(value: DoNotUseTransactionSignedAndRecovered) -> Self {
         TransactionSigned {
