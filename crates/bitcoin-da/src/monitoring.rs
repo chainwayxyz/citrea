@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
@@ -157,20 +158,27 @@ impl Default for MonitoringConfig {
 
 impl FromEnv for MonitoringConfig {
     fn from_env() -> anyhow::Result<Self> {
-        Ok(MonitoringConfig {
-            check_interval: std::env::var("DA_MONITORING_CHECK_INTERVAL").map_or_else(
-                |_| Ok(defaults::check_interval()),
-                |v| v.parse().map_err(Into::<anyhow::Error>::into),
-            )?,
-            history_limit: std::env::var("DA_MONITORING_HISTORY_LIMIT").map_or_else(
-                |_| Ok(defaults::history_limit()),
-                |v| v.parse().map_err(Into::<anyhow::Error>::into),
-            )?,
-            max_history_size: std::env::var("DA_MONITORING_MAX_HISTORY_SIZE").map_or_else(
-                |_| Ok(defaults::max_history_size()),
-                |v| v.parse().map_err(Into::<anyhow::Error>::into),
-            )?,
-        })
+        match (
+            std::env::var("DA_MONITORING_CHECK_INTERVAL"),
+            std::env::var("DA_MONITORING_HISTORY_LIMIT"),
+            std::env::var("DA_MONITORING_MAX_HISTORY_SIZE"),
+        ) {
+            (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
+            (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
+                check_interval: check_interval.map_or_else(
+                    |_| Ok(defaults::check_interval()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                history_limit: history_limit.map_or_else(
+                    |_| Ok(defaults::history_limit()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                max_history_size: max_history_size.map_or_else(
+                    |_| Ok(defaults::max_history_size()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+            }),
+        }
     }
 }
 
