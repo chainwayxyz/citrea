@@ -288,7 +288,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let len = self.transactions.len(&mut accessory_state);
                 tracing::info!("Migrating {} transactions from storage to RLP", len);
                 for i in 0..len {
-                    tracing::info!("Migrating transaction {}", i);
                     let tx = self.transactions.get(i, &mut accessory_state).unwrap();
                     self.transactions_rlp.push(&tx.into(), &mut accessory_state);
                 }
@@ -298,7 +297,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 let len = self.receipts.len(&mut accessory_state);
                 tracing::info!("Migrating {} receipts from storage to RLP", len);
                 for i in 0..len {
-                    tracing::info!("Migrating receipt {}", i);
                     let receipt = self.receipts.get(i, &mut accessory_state).unwrap();
                     self.receipts_rlp.push(&receipt, &mut accessory_state);
                 }
