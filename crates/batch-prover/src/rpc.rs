@@ -187,10 +187,10 @@ where
             let range_start = input.sequencer_commitments_range.0;
             let range_end = input.sequencer_commitments_range.1;
 
-            let seq_com = sequencer_commitments
+            let last_seq_com = sequencer_commitments
                 .get(range_end as usize)
                 .expect("Commitment does not exist");
-            let last_l2_height = seq_com.l2_end_block_number;
+            let last_l2_height = last_seq_com.l2_end_block_number;
             let current_spec = fork_from_block_number(last_l2_height).spec_id;
 
             let serialized_circuit_input = match current_spec {

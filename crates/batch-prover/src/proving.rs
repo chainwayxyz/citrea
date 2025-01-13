@@ -240,12 +240,15 @@ where
         .unwrap_or(vec![]);
 
     // Add each non-proven proof's data to ProverService
-    for (i, input) in inputs.into_iter().enumerate() {
+    for input in inputs {
         if !state_transition_already_proven::<StateRoot, Witness, Da, Tx>(&input, &submitted_proofs)
         {
-            let seq_com = sequencer_commitments.get(i).expect("Commitment exists");
-            let last_l2_height = seq_com.l2_end_block_number;
+            let range_end = input.sequencer_commitments_range.1;
 
+            let last_seq_com = sequencer_commitments
+                .get(range_end as usize)
+                .expect("Commitment does not exist");
+            let last_l2_height = last_seq_com.l2_end_block_number;
             let current_spec = fork_from_block_number(last_l2_height).spec_id;
 
             let elf = elfs_by_spec
