@@ -290,7 +290,7 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
     evm.finalize_hook(&root_hash.into(), &mut accessory_state);
-    assert_eq!(evm.blocks.len(&mut accessory_state), 3);
+    assert_eq!(evm.blocks_rlp.len(&mut accessory_state), 3);
 
     l2_height += 1;
 

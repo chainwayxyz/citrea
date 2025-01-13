@@ -868,7 +868,7 @@ fn test_block_hash_in_evm() {
     }
 
     let _last_block_number = evm
-        .blocks
+        .blocks_rlp
         .last(&mut working_set.accessory_state())
         .unwrap()
         .header
