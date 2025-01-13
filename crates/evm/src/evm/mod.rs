@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::{StateMap, StateVec};
 use sov_state::Prefix;
 
+pub(crate) mod compat;
 pub(crate) mod conversions;
 pub(crate) mod db;
 mod db_commit;

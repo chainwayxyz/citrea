@@ -292,7 +292,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 for i in 0..len {
                     tracing::info!("Migrating transaction {}", i);
                     let tx = self.transactions.get(i, &mut accessory_state).unwrap();
-                    self.transactions_rlp.push(&tx, &mut accessory_state);
+                    self.transactions_rlp.push(&tx.into(), &mut accessory_state);
                 }
             }
 

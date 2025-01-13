@@ -21,6 +21,7 @@ citrea-primitives = { path = "../primitives" }
 
 borsh = { workspace = true, features = ["rc"] }
 clap = { workspace = true, optional = true }
+derive_more = { workspace = true, optional = true}
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 schemars = { workspace = true, optional = true }
@@ -34,7 +35,7 @@ alloy-eips = { workspace = true }
 alloy-network = { workspace = true, optional = true }
 alloy-primitives = { workspace = true, features = ["rand", "serde"] }
 alloy-rlp = { workspace = true }
-alloy-rpc-types = { workspace = true, optional = true }
+alloy-rpc-types = { workspace = true }
 alloy-rpc-types-eth = { version = "0.4.2", optional = true }
 alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
@@ -89,7 +90,6 @@ native = [
   "reth-transaction-pool",
   "revm-inspectors",
   "reth-provider",
-  "alloy-rpc-types",
   "alloy-rpc-types-eth",
   "alloy-rpc-types-trace",
   "alloy-serde",
@@ -102,5 +102,6 @@ native = [
   "serde_json",
   "secp256k1",
   "dep:tracing",
+  "derive_more"
 ]
 serde = []

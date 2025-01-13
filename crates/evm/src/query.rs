@@ -287,7 +287,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     .get(id as usize, &mut working_set.accessory_state())
                     .expect("Receipt for known transaction must be set");
 
-                build_rpc_receipt(&block, tx, id, receipt)
+                build_rpc_receipt(&block, tx.into(), id, receipt)
             })
             .collect::<Vec<_>>();
 
@@ -540,7 +540,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(number as usize, &mut accessory_state)
                 .expect("Receipt for known transaction must be set");
 
-            build_rpc_receipt(&block, tx, number, receipt)
+            build_rpc_receipt(&block, tx.into(), number, receipt)
         });
 
         Ok(receipt)

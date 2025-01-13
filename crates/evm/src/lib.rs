@@ -11,7 +11,7 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
-use primitive_types::DoNotUseSealedBlock;
+use primitive_types::{DoNotUseSealedBlock, DoNotUseTransactionSignedAndRecovered};
 pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(feature = "native")]
@@ -152,7 +152,7 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[cfg(feature = "native")]
     #[state]
     pub(crate) transactions:
-        sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, BcsCodec>,
+        sov_modules_api::AccessoryStateVec<DoNotUseTransactionSignedAndRecovered, BcsCodec>,
 
     #[cfg(feature = "native")]
     #[state]
