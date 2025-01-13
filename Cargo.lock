@@ -1949,6 +1949,7 @@ dependencies = [
  "bytes",
  "citrea-primitives",
  "clap",
+ "derive_more",
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",

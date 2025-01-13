@@ -169,25 +169,25 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let tx2_hash = tx2.transaction.signed_transaction.hash;
 
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .get(4, &mut working_set.accessory_state())
             .unwrap(),
         tx1.receipt
     );
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .get(5, &mut working_set.accessory_state())
             .unwrap(),
         tx2.receipt
     );
     assert_eq!(
-        evm.transactions
+        evm.transactions_rlp
             .get(4, &mut working_set.accessory_state())
             .unwrap(),
         tx1.transaction
     );
     assert_eq!(
-        evm.transactions
+        evm.transactions_rlp
             .get(5, &mut working_set.accessory_state())
             .unwrap(),
         tx2.transaction

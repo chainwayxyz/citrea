@@ -128,7 +128,7 @@ fn call_multiple_test() {
     assert_eq!(U256::from(set_arg + 3), storage_value);
 
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -273,7 +273,7 @@ fn call_test() {
 
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -431,7 +431,7 @@ fn failed_transaction_test() {
     assert_eq!(pending_txs.len(), 0);
 
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -644,7 +644,7 @@ fn self_destruct_test() {
         .expect("die to address should exist");
 
     let receipts = evm
-        .receipts
+        .receipts_rlp
         .iter(&mut working_set.accessory_state())
         .collect::<Vec<_>>();
 
@@ -750,7 +750,7 @@ fn self_destruct_test() {
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
     let receipts = evm
-        .receipts
+        .receipts_rlp
         .iter(&mut working_set.accessory_state())
         .collect::<Vec<_>>();
 
@@ -1248,7 +1248,7 @@ fn test_l1_fee_success() {
         assert_eq!(l1_fee_vault.balance, expected_l1_fee_vault_balance);
 
         assert_eq!(
-            evm.receipts
+            evm.receipts_rlp
                 .iter(&mut working_set.accessory_state())
                 .collect::<Vec<_>>(),
             [
@@ -1416,7 +1416,7 @@ fn test_l1_fee_not_enough_funds() {
             SoftConfirmationModuleCallError::EvmNotEnoughFundsForL1Fee
         );
 
-        assert_eq!(evm.receipts
+        assert_eq!(evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
             [
@@ -1557,7 +1557,7 @@ fn test_l1_fee_halt() {
     evm.end_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32].into(), &mut working_set.accessory_state());
 
-    assert_eq!(evm.receipts
+    assert_eq!(evm.receipts_rlp
         .iter(&mut working_set.accessory_state())
         .collect::<Vec<_>>(),
         [
@@ -1839,7 +1839,7 @@ fn test_l1_fee_compression_discount() {
     );
 
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .map(|r| r.l1_diff_size)
             .collect::<Vec<_>>(),

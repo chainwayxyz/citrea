@@ -278,7 +278,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
             .clone()
             .map(|id| {
                 let tx = self
-                    .transactions
+                    .transactions_rlp
                     .get(id as usize, &mut working_set.accessory_state())
                     .expect("Transaction must be set");
 
@@ -439,7 +439,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let tx_number = block.transactions.start + index.to::<u64>();
 
         let tx = self
-            .transactions
+            .transactions_rlp
             .get(tx_number as usize, &mut accessory_state)
             .expect("Transaction must be set");
 
@@ -490,7 +490,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let tx_number = block.transactions.start + index.to::<u64>();
 
         let tx = self
-            .transactions
+            .transactions_rlp
             .get(tx_number as usize, &mut working_set.accessory_state())
             .expect("Transaction must be set");
 
@@ -527,7 +527,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let receipt = tx_number.map(|number| {
             let tx = self
-                .transactions
+                .transactions_rlp
                 .get(number as usize, &mut accessory_state)
                 .expect("Transaction with known hash must be set");
             let block = self
@@ -1240,7 +1240,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
         let transaction = tx_number.map(|number| {
             let tx = self
-                .transactions
+                .transactions_rlp
                 .get(number as usize, &mut accessory_state)
                 .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                 hash,
@@ -1501,7 +1501,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 .get(i as usize, &mut working_set.accessory_state())
                 .expect("Transaction must be set");
             let tx = self
-                .transactions
+                .transactions_rlp
                 .get(i as usize, &mut working_set.accessory_state())
                 .unwrap();
             let logs = receipt.receipt.logs;

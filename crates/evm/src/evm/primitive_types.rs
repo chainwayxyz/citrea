@@ -3,8 +3,13 @@ use std::ops::{Deref, Range};
 use alloy_primitives::{Address, BlockNumber, Bloom, Bytes, Sealable, B256, B64, U256};
 use alloy_rlp::bytes::BufMut;
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
+#[cfg(feature = "native")]
+use reth_primitives::TransactionSignedEcRecovered;
 use reth_primitives::{Header as AlloyHeader, SealedHeader, TransactionSigned};
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "native")]
+use crate::evm::compat::DoNotUseTransactionSigned;
 
 /// Rlp encoded evm transaction.
 #[derive(
@@ -178,6 +183,42 @@ pub(crate) struct TransactionSignedAndRecovered {
     pub(crate) signed_transaction: TransactionSigned,
     /// Block the transaction was added to
     pub(crate) block_number: u64,
+}
+
+#[cfg(feature = "native")]
+/// This uses the old version of the TransactionSigned launched testnet with with Reth v1.0.4
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub(crate) struct DoNotUseTransactionSignedAndRecovered {
+    /// Signer of the transaction
+    pub(crate) signer: Address,
+    /// Signed transaction
+    pub(crate) signed_transaction: DoNotUseTransactionSigned,
+    /// Block the transaction was added to
+    pub(crate) block_number: u64,
+}
+
+#[cfg(feature = "native")]
+impl From<DoNotUseTransactionSignedAndRecovered> for TransactionSignedAndRecovered {
+    fn from(value: DoNotUseTransactionSignedAndRecovered) -> Self {
+        Self {
+            signer: value.signer,
+            signed_transaction: value.signed_transaction.into(),
+            block_number: value.block_number,
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+impl From<DoNotUseTransactionSignedAndRecovered> for TransactionSignedEcRecovered {
+    fn from(value: DoNotUseTransactionSignedAndRecovered) -> Self {
+        TransactionSigned {
+            hash: value.signed_transaction.hash,
+            signature: value.signed_transaction.signature.into(),
+            transaction: value.signed_transaction.transaction.into(),
+        }
+        .into_ecrecovered()
+        .unwrap()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]

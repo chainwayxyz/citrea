@@ -7,8 +7,6 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
 use sov_rollup_interface::spec::SpecId as CitreaSpecId;
 use sov_rollup_interface::zk::StorageRootHash;
-use sov_state::codec::{BcsCodec, RlpCodec};
-use sov_state::storage::StateValueCodec;
 #[cfg(feature = "native")]
 use tracing::instrument;
 
@@ -292,7 +290,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                 for i in 0..len {
                     tracing::info!("Migrating transaction {}", i);
                     let tx = self.transactions.get(i, &mut accessory_state).unwrap();
-                    self.transactions_rlp.push(&tx, &mut accessory_state);
+                    self.transactions_rlp.push(&tx.into(), &mut accessory_state);
                 }
             }
 
