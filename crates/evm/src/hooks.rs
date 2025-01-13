@@ -7,8 +7,6 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{AccessoryWorkingSet, WorkingSet};
 use sov_rollup_interface::spec::SpecId as CitreaSpecId;
 use sov_rollup_interface::zk::StorageRootHash;
-use sov_state::codec::{BcsCodec, RlpCodec};
-use sov_state::storage::StateValueCodec;
 #[cfg(feature = "native")]
 use tracing::instrument;
 

@@ -1,11 +1,7 @@
 use alloy_primitives::Address;
 use reth_primitives::{Account, SealedHeader};
-use sov_modules_api::{
-    AccessoryStateVec, AccessoryWorkingSet, StateMapAccessor, StateVecAccessor, WorkingSet,
-};
-use sov_state::codec::{BcsCodec, RlpCodec};
+use sov_modules_api::{StateMapAccessor, StateVecAccessor, WorkingSet};
 
-use crate::primitive_types::{DoNotUseSealedBlock, SealedBlock};
 use crate::Evm;
 
 impl<C: sov_modules_api::Context> Evm<C> {
