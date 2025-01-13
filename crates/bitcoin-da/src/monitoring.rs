@@ -122,7 +122,7 @@ pub enum MonitorError {
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
 }
 
-mod defaults {
+mod monitoring_defaults {
     pub const fn check_interval() -> u64 {
         60
     }
@@ -138,20 +138,20 @@ mod defaults {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MonitoringConfig {
-    #[serde(default = "defaults::check_interval")]
+    #[serde(default = "monitoring_defaults::check_interval")]
     pub check_interval: u64,
-    #[serde(default = "defaults::history_limit")]
+    #[serde(default = "monitoring_defaults::history_limit")]
     pub history_limit: usize,
-    #[serde(default = "defaults::max_history_size")]
+    #[serde(default = "monitoring_defaults::max_history_size")]
     pub max_history_size: usize,
 }
 
 impl Default for MonitoringConfig {
     fn default() -> Self {
         Self {
-            check_interval: defaults::check_interval(),
-            history_limit: defaults::history_limit(),
-            max_history_size: defaults::max_history_size(),
+            check_interval: monitoring_defaults::check_interval(),
+            history_limit: monitoring_defaults::history_limit(),
+            max_history_size: monitoring_defaults::max_history_size(),
         }
     }
 }
@@ -166,15 +166,15 @@ impl FromEnv for MonitoringConfig {
             (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
             (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
                 check_interval: check_interval.map_or_else(
-                    |_| Ok(defaults::check_interval()),
+                    |_| Ok(monitoring_defaults::check_interval()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
                 )?,
                 history_limit: history_limit.map_or_else(
-                    |_| Ok(defaults::history_limit()),
+                    |_| Ok(monitoring_defaults::history_limit()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
                 )?,
                 max_history_size: max_history_size.map_or_else(
-                    |_| Ok(defaults::max_history_size()),
+                    |_| Ok(monitoring_defaults::max_history_size()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
                 )?,
             }),
