@@ -178,6 +178,23 @@ where
                 )
                 .unwrap();
 
+            if l1_height < self.skip_submission_until_l1 {
+                info!("Skipping proving for l1 height {}", l1_height);
+                self.ledger_db
+                    .set_last_scanned_l1_height(SlotNumber(l1_height))
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "Failed to put prover last scanned l1 height in the ledger db: {}",
+                            e
+                        );
+                    });
+
+                BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
+
+                self.pending_l1_blocks.pop_front();
+                continue;
+            }
+
             let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
@@ -196,7 +213,9 @@ where
                         info!("No sequencer commitment found at height {}", l1_height,);
                         self.ledger_db
                             .set_last_scanned_l1_height(SlotNumber(l1_height))
-                            .unwrap_or_else(|_| panic!("Failed to put prover last scanned l1 height in the ledger db {}", l1_height));
+                            .unwrap_or_else(|e| panic!("Failed to put prover last scanned l1 height in the ledger db {}", e));
+
+                        BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
                         self.pending_l1_blocks.pop_front();
                         continue;
@@ -208,12 +227,14 @@ where
                         );
                         self.ledger_db
                             .set_last_scanned_l1_height(SlotNumber(l1_height))
-                            .unwrap_or_else(|_| {
+                            .unwrap_or_else(|e| {
                                 panic!(
                                     "Failed to put prover last scanned l1 height in the ledger db {}",
-                                    l1_height
+                                    e
                                 )
                             });
+
+                        BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
                         self.pending_l1_blocks.pop_front();
                         continue;
@@ -250,32 +271,28 @@ where
                             == 0
                 }
             };
+
             if should_prove {
-                if l1_height >= self.skip_submission_until_l1 {
-                    prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
-                        self.prover_service.clone(),
-                        self.ledger_db.clone(),
-                        self.code_commitments_by_spec.clone(),
-                        self.elfs_by_spec.clone(),
-                        l1_block,
-                        sequencer_commitments,
-                        inputs,
-                    )
-                    .await?;
-                } else {
-                    info!("Skipping proving for l1 height {}", l1_height);
-                }
+                prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
+                    self.prover_service.clone(),
+                    self.ledger_db.clone(),
+                    self.code_commitments_by_spec.clone(),
+                    self.elfs_by_spec.clone(),
+                    l1_block,
+                    sequencer_commitments,
+                    inputs,
+                )
+                .await?;
             }
 
-            if let Err(e) = self
-                .ledger_db
+            self.ledger_db
                 .set_last_scanned_l1_height(SlotNumber(l1_height))
-            {
-                panic!(
-                    "Failed to put prover last scanned l1 height in the ledger db: {}",
-                    e
-                );
-            }
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed to put prover last scanned l1 height in the ledger db: {}",
+                        e
+                    );
+                });
 
             BATCH_PROVER_METRICS.current_l1_block.set(l1_height as f64);
 
