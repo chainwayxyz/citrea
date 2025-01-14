@@ -19,6 +19,11 @@ use tracing::{error, info, instrument};
 use crate::da_block_handler::L1BlockHandler;
 use crate::rpc::{create_rpc_module, RpcContext};
 
+pub(crate) enum StartVariant {
+    LastScanned(u64),
+    FromBlock(u64),
+}
+
 pub struct CitreaLightClientProver<Da, Vm, Ps, DB>
 where
     Da: DaService + Send + Sync,
@@ -201,9 +206,4 @@ where
         rpc_methods.merge(rpc)?;
         Ok(rpc_methods)
     }
-}
-
-pub(crate) enum StartVariant {
-    LastScanned(u64),
-    FromBlock(u64),
 }
