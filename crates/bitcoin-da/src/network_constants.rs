@@ -54,8 +54,8 @@ pub const INITIAL_TESTNET4_STATE: LatestDaState = LatestDaState {
 
 pub const INITIAL_SIGNET_STATE: LatestDaState = LatestDaState {
     block_hash: [
-        0, 0, 0, 0, 205, 48, 242, 114, 146, 69, 136, 38, 244, 175, 53, 131, 85, 232, 204, 5, 105,
-        182, 13, 206, 145, 123, 119, 143, 218, 93, 176, 244,
+        244, 176, 93, 218, 143, 119, 123, 145, 206, 13, 182, 105, 5, 204, 232, 85, 131, 53, 175,
+        244, 38, 136, 69, 146, 114, 242, 48, 205, 0, 0, 0, 0,
     ],
     block_height: 17583,
     total_work: [
