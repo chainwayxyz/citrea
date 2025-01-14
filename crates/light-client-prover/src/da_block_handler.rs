@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::metrics::LIGHT_CLIENT_METRICS;
+use crate::runner::StartVariant;
 
 pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
 where
@@ -81,7 +82,11 @@ where
         }
     }
 
-    pub async fn run(mut self, start_l1_height: u64, cancellation_token: CancellationToken) {
+    pub async fn run(
+        mut self,
+        last_l1_height_scanned: StartVariant,
+        cancellation_token: CancellationToken,
+    ) {
         // if self.prover_config.enable_recovery {
         //     if let Err(e) = self.check_and_recover_ongoing_proving_sessions().await {
         //         error!("Failed to recover ongoing proving sessions: {:?}", e);
@@ -95,7 +100,7 @@ where
 
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
-            start_l1_height,
+            last_l1_height_scanned,
             self.da_service.clone(),
             l1_tx,
             self.l1_block_cache.clone(),
@@ -472,14 +477,17 @@ where
 }
 
 async fn sync_l1<Da>(
-    start_l1_height: u64,
+    start_l1_height: StartVariant,
     da_service: Arc<Da>,
     sender: mpsc::Sender<Da::FilteredBlock>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
 ) where
     Da: DaService,
 {
-    let mut l1_height = start_l1_height;
+    let mut l1_height = match start_l1_height {
+        StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
+        StartVariant::FromBlock(height) => height,       // first block to scan
+    };
     info!("Starting to sync from L1 height {}", l1_height);
 
     'block_sync: loop {
@@ -495,7 +503,7 @@ async fn sync_l1<Da>(
 
         let new_l1_height = last_finalized_l1_block_header.height();
 
-        for block_number in l1_height + 1..=new_l1_height {
+        for block_number in l1_height..=new_l1_height {
             let l1_block =
                 match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
                     .await
@@ -507,13 +515,16 @@ async fn sync_l1<Da>(
                         continue 'block_sync;
                     }
                 };
-            if block_number > l1_height {
-                l1_height = block_number;
-                if let Err(e) = sender.send(l1_block).await {
-                    error!("Could not notify about L1 block: {}", e);
-                    continue 'block_sync;
-                }
+
+            if let Err(e) = sender.send(l1_block).await {
+                error!("Could not notify about L1 block: {}", e);
+                continue 'block_sync;
             }
+        }
+
+        // next iteration of he loop will start from the next block
+        if new_l1_height >= l1_height {
+            l1_height = new_l1_height + 1;
         }
 
         sleep(Duration::from_secs(2)).await;
