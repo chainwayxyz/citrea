@@ -106,75 +106,51 @@ impl BackupManager {
             .join(format!("backup_{}_{}", l2_height, timestamp));
         info!("Creating backup at path {}", backup_path.display());
 
-        let total_dbs = 3 + self.mmr_db.is_some() as u32;
-        let mut completed_dbs = 0;
+        let mut handles = Vec::new();
 
-        // Backup ledger db
-        info!(
-            "Backing up ledger database ({}/{})",
-            completed_dbs + 1,
-            total_dbs
-        );
-        let ledger_start = Instant::now();
-        self.ledger_db
-            .db_ref()
-            .create_backup(backup_path.join("ledger"))?;
-        info!(
-            "Ledger database backup completed in {:.2}s",
-            ledger_start.elapsed().as_secs_f32()
-        );
-        completed_dbs += 1;
+        let ledger_db = self.ledger_db.clone();
+        let ledger_path = backup_path.join("ledger");
+        handles.push(tokio::spawn(async move {
+            ledger_db.db_ref().create_backup(&ledger_path)?;
+            Ok::<(), anyhow::Error>(())
+        }));
 
-        // Backup state db
-        info!(
-            "Backing up state database ({}/{})",
-            completed_dbs + 1,
-            total_dbs
-        );
-        let state_start = Instant::now();
-        self.state_db
-            .write()
-            .unwrap()
-            .db_ref()
-            .create_backup(backup_path.join("state"))?;
-        info!(
-            "State database backup completed in {:.2}s",
-            state_start.elapsed().as_secs_f32()
-        );
-        completed_dbs += 1;
+        let state_db = self.state_db.clone();
+        let state_path = backup_path.join("state");
+        handles.push(tokio::spawn(async move {
+            state_db
+                .read()
+                .unwrap()
+                .db_ref()
+                .create_backup(&state_path)?;
+            Ok::<(), anyhow::Error>(())
+        }));
 
-        // Backup native db
-        info!(
-            "Backing up native-db database ({}/{})",
-            completed_dbs + 1,
-            total_dbs
-        );
-        let native_start = Instant::now();
-        self.native_db
-            .write()
-            .unwrap()
-            .db_ref()
-            .create_backup(backup_path.join("native-db"))?;
-        info!(
-            "Native database backup completed in {:.2}s",
-            native_start.elapsed().as_secs_f32()
-        );
-        completed_dbs += 1;
+        let native_db = self.native_db.clone();
+        let native_path = backup_path.join("native-db");
+        handles.push(tokio::spawn(async move {
+            native_db
+                .read()
+                .unwrap()
+                .db_ref()
+                .create_backup(&native_path)?;
+            Ok::<(), anyhow::Error>(())
+        }));
 
-        if let Some(mmr_db) = &self.mmr_db {
-            info!(
-                "Backing up MMR database ({}/{})",
-                completed_dbs + 1,
-                total_dbs
-            );
+        if let Some(mmr_db) = self.mmr_db.clone() {
+            let mmr_path = backup_path.join("mmr");
+            handles.push(tokio::spawn(async move {
+                mmr_db.db_ref().create_backup(&mmr_path)?;
+                Ok::<(), anyhow::Error>(())
+            }));
+        }
 
-            let mmr_start = Instant::now();
-            mmr_db.db_ref().create_backup(backup_path.join("mmr"))?;
+        // Wait for all dbs to starting backing up under lock before releasing
+        drop(_l1_lock);
+        drop(_l2_lock);
 
-            info!(
-                "MMR database backup completed in {:.2}s",
-                mmr_start.elapsed().as_secs_f32()
-            );
+        for handle in handles {
+            handle.await.unwrap()?;
         }
 
         if let Err(e) = Self::validate_backup(&backup_path) {
