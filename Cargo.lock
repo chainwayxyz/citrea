@@ -8021,6 +8021,7 @@ dependencies = [
  "futures",
  "hex",
  "jmt",
+ "risc0-zkp",
  "serde",
  "serde_json",
  "sha2",

@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
+    BatchProofMethodId, BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
     LightClientProofOutputRpcResponse, LightClientProofResponse, SoftConfirmationResponse,
     VerifiedBatchProofResponse,
 };
@@ -103,7 +103,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
     fn from(value: StoredLightClientProofOutput) -> Self {
         Self {
             state_root: value.state_root,
-            light_client_proof_method_id: value.light_client_proof_method_id,
+            light_client_proof_method_id: value.light_client_proof_method_id.into(),
             latest_da_state: LatestDaStateRpcResponse {
                 block_hash: value.latest_da_state.block_hash,
                 block_height: value.latest_da_state.block_height,
@@ -114,7 +114,10 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             },
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
-            batch_proof_method_ids: value.batch_proof_method_ids,
+            batch_proof_method_ids: value.batch_proof_method_ids
+                .into_iter()
+                .map(|(height, method_id)| BatchProofMethodId::new(height, method_id.into()))
+                .collect(),
             mmr_guest: value.mmr_guest,
         }
     }

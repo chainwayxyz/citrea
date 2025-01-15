@@ -9,6 +9,7 @@ use alloc::vec::Vec;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use risc0_zkp::core::digest::Digest;
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
@@ -158,6 +159,21 @@ pub struct LatestDaStateRpcResponse {
     pub prev_11_timestamps: [u32; 11],
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+/// Activation height and method id
+pub struct BatchProofMethodId{
+    height: u64,
+    #[serde(with = "hex::serde")]
+    method_id: Digest,
+}
+impl BatchProofMethodId {
+    /// Create a new instance from height and method id
+    pub fn new(height: u64, method_id: Digest) -> Self {
+        Self { height, method_id }
+    }
+}
+
 /// The output of a light client proof
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -167,7 +183,8 @@ pub struct LightClientProofOutputRpcResponse {
     pub state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
-    pub light_client_proof_method_id: [u32; 8],
+    #[serde(with = "hex::serde")]
+    pub light_client_proof_method_id: Digest,
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
     /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
@@ -175,7 +192,7 @@ pub struct LightClientProofOutputRpcResponse {
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    pub batch_proof_method_ids: Vec<BatchProofMethodId>,
     /// A map from tx hash to chunk data.
     /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
     /// like 32 hashes and some u64
@@ -187,6 +204,7 @@ pub struct LightClientProofOutputRpcResponse {
 /// The response to a JSON-RPC request for a light client proof
 pub struct LightClientProofResponse {
     /// The proof
+    #[serde(with = "hex::serde")]
     pub proof: ProofRpcResponse,
     /// The output of the light client proof circuit
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
