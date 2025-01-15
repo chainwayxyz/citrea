@@ -1890,6 +1890,7 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "lru",
+ "metrics",
  "serde",
  "serde_json",
  "sov-db",

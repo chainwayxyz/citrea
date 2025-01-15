@@ -1,19 +1,79 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use alloy_primitives::U64;
 use anyhow::anyhow;
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use jsonrpsee::http_client::HttpClient;
+use metrics::Histogram;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::zk::Proof;
-use tokio::sync::Mutex;
-use tracing::warn;
+use tokio::sync::{mpsc, Mutex};
+use tokio::time::sleep;
+use tracing::{error, info, warn};
 
 use crate::cache::L1BlockCache;
+
+pub async fn sync_l1<Da>(
+    start_l1_height: u64,
+    da_service: Arc<Da>,
+    sender: mpsc::Sender<Da::FilteredBlock>,
+    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
+    l1_block_scan_histogram: Histogram,
+) where
+    Da: DaService,
+{
+    let mut l1_height = start_l1_height;
+    info!("Starting to sync from L1 height {}", l1_height);
+
+    let start = Instant::now();
+
+    'block_sync: loop {
+        let last_finalized_l1_block_header =
+            match da_service.get_last_finalized_block_header().await {
+                Ok(header) => header,
+                Err(e) => {
+                    error!("Could not fetch last finalized L1 block header: {}", e);
+                    sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
+        let new_l1_height = last_finalized_l1_block_header.height();
+
+        for block_number in l1_height + 1..=new_l1_height {
+            let l1_block =
+                match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
+                    .await
+                {
+                    Ok(block) => block,
+                    Err(e) => {
+                        error!("Could not fetch last finalized L1 block: {}", e);
+                        sleep(Duration::from_secs(2)).await;
+                        continue 'block_sync;
+                    }
+                };
+
+            if block_number > l1_height {
+                l1_height = block_number;
+                l1_block_scan_histogram.record(
+                    Instant::now()
+                        .saturating_duration_since(start)
+                        .as_secs_f64(),
+                );
+                if let Err(e) = sender.send(l1_block).await {
+                    error!("Could not notify about L1 block: {}", e);
+                    continue 'block_sync;
+                }
+            }
+        }
+
+        sleep(Duration::from_secs(2)).await;
+    }
+}
 
 pub async fn get_da_block_at_height<Da: DaService>(
     da_service: &Arc<Da>,
