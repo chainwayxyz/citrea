@@ -81,8 +81,7 @@ impl BackupManager {
 
     /// Creates a backup of all the databases at `REQUIRED_BACKUP_DIRS` and `OPTIONAL_BACKUP_DIRS` at the specified path.
     ///
-    /// Acquires both L1 and L2 processing locks to ensure consistency and make sure no writes are happening while backing up.
-    /// The backup will be created in a subdirectory named `backup_<l2_height>_<timestamp>`.
+    /// Acquires both L1 and L2 processing locks to ensure consistency between dbs
     ///
     /// # Arguments
     /// * `path` - Base directory where the backup will be created
