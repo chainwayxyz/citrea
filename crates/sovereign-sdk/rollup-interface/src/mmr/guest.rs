@@ -8,20 +8,8 @@ use super::{hash_pair, MMRChunk, MMRInclusionProof};
 #[derive(
     Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize,
 )]
-#[serde(transparent)]
-pub struct Root(#[serde(with = "hex::serde")] [u8; 32]);
-
-impl From<[u8; 32]> for Root {
-    fn from(data: [u8; 32]) -> Self {
-        Root(data)
-    }
-}
-
-#[derive(
-    Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize,
-)]
 pub struct MMRGuest {
-    pub subroots: Vec<Root>,
+    pub subroots: Vec<[u8; 32]>,
     pub size: u32,
 }
 
@@ -39,11 +27,11 @@ impl MMRGuest {
 
         while size % 2 == 1 {
             let sibling = self.subroots.pop().unwrap();
-            current = hash_pair(sibling.0, current);
+            current = hash_pair(sibling, current);
             size /= 2;
         }
 
-        self.subroots.push(current.into());
+        self.subroots.push(current);
         self.size += 1;
     }
 
@@ -62,6 +50,6 @@ impl MMRGuest {
             return false; // Subroot index is out of bounds
         }
 
-        self.subroots[mmr_proof.subroot_idx as usize] == Root(current_hash)
+        self.subroots[mmr_proof.subroot_idx as usize] == current_hash
     }
 }
