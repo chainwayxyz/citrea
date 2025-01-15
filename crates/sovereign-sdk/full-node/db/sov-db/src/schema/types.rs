@@ -6,7 +6,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
-    BatchProofInfoRpcResponse, BatchProofMethodIdRpcResponse, BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse, SoftConfirmationResponse, VerifiedBatchProofResponse
+    BatchProofInfoRpcResponse, BatchProofMethodIdRpcResponse, BatchProofOutputRpcResponse,
+    BatchProofResponse, HexTx, LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
+    LightClientProofResponse, SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::zk::{
@@ -111,7 +113,11 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                 epoch_start_time: value.latest_da_state.epoch_start_time,
                 prev_11_timestamps: value.latest_da_state.prev_11_timestamps,
             },
-            unchained_batch_proofs_info: value.unchained_batch_proofs_info.into_iter().map(BatchProofInfoRpcResponse::from).collect(),
+            unchained_batch_proofs_info: value
+                .unchained_batch_proofs_info
+                .into_iter()
+                .map(BatchProofInfoRpcResponse::from)
+                .collect(),
             last_l2_height: U64::from(value.last_l2_height),
             batch_proof_method_ids: value
                 .batch_proof_method_ids
