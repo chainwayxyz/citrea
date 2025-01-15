@@ -245,7 +245,7 @@ impl BackupManager {
 
         let inner_restore_from_backup = |dir: &str| {
             let dir_start = Instant::now();
-            info!("Restoring {dir} database",);
+            info!("Restoring {dir} database");
             let backup_path = backup_path.join(dir);
             let path = tmp_path.join(dir);
             let res = restore_from_backup(path, backup_path);
