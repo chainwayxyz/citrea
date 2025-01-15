@@ -8,8 +8,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use risc0_zkp::core::digest::Digest;
+use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
 use crate::mmr::MMRGuest;
@@ -162,7 +162,7 @@ pub struct LatestDaStateRpcResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 /// Activation height and method id
-pub struct MethodIdInfo{
+pub struct MethodIdInfo {
     /// Activation height
     pub height: u64,
     #[serde(with = "hex::serde")]

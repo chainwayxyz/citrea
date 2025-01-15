@@ -604,7 +604,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into()
+                    ]
+                    .into()
                 ),
                 MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into())
             ],
@@ -653,7 +654,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into(),
+                    ]
+                    .into(),
                 ),
                 MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
             ]
@@ -675,7 +677,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into(),
+                    ]
+                    .into(),
                 ),
                 MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
                 MethodIdInfo::new(200, new_batch_proof_method_id.into())
@@ -706,7 +709,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into(),
+                    ]
+                    .into(),
                 ),
                 MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
                 MethodIdInfo::new(200, new_batch_proof_method_id.into())

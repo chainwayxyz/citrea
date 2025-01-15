@@ -6,8 +6,8 @@ use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
     BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
-    LightClientProofOutputRpcResponse, LightClientProofResponse, MethodIdInfo, SoftConfirmationResponse,
-    VerifiedBatchProofResponse,
+    LightClientProofOutputRpcResponse, LightClientProofResponse, MethodIdInfo,
+    SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::zk::{
@@ -114,7 +114,8 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             },
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
             last_l2_height: value.last_l2_height,
-            batch_proof_method_ids: value.batch_proof_method_ids
+            batch_proof_method_ids: value
+                .batch_proof_method_ids
                 .into_iter()
                 .map(|(height, method_id)| MethodIdInfo::new(height, method_id.into()))
                 .collect(),

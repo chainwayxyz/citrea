@@ -86,7 +86,13 @@ fn test_consistency_between_native_and_guest() {
 
     // Check subroots consistency
     let native_subroots = mmr_native.get_subroots();
-    assert_eq!(native_subroots.iter().map(|root| Root::from(*root)).collect::<Vec<_>>(), mmr_guest.subroots);
+    assert_eq!(
+        native_subroots
+            .iter()
+            .map(|root| Root::from(*root))
+            .collect::<Vec<_>>(),
+        mmr_guest.subroots
+    );
 }
 
 #[test]

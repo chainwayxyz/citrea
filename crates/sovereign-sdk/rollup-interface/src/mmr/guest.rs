@@ -5,9 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use super::{hash_pair, MMRChunk, MMRInclusionProof};
 
-#[derive(Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize)]
+#[derive(
+    Default, Serialize, Deserialize, Eq, PartialEq, Clone, Debug, BorshDeserialize, BorshSerialize,
+)]
 #[serde(transparent)]
-pub struct Root(#[serde(with = "hex::serde")][u8; 32]);
+pub struct Root(#[serde(with = "hex::serde")] [u8; 32]);
 
 impl From<[u8; 32]> for Root {
     fn from(data: [u8; 32]) -> Self {
