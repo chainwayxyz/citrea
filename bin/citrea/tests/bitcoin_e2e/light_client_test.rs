@@ -24,7 +24,7 @@ use rand::{thread_rng, Rng};
 use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
-use sov_rollup_interface::rpc::MethodIdInfo;
+use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
 use sov_rollup_interface::zk::BatchProofCircuitOutput;
 
 use super::batch_prover_test::wait_for_zkproofs;
@@ -599,7 +599,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                MethodIdInfo::new(
+                BatchProofMethodIdRpcResponse::new(
                     0,
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
@@ -607,7 +607,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into()
                 ),
-                MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into())
+                BatchProofMethodIdRpcResponse::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into())
             ],
         );
 
@@ -649,7 +649,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                MethodIdInfo::new(
+                BatchProofMethodIdRpcResponse::new(
                     0,
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
@@ -657,7 +657,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into(),
                 ),
-                MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
+                BatchProofMethodIdRpcResponse::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
             ]
         );
 
@@ -672,7 +672,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                MethodIdInfo::new(
+                BatchProofMethodIdRpcResponse::new(
                     0,
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
@@ -680,8 +680,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into(),
                 ),
-                MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
-                MethodIdInfo::new(200, new_batch_proof_method_id.into())
+                BatchProofMethodIdRpcResponse::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
+                BatchProofMethodIdRpcResponse::new(200, new_batch_proof_method_id.into())
             ]
         );
 
@@ -704,7 +704,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
         assert_eq!(
             lcp_output.batch_proof_method_ids,
             vec![
-                MethodIdInfo::new(
+                BatchProofMethodIdRpcResponse::new(
                     0,
                     [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
@@ -712,8 +712,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into(),
                 ),
-                MethodIdInfo::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
-                MethodIdInfo::new(200, new_batch_proof_method_id.into())
+                BatchProofMethodIdRpcResponse::new(100, citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
+                BatchProofMethodIdRpcResponse::new(200, new_batch_proof_method_id.into())
             ]
         );
 

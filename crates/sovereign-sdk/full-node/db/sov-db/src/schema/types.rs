@@ -5,8 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
-    LightClientProofOutputRpcResponse, LightClientProofResponse, MethodIdInfo,
+    BatchProofMethodIdRpcResponse, BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
+    LightClientProofOutputRpcResponse, LightClientProofResponse,
     SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
@@ -117,7 +117,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             batch_proof_method_ids: value
                 .batch_proof_method_ids
                 .into_iter()
-                .map(|(height, method_id)| MethodIdInfo::new(height, method_id.into()))
+                .map(|(height, method_id)| BatchProofMethodIdRpcResponse::new(height, method_id.into()))
                 .collect(),
             mmr_guest: value.mmr_guest,
         }
