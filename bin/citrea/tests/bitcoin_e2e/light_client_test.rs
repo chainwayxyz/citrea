@@ -607,7 +607,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into()
                 ),
-                BatchProofMethodIdRpcResponse::new(U64::from(100), citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into())
+                BatchProofMethodIdRpcResponse::new(
+                    U64::from(100),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                )
             ],
         );
 
@@ -657,7 +660,10 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into(),
                 ),
-                BatchProofMethodIdRpcResponse::new(U64::from(100), citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
+                BatchProofMethodIdRpcResponse::new(
+                    U64::from(100),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                ),
             ]
         );
 
@@ -680,8 +686,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into(),
                 ),
-                BatchProofMethodIdRpcResponse::new(U64::from(100), citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
-                BatchProofMethodIdRpcResponse::new(U64::from(200), new_batch_proof_method_id.into())
+                BatchProofMethodIdRpcResponse::new(
+                    U64::from(100),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                ),
+                BatchProofMethodIdRpcResponse::new(
+                    U64::from(200),
+                    new_batch_proof_method_id.into()
+                )
             ]
         );
 
@@ -712,8 +724,14 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     ]
                     .into(),
                 ),
-                BatchProofMethodIdRpcResponse::new(U64::from(100), citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()),
-                BatchProofMethodIdRpcResponse::new(U64::from(200), new_batch_proof_method_id.into())
+                BatchProofMethodIdRpcResponse::new(
+                    U64::from(100),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID.into()
+                ),
+                BatchProofMethodIdRpcResponse::new(
+                    U64::from(200),
+                    new_batch_proof_method_id.into()
+                )
             ]
         );
 
