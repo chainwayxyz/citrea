@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context};
+use rocksdb::backup::BackupEngineInfo;
 use serde::Serialize;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
@@ -10,7 +12,7 @@ use sov_prover_storage_manager::SnapshotManager;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::{info, warn};
 
-use super::utils::{restore_from_backup, validate_backup};
+use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 
 const REQUIRED_BACKUP_DIRS: [&str; 3] = ["ledger", "state", "native-db"];
 const OPTIONAL_BACKUP_DIRS: [&str; 1] = ["mmr"];
@@ -305,5 +307,32 @@ impl BackupManager {
         }
 
         Ok(())
+    }
+
+    pub(super) fn get_backup_info(
+        backup_path: impl AsRef<Path>,
+    ) -> anyhow::Result<HashMap<String, Vec<BackupEngineInfo>>> {
+        let backup_path = backup_path.as_ref();
+
+        if !backup_path.exists() {
+            bail!("Backup directory does not exist: {:?}", backup_path);
+        }
+
+        let mut map = HashMap::new();
+
+        for dir in REQUIRED_BACKUP_DIRS {
+            let engine = get_backup_engine(backup_path.join(dir))?;
+            map.insert(dir.to_string(), engine.get_backup_info());
+        }
+
+        for dir in OPTIONAL_BACKUP_DIRS {
+            let dir_path = backup_path.join(dir);
+            if dir_path.exists() {
+                let engine = get_backup_engine(dir_path)?;
+                map.insert(dir.to_string(), engine.get_backup_info());
+            }
+        }
+
+        Ok(map)
     }
 }

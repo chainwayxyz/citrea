@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::bail;
+use rocksdb::backup::BackupEngine;
 use tracing::info;
 
 pub(super) fn restore_from_backup(
@@ -14,10 +15,7 @@ pub(super) fn restore_from_backup(
     }
     std::fs::create_dir_all(db_path)?;
 
-    let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path)?;
-    let env = rocksdb::Env::new()?;
-    let mut backup_engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
-
+    let mut backup_engine = get_backup_engine(backup_path)?;
     let backups = backup_engine.get_backup_info();
     if backups.is_empty() {
         bail!("No backups found for {} in {:?}", "ledgerdb", backup_path);
@@ -40,10 +38,7 @@ pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<(
         bail!("Backup directory does not exist at {:?}", backup_path);
     }
 
-    let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path)?;
-    let env = rocksdb::Env::new()?;
-    let backup_engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
-
+    let backup_engine = get_backup_engine(backup_path)?;
     let backups = backup_engine.get_backup_info();
     if backups.is_empty() {
         bail!("No backups found in {:?}", backup_path);
@@ -81,4 +76,11 @@ pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<(
         backup_engine.verify_backup(backup_id)?;
     }
     Ok(())
+}
+
+pub(super) fn get_backup_engine(backup_path: impl AsRef<Path>) -> anyhow::Result<BackupEngine> {
+    let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path)?;
+    let env = rocksdb::Env::new()?;
+    let engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
+    Ok(engine)
 }
