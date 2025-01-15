@@ -17,7 +17,7 @@ resolver = "2"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-alloy-primitives = { workspace = true, optional = true}
+alloy-primitives = { workspace = true, features=["serde"], optional = true}
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
