@@ -159,15 +159,17 @@ pub struct LatestDaStateRpcResponse {
     pub prev_11_timestamps: [u32; 11],
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 /// Activation height and method id
-pub struct BatchProofMethodId{
-    height: u64,
+pub struct MethodIdInfo{
+    /// Activation height
+    pub height: u64,
     #[serde(with = "hex::serde")]
-    method_id: Digest,
+    /// Method id
+    pub method_id: Digest,
 }
-impl BatchProofMethodId {
+impl MethodIdInfo {
     /// Create a new instance from height and method id
     pub fn new(height: u64, method_id: Digest) -> Self {
         Self { height, method_id }
@@ -192,7 +194,7 @@ pub struct LightClientProofOutputRpcResponse {
     /// Last l2 height the light client proof verifies
     pub last_l2_height: u64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<BatchProofMethodId>,
+    pub batch_proof_method_ids: Vec<MethodIdInfo>,
     /// A map from tx hash to chunk data.
     /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
     /// like 32 hashes and some u64
