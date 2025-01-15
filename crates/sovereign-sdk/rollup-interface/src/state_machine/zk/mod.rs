@@ -382,8 +382,10 @@ where
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq, Serialize, Deserialize)]
 pub struct BatchProofInfo {
     /// Initial state root of the batch proof
+    #[serde(with = "hex::serde")]
     pub initial_state_root: [u8; 32],
     /// Final state root of the batch proof
+    #[serde(with = "hex::serde")]
     pub final_state_root: [u8; 32],
     /// The last processed l2 height in the batch proof
     pub last_l2_height: u64,
