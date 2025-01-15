@@ -178,6 +178,7 @@ impl BatchProofMethodIdRpcResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 /// Hex serializable BatchProofInfo
 pub struct BatchProofInfoRpcResponse {
     /// Initial state root of the batch proof
