@@ -17,6 +17,7 @@ resolver = "2"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+alloy-primitives = { workspace = true, optional = true}
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
@@ -36,7 +37,7 @@ serde_json = { workspace = true }
 
 [features]
 default = ["std"]
-native = ["std", "tokio", "futures", "tracing", "risc0-zkp"]
+native = ["alloy-primitives", "std", "tokio", "futures", "tracing", "risc0-zkp"]
 testing = []
 std = [
   "anyhow/default",

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use alloy_primitives::U64;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
@@ -113,11 +114,11 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                 prev_11_timestamps: value.latest_da_state.prev_11_timestamps,
             },
             unchained_batch_proofs_info: value.unchained_batch_proofs_info,
-            last_l2_height: value.last_l2_height,
+            last_l2_height: U64::from(value.last_l2_height),
             batch_proof_method_ids: value
                 .batch_proof_method_ids
                 .into_iter()
-                .map(|(height, method_id)| BatchProofMethodIdRpcResponse::new(height, method_id.into()))
+                .map(|(height, method_id)| BatchProofMethodIdRpcResponse::new(U64::from(height), method_id.into()))
                 .collect(),
             mmr_guest: value.mmr_guest,
         }

@@ -6,6 +6,7 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
+use alloy_primitives::U64;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
@@ -164,14 +165,14 @@ pub struct LatestDaStateRpcResponse {
 /// Activation height and method id
 pub struct BatchProofMethodIdRpcResponse {
     /// Activation height
-    pub height: u64,
+    pub height: U64,
     #[serde(with = "hex::serde")]
     /// Method id
     pub method_id: Digest,
 }
 impl BatchProofMethodIdRpcResponse {
     /// Create a new instance from height and method id
-    pub fn new(height: u64, method_id: Digest) -> Self {
+    pub fn new(height: U64, method_id: Digest) -> Self {
         Self { height, method_id }
     }
 }
@@ -192,7 +193,7 @@ pub struct LightClientProofOutputRpcResponse {
     /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
     pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
     /// Last l2 height the light client proof verifies
-    pub last_l2_height: u64,
+    pub last_l2_height: U64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
     pub batch_proof_method_ids: Vec<BatchProofMethodIdRpcResponse>,
     /// A map from tx hash to chunk data.
