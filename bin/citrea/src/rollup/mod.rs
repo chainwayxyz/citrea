@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_batch_prover::CitreaBatchProver;
+use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::CitreaFullnode;
@@ -74,10 +75,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             None,
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
+
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
+
+        let backup_manager = Arc::new(BackupManager::new(
+            ledger_db.clone(),
+            storage_manager.state_db(),
+            storage_manager.native_db(),
+            None,
+        ));
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -86,6 +95,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         } else {
             None
         };
+
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
@@ -93,6 +103,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &da_service,
             None,
             soft_confirmation_rx,
+            &backup_manager,
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -142,6 +153,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            backup_manager,
         )
         .unwrap();
 
@@ -174,6 +186,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
         let mut task_manager = TaskManager::default();
+
         let da_service = self
             .create_da_service(&rollup_config, false, &mut task_manager)
             .await?;
@@ -204,6 +217,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let backup_manager = Arc::new(BackupManager::new(
+            ledger_db.clone(),
+            storage_manager.state_db(),
+            storage_manager.native_db(),
+            None,
+        ));
+
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -219,6 +239,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
             soft_confirmation_rx,
+            &backup_manager,
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -273,6 +294,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            backup_manager,
         )?;
 
         Ok((runner, rpc_methods))
@@ -342,6 +364,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let backup_manager = Arc::new(BackupManager::new(
+            ledger_db.clone(),
+            storage_manager.state_db(),
+            storage_manager.native_db(),
+            None,
+        ));
+
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
         let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
@@ -357,6 +386,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
             soft_confirmation_rx,
+            &backup_manager,
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -411,6 +441,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            backup_manager,
         )?;
 
         Ok((runner, rpc_methods))
@@ -468,6 +499,13 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
+        let backup_manager = Arc::new(BackupManager::new(
+            ledger_db.clone(),
+            storage_manager.state_db(),
+            storage_manager.native_db(),
+            Some(mmr_db.clone()),
+        ));
+
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -476,6 +514,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             &da_service,
             Some(runner_config.sequencer_client_url.clone()),
             None,
+            &backup_manager,
         )?;
 
         let batch_prover_code_commitments_by_spec = self.get_batch_proof_code_commitments();
@@ -504,6 +543,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             light_client_prover_elfs,
             mmr_db,
             task_manager,
+            backup_manager,
         )?;
 
         Ok((runner, rpc_methods))

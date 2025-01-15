@@ -406,6 +406,14 @@ where
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)
     }
+
+    pub fn state_db(&self) -> Arc<RwLock<SnapshotManager>> {
+        self.state_snapshot_manager.clone()
+    }
+
+    pub fn native_db(&self) -> Arc<RwLock<SnapshotManager>> {
+        self.accessory_snapshot_manager.clone()
+    }
 }
 
 /// Creates orphan [`ProverStorage`] which just points directly to the underlying database for previous data

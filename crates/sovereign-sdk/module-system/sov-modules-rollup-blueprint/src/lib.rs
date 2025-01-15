@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
 use sov_db::ledger_db::LedgerDB;
@@ -83,6 +84,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        backup_manager: &Arc<BackupManager>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error>;
 
     /// Creates GenesisConfig from genesis files.

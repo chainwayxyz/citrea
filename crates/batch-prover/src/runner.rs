@@ -8,6 +8,7 @@ use alloy_primitives::U64;
 use anyhow::{anyhow, bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::{get_da_block_at_height, get_initial_slot_height};
 use citrea_common::tasks::manager::TaskManager;
@@ -76,6 +77,7 @@ where
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
+    backup_manager: Arc<BackupManager>,
 }
 
 impl<C, Da, Vm, Ps, DB, RT> CitreaBatchProver<C, Da, Vm, Ps, DB, RT>
@@ -109,6 +111,7 @@ where
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -156,6 +159,7 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            backup_manager,
         })
     }
 
@@ -292,6 +296,7 @@ where
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let elfs_by_spec = self.elfs_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
+        let backup_manager = self.backup_manager.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<
@@ -313,6 +318,7 @@ where
                 elfs_by_spec,
                 skip_submission_until_l1,
                 l1_block_cache.clone(),
+                backup_manager.clone(),
             );
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
@@ -335,6 +341,7 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
+        let backup_manager = self.backup_manager.clone();
         let mut shutdown_signal = create_shutdown_signal().await;
 
         loop {
@@ -346,6 +353,7 @@ where
                     // and make sure that we start processing L2 blocks in queue.
                     if pending_l2_blocks.is_empty() {
                         for (index, (l2_height, l2_block)) in l2_blocks.iter().enumerate() {
+                            let _l2_guard = backup_manager.start_l2_processing().await;
                             if let Err(e) = self.process_l2_block(*l2_height, l2_block).await {
                                 error!("Could not process L2 block: {}", e);
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
@@ -364,6 +372,7 @@ where
                         continue;
                     }
                     while let Some((l2_height, l2_block)) = pending_l2_blocks.front() {
+                        let _l2_guard = backup_manager.start_l2_processing().await;
                         match self.process_l2_block(*l2_height, l2_block).await {
                             Ok(_) => {
                                 pending_l2_blocks.pop_front();

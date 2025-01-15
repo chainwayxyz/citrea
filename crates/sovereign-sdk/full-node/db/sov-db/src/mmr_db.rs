@@ -41,6 +41,11 @@ impl MmrDB {
             db: Arc::new(inner),
         })
     }
+
+    /// Reference to underlying sov DB
+    pub fn db_ref(&self) -> &sov_schema_db::DB {
+        &self.db
+    }
 }
 
 impl NodeStore for MmrDB {

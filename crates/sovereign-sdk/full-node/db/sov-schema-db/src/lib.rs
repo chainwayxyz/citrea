@@ -366,6 +366,29 @@ impl DB {
         rocksdb::checkpoint::Checkpoint::new(&self.inner)?.create_checkpoint(path)?;
         Ok(())
     }
+
+    /// Create backup at directory specified by `backup_path`
+    pub fn create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+        tokio::task::block_in_place(|| self._create_backup(backup_path))
+    }
+
+    fn _create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&backup_path)?;
+
+        let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path.as_ref())?;
+        let env = rocksdb::Env::new()?;
+        let mut backup_engine = rocksdb::backup::BackupEngine::open(&backup_opts, &env)?;
+
+        backup_engine.create_new_backup_flush(&self.inner, true)?;
+
+        info!(
+            db_name = self.name,
+            path = ?backup_path.as_ref(),
+            "Created database backup"
+        );
+
+        Ok(())
+    }
 }
 
 /// Raw rocksdb config wrapper. Useful to convert user provided config into

@@ -7,6 +7,7 @@ use alloy_primitives::U64;
 use anyhow::{bail, Context as _};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
@@ -74,6 +75,7 @@ where
     soft_confirmation_tx: broadcast::Sender<u64>,
     pruning_config: Option<PruningConfig>,
     task_manager: TaskManager<()>,
+    backup_manager: Arc<BackupManager>,
 }
 
 impl<Da, Vm, C, DB, RT> CitreaFullnode<Da, Vm, C, DB, RT>
@@ -104,6 +106,7 @@ where
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -152,6 +155,7 @@ where
             soft_confirmation_tx,
             pruning_config: runner_config.pruning_config,
             task_manager,
+            backup_manager,
         })
     }
 
@@ -358,6 +362,7 @@ where
         let prover_da_pub_key = self.prover_da_pub_key.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
         let l1_block_cache = self.l1_block_cache.clone();
+        let backup_manager = self.backup_manager.clone();
 
         self.task_manager
             .spawn(move |cancellation_token| async move {
@@ -402,6 +407,8 @@ where
                     // and make sure that we start processing L2 blocks in queue.
                     if pending_l2_blocks.is_empty() {
                         for (index, (l2_height, l2_block)) in l2_blocks.iter().enumerate() {
+                            let _l2_lock = backup_manager.start_l2_processing().await;
+
                             if let Err(e) = self.process_l2_block(*l2_height, l2_block).await {
                                 error!("Could not process L2 block: {}", e);
                                 // This block failed to process, add remaining L2 blocks to queue including this one.
@@ -420,6 +427,8 @@ where
                         continue;
                     }
                     while let Some((l2_height, l2_block)) = pending_l2_blocks.front() {
+                        let _l2_lock = backup_manager.start_l2_processing().await;
+
                         match self.process_l2_block(*l2_height, l2_block).await {
                             Ok(_) => {
                                 pending_l2_blocks.pop_front();

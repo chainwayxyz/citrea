@@ -126,6 +126,11 @@ impl LedgerDB {
             _ => Ok(None),
         }
     }
+
+    /// Reference to underlying sov DB
+    pub fn db_ref(&self) -> &sov_schema_db::DB {
+        &self.db
+    }
 }
 
 impl SharedLedgerOps for LedgerDB {

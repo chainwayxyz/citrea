@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 
 use borsh::BorshDeserialize;
+use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::LightClientProverConfig;
@@ -45,6 +46,7 @@ where
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     queued_l1_blocks: VecDeque<<Da as DaService>::FilteredBlock>,
     mmr_native: MMRNative<MmrDB>,
+    backup_manager: Arc<BackupManager>,
 }
 
 impl<Vm, Da, Ps, DB> L1BlockHandler<Vm, Da, Ps, DB>
@@ -65,6 +67,7 @@ where
         light_client_proof_code_commitments: HashMap<SpecId, Vm::CodeCommitment>,
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         mmr_db: MmrDB,
+        backup_manager: Arc<BackupManager>,
     ) -> Self {
         let mmr_native = MMRNative::new(mmr_db);
         Self {
@@ -79,6 +82,7 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             queued_l1_blocks: VecDeque::new(),
             mmr_native,
+            backup_manager,
         }
     }
 
@@ -107,6 +111,8 @@ where
         );
         tokio::pin!(l1_sync_worker);
 
+        let backup_manager = self.backup_manager.clone();
+
         let mut interval = tokio::time::interval(Duration::from_secs(2));
         interval.tick().await;
         loop {
@@ -120,6 +126,7 @@ where
                     self.queued_l1_blocks.push_back(l1_block);
                 },
                 _ = interval.tick() => {
+                    let _l1_guard = backup_manager.start_l1_processing().await;
                     if let Err(e) = self.process_queued_l1_blocks().await {
                         error!("Could not process queued L1 blocks and generate proof: {:?}", e);
                     }

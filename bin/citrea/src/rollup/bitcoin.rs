@@ -6,6 +6,7 @@ use bitcoin_da::rpc::create_rpc_module as create_da_rpc_module;
 use bitcoin_da::service::{BitcoinService, BitcoinServiceConfig, TxidWrapper};
 use bitcoin_da::spec::{BitcoinSpec, RollupParams};
 use bitcoin_da::verifier::BitcoinVerifier;
+use citrea_common::backup::{register_backup_rpc, BackupManager};
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
@@ -71,6 +72,7 @@ impl RollupBlueprint for BitcoinRollup {
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+        backup_manager: &Arc<BackupManager>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // unused inside register RPC
         let sov_sequencer = Address::new([0; 32]);
@@ -92,6 +94,7 @@ impl RollupBlueprint for BitcoinRollup {
         )?;
 
         register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
+        register_backup_rpc(&mut rpc_methods, backup_manager.clone())?;
 
         let da_methods = create_da_rpc_module(da_service.clone());
         rpc_methods.merge(da_methods)?;

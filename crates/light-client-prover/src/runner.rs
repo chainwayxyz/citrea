@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{LightClientProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
 use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
@@ -43,6 +44,7 @@ where
     light_client_proof_commitment: HashMap<SpecId, Vm::CodeCommitment>,
     light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
     mmr_db: MmrDB,
+    backup_manager: Arc<BackupManager>,
 }
 
 impl<Da, Vm, Ps, DB> CitreaLightClientProver<Da, Vm, Ps, DB>
@@ -66,6 +68,7 @@ where
         light_client_proof_elfs: HashMap<SpecId, Vec<u8>>,
         mmr_db: MmrDB,
         task_manager: TaskManager<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             _runner_config: runner_config,
@@ -80,6 +83,7 @@ where
             light_client_proof_commitment,
             light_client_proof_elfs,
             mmr_db,
+            backup_manager,
         })
     }
 
@@ -165,6 +169,7 @@ where
         let batch_proof_commitments_by_spec = self.batch_proof_commitments_by_spec.clone();
         let light_client_proof_commitment = self.light_client_proof_commitment.clone();
         let light_client_proof_elfs = self.light_client_proof_elfs.clone();
+        let backup_manager = self.backup_manager.clone();
 
         self.task_manager.spawn(|cancellation_token| async move {
             let l1_block_handler = L1BlockHandler::<Vm, Da, Ps, DB>::new(
@@ -177,6 +182,7 @@ where
                 light_client_proof_commitment,
                 light_client_proof_elfs,
                 mmr_db,
+                backup_manager,
             );
             l1_block_handler
                 .run(starting_block, cancellation_token)

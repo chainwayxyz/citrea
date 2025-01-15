@@ -9,6 +9,7 @@ use alloy_primitives::{Address, Bytes, TxHash};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
+use citrea_common::backup::BackupManager;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
@@ -97,6 +98,7 @@ where
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     task_manager: TaskManager<()>,
+    backup_manager: Arc<BackupManager>,
 }
 
 enum L2BlockMode {
@@ -125,6 +127,7 @@ where
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
+        backup_manager: Arc<BackupManager>,
     ) -> anyhow::Result<Self> {
         let (l2_force_block_tx, l2_force_block_rx) = unbounded();
 
@@ -178,6 +181,7 @@ where
             fork_manager,
             soft_confirmation_tx,
             task_manager,
+            backup_manager,
         })
     }
 
@@ -732,6 +736,7 @@ where
         let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
 
+        let backup_manager = self.backup_manager.clone();
         loop {
             tokio::select! {
                 // Receive updates from DA layer worker.
@@ -761,6 +766,7 @@ where
                         missed_da_blocks_count = 0;
                     }
 
+                    let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(last_finalized_block.clone(), l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l2_height, l1_block_number, state_diff)) => {
                             last_used_l1_height = l1_block_number;
@@ -792,7 +798,7 @@ where
                         missed_da_blocks_count = 0;
                     }
 
-
+                    let _l2_lock = backup_manager.start_l2_processing().await;
                     match self.produce_l2_block(da_block, l1_fee_rate, L2BlockMode::NotEmpty).await {
                         Ok((l2_height, l1_block_number, state_diff)) => {
                             last_used_l1_height = l1_block_number;

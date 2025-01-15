@@ -119,6 +119,10 @@ impl SnapshotManager {
 
         Ok(SnapshotManagerIter::new(db_iter, snapshot_iterators))
     }
+
+    pub fn db_ref(&self) -> &sov_schema_db::DB {
+        &self.db
+    }
 }
 
 /// [`Iterator`] over keys in given [`Schema`] in all snapshots in reverse lexicographical order

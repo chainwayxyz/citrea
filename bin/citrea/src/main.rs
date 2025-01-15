@@ -1,5 +1,6 @@
 use core::fmt::Debug as DebugTrait;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context as _};
@@ -7,6 +8,7 @@ use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup, NetworkArg,
 };
+use citrea_common::backup::BackupManager;
 use citrea_common::{
     from_toml_path, BatchProverConfig, FromEnv, FullNodeConfig, LightClientProverConfig,
     SequencerConfig,
@@ -75,6 +77,10 @@ struct Args {
     /// Logging verbosity
     #[arg(long, short = 'q', action)]
     quiet: bool,
+
+    /// Logging verbosity
+    #[arg(long)]
+    restore_db: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -172,6 +178,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 batch_prover_config,
                 light_client_prover_config,
                 sequencer_config,
+                args.restore_db,
             )
             .await?;
         }
@@ -183,6 +190,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 batch_prover_config,
                 light_client_prover_config,
                 sequencer_config,
+                args.restore_db,
             )
             .await?;
         }
@@ -202,6 +210,7 @@ async fn start_rollup<S, DaC>(
     batch_prover_config: Option<BatchProverConfig>,
     light_client_prover_config: Option<LightClientProverConfig>,
     sequencer_config: Option<SequencerConfig>,
+    restore_db: Option<PathBuf>,
 ) -> Result<(), anyhow::Error>
 where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv,
@@ -235,6 +244,11 @@ where
     }
 
     let rollup_blueprint = S::new(network);
+
+    // Restore from backup
+    if let Some(path) = restore_db {
+        BackupManager::restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+    }
 
     if let Some(sequencer_config) = sequencer_config {
         let (mut sequencer, rpc_methods) = rollup_blueprint
