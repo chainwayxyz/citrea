@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -11,13 +10,11 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
-use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig};
+use citrea_common::{RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
-use jsonrpsee::RpcModule;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -33,7 +30,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;
 use tokio::select;
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument};
 
@@ -60,7 +57,6 @@ where
     ledger_db: DB,
     state_root: StateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
-    rpc_config: RpcConfig,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
@@ -94,7 +90,6 @@ where
     pub fn new(
         runner_config: RunnerConfig,
         public_keys: RollupPublicKeys,
-        rpc_config: RpcConfig,
         da_service: Arc<Da>,
         ledger_db: DB,
         stf: StfBlueprint<C, Da::Spec, RT>,
@@ -137,7 +132,6 @@ where
             ledger_db,
             state_root: prev_state_root,
             batch_hash: prev_batch_hash,
-            rpc_config,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
@@ -153,72 +147,6 @@ where
             pruning_config: runner_config.pruning_config,
             task_manager,
         })
-    }
-
-    /// Starts a RPC server with provided rpc methods.
-    pub async fn start_rpc_server(
-        &mut self,
-        methods: RpcModule<()>,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-    ) {
-        let bind_host = match self.rpc_config.bind_host.parse() {
-            Ok(bind_host) => bind_host,
-            Err(e) => {
-                error!("Failed to parse bind host: {}", e);
-                return;
-            }
-        };
-        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
-
-        let max_connections = self.rpc_config.max_connections;
-        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
-        let max_request_body_size = self.rpc_config.max_request_body_size;
-        let max_response_body_size = self.rpc_config.max_response_body_size;
-        let batch_requests_limit = self.rpc_config.batch_requests_limit;
-
-        let middleware = tower::ServiceBuilder::new()
-            .layer(citrea_common::rpc::get_cors_layer())
-            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
-        let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
-
-        self.task_manager
-            .spawn(move |cancellation_token| async move {
-                let server = ServerBuilder::default()
-                    .max_connections(max_connections)
-                    .max_subscriptions_per_connection(max_subscriptions_per_connection)
-                    .max_request_body_size(max_request_body_size)
-                    .max_response_body_size(max_response_body_size)
-                    .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-                    .set_http_middleware(middleware)
-                    .set_rpc_middleware(rpc_middleware)
-                    .build([listen_address].as_ref())
-                    .await;
-
-                match server {
-                    Ok(server) => {
-                        let bound_address = match server.local_addr() {
-                            Ok(address) => address,
-                            Err(e) => {
-                                error!("{}", e);
-                                return;
-                            }
-                        };
-                        if let Some(channel) = channel {
-                            if let Err(e) = channel.send(bound_address) {
-                                error!("Could not send bound_address {}: {}", bound_address, e);
-                                return;
-                            }
-                        }
-                        info!("Starting RPC server at {} ", &bound_address);
-
-                        let _server_handle = server.start(methods);
-                        cancellation_token.cancelled().await;
-                    }
-                    Err(e) => {
-                        error!("Could not start RPC server: {}", e);
-                    }
-                }
-            });
     }
 
     async fn process_l2_block(

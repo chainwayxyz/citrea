@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use citrea_batch_prover::CitreaBatchProver;
 use citrea_common::tasks::manager::TaskManager;
@@ -10,16 +10,20 @@ use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
-use sov_db::ledger_db::migrations::LedgerDBMigrator;
+use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, StfBlueprint};
+use sov_modules_stf_blueprint::{
+    GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
+};
+use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
 use sov_state::storage::NativeStorage;
+use sov_state::ProverStorage;
 use sov_stf_runner::InitVariant;
 use tokio::sync::broadcast;
 use tracing::{info, instrument};
@@ -29,56 +33,45 @@ mod mock;
 pub use bitcoin::*;
 pub use mock::*;
 
+type GenesisParams<T> = StfGenesisParams<
+    <<T as RollupBlueprint>::NativeRuntime as RuntimeTrait<
+        <T as RollupBlueprint>::NativeContext,
+        <T as RollupBlueprint>::DaSpec,
+    >>::GenesisConfig,
+>;
+
+/// Group for storage instances
+pub struct Storage<T: RollupBlueprint> {
+    /// The ledger DB instance
+    pub ledger_db: LedgerDB,
+    /// The prover storage manager instance.
+    pub storage_manager: ProverStorageManager<<T as RollupBlueprint>::DaSpec>,
+    /// The prover storage
+    pub prover_storage: ProverStorage<SnapshotManager>,
+}
+
+/// Group for initialization dependencies
+pub struct Dependencies<T: RollupBlueprint> {
+    /// The task manager
+    pub task_manager: TaskManager<()>,
+    /// The DA service
+    pub da_service: Arc<<T as RollupBlueprint>::DaService>,
+    /// The channel on which L2 block number is broadcasted.
+    pub soft_confirmation_channel: (broadcast::Sender<u64>, Option<broadcast::Receiver<u64>>),
+}
+
 /// Overrides RollupBlueprint methods
 #[async_trait]
 pub trait CitreaRollupBlueprint: RollupBlueprint {
-    /// Creates a new sequencer
-    #[instrument(level = "trace", skip_all)]
-    async fn create_new_sequencer(
+    /// Setup the rollup's dependencies
+    async fn setup_dependencies(
         &self,
-        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
-            Self::DaSpec,
-        >>::GenesisPaths,
-        rollup_config: FullNodeConfig<Self::DaConfig>,
-        sequencer_config: SequencerConfig,
-    ) -> Result<
-        (
-            CitreaSequencer<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
-            RpcModule<()>,
-        ),
-        anyhow::Error,
-    >
-    where
-        <Self::NativeContext as Spec>::Storage: NativeStorage,
-    {
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+    ) -> Result<Dependencies<Self>> {
         let mut task_manager = TaskManager::default();
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
-
-        // TODO: Double check what kind of storage needed here.
-        // Maybe whole "prev_root" can be initialized inside runner
-        // Getting block here, so prover_service doesn't have to be `Send`
-
-        // Migrate before constructing ledger_db instance so that no lock is present.
-        let migrator = LedgerDBMigrator::new(
-            rollup_config.storage.path.as_path(),
-            citrea_sequencer::db_migrations::migrations(),
-        );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
-
-        let rocksdb_config = RocksdbConfig::new(
-            rollup_config.storage.path.as_path(),
-            rollup_config.storage.db_max_open_files,
-            None,
-        );
-        let ledger_db = self.create_ledger_db(&rocksdb_config);
-        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
-
-        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-        let prover_storage = storage_manager.create_finalized_storage()?;
-
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
         let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
@@ -86,13 +79,73 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         } else {
             None
         };
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods = self.create_rpc_methods(
+
+        Ok(Dependencies {
+            task_manager,
+            da_service,
+            soft_confirmation_channel: (soft_confirmation_tx, soft_confirmation_rx),
+        })
+    }
+
+    /// Setup the rollup's storage access
+    fn setup_storage(
+        &self,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        rocksdb_config: &RocksdbConfig,
+    ) -> Result<Storage<Self>> {
+        let ledger_db = self.create_ledger_db(rocksdb_config);
+        let mut storage_manager = self.create_storage_manager(rollup_config)?;
+        let prover_storage = storage_manager.create_finalized_storage()?;
+
+        Ok(Storage {
+            ledger_db,
+            storage_manager,
+            prover_storage,
+        })
+    }
+
+    /// Setup the RPC server
+    fn setup_rpc(
+        &self,
+        prover_storage: &ProverStorage<SnapshotManager>,
+        ledger_db: LedgerDB,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
+        sequencer_client_url: Option<String>,
+        soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
+    ) -> Result<RpcModule<()>> {
+        self.create_rpc_methods(
             &prover_storage,
             &ledger_db,
             &da_service,
-            None,
+            sequencer_client_url,
             soft_confirmation_rx,
+        )
+    }
+
+    /// Creates a new sequencer
+    #[instrument(level = "trace", skip_all)]
+    fn create_new_sequencer(
+        &self,
+        genesis_config: GenesisParams<Self>,
+        rollup_config: FullNodeConfig<Self::DaConfig>,
+        sequencer_config: SequencerConfig,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
+        ledger_db: LedgerDB,
+        storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
+        prover_storage: ProverStorage<SnapshotManager>,
+        soft_confirmation_tx: broadcast::Sender<u64>,
+        task_manager: TaskManager<()>,
+    ) -> Result<CitreaSequencer<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>>
+    where
+        <Self::NativeContext as Spec>::Storage: NativeStorage,
+    {
+        // TODO: Double check what kind of storage needed here.
+        // Maybe whole "prev_root" can be initialized inside runner
+        // Getting block here, so prover_service doesn't have to be `Send`
+
+        self.run_ledger_migrations(
+            &rollup_config,
+            citrea_sequencer::db_migrations::migrations(),
         )?;
 
         let native_stf = StfBlueprint::new();
@@ -145,81 +198,40 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )
         .unwrap();
 
-        Ok((seq, rpc_methods))
+        Ok(seq)
     }
 
     /// Creates a new rollup.
     #[instrument(level = "trace", skip_all)]
     async fn create_new_rollup(
         &self,
-        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
-            Self::DaSpec,
-        >>::GenesisPaths,
+        genesis_config: GenesisParams<Self>,
         rollup_config: FullNodeConfig<Self::DaConfig>,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
+        ledger_db: LedgerDB,
+        storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
+        prover_storage: ProverStorage<SnapshotManager>,
+        soft_confirmation_tx: broadcast::Sender<u64>,
+        task_manager: TaskManager<()>,
     ) -> Result<
-        (
-            CitreaFullnode<
-                Self::DaService,
-                Self::Vm,
-                Self::NativeContext,
-                LedgerDB,
-                Self::NativeRuntime,
-            >,
-            RpcModule<()>,
-        ),
-        anyhow::Error,
+        CitreaFullnode<
+            Self::DaService,
+            Self::Vm,
+            Self::NativeContext,
+            LedgerDB,
+            Self::NativeRuntime,
+        >,
     >
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let mut task_manager = TaskManager::default();
-        let da_service = self
-            .create_da_service(&rollup_config, false, &mut task_manager)
-            .await?;
-
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        // Migrate before constructing ledger_db instance so that no lock is present.
-        let migrator = LedgerDBMigrator::new(
-            rollup_config.storage.path.as_path(),
-            citrea_fullnode::db_migrations::migrations(),
-        );
-
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
-
-        let rocksdb_config = RocksdbConfig::new(
-            rollup_config.storage.path.as_path(),
-            rollup_config.storage.db_max_open_files,
-            None,
-        );
-
-        let ledger_db = self.create_ledger_db(&rocksdb_config);
-
-        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
-
-        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-
-        let prover_storage = storage_manager.create_finalized_storage()?;
+        self.run_ledger_migrations(&rollup_config, citrea_fullnode::db_migrations::migrations())?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
-        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
-        // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
-            Some(soft_confirmation_rx)
-        } else {
-            None
-        };
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods = self.create_rpc_methods(
-            &prover_storage,
-            &ledger_db,
-            &da_service,
-            Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_rx,
-        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -263,7 +275,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let runner = CitreaFullnode::new(
             runner_config,
             rollup_config.public_keys,
-            rollup_config.rpc,
             da_service,
             ledger_db,
             native_stf,
@@ -275,54 +286,39 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             task_manager,
         )?;
 
-        Ok((runner, rpc_methods))
+        Ok(runner)
     }
 
     /// Creates a new prover
     #[instrument(level = "trace", skip_all)]
     async fn create_new_batch_prover(
         &self,
-        runtime_genesis_paths: &<Self::NativeRuntime as RuntimeTrait<
-            Self::NativeContext,
-            Self::DaSpec,
-        >>::GenesisPaths,
+        genesis_config: GenesisParams<Self>,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: BatchProverConfig,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
+        ledger_db: LedgerDB,
+        storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
+        prover_storage: ProverStorage<SnapshotManager>,
+        soft_confirmation_tx: broadcast::Sender<u64>,
+        task_manager: TaskManager<()>,
     ) -> Result<
-        (
-            CitreaBatchProver<
-                Self::NativeContext,
-                Self::DaService,
-                Self::Vm,
-                Self::ProverService,
-                LedgerDB,
-                Self::NativeRuntime,
-            >,
-            RpcModule<()>,
-        ),
-        anyhow::Error,
+        CitreaBatchProver<
+            Self::NativeContext,
+            Self::DaService,
+            Self::Vm,
+            Self::ProverService,
+            LedgerDB,
+            Self::NativeRuntime,
+        >,
     >
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        let mut task_manager = TaskManager::default();
-        let da_service = self
-            .create_da_service(&rollup_config, true, &mut task_manager)
-            .await?;
-
-        // Migrate before constructing ledger_db instance so that no lock is present.
-        let migrator = LedgerDBMigrator::new(
-            rollup_config.storage.path.as_path(),
+        self.run_ledger_migrations(
+            &rollup_config,
             citrea_batch_prover::db_migrations::migrations(),
-        );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
-
-        let rocksdb_config = RocksdbConfig::new(
-            rollup_config.storage.path.as_path(),
-            rollup_config.storage.db_max_open_files,
-            None,
-        );
-        let ledger_db = self.create_ledger_db(&rocksdb_config);
+        )?;
 
         let prover_service = self
             .create_prover_service(
@@ -337,27 +333,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
-
-        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-        let prover_storage = storage_manager.create_finalized_storage()?;
-
-        let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
-        // If subscriptions disabled, pass None
-        let soft_confirmation_rx = if rollup_config.rpc.enable_subscriptions {
-            Some(soft_confirmation_rx)
-        } else {
-            None
-        };
         let runner_config = rollup_config.runner.expect("Runner config is missing");
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods = self.create_rpc_methods(
-            &prover_storage,
-            &ledger_db,
-            &da_service,
-            Some(runner_config.sequencer_client_url.clone()),
-            soft_confirmation_rx,
-        )?;
 
         let native_stf = StfBlueprint::new();
 
@@ -413,7 +389,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             task_manager,
         )?;
 
-        Ok((runner, rpc_methods))
+        Ok(runner)
     }
 
     /// Creates a new light client prover
@@ -422,34 +398,19 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: LightClientProverConfig,
-    ) -> Result<
-        (
-            CitreaLightClientProver<Self::DaService, Self::Vm, Self::ProverService, LedgerDB>,
-            RpcModule<()>,
-        ),
-        anyhow::Error,
-    >
+        rocksdb_config: &RocksdbConfig,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
+        ledger_db: LedgerDB,
+        task_manager: TaskManager<()>,
+    ) -> Result<CitreaLightClientProver<Self::DaService, Self::Vm, Self::ProverService, LedgerDB>>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // Migrate before constructing ledger_db instance so that no lock is present.
-        let migrator = LedgerDBMigrator::new(
-            rollup_config.storage.path.as_path(),
+        self.run_ledger_migrations(
+            &rollup_config,
             citrea_light_client_prover::db_migrations::migrations(),
-        );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+        )?;
 
-        let mut task_manager = TaskManager::default();
-        let da_service = self
-            .create_da_service(&rollup_config, true, &mut task_manager)
-            .await?;
-
-        let rocksdb_config = RocksdbConfig::new(
-            rollup_config.storage.path.as_path(),
-            rollup_config.storage.db_max_open_files,
-            None,
-        );
-        let ledger_db = self.create_ledger_db(&rocksdb_config);
         let mmr_db = MmrDB::new(&rocksdb_config)?;
 
         let prover_service = self
@@ -465,18 +426,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-        let prover_storage = storage_manager.create_finalized_storage()?;
-
         let runner_config = rollup_config.runner.expect("Runner config is missing");
-        // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
-        let rpc_methods = self.create_rpc_methods(
-            &prover_storage,
-            &ledger_db,
-            &da_service,
-            Some(runner_config.sequencer_client_url.clone()),
-            None,
-        )?;
 
         let batch_prover_code_commitments_by_spec = self.get_batch_proof_code_commitments();
         let light_client_prover_code_commitment = self.get_light_client_proof_code_commitment();
@@ -506,6 +456,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             task_manager,
         )?;
 
-        Ok((runner, rpc_methods))
+        Ok(runner)
+    }
+
+    /// Run Ledger DB migrations
+    fn run_ledger_migrations(
+        &self,
+        rollup_config: &FullNodeConfig<Self::DaConfig>,
+        migrations: Migrations,
+    ) -> anyhow::Result<()> {
+        // Migrate before constructing ledger_db instance so that no lock is present.
+        let migrator = LedgerDBMigrator::new(rollup_config.storage.path.as_path(), &migrations);
+        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+        Ok(())
     }
 }
