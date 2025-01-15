@@ -177,6 +177,29 @@ impl BatchProofMethodIdRpcResponse {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Hex serializable BatchProofInfo
+pub struct BatchProofInfoRpcResponse {
+    /// Initial state root of the batch proof
+    #[serde(with = "hex::serde")]
+    pub initial_state_root: [u8; 32],
+    /// Final state root of the batch proof
+    #[serde(with = "hex::serde")]
+    pub final_state_root: [u8; 32],
+    /// The last processed l2 height in the batch proof
+    pub last_l2_height: U64,
+}
+
+impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
+    fn from(info: BatchProofInfo) -> Self {
+        Self {
+            initial_state_root: info.initial_state_root,
+            final_state_root: info.final_state_root,
+            last_l2_height: U64::from(info.last_l2_height),
+        }
+    }
+}
+
 /// The output of a light client proof
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -191,7 +214,7 @@ pub struct LightClientProofOutputRpcResponse {
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
     /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    pub unchained_batch_proofs_info: Vec<BatchProofInfoRpcResponse>,
     /// Last l2 height the light client proof verifies
     pub last_l2_height: U64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
