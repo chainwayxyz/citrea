@@ -126,7 +126,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                     BatchProofMethodIdRpcResponse::new(U64::from(height), method_id.into())
                 })
                 .collect(),
-            mmr_guest: value.mmr_guest,
+            mmr_guest: value.mmr_guest.into(),
         }
     }
 }

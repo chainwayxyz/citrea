@@ -191,6 +191,30 @@ pub struct BatchProofInfoRpcResponse {
     pub last_l2_height: U64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+/// Hex serializable Root
+pub struct Root(#[serde(with = "hex::serde")] [u8; 32]);
+
+/// Hex serializable MMRGuest
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MMRGuestRpcResponse {
+    /// Subroots of the MMR
+    pub subroots: Vec<Root>,
+    /// Size of the MMR
+    pub size: U64,
+}
+
+impl From<MMRGuest> for MMRGuestRpcResponse {
+    fn from(mmr: MMRGuest) -> Self {
+        Self {
+            subroots: mmr.subroots.into_iter().map(Root).collect(),
+            size: U64::from(mmr.size),
+        }
+    }
+}
+
 impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
     fn from(info: BatchProofInfo) -> Self {
         Self {
@@ -223,7 +247,7 @@ pub struct LightClientProofOutputRpcResponse {
     /// A map from tx hash to chunk data.
     /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
     /// like 32 hashes and some u64
-    pub mmr_guest: MMRGuest,
+    pub mmr_guest: MMRGuestRpcResponse,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1185,7 +1185,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
         // There are two chunks so the size should be 2
-        assert_eq!(lcp_output.mmr_guest.size, 2);
+        assert_eq!(lcp_output.mmr_guest.size, U64::from(2));
 
         let lcp_last_chunks = light_client_prover
             .client
@@ -1200,7 +1200,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         assert_eq!(lcp_output.last_l2_height, U64::from(fork1_height + 1));
         assert!(lcp_output.unchained_batch_proofs_info.is_empty());
         // There are now four chunks in total so the size should be 4
-        assert_eq!(lcp_output.mmr_guest.size, 4);
+        assert_eq!(lcp_output.mmr_guest.size, U64::from(4));
 
         // Expect light client prover to have generated light client proof
         let lcp_aggregate = light_client_prover
