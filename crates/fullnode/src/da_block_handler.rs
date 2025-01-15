@@ -34,7 +34,7 @@ use tracing::{error, info, warn};
 
 use crate::metrics::FULLNODE_METRICS;
 
-pub(crate) struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
+pub struct L1BlockHandler<C, Vm, Da, StateRoot, DB>
 where
     C: Context,
     Da: DaService,

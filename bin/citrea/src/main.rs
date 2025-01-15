@@ -176,7 +176,7 @@ where
     match rollup_client {
         RollupClient::Sequencer(sequencer_config) => {
             let mut sequencer = rollup_blueprint
-                .create_new_sequencer(
+                .create_sequencer(
                     genesis_config,
                     rollup_config.clone(),
                     sequencer_config,
@@ -194,7 +194,7 @@ where
             }
         }
         RollupClient::BatchProver(batch_prover_config) => {
-            let mut prover = CitreaRollupBlueprint::create_new_batch_prover(
+            let mut prover = CitreaRollupBlueprint::create_batch_prover(
                 &rollup_blueprint,
                 genesis_config,
                 rollup_config,
@@ -214,7 +214,7 @@ where
             }
         }
         RollupClient::LightClientProver(light_client_prover_config) => {
-            let mut prover = CitreaRollupBlueprint::create_new_light_client_prover(
+            let mut prover = CitreaRollupBlueprint::create_light_client_prover(
                 &rollup_blueprint,
                 rollup_config,
                 light_client_prover_config,
@@ -231,7 +231,7 @@ where
             }
         }
         _ => {
-            let mut rollup = CitreaRollupBlueprint::create_new_rollup(
+            let mut rollup = CitreaRollupBlueprint::create_rollup(
                 &rollup_blueprint,
                 genesis_config,
                 rollup_config,

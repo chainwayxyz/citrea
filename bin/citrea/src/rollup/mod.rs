@@ -1,31 +1,39 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use citrea_batch_prover::da_block_handler::L1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
+use citrea_common::cache::L1BlockCache;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
+use citrea_common::{
+    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, SequencerConfig,
+};
+use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
+use jmt::RootHash;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
-use sov_modules_api::Spec;
+use sov_modules_api::{Spec, Zkvm};
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_modules_stf_blueprint::{
     GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
 };
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::spec::SpecId;
 use sov_state::storage::NativeStorage;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitVariant;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 use tracing::{info, instrument};
 
 mod bitcoin;
@@ -124,7 +132,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new sequencer
     #[instrument(level = "trace", skip_all)]
-    fn create_new_sequencer(
+    fn create_sequencer(
         &self,
         genesis_config: GenesisParams<Self>,
         rollup_config: FullNodeConfig<Self::DaConfig>,
@@ -203,7 +211,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new rollup.
     #[instrument(level = "trace", skip_all)]
-    async fn create_new_rollup(
+    async fn create_rollup(
         &self,
         genesis_config: GenesisParams<Self>,
         rollup_config: FullNodeConfig<Self::DaConfig>,
@@ -291,7 +299,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new prover
     #[instrument(level = "trace", skip_all)]
-    async fn create_new_batch_prover(
+    async fn create_batch_prover(
         &self,
         genesis_config: GenesisParams<Self>,
         rollup_config: FullNodeConfig<Self::DaConfig>,
@@ -394,7 +402,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new light client prover
     #[instrument(level = "trace", skip_all)]
-    async fn create_new_light_client_prover(
+    async fn create_light_client_prover(
         &self,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: LightClientProverConfig,
@@ -457,6 +465,55 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         )?;
 
         Ok(runner)
+    }
+
+    fn create_rollup_l1_block_handler(
+        task_manager: &mut TaskManager<()>,
+        ledger_db: LedgerDB,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
+        public_keys: RollupPublicKeys,
+        code_commitments_by_spec: HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>,
+        start_l1_height: u64,
+    ) -> FullNodeL1BlockHandler<Self::NativeContext, Self::Vm, Self::DaService, RootHash, LedgerDB>
+    {
+        let l1_block_handler = FullNodeL1BlockHandler::new(
+            ledger_db,
+            da_service,
+            public_keys.sequencer_public_key,
+            public_keys.sequencer_da_pub_key,
+            public_keys.prover_da_pub_key,
+            code_commitments_by_spec,
+            Arc::new(Mutex::new(L1BlockCache::new())),
+        );
+
+        task_manager.spawn(move |cancellation_token| async move {
+            l1_block_handler
+                .run(start_l1_height, cancellation_token)
+                .await
+        });
+    }
+
+    fn create_batch_prover_l1_block_handler() -> L1BlockHandler {
+        let l1_block_handler = L1BlockHandler::<
+            Vm,
+            Da,
+            Ps,
+            DB,
+            StfStateRoot<C, Da::Spec, RT>,
+            StfWitness<C, Da::Spec, RT>,
+            StfTransaction<C, Da::Spec, RT>,
+        >::new(
+            prover_config,
+            prover_service,
+            ledger_db,
+            da_service,
+            sequencer_pub_key,
+            sequencer_da_pub_key,
+            code_commitments_by_spec,
+            elfs_by_spec,
+            skip_submission_until_l1,
+            l1_block_cache.clone(),
+        );
     }
 
     /// Run Ledger DB migrations

@@ -41,7 +41,7 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,

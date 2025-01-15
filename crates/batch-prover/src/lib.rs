@@ -1,4 +1,4 @@
-mod da_block_handler;
+pub mod da_block_handler;
 pub mod db_migrations;
 mod errors;
 mod runner;
