@@ -42,12 +42,12 @@ use crate::helpers::builders::light_client_proof_namespace::{
     create_light_client_transactions, LightClientTxs, RawLightClientData,
 };
 use crate::helpers::builders::{TxListWithReveal, TxWithId};
-use crate::helpers::merkle_tree;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
 use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
     ParsedLightClientTransaction, VerifyParsed,
 };
+use crate::helpers::{citrea_txid, citrea_wtxid, merkle_tree};
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
 use crate::spec::blob::BlobWithSender;
 use crate::spec::block::BitcoinBlock;
@@ -764,17 +764,12 @@ impl DaService for BitcoinService {
         let mut aggregate_idxs = Vec::new();
 
         for (i, tx) in block.txdata.iter().enumerate() {
-            if !tx
-                .compute_wtxid()
-                .to_byte_array()
-                .as_slice()
-                .starts_with(&self.to_light_client_prefix)
-            {
+            if !citrea_wtxid(tx).starts_with(&self.to_light_client_prefix) {
                 continue;
             }
 
             if let Ok(parsed) = parse_light_client_transaction(tx) {
-                let tx_id = tx.compute_txid();
+                let tx_id = Txid::from_byte_array(citrea_txid(tx));
                 match parsed {
                     ParsedLightClientTransaction::Complete(complete) => {
                         if complete.public_key() == prover_da_pub_key
@@ -896,12 +891,7 @@ impl DaService for BitcoinService {
         let mut sequencer_commitments = Vec::new();
 
         for tx in &block.txdata {
-            if !tx
-                .compute_wtxid()
-                .to_byte_array()
-                .as_slice()
-                .starts_with(&self.to_batch_proof_prefix)
-            {
+            if !citrea_wtxid(tx).starts_with(&self.to_batch_proof_prefix) {
                 continue;
             }
 
@@ -958,7 +948,7 @@ impl DaService for BitcoinService {
         }
 
         block.txdata[1..].iter().for_each(|tx| {
-            let wtxid = tx.compute_wtxid().to_raw_hash().to_byte_array();
+            let wtxid = citrea_wtxid(tx);
 
             // if tx_hash starts with the given prefix, it is in the completeness proof
             if wtxid.starts_with(prefix) {
@@ -969,11 +959,7 @@ impl DaService for BitcoinService {
         });
 
         let txid_merkle_tree = merkle_tree::BitcoinMerkleTree::new(
-            block
-                .txdata
-                .iter()
-                .map(|tx| tx.compute_txid().as_raw_hash().to_byte_array())
-                .collect(),
+            block.txdata.iter().map(|tx| citrea_txid(tx)).collect(),
         );
 
         assert_eq!(
@@ -988,7 +974,7 @@ impl DaService for BitcoinService {
 
         let mut relevant_txs = vec![];
         for tx in &completeness_proof {
-            let wtxid = tx.compute_wtxid();
+            let wtxid = citrea_wtxid(tx);
             match namespace {
                 DaNamespace::ToBatchProver => {
                     if let Ok(tx) = parse_batch_proof_transaction(tx) {
@@ -1018,7 +1004,7 @@ impl DaService for BitcoinService {
                                         blob,
                                         complete.public_key,
                                         hash,
-                                        Some(wtxid.to_byte_array()),
+                                        Some(wtxid),
                                     );
                                     relevant_txs.push(relevant_tx);
                                 }
@@ -1029,18 +1015,14 @@ impl DaService for BitcoinService {
                                         aggregate.body,
                                         aggregate.public_key,
                                         hash,
-                                        Some(wtxid.to_byte_array()),
+                                        Some(wtxid),
                                     );
                                     relevant_txs.push(relevant_tx);
                                 }
                             }
                             ParsedLightClientTransaction::Chunk(chunk) => {
-                                let relevant_tx = BlobWithSender::new(
-                                    chunk.body,
-                                    vec![0],
-                                    [0; 32],
-                                    Some(wtxid.to_byte_array()),
-                                );
+                                let relevant_tx =
+                                    BlobWithSender::new(chunk.body, vec![0], [0; 32], Some(wtxid));
                                 relevant_txs.push(relevant_tx);
                             }
                             ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
@@ -1049,7 +1031,7 @@ impl DaService for BitcoinService {
                                         method_id.body,
                                         method_id.public_key,
                                         hash,
-                                        Some(wtxid.to_byte_array()),
+                                        Some(wtxid),
                                     );
                                     relevant_txs.push(relevant_tx);
                                 }
@@ -1133,12 +1115,7 @@ impl DaService for BitcoinService {
         let mut sequencer_commitments = Vec::new();
 
         for tx in &pending_txs {
-            if !tx
-                .compute_wtxid()
-                .to_byte_array()
-                .as_slice()
-                .starts_with(&self.to_batch_proof_prefix)
-            {
+            if !citrea_wtxid(tx).starts_with(&self.to_batch_proof_prefix) {
                 continue;
             }
 
@@ -1176,12 +1153,7 @@ pub fn get_relevant_blobs_from_txs(
     let mut relevant_txs = Vec::new();
 
     for tx in txs {
-        if !tx
-            .compute_wtxid()
-            .to_byte_array()
-            .as_slice()
-            .starts_with(reveal_wtxid_prefix)
-        {
+        if !citrea_wtxid(&tx).starts_with(reveal_wtxid_prefix) {
             continue;
         }
 
@@ -1245,7 +1217,7 @@ fn calculate_witness_root(txdata: &[TransactionWrapper]) -> [u8; 32] {
                 // Replace the first hash with zeroes.
                 Wtxid::all_zeros().to_raw_hash().to_byte_array()
             } else {
-                t.compute_wtxid().to_raw_hash().to_byte_array()
+                citrea_wtxid(t)
             }
         })
         .collect();
