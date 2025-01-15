@@ -33,7 +33,7 @@
 //!
 //! A backup directory contains the following structure:
 //! ```text
-//! backup_<l2_height>_<timestamp>/
+//! /
 //! ├── ledger/       (Required)
 //! ├── state/        (Required)
 //! ├── native-db/    (Required)

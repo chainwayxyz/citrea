@@ -101,9 +101,7 @@ impl BackupManager {
             .get_head_soft_confirmation_height()?
             .unwrap_or_default();
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-        let backup_path = path
-            .as_ref()
-            .join(format!("backup_{}_{}", l2_height, timestamp));
+        let backup_path = path.as_ref();
         info!("Creating backup at path {}", backup_path.display());
 
         let mut handles = Vec::new();
@@ -160,7 +158,7 @@ impl BackupManager {
 
         let info = BackupInfo {
             block_height: l2_height,
-            backup_path,
+            backup_path: backup_path.to_path_buf(),
             created_at: timestamp,
         };
 
