@@ -82,6 +82,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let backup_manager = Arc::new(BackupManager::new(
+            "sequencer",
             ledger_db.clone(),
             storage_manager.state_db(),
             storage_manager.native_db(),
@@ -218,6 +219,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let backup_manager = Arc::new(BackupManager::new(
+            "fullnode",
             ledger_db.clone(),
             storage_manager.state_db(),
             storage_manager.native_db(),
@@ -365,6 +367,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let backup_manager = Arc::new(BackupManager::new(
+            "batch-procver",
             ledger_db.clone(),
             storage_manager.state_db(),
             storage_manager.native_db(),
@@ -500,6 +503,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let prover_storage = storage_manager.create_finalized_storage()?;
 
         let backup_manager = Arc::new(BackupManager::new(
+            "light-client-prover",
             ledger_db.clone(),
             storage_manager.state_db(),
             storage_manager.native_db(),

@@ -20,6 +20,8 @@ const OPTIONAL_BACKUP_DIRS: [&str; 1] = ["mmr"];
 /// Manager for creating and restoring database backups while maintaining consistency
 /// with L1/L2 block processing.
 pub struct BackupManager {
+    /// Node kind
+    node_kind: &'static str,
     /// LedgerDB
     ledger_db: LedgerDB,
     /// StateDB
@@ -37,12 +39,22 @@ pub struct BackupManager {
 /// Information about a created backup
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateBackupInfo {
+    /// Node kind
+    pub node_kind: String,
     /// L2 block height when backup was created
     pub block_height: u64,
     /// Full path to the backup directory
     pub backup_path: PathBuf,
     /// Unix timestamp when backup was created
     pub created_at: u64,
+    /// Backup id
+    pub backup_id: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BackupMetadata {
+    node_kind: String,
+    backups: HashMap<u32, u64>, // backup_id -> block_height
 }
 
 impl BackupManager {
@@ -54,12 +66,15 @@ impl BackupManager {
     /// * `native_db` - The SnapshotManager holding the underlying native_db database
     /// * `mmr_db` - Optional MMR database used by light client prover
     pub fn new(
+        // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
+        node_kind: &'static str,
         ledger_db: LedgerDB,
         state_db: Arc<RwLock<SnapshotManager>>,
         native_db: Arc<RwLock<SnapshotManager>>,
         mmr_db: Option<MmrDB>,
     ) -> Self {
         Self {
+            node_kind,
             ledger_db,
             state_db,
             native_db,
@@ -106,7 +121,11 @@ impl BackupManager {
             .unwrap_or_default();
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let backup_path = path.as_ref();
-        info!("Creating backup at path {}", backup_path.display());
+        info!(
+            "Creating {} backup at path {}",
+            self.node_kind,
+            backup_path.display()
+        );
 
         let mut handles = Vec::new();
 
@@ -160,10 +179,15 @@ impl BackupManager {
             bail!("Error creating valid backup: {e}");
         }
 
+        let backup_info = Self::get_backup_info(&backup_path)?;
+        let backup_id = backup_info.get("ledger").unwrap().last().unwrap().backup_id;
+
         let info = CreateBackupInfo {
+            node_kind: self.node_kind.to_string(),
             block_height: l2_height,
             backup_path: backup_path.to_path_buf(),
             created_at: timestamp,
+            backup_id,
         };
 
         info!(
@@ -171,6 +195,20 @@ impl BackupManager {
             start_time.elapsed().as_secs_f32(),
             info
         );
+
+        let metadata_path = backup_path.join(".metadata");
+        let mut metadata = if metadata_path.exists() {
+            let content = tokio::fs::read_to_string(&metadata_path).await?;
+            serde_json::from_str(&content)?
+        } else {
+            BackupMetadata {
+                node_kind: self.node_kind.to_string(),
+                backups: HashMap::new(),
+            }
+        };
+        metadata.backups.insert(backup_id, l2_height);
+        let metadata_json = serde_json::to_string_pretty(&metadata)?;
+        tokio::fs::write(metadata_path, metadata_json).await?;
 
         Ok(info)
     }

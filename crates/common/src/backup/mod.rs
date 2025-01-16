@@ -33,11 +33,11 @@
 //!
 //! A backup directory contains the following structure:
 //! ```text
-//! /
-//! ├── ledger/       (Required)
-//! ├── state/        (Required)
-//! ├── native-db/    (Required)
-//! └── mmr/          (Optional - used by light client prover)
+//! ├── .metadata     # Holds node kind and backup_id->l2_height mapping
+//! ├── ledger/       # Required - stores ledger database
+//! ├── state/        # Required - stores state database
+//! ├── native-db/    # Required - stores native database
+//! └── mmr/          # Optional - used by light client prover
 //! ```
 mod manager;
 mod rpc;
