@@ -839,10 +839,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
         let method_ids = lcp_output.batch_proof_method_ids;
         let genesis_state_root = lcp_output.state_root;
 
-        let fork1_height: u64 = method_ids[1]
-            .height
-            .try_into()
-            .expect("Activation height should fit into u64");
+        let fork1_height: u64 = method_ids[1].height.to();
 
         let verifiable_batch_proof = create_serialized_fake_receipt_batch_proof(
             genesis_state_root,
@@ -1051,10 +1048,7 @@ impl TestCase for VerifyChunkedTxsInLightClient {
         let method_ids = lcp_output.batch_proof_method_ids;
         let genesis_state_root = lcp_output.state_root;
 
-        let fork1_height: u64 = method_ids[1]
-            .height
-            .try_into()
-            .expect("Activation height should fit into u64");
+        let fork1_height: u64 = method_ids[1].height.to();
 
         // Even though the state diff is 100kb the proof will be 200kb because the fake receipt claim also has the journal
         // But the compressed size will go down to 100kb
