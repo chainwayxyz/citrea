@@ -323,6 +323,8 @@ where
             }
         }
 
+        // This is not exactly right, but works for now because we have a single elf for
+        // light client proof circuit.
         let current_fork = fork_from_block_number(l2_last_height);
         let light_client_proof_code_commitment = self
             .light_client_proof_code_commitments
