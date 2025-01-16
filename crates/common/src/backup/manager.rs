@@ -5,7 +5,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context};
 use rocksdb::backup::BackupEngineInfo;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_prover_storage_manager::SnapshotManager;
@@ -35,8 +35,8 @@ pub struct BackupManager {
 }
 
 /// Information about a created backup
-#[derive(Debug, Clone, Serialize)]
-pub struct BackupInfo {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateBackupInfo {
     /// L2 block height when backup was created
     pub block_height: u64,
     /// Full path to the backup directory
@@ -90,7 +90,10 @@ impl BackupManager {
     ///
     /// # Returns
     /// Information about the created backup including block height, path and timestamp
-    pub(super) async fn create_backup(&self, path: impl AsRef<Path>) -> anyhow::Result<BackupInfo> {
+    pub(super) async fn create_backup(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> anyhow::Result<CreateBackupInfo> {
         let _l1_lock = self.l1_processing_lock.lock().await;
         let _l2_lock = self.l2_processing_lock.lock().await;
 
@@ -157,7 +160,7 @@ impl BackupManager {
             bail!("Error creating valid backup: {e}");
         }
 
-        let info = BackupInfo {
+        let info = CreateBackupInfo {
             block_height: l2_height,
             backup_path: backup_path.to_path_buf(),
             created_at: timestamp,

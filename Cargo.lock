@@ -1881,6 +1881,7 @@ version = "0.6.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
+ "async-trait",
  "backoff",
  "borsh",
  "citrea-primitives",

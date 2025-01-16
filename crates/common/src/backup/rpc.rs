@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use jsonrpsee::core::RegisterMethodError;
+use jsonrpsee::core::RpcResult;
+use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
-use jsonrpsee::RpcModule;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use super::BackupManager;
+use super::{BackupManager, CreateBackupInfo};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationResponse {
     /// Path that was validated
     pub backup_path: PathBuf,
@@ -20,7 +20,7 @@ pub struct ValidationResponse {
     pub message: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupInfoResponse {
     /// Timestamp of the backup
     pub timestamp: i64,
@@ -32,77 +32,66 @@ pub struct BackupInfoResponse {
     pub num_files: u32,
 }
 
-pub fn register_backup_rpc<T>(
-    rpc_methods: &mut RpcModule<T>,
+#[rpc(client, server, namespace = "backup")]
+pub trait BackupRpc {
+    #[method(name = "create")]
+    async fn backup_create(&self, path: PathBuf) -> RpcResult<CreateBackupInfo>;
+
+    #[method(name = "validate")]
+    async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse>;
+
+    #[method(name = "info")]
+    async fn backup_info(
+        &self,
+        path: PathBuf,
+    ) -> RpcResult<HashMap<String, Vec<BackupInfoResponse>>>;
+}
+
+pub struct BackupRpcServerImpl {
     backup_manager: Arc<BackupManager>,
-) -> Result<(), RegisterMethodError>
-where
-    T: Send + Sync + 'static,
-{
-    let mut rpc_module = RpcModule::new(backup_manager);
+}
 
-    rpc_module
-        .register_async_method(
-            "backup_create",
-            move |params, backup_manager, _| async move {
-                let path: PathBuf = params.one().map_err(|e| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        "Invalid backup path parameter",
-                        Some(format!("{e}",)),
-                    )
-                })?;
+impl BackupRpcServerImpl {
+    pub fn new(backup_manager: Arc<BackupManager>) -> Self {
+        Self { backup_manager }
+    }
+}
 
-                backup_manager.create_backup(path).await.map_err(|e| {
-                    ErrorObjectOwned::owned(
-                        INTERNAL_ERROR_CODE,
-                        INTERNAL_ERROR_MSG,
-                        Some(format!("{e}",)),
-                    )
-                })
-            },
-        )
-        .expect("Failed to register backup_create RPC method");
-
-    rpc_module
-        .register_async_method("backup_validate", move |params, _, _| async move {
-            let path: PathBuf = params.one().map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    "Invalid backup path parameter",
-                    Some(format!("{e}",)),
-                )
-            })?;
-
-            let res = match BackupManager::validate_backup(&path) {
-                Ok(()) => ValidationResponse {
-                    backup_path: path,
-                    is_valid: true,
-                    message: None,
-                },
-                Err(e) => ValidationResponse {
-                    backup_path: path,
-                    is_valid: false,
-                    message: Some(e.to_string()),
-                },
-            };
-            Ok::<ValidationResponse, ErrorObjectOwned>(res)
+#[async_trait::async_trait]
+impl BackupRpcServer for BackupRpcServerImpl {
+    async fn backup_create(&self, path: PathBuf) -> RpcResult<CreateBackupInfo> {
+        self.backup_manager.create_backup(path).await.map_err(|e| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(format!("{e}")),
+            )
         })
-        .expect("Failed to register backup_validate RPC method");
+    }
 
-    rpc_module
-        .register_async_method("backup_info", move |params, _, _| async move {
-            let path: PathBuf = params.one().map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    "Invalid backup path parameter",
-                    Some(format!("{e}",)),
-                )
-            })?;
+    async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {
+        let res = match BackupManager::validate_backup(&path) {
+            Ok(()) => ValidationResponse {
+                backup_path: path,
+                is_valid: true,
+                message: None,
+            },
+            Err(e) => ValidationResponse {
+                backup_path: path,
+                is_valid: false,
+                message: Some(e.to_string()),
+            },
+        };
+        Ok(res)
+    }
 
-            match BackupManager::get_backup_info(&path) {
-                Ok(info) => Ok(info
-                    .into_iter()
+    async fn backup_info(
+        &self,
+        path: PathBuf,
+    ) -> RpcResult<HashMap<String, Vec<BackupInfoResponse>>> {
+        BackupManager::get_backup_info(&path)
+            .map(|info| {
+                info.into_iter()
                     .map(|(k, v)| {
                         (
                             k,
@@ -116,15 +105,24 @@ where
                                 .collect::<Vec<_>>(),
                         )
                     })
-                    .collect::<HashMap<String, Vec<BackupInfoResponse>>>()),
-                Err(e) => Err(ErrorObjectOwned::owned(
+                    .collect()
+            })
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
                     INTERNAL_ERROR_CODE,
                     INTERNAL_ERROR_MSG,
-                    Some(format!("{e}",)),
-                )),
-            }
-        })
-        .expect("Failed to register backup_info RPC method");
+                    Some(format!("{e}")),
+                )
+            })
+    }
+}
 
-    rpc_methods.merge(rpc_module)
+pub fn create_backup_rpc_module(
+    backup_manager: Arc<BackupManager>,
+) -> jsonrpsee::RpcModule<BackupRpcServerImpl>
+where
+    BackupRpcServerImpl: BackupRpcServer,
+{
+    let server = BackupRpcServerImpl::new(backup_manager);
+    BackupRpcServer::into_rpc(server)
 }

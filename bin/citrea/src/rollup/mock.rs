@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use citrea_common::backup::{register_backup_rpc, BackupManager};
+use citrea_common::backup::{create_backup_rpc_module, BackupManager};
 use citrea_common::rpc::register_healthcheck_rpc;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::FullNodeConfig;
@@ -56,7 +56,7 @@ impl RollupBlueprint for MockDemoRollup {
         da_service: &Arc<Self::DaService>,
         sequencer_client_url: Option<String>,
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
-        _backup_manager: &Arc<BackupManager>,
+        backup_manager: &Arc<BackupManager>,
     ) -> Result<jsonrpsee::RpcModule<()>, anyhow::Error> {
         // TODO set the sequencer address
         let sequencer = Address::new([0; 32]);
@@ -77,7 +77,8 @@ impl RollupBlueprint for MockDemoRollup {
         )?;
 
         register_healthcheck_rpc(&mut rpc_methods, ledger_db.clone())?;
-        register_backup_rpc(&mut rpc_methods, _backup_manager.clone())?;
+        let backup_methods = create_backup_rpc_module(backup_manager.clone());
+        rpc_methods.merge(backup_methods)?;
 
         Ok(rpc_methods)
     }
