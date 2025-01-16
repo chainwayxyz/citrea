@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -25,16 +25,13 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
 use sov_stf_runner::InitVariant;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument};
 
-use crate::da_block_handler::L1BlockHandler;
 use crate::metrics::FULLNODE_METRICS;
 
 type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
@@ -42,10 +39,9 @@ type StfTransaction<C, Da, RT> =
     <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Da, Vm, C, DB, RT>
+pub struct CitreaFullnode<Da, C, DB, RT>
 where
     Da: DaService,
-    Vm: ZkvmHost + Zkvm,
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
     RT: Runtime<C, Da::Spec>,
@@ -59,11 +55,8 @@ where
     batch_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
-    sequencer_da_pub_key: Vec<u8>,
-    prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
-    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
@@ -72,11 +65,9 @@ where
     task_manager: TaskManager<()>,
 }
 
-impl<Da, Vm, C, DB, RT> CitreaFullnode<Da, Vm, C, DB, RT>
+impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
 where
     Da: DaService<Error = anyhow::Error>,
-    Vm: ZkvmHost + Zkvm,
-    <Vm as Zkvm>::CodeCommitment: Send,
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
     RT: Runtime<C, Da::Spec>,
@@ -95,7 +86,6 @@ where
         stf: StfBlueprint<C, Da::Spec, RT>,
         mut storage_manager: ProverStorageManager<Da::Spec>,
         init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
-        code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         task_manager: TaskManager<()>,
@@ -135,11 +125,8 @@ where
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
-            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
-            prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
-            code_commitments_by_spec,
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
@@ -253,20 +240,6 @@ where
     #[instrument(level = "trace", skip_all, err)]
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         // Last L1/L2 height before shutdown.
-        let start_l1_height = {
-            let last_scanned_l1_height = self
-                .ledger_db
-                .get_last_scanned_l1_height()
-                .unwrap_or_else(|_| {
-                    panic!("Failed to get last scanned l1 height from the ledger db")
-                });
-
-            match last_scanned_l1_height {
-                Some(height) => height.0,
-                None => get_initial_slot_height(&self.sequencer_client).await,
-            }
-        };
-
         if let Some(config) = &self.pruning_config {
             let pruner = Pruner::<DB>::new(
                 config.clone(),
@@ -278,31 +251,6 @@ where
             self.task_manager
                 .spawn(|cancellation_token| pruner.run(cancellation_token));
         }
-
-        let ledger_db = self.ledger_db.clone();
-        let da_service = self.da_service.clone();
-        let sequencer_pub_key = self.sequencer_pub_key.clone();
-        let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
-        let prover_da_pub_key = self.prover_da_pub_key.clone();
-        let code_commitments_by_spec = self.code_commitments_by_spec.clone();
-        let l1_block_cache = self.l1_block_cache.clone();
-
-        self.task_manager
-            .spawn(move |cancellation_token| async move {
-                let l1_block_handler =
-                    L1BlockHandler::<C, Vm, Da, StateRoot<C, Da::Spec, RT>, DB>::new(
-                        ledger_db,
-                        da_service,
-                        sequencer_pub_key,
-                        sequencer_da_pub_key,
-                        prover_da_pub_key,
-                        code_commitments_by_spec,
-                        l1_block_cache.clone(),
-                    );
-                l1_block_handler
-                    .run(start_l1_height, cancellation_token)
-                    .await
-            });
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
@@ -453,19 +401,6 @@ async fn sync_l2(
 
         if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
-        }
-    }
-}
-
-async fn get_initial_slot_height(client: &HttpClient) -> u64 {
-    loop {
-        match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(soft_confirmation)) => return soft_confirmation.da_slot_height,
-            _ => {
-                // sleep 1
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                continue;
-            }
         }
     }
 }

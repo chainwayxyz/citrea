@@ -61,14 +61,14 @@ pub(crate) struct Args {
     pub(crate) quiet: bool,
 }
 
-pub(crate) enum RollupClient {
+pub(crate) enum NodeType {
     Sequencer(SequencerConfig),
     FullNode,
     BatchProver(BatchProverConfig),
     LightClientProver(LightClientProverConfig),
 }
 
-pub(crate) fn client_from_args(args: &Args) -> anyhow::Result<RollupClient> {
+pub(crate) fn client_from_args(args: &Args) -> anyhow::Result<NodeType> {
     let sequencer_config = match &args.sequencer {
         Some(Some(path)) => Some(
             from_toml_path(path)
@@ -122,11 +122,11 @@ pub(crate) fn client_from_args(args: &Args) -> anyhow::Result<RollupClient> {
     }
 
     if let Some(sequencer_config) = sequencer_config {
-        return Ok(RollupClient::Sequencer(sequencer_config));
+        return Ok(NodeType::Sequencer(sequencer_config));
     } else if let Some(batch_prover_config) = batch_prover_config {
-        return Ok(RollupClient::BatchProver(batch_prover_config));
+        return Ok(NodeType::BatchProver(batch_prover_config));
     } else if let Some(light_client_prover_config) = light_client_prover_config {
-        return Ok(RollupClient::LightClientProver(light_client_prover_config));
+        return Ok(NodeType::LightClientProver(light_client_prover_config));
     }
-    return Ok(RollupClient::FullNode);
+    return Ok(NodeType::FullNode);
 }
