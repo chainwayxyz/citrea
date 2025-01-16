@@ -14,6 +14,7 @@ resolver = "2"
 # 3rd-party deps
 alloy-primitives = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
 futures = { workspace = true }
@@ -29,7 +30,6 @@ tokio-util = { workspace = true }
 toml = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
-async-trait = { workspace = true }
 
 # Sov SDK deps
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
