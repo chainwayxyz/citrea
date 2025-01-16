@@ -111,7 +111,9 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                 total_work: value.latest_da_state.total_work,
                 current_target_bits: U32::from(value.latest_da_state.current_target_bits),
                 epoch_start_time: U32::from(value.latest_da_state.epoch_start_time),
-                prev_11_timestamps: value.latest_da_state.prev_11_timestamps
+                prev_11_timestamps: value
+                    .latest_da_state
+                    .prev_11_timestamps
                     .into_iter()
                     .map(U32::from)
                     .collect::<Vec<_>>()
