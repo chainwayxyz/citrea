@@ -6,9 +6,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
-    BatchProofMethodIdRpcResponse, BatchProofOutputRpcResponse,
-    BatchProofResponse, HexTx, LatestDaStateRpcResponse, LightClientProofOutputRpcResponse,
-    LightClientProofResponse, SoftConfirmationResponse, VerifiedBatchProofResponse,
+    BatchProofMethodIdRpcResponse, BatchProofOutputRpcResponse, BatchProofResponse, HexTx,
+    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse,
+    SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::zk::{
