@@ -363,7 +363,7 @@ pub fn create_inscription_type_1(
 
         // Start loop to find a 'nonce' i.e. random number that makes the reveal tx hash starting with zeros given length
         let mut nonce: i64 = 16; // skip the first digits to avoid OP_PUSHNUM_X
-        loop {
+        'mine_chunk: loop {
             if nonce % 1000 == 0 {
                 trace!(nonce, "Trying to find commit & reveal nonce for chunk");
                 if nonce > 16384 {
@@ -397,10 +397,10 @@ pub fn create_inscription_type_1(
                 &control_block,
             ) as u64
                 * reveal_fee_rate;
-            let reveal_input_value = fee + reveal_value;
+            let reveal_input_value = fee + reveal_value + REVEAL_OUTPUT_THRESHOLD;
 
             // build commit tx
-            let (unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
+            let (mut unsigned_commit_tx, leftover_utxos) = build_commit_transaction(
                 prev_utxo.clone(),
                 utxos.clone(),
                 commit_tx_address.clone(),
@@ -411,28 +411,12 @@ pub fn create_inscription_type_1(
 
             let output_to_reveal = unsigned_commit_tx.output[0].clone();
 
-            // If commit
-            let commit_change = if unsigned_commit_tx.output.len() > 1 {
-                Some(UTXO {
-                    tx_id: unsigned_commit_tx.compute_txid(),
-                    vout: 1,
-                    address: None,
-                    script_pubkey: unsigned_commit_tx.output[0].script_pubkey.to_hex_string(),
-                    amount: unsigned_commit_tx.output[1].value.to_sat(),
-                    confirmations: 0,
-                    spendable: true,
-                    solvable: true,
-                })
-            } else {
-                None
-            };
-
             let mut reveal_tx = build_reveal_transaction(
                 output_to_reveal.clone(),
                 unsigned_commit_tx.compute_txid(),
                 0,
                 change_address.clone(),
-                reveal_value,
+                reveal_value + REVEAL_OUTPUT_THRESHOLD,
                 reveal_fee_rate,
                 &reveal_script,
                 &control_block,
@@ -448,48 +432,73 @@ pub fn create_inscription_type_1(
                 SECP256K1,
             );
 
-            let reveal_wtxid = reveal_tx.compute_wtxid();
-            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+            let min_commit_value = Amount::from_sat(fee + reveal_value);
+            while unsigned_commit_tx.output[0].value >= min_commit_value {
+                let reveal_wtxid = reveal_tx.compute_wtxid();
+                let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
 
-            // check if first N bytes equal to the given prefix
-            if !reveal_hash.starts_with(reveal_tx_prefix) {
-                // try another nonce
-                continue;
+                // check if first N bytes equal to the given prefix
+                if reveal_hash.starts_with(reveal_tx_prefix) {
+                    // check if inscription locked to the correct address
+                    let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
+                    let (x_only_pub_key, _parity) =
+                        recovery_key_pair.to_inner().x_only_public_key();
+                    assert_eq!(
+                        Address::p2tr_tweaked(
+                            TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
+                            network,
+                        ),
+                        commit_tx_address
+                    );
+
+                    // set prev utxo to last reveal tx[0] to chain txs in order
+                    prev_utxo = Some(UTXO {
+                        tx_id: reveal_tx.compute_txid(),
+                        vout: 0,
+                        script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
+                        address: None,
+                        amount: reveal_tx.output[0].value.to_sat(),
+                        confirmations: 0,
+                        spendable: true,
+                        solvable: true,
+                    });
+
+                    // Replace utxos with leftovers so we don't use prev utxos in next chunks
+                    utxos = leftover_utxos;
+
+                    if unsigned_commit_tx.output.len() > 1 {
+                        utxos.push(UTXO {
+                            tx_id: unsigned_commit_tx.compute_txid(),
+                            vout: 1,
+                            address: None,
+                            script_pubkey: unsigned_commit_tx.output[0]
+                                .script_pubkey
+                                .to_hex_string(),
+                            amount: unsigned_commit_tx.output[1].value.to_sat(),
+                            confirmations: 0,
+                            spendable: true,
+                            solvable: true,
+                        })
+                    }
+
+                    commit_chunks.push(unsigned_commit_tx);
+                    reveal_chunks.push(reveal_tx);
+
+                    break 'mine_chunk;
+                } else {
+                    unsigned_commit_tx.output[0].value -= Amount::ONE_SAT;
+                    unsigned_commit_tx.output[1].value += Amount::ONE_SAT;
+                    reveal_tx.output[0].value -= Amount::ONE_SAT;
+                    reveal_tx.input[0].previous_output.txid = unsigned_commit_tx.compute_txid();
+                    update_witness(
+                        &unsigned_commit_tx,
+                        &mut reveal_tx,
+                        tapscript_hash,
+                        &key_pair,
+                        SECP256K1,
+                    );
+                }
             }
-
-            // check if inscription locked to the correct address
-            let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-            let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
-            assert_eq!(
-                Address::p2tr_tweaked(
-                    TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
-                    network,
-                ),
-                commit_tx_address
-            );
-
-            // set prev utxo to last reveal tx[0] to chain txs in order
-            prev_utxo = Some(UTXO {
-                tx_id: reveal_tx.compute_txid(),
-                vout: 0,
-                script_pubkey: reveal_tx.output[0].script_pubkey.to_hex_string(),
-                address: None,
-                amount: reveal_tx.output[0].value.to_sat(),
-                confirmations: 0,
-                spendable: true,
-                solvable: true,
-            });
-
-            commit_chunks.push(unsigned_commit_tx);
-            reveal_chunks.push(reveal_tx);
-
-            // Replace utxos with leftovers so we don't use prev utxos in next chunks
-            utxos = leftover_utxos;
-            if let Some(change) = commit_change {
-                utxos.push(change);
-            }
-
-            break;
         }
     }
 
