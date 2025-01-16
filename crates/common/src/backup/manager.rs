@@ -131,14 +131,14 @@ impl BackupManager {
 
         let ledger_db = self.ledger_db.clone();
         let ledger_path = backup_path.join("ledger");
-        handles.push(tokio::spawn(async move {
+        handles.push(tokio::task::spawn_blocking(move || {
             ledger_db.db_ref().create_backup(&ledger_path)?;
             Ok::<(), anyhow::Error>(())
         }));
 
         let state_db = self.state_db.clone();
         let state_path = backup_path.join("state");
-        handles.push(tokio::spawn(async move {
+        handles.push(tokio::task::spawn_blocking(move || {
             state_db
                 .read()
                 .unwrap()
@@ -149,7 +149,7 @@ impl BackupManager {
 
         let native_db = self.native_db.clone();
         let native_path = backup_path.join("native-db");
-        handles.push(tokio::spawn(async move {
+        handles.push(tokio::task::spawn_blocking(move || {
             native_db
                 .read()
                 .unwrap()
@@ -160,7 +160,7 @@ impl BackupManager {
 
         if let Some(mmr_db) = self.mmr_db.clone() {
             let mmr_path = backup_path.join("mmr");
-            handles.push(tokio::spawn(async move {
+            handles.push(tokio::task::spawn_blocking(move || {
                 mmr_db.db_ref().create_backup(&mmr_path)?;
                 Ok::<(), anyhow::Error>(())
             }));
@@ -171,11 +171,11 @@ impl BackupManager {
         drop(_l2_lock);
 
         for handle in handles {
-            handle.await.unwrap()?;
+            handle.await??;
         }
 
         if let Err(e) = Self::validate_backup(&backup_path) {
-            warn!("Error validating backup: {}", e);
+            warn!("Error validating backup: {e}");
             bail!("Error creating valid backup: {e}");
         }
 
