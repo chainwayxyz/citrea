@@ -323,7 +323,6 @@ where
     type TxReceiptContents = TxEffect;
 
     type BatchReceiptContents = ();
-    // SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
     type Witness = <C::Storage as Storage>::Witness;
 
