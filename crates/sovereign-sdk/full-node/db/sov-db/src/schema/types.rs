@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
@@ -107,11 +107,16 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             light_client_proof_method_id: value.light_client_proof_method_id.into(),
             latest_da_state: LatestDaStateRpcResponse {
                 block_hash: value.latest_da_state.block_hash,
-                block_height: value.latest_da_state.block_height,
+                block_height: U64::from(value.latest_da_state.block_height),
                 total_work: value.latest_da_state.total_work,
-                current_target_bits: value.latest_da_state.current_target_bits,
-                epoch_start_time: value.latest_da_state.epoch_start_time,
-                prev_11_timestamps: value.latest_da_state.prev_11_timestamps,
+                current_target_bits: U32::from(value.latest_da_state.current_target_bits),
+                epoch_start_time: U32::from(value.latest_da_state.epoch_start_time),
+                prev_11_timestamps: value.latest_da_state.prev_11_timestamps
+                    .into_iter()
+                    .map(U32::from)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .expect("should have 11 elements"),
             },
             unchained_batch_proofs_info: value
                 .unchained_batch_proofs_info

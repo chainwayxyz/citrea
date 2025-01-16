@@ -7,7 +7,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use alloy_primitives::U64;
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
@@ -148,16 +148,16 @@ pub struct LatestDaStateRpcResponse {
     #[serde(with = "hex::serde")]
     pub block_hash: [u8; 32],
     /// Height of the blockchain
-    pub block_height: u64,
+    pub block_height: U64,
     /// Total work done in the DA blockchain
     #[serde(with = "hex::serde")]
     pub total_work: [u8; 32],
     /// Current target bits of DA
-    pub current_target_bits: u32,
+    pub current_target_bits: U32,
     /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
-    pub epoch_start_time: u32,
+    pub epoch_start_time: U32,
     /// The UNIX timestamps in seconds of the previous 11 blocks
-    pub prev_11_timestamps: [u32; 11],
+    pub prev_11_timestamps: [U32; 11],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
