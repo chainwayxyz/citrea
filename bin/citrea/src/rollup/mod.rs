@@ -93,9 +93,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        backup_manager.add_database("ledger", ledger_db.clone());
-        backup_manager.add_database("state", storage_manager.state_db());
-        backup_manager.add_database("native-db", storage_manager.native_db());
+        backup_manager.add_database("ledger".to_string(), ledger_db.clone())?;
+        backup_manager.add_database("state".to_string(), storage_manager.state_db())?;
+        backup_manager.add_database("native-db".to_string(), storage_manager.native_db())?;
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -239,9 +239,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        backup_manager.add_database("ledger", ledger_db.clone());
-        backup_manager.add_database("state", storage_manager.state_db());
-        backup_manager.add_database("native-db", storage_manager.native_db());
+        backup_manager.add_database("ledger".to_string(), ledger_db.clone())?;
+        backup_manager.add_database("state".to_string(), storage_manager.state_db())?;
+        backup_manager.add_database("native-db".to_string(), storage_manager.native_db())?;
         let backup_manager = Arc::new(backup_manager);
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
@@ -396,9 +396,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        backup_manager.add_database("ledger", ledger_db.clone());
-        backup_manager.add_database("state", storage_manager.state_db());
-        backup_manager.add_database("native-db", storage_manager.native_db());
+        backup_manager.add_database("ledger".to_string(), ledger_db.clone())?;
+        backup_manager.add_database("state".to_string(), storage_manager.state_db())?;
+        backup_manager.add_database("native-db".to_string(), storage_manager.native_db())?;
         let backup_manager = Arc::new(backup_manager);
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
@@ -547,10 +547,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        backup_manager.add_database("ledger", ledger_db.clone());
-        backup_manager.add_database("state", storage_manager.state_db());
-        backup_manager.add_database("native-db", storage_manager.native_db());
-        backup_manager.add_database("mmr", mmr_db.clone());
+        backup_manager.add_database("ledger".to_string(), ledger_db.clone())?;
+        backup_manager.add_database("state".to_string(), storage_manager.state_db())?;
+        backup_manager.add_database("native-db".to_string(), storage_manager.native_db())?;
+        backup_manager.add_database("mmr".to_string(), mmr_db.clone())?;
         let backup_manager = Arc::new(backup_manager);
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");

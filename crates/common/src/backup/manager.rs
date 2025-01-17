@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::{bail, Context};
+use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::traits::Backup;
@@ -103,8 +103,14 @@ impl BackupManager {
     }
 
     /// Add a database to be backed up
-    pub fn add_database<DB: Backup + 'static>(&mut self, path: &str, db: DB) {
-        self.databases.insert(path.to_string(), Arc::new(db));
+    pub fn add_database<DB: Backup + 'static>(
+        &mut self,
+        path: String,
+        db: DB,
+    ) -> anyhow::Result<()> {
+        ensure!(self.config.backup_dirs.contains(&path));
+        self.databases.insert(path, Arc::new(db));
+        Ok(())
     }
 
     /// Creates a backup of all the databases held in config at the specified path.
