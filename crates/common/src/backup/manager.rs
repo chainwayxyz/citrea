@@ -253,21 +253,16 @@ impl BackupManager {
         let tmp_path = original_path.with_extension(format!("tmp-{timestamp}"));
         info!("Using {} as temporary restore path", tmp_path.display());
 
-        let inner_restore_from_backup = |dir: &str| {
+        for dir in &self.config.backup_dirs {
             let dir_start = Instant::now();
             info!("Restoring {dir} database");
             let backup_path = backup_path.join(dir);
             let path = tmp_path.join(dir);
-            let res = restore_from_backup(path, backup_path);
+            restore_from_backup(path, backup_path)?;
             info!(
                 "{dir} database restore completed in {:.2}s",
                 dir_start.elapsed().as_secs_f32()
             );
-            res
-        };
-
-        for dir in &self.config.backup_dirs {
-            inner_restore_from_backup(dir)?;
         }
 
         if original_path.exists() {
@@ -310,7 +305,7 @@ impl BackupManager {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
 
-        let innner_validate_backup = |dir: &str| {
+        for dir in &self.config.backup_dirs {
             let path = backup_path.join(dir);
             if !path.exists() {
                 bail!("Missing required directory '{}' in backup", dir);
@@ -320,11 +315,7 @@ impl BackupManager {
                 bail!("Directory '{}' is empty ", dir);
             }
 
-            validate_backup(&path)
-        };
-
-        for dir in &self.config.backup_dirs {
-            innner_validate_backup(dir)?;
+            validate_backup(&path)?;
         }
 
         Ok(())
