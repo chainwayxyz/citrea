@@ -70,7 +70,7 @@ impl BackupRpcServer for BackupRpcServerImpl {
     }
 
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {
-        let res = match BackupManager::validate_backup(&path) {
+        let res = match BackupManager::validate_backup(&path, &self.backup_manager.config) {
             Ok(()) => ValidationResponse {
                 backup_path: path,
                 is_valid: true,
@@ -89,7 +89,8 @@ impl BackupRpcServer for BackupRpcServerImpl {
         &self,
         path: PathBuf,
     ) -> RpcResult<HashMap<String, Vec<BackupInfoResponse>>> {
-        BackupManager::get_backup_info(&path)
+        self.backup_manager
+            .get_backup_info(&path)
             .map(|info| {
                 info.into_iter()
                     .map(|(k, v)| {

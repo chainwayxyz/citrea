@@ -14,8 +14,26 @@ use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 
-const REQUIRED_BACKUP_DIRS: [&str; 3] = ["ledger", "state", "native-db"];
-const OPTIONAL_BACKUP_DIRS: [&str; 1] = ["mmr"];
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupConfig {
+    /// Required backup directories
+    pub required_dirs: Vec<String>,
+    /// Optional backup directories
+    pub optional_dirs: Vec<String>,
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        Self {
+            required_dirs: vec![
+                "ledger".to_string(),
+                "state".to_string(),
+                "native-db".to_string(),
+            ],
+            optional_dirs: vec!["mmr".to_string()],
+        }
+    }
+}
 
 /// Manager for creating and restoring database backups while maintaining consistency
 /// with L1/L2 block processing.
@@ -36,6 +54,8 @@ pub struct BackupManager {
     l1_processing_lock: Mutex<()>,
     /// Lock to hold during l2 block processing
     l2_processing_lock: Mutex<()>,
+    /// Backup configuration. Holds required and optional dirs.
+    pub config: BackupConfig,
 }
 
 /// Information about a created backup
@@ -77,6 +97,7 @@ impl BackupManager {
         state_db: Arc<RwLock<SnapshotManager>>,
         native_db: Arc<RwLock<SnapshotManager>>,
         mmr_db: Option<MmrDB>,
+        config: Option<BackupConfig>,
     ) -> Self {
         Self {
             node_kind,
@@ -87,6 +108,7 @@ impl BackupManager {
             mmr_db,
             l1_processing_lock: Mutex::new(()),
             l2_processing_lock: Mutex::new(()),
+            config: config.unwrap_or_default(),
         }
     }
 
@@ -180,12 +202,12 @@ impl BackupManager {
             handle.await??;
         }
 
-        if let Err(e) = Self::validate_backup(backup_path) {
+        if let Err(e) = Self::validate_backup(backup_path, &self.config) {
             warn!("Error validating backup: {e}");
             bail!("Error creating valid backup: {e}");
         }
 
-        let backup_info = Self::get_backup_info(backup_path)?;
+        let backup_info = self.get_backup_info(backup_path)?;
         let backup_id = backup_info.get("ledger").unwrap().last().unwrap().backup_id;
 
         let info = CreateBackupInfo {
@@ -248,9 +270,11 @@ impl BackupManager {
     pub fn restore_dbs_from_backup(
         db_path: impl AsRef<Path>,
         backup_path: impl AsRef<Path>,
+        config: BackupConfig,
     ) -> anyhow::Result<()> {
         // Validate backup before trying to restore
-        Self::validate_backup(&backup_path)?;
+        Self::validate_backup(&backup_path, &config)?;
+
         let start_time = Instant::now();
         info!("Starting database restore process...");
 
@@ -278,11 +302,11 @@ impl BackupManager {
             res
         };
 
-        for dir in REQUIRED_BACKUP_DIRS {
+        for dir in &config.required_dirs {
             inner_restore_from_backup(dir)?;
         }
 
-        for dir in OPTIONAL_BACKUP_DIRS {
+        for dir in &config.optional_dirs {
             let backup_path = backup_path.join(dir);
             if backup_path.exists() {
                 inner_restore_from_backup(dir)?;
@@ -322,7 +346,10 @@ impl BackupManager {
     ///
     /// # Arguments
     /// * `backup_path` - Path to the backup directory to validate
-    pub(super) fn validate_backup(backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub(super) fn validate_backup(
+        backup_path: impl AsRef<Path>,
+        config: &BackupConfig,
+    ) -> anyhow::Result<()> {
         let backup_path = backup_path.as_ref();
 
         if !backup_path.exists() {
@@ -342,11 +369,11 @@ impl BackupManager {
             validate_backup(&path)
         };
 
-        for dir in REQUIRED_BACKUP_DIRS {
+        for dir in &config.required_dirs {
             innner_validate_backup(dir)?;
         }
 
-        for dir in OPTIONAL_BACKUP_DIRS {
+        for dir in &config.optional_dirs {
             let dir_path = backup_path.join(dir);
             if dir_path.exists() {
                 innner_validate_backup(dir)?;
@@ -357,6 +384,7 @@ impl BackupManager {
     }
 
     pub(super) fn get_backup_info(
+        &self,
         backup_path: impl AsRef<Path>,
     ) -> anyhow::Result<HashMap<String, Vec<BackupEngineInfo>>> {
         let backup_path = backup_path.as_ref();
@@ -367,12 +395,12 @@ impl BackupManager {
 
         let mut map = HashMap::new();
 
-        for dir in REQUIRED_BACKUP_DIRS {
+        for dir in &self.config.required_dirs {
             let engine = get_backup_engine(backup_path.join(dir))?;
             map.insert(dir.to_string(), engine.get_backup_info());
         }
 
-        for dir in OPTIONAL_BACKUP_DIRS {
+        for dir in &self.config.optional_dirs {
             let dir_path = backup_path.join(dir);
             if dir_path.exists() {
                 let engine = get_backup_engine(dir_path)?;

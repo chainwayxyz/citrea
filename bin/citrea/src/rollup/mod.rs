@@ -88,6 +88,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager.state_db(),
             storage_manager.native_db(),
             None,
+            None,
         ));
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
@@ -225,6 +226,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             ledger_db.clone(),
             storage_manager.state_db(),
             storage_manager.native_db(),
+            None,
             None,
         ));
 
@@ -375,6 +377,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager.state_db(),
             storage_manager.native_db(),
             None,
+            None,
         ));
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
@@ -512,6 +515,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             storage_manager.state_db(),
             storage_manager.native_db(),
             Some(mmr_db.clone()),
+            None,
         ));
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");

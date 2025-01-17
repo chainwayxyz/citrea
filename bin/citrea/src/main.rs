@@ -247,7 +247,11 @@ where
 
     // Restore from backup
     if let Some(path) = restore_db {
-        BackupManager::restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+        BackupManager::restore_dbs_from_backup(
+            rollup_config.storage.path.as_path(),
+            path,
+            Default::default(),
+        )?;
     }
 
     if let Some(sequencer_config) = sequencer_config {
