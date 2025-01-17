@@ -7,7 +7,9 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
+use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
 
 use crate::da::SequencerCommitment;
@@ -146,16 +148,81 @@ pub struct LatestDaStateRpcResponse {
     #[serde(with = "hex::serde")]
     pub block_hash: [u8; 32],
     /// Height of the blockchain
-    pub block_height: u64,
+    pub block_height: U64,
     /// Total work done in the DA blockchain
     #[serde(with = "hex::serde")]
     pub total_work: [u8; 32],
     /// Current target bits of DA
-    pub current_target_bits: u32,
+    pub current_target_bits: U32,
     /// The time of the first block in the current epoch (the difficulty adjustment timestamp)
-    pub epoch_start_time: u32,
+    pub epoch_start_time: U32,
     /// The UNIX timestamps in seconds of the previous 11 blocks
-    pub prev_11_timestamps: [u32; 11],
+    pub prev_11_timestamps: [U32; 11],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+/// Activation height and method id
+pub struct BatchProofMethodIdRpcResponse {
+    /// Activation height
+    pub height: U64,
+    #[serde(with = "hex::serde")]
+    /// Method id
+    pub method_id: Digest,
+}
+impl BatchProofMethodIdRpcResponse {
+    /// Create a new instance from height and method id
+    pub fn new(height: U64, method_id: Digest) -> Self {
+        Self { height, method_id }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+/// Hex serializable BatchProofInfo
+pub struct BatchProofInfoRpcResponse {
+    /// Initial state root of the batch proof
+    #[serde(with = "hex::serde")]
+    pub initial_state_root: [u8; 32],
+    /// Final state root of the batch proof
+    #[serde(with = "hex::serde")]
+    pub final_state_root: [u8; 32],
+    /// The last processed l2 height in the batch proof
+    pub last_l2_height: U64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+/// Hex serializable Root
+pub struct Root(#[serde(with = "hex::serde")] [u8; 32]);
+
+/// Hex serializable MMRGuest
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MMRGuestRpcResponse {
+    /// Subroots of the MMR
+    pub subroots: Vec<Root>,
+    /// Size of the MMR
+    pub size: U64,
+}
+
+impl From<MMRGuest> for MMRGuestRpcResponse {
+    fn from(mmr: MMRGuest) -> Self {
+        Self {
+            subroots: mmr.subroots.into_iter().map(Root).collect(),
+            size: U64::from(mmr.size),
+        }
+    }
+}
+
+impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
+    fn from(info: BatchProofInfo) -> Self {
+        Self {
+            initial_state_root: info.initial_state_root,
+            final_state_root: info.final_state_root,
+            last_l2_height: U64::from(info.last_l2_height),
+        }
+    }
 }
 
 /// The output of a light client proof
@@ -167,19 +234,20 @@ pub struct LightClientProofOutputRpcResponse {
     pub state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
-    pub light_client_proof_method_id: [u32; 8],
+    #[serde(with = "hex::serde")]
+    pub light_client_proof_method_id: Digest,
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
     /// Batch proof info from current or previous light client proofs that were not changed and unable to update the state root yet
-    pub unchained_batch_proofs_info: Vec<BatchProofInfo>,
+    pub unchained_batch_proofs_info: Vec<BatchProofInfoRpcResponse>,
     /// Last l2 height the light client proof verifies
-    pub last_l2_height: u64,
+    pub last_l2_height: U64,
     /// L2 activation height of the fork and the Method ids of the batch proofs that were verified in the light client proof
-    pub batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+    pub batch_proof_method_ids: Vec<BatchProofMethodIdRpcResponse>,
     /// A map from tx hash to chunk data.
     /// MMRGuest is an impl. MMR, which only needs to hold considerably small amount of data.
     /// like 32 hashes and some u64
-    pub mmr_guest: MMRGuest,
+    pub mmr_guest: MMRGuestRpcResponse,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,6 +255,7 @@ pub struct LightClientProofOutputRpcResponse {
 /// The response to a JSON-RPC request for a light client proof
 pub struct LightClientProofResponse {
     /// The proof
+    #[serde(with = "hex::serde")]
     pub proof: ProofRpcResponse,
     /// The output of the light client proof circuit
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
