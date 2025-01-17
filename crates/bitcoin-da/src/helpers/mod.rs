@@ -133,3 +133,22 @@ pub fn calculate_wtxid(tx: &Transaction) -> [u8; 32] {
     tx.consensus_encode(&mut enc).expect("engines don't error");
     calculate_double_sha256(&enc)
 }
+
+#[cfg(test)]
+mod tests {
+    use bitcoin::hashes::Hash;
+    use bitcoin::Transaction;
+
+    use crate::helpers::{calculate_txid, calculate_wtxid};
+
+    #[test]
+    fn calculate_txid_wtxid() {
+        let hex_tx = "020000000001013a66019bfcc719ba12586a83ebbb0b3debdc945f563cd64fd44c8044e3d3a1790100000000fdffffff028fa2aa060000000017a9147ba15d4e0d8334de3a68cf3687594e2d1ee5b00d879179e0090000000016001493c93ad222e57d65438545e048822ede2d418a3d0247304402202432e6c422b93705fbc57b350ea43e4ef9441c0907988eff051eaac807fc8cf2022046c92b540b5f04f8da11febb5d2a478aed1b8bc088e769da8b78fffcae8c9a9a012103e2991b47d9c788f55379f9ef519b642d79d7dfe0e7555ec5575ee934b2dca1223f5d0c00";
+
+        let tx: Transaction =
+            bitcoin::consensus::deserialize(&hex::decode(hex_tx).unwrap()).unwrap();
+
+        assert_eq!(tx.compute_txid().to_byte_array(), calculate_txid(&tx));
+        assert_eq!(tx.compute_wtxid().to_byte_array(), calculate_wtxid(&tx));
+    }
+}
