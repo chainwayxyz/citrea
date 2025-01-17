@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
-use sov_db::mmr_db::MmrDB;
-use sov_prover_storage_manager::SnapshotManager;
+use sov_db::traits::Backup;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::{info, warn};
 
@@ -42,14 +40,8 @@ pub struct BackupManager {
     node_kind: &'static str,
     /// Optional base path used for backups. Can be overridden via RPC
     base_path: Option<PathBuf>,
-    /// LedgerDB
-    ledger_db: LedgerDB,
-    /// StateDB
-    state_db: Arc<RwLock<SnapshotManager>>,
-    /// NativeDB
-    native_db: Arc<RwLock<SnapshotManager>>,
-    /// Optional MmrDB
-    mmr_db: Option<MmrDB>,
+    /// Map of path to backupable database
+    databases: HashMap<String, Arc<dyn Backup>>,
     /// Lock to hold during l1 block processing
     l1_processing_lock: Mutex<()>,
     /// Lock to hold during l2 block processing
@@ -85,27 +77,17 @@ impl BackupManager {
     /// # Arguments
     /// * `node_kind` - The citrea node kind associated with the BackupManager
     /// * `base_path` - Optional base_path which will be used for creating backups.
-    /// * `ledger_db` - The LedgerDB database
-    /// * `state_db` - The SnapshotManager holding the underlying state_db database
-    /// * `native_db` - The SnapshotManager holding the underlying native_db database
-    /// * `mmr_db` - Optional MMR database used by light client prover
+    /// * `config` - Optional config to override required/optional directories
     pub fn new(
         // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
         node_kind: &'static str,
         base_path: Option<PathBuf>,
-        ledger_db: LedgerDB,
-        state_db: Arc<RwLock<SnapshotManager>>,
-        native_db: Arc<RwLock<SnapshotManager>>,
-        mmr_db: Option<MmrDB>,
         config: Option<BackupConfig>,
     ) -> Self {
         Self {
             node_kind,
             base_path,
-            ledger_db,
-            state_db,
-            native_db,
-            mmr_db,
+            databases: HashMap::new(),
             l1_processing_lock: Mutex::new(()),
             l2_processing_lock: Mutex::new(()),
             config: config.unwrap_or_default(),
@@ -124,6 +106,11 @@ impl BackupManager {
         self.l2_processing_lock.lock().await
     }
 
+    /// Add a database to be backed up
+    pub fn add_database(&mut self, path: &str, db: impl Backup + 'static) {
+        self.databases.insert(path.to_string(), Arc::new(db));
+    }
+
     /// Creates a backup of all the databases at `REQUIRED_BACKUP_DIRS` and `OPTIONAL_BACKUP_DIRS` at the specified path.
     ///
     /// Acquires both L1 and L2 processing locks to ensure consistency between dbs
@@ -136,6 +123,7 @@ impl BackupManager {
     pub(super) async fn create_backup(
         &self,
         path: impl AsRef<Path>,
+        l2_height: u64,
     ) -> anyhow::Result<CreateBackupInfo> {
         let _l1_lock = self.l1_processing_lock.lock().await;
         let _l2_lock = self.l2_processing_lock.lock().await;
@@ -143,10 +131,6 @@ impl BackupManager {
         let start_time = Instant::now();
         info!("Starting database backup process...");
 
-        let l2_height = self
-            .ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or_default();
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let backup_path = path.as_ref();
         info!(
@@ -157,41 +141,14 @@ impl BackupManager {
 
         let mut handles = Vec::new();
 
-        let ledger_db = self.ledger_db.clone();
-        let ledger_path = backup_path.join("ledger");
-        handles.push(tokio::task::spawn_blocking(move || {
-            ledger_db.db_ref().create_backup(&ledger_path)?;
-            Ok::<(), anyhow::Error>(())
-        }));
-
-        let state_db = self.state_db.clone();
-        let state_path = backup_path.join("state");
-        handles.push(tokio::task::spawn_blocking(move || {
-            state_db
-                .read()
-                .unwrap()
-                .db_ref()
-                .create_backup(&state_path)?;
-            Ok::<(), anyhow::Error>(())
-        }));
-
-        let native_db = self.native_db.clone();
-        let native_path = backup_path.join("native-db");
-        handles.push(tokio::task::spawn_blocking(move || {
-            native_db
-                .read()
-                .unwrap()
-                .db_ref()
-                .create_backup(&native_path)?;
-            Ok::<(), anyhow::Error>(())
-        }));
-
-        if let Some(mmr_db) = self.mmr_db.clone() {
-            let mmr_path = backup_path.join("mmr");
-            handles.push(tokio::task::spawn_blocking(move || {
-                mmr_db.db_ref().create_backup(&mmr_path)?;
-                Ok::<(), anyhow::Error>(())
-            }));
+        for dir in &self.config.required_dirs {
+            let path = backup_path.join(dir);
+            let db = self
+                .databases
+                .get(dir)
+                .context("Missing required db")?
+                .clone();
+            handles.push(tokio::task::spawn_blocking(move || db.backup(&path)));
         }
 
         // Wait for all dbs to starting backing up under lock before releasing
@@ -202,7 +159,7 @@ impl BackupManager {
             handle.await??;
         }
 
-        if let Err(e) = Self::validate_backup(backup_path, &self.config) {
+        if let Err(e) = self.validate_backup(backup_path) {
             warn!("Error validating backup: {e}");
             bail!("Error creating valid backup: {e}");
         }
@@ -224,7 +181,17 @@ impl BackupManager {
             info
         );
 
-        let metadata_path = backup_path.join(".metadata");
+        self.set_metadata(&backup_path, &info).await?;
+
+        Ok(info)
+    }
+
+    async fn set_metadata(
+        &self,
+        backup_path: impl AsRef<Path>,
+        info: &CreateBackupInfo,
+    ) -> anyhow::Result<()> {
+        let metadata_path = backup_path.as_ref().join(".metadata");
         let mut metadata = if metadata_path.exists() {
             let content = tokio::fs::read_to_string(&metadata_path).await?;
             serde_json::from_str(&content)?
@@ -234,11 +201,10 @@ impl BackupManager {
                 backups: HashMap::new(),
             }
         };
-        metadata.backups.insert(backup_id, l2_height);
+        metadata.backups.insert(info.backup_id, info.block_height);
         let metadata_json = serde_json::to_string_pretty(&metadata)?;
         tokio::fs::write(metadata_path, metadata_json).await?;
-
-        Ok(info)
+        Ok(())
     }
 
     /// Atomically restore databases from a backup at backup_path.
@@ -268,12 +234,12 @@ impl BackupManager {
     /// - File system operations (create/rename) fail
     /// ```
     pub fn restore_dbs_from_backup(
+        &self,
         db_path: impl AsRef<Path>,
         backup_path: impl AsRef<Path>,
-        config: BackupConfig,
     ) -> anyhow::Result<()> {
         // Validate backup before trying to restore
-        Self::validate_backup(&backup_path, &config)?;
+        self.validate_backup(&backup_path)?;
 
         let start_time = Instant::now();
         info!("Starting database restore process...");
@@ -302,11 +268,11 @@ impl BackupManager {
             res
         };
 
-        for dir in &config.required_dirs {
+        for dir in &self.config.required_dirs {
             inner_restore_from_backup(dir)?;
         }
 
-        for dir in &config.optional_dirs {
+        for dir in &self.config.optional_dirs {
             let backup_path = backup_path.join(dir);
             if backup_path.exists() {
                 inner_restore_from_backup(dir)?;
@@ -346,10 +312,7 @@ impl BackupManager {
     ///
     /// # Arguments
     /// * `backup_path` - Path to the backup directory to validate
-    pub(super) fn validate_backup(
-        backup_path: impl AsRef<Path>,
-        config: &BackupConfig,
-    ) -> anyhow::Result<()> {
+    pub(super) fn validate_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
         let backup_path = backup_path.as_ref();
 
         if !backup_path.exists() {
@@ -369,11 +332,11 @@ impl BackupManager {
             validate_backup(&path)
         };
 
-        for dir in &config.required_dirs {
+        for dir in &self.config.required_dirs {
             innner_validate_backup(dir)?;
         }
 
-        for dir in &config.optional_dirs {
+        for dir in &self.config.optional_dirs {
             let dir_path = backup_path.join(dir);
             if dir_path.exists() {
                 innner_validate_backup(dir)?;

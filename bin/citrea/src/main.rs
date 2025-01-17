@@ -8,7 +8,6 @@ use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, MockDemoRollup, NetworkArg,
 };
-use citrea_common::backup::BackupManager;
 use citrea_common::{
     from_toml_path, BatchProverConfig, FromEnv, FullNodeConfig, LightClientProverConfig,
     SequencerConfig,
@@ -245,18 +244,14 @@ where
 
     let rollup_blueprint = S::new(network);
 
-    // Restore from backup
-    if let Some(path) = restore_db {
-        BackupManager::restore_dbs_from_backup(
-            rollup_config.storage.path.as_path(),
-            path,
-            Default::default(),
-        )?;
-    }
-
     if let Some(sequencer_config) = sequencer_config {
         let (mut sequencer, rpc_methods) = rollup_blueprint
-            .create_new_sequencer(rt_genesis_paths, rollup_config.clone(), sequencer_config)
+            .create_new_sequencer(
+                rt_genesis_paths,
+                rollup_config.clone(),
+                sequencer_config,
+                restore_db,
+            )
             .await
             .expect("Could not start sequencer");
         sequencer.start_rpc_server(rpc_methods, None).await.unwrap();
@@ -270,6 +265,7 @@ where
             rt_genesis_paths,
             rollup_config,
             batch_prover_config,
+            restore_db,
         )
         .await
         .expect("Could not start batch prover");
@@ -287,6 +283,7 @@ where
             &rollup_blueprint,
             rollup_config,
             light_client_prover_config,
+            restore_db,
         )
         .await
         .expect("Could not start light client prover");
@@ -304,6 +301,7 @@ where
             &rollup_blueprint,
             rt_genesis_paths,
             rollup_config,
+            restore_db,
         )
         .await
         .expect("Could not start full-node");

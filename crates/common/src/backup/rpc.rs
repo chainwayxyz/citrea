@@ -7,6 +7,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 
 use super::{BackupManager, CreateBackupInfo};
 
@@ -49,28 +50,47 @@ pub trait BackupRpc {
 
 pub struct BackupRpcServerImpl {
     backup_manager: Arc<BackupManager>,
+    ledger_db: LedgerDB,
 }
 
 impl BackupRpcServerImpl {
-    pub fn new(backup_manager: Arc<BackupManager>) -> Self {
-        Self { backup_manager }
+    pub fn new(backup_manager: Arc<BackupManager>, ledger_db: LedgerDB) -> Self {
+        Self {
+            backup_manager,
+            ledger_db,
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl BackupRpcServer for BackupRpcServerImpl {
     async fn backup_create(&self, path: PathBuf) -> RpcResult<CreateBackupInfo> {
-        self.backup_manager.create_backup(path).await.map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}")),
-            )
-        })
+        let l2_height = self
+            .ledger_db
+            .get_head_soft_confirmation_height()
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}")),
+                )
+            })?
+            .unwrap_or_default();
+
+        self.backup_manager
+            .create_backup(path, l2_height)
+            .await
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}")),
+                )
+            })
     }
 
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {
-        let res = match BackupManager::validate_backup(&path, &self.backup_manager.config) {
+        let res = match self.backup_manager.validate_backup(&path) {
             Ok(()) => ValidationResponse {
                 backup_path: path,
                 is_valid: true,
@@ -119,11 +139,12 @@ impl BackupRpcServer for BackupRpcServerImpl {
 }
 
 pub fn create_backup_rpc_module(
+    ledger_db: LedgerDB,
     backup_manager: Arc<BackupManager>,
 ) -> jsonrpsee::RpcModule<BackupRpcServerImpl>
 where
     BackupRpcServerImpl: BackupRpcServer,
 {
-    let server = BackupRpcServerImpl::new(backup_manager);
+    let server = BackupRpcServerImpl::new(backup_manager, ledger_db);
     BackupRpcServer::into_rpc(server)
 }

@@ -1,8 +1,10 @@
 use std::cmp::Ordering;
 use std::collections::{btree_map, HashMap};
 use std::iter::{Peekable, Rev};
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 
+use sov_db::traits::Backup;
 use sov_schema_db::schema::{KeyCodec, ValueCodec};
 use sov_schema_db::snapshot::{QueryManager, ReadOnlyDbSnapshot, SnapshotId};
 use sov_schema_db::{
@@ -290,6 +292,12 @@ impl QueryManager for SnapshotManager {
         upper_bound: SchemaKey,
     ) -> anyhow::Result<Self::RangeIter<'_, S>> {
         self.iter_range::<S>(snapshot_id, upper_bound)
+    }
+}
+
+impl Backup for SnapshotManager {
+    fn backup(&self, backup_path: &Path) -> anyhow::Result<()> {
+        self.db.create_backup(backup_path)
     }
 }
 

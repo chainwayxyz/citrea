@@ -75,6 +75,7 @@ pub async fn start_rollup(
             &rt_genesis_paths,
             rollup_config.clone(),
             sequencer_config,
+            None,
         )
         .instrument(span.clone())
         .await
@@ -94,6 +95,7 @@ pub async fn start_rollup(
             &rt_genesis_paths,
             rollup_config,
             rollup_prover_config,
+            None,
         )
         .instrument(span.clone())
         .await
@@ -112,6 +114,7 @@ pub async fn start_rollup(
             &mock_demo_rollup,
             rollup_config.clone(),
             light_client_prover_config,
+            None,
         )
         .instrument(span.clone())
         .await
@@ -130,6 +133,7 @@ pub async fn start_rollup(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config.clone(),
+            None,
         )
         .instrument(span.clone())
         .await

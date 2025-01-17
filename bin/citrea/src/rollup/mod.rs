@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -43,6 +44,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         sequencer_config: SequencerConfig,
+        restore_db: Option<PathBuf>,
     ) -> Result<
         (
             CitreaSequencer<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
@@ -57,6 +59,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
+
+        let mut backup_manager = BackupManager::new(
+            "sequencer",
+            rollup_config.storage.backup_path.clone(),
+            Default::default(),
+        );
+
+        if let Some(path) = restore_db {
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+        }
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -81,15 +93,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let backup_manager = Arc::new(BackupManager::new(
-            "sequencer",
-            rollup_config.storage.backup_path,
-            ledger_db.clone(),
-            storage_manager.state_db(),
-            storage_manager.native_db(),
-            None,
-            None,
-        ));
+        backup_manager.add_database("ledger", ledger_db.clone());
+        backup_manager.add_database("state", storage_manager.state_db());
+        backup_manager.add_database("native-db", storage_manager.native_db());
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -98,6 +104,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         } else {
             None
         };
+
+        let backup_manager = Arc::new(backup_manager);
 
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
@@ -172,6 +180,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaSpec,
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
+        restore_db: Option<PathBuf>,
     ) -> Result<
         (
             CitreaFullnode<
@@ -193,6 +202,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(&rollup_config, false, &mut task_manager)
             .await?;
+
+        let mut backup_manager = BackupManager::new(
+            "fullnode",
+            rollup_config.storage.backup_path.clone(),
+            Default::default(),
+        );
+
+        if let Some(path) = restore_db {
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+        }
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -220,15 +239,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let backup_manager = Arc::new(BackupManager::new(
-            "fullnode",
-            rollup_config.storage.backup_path,
-            ledger_db.clone(),
-            storage_manager.state_db(),
-            storage_manager.native_db(),
-            None,
-            None,
-        ));
+        backup_manager.add_database("ledger", ledger_db.clone());
+        backup_manager.add_database("state", storage_manager.state_db());
+        backup_manager.add_database("native-db", storage_manager.native_db());
+        let backup_manager = Arc::new(backup_manager);
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
@@ -238,6 +252,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         } else {
             None
         };
+
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
         let rpc_methods = self.create_rpc_methods(
             &prover_storage,
@@ -316,6 +331,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         >>::GenesisPaths,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: BatchProverConfig,
+        restore_db: Option<PathBuf>,
     ) -> Result<
         (
             CitreaBatchProver<
@@ -337,6 +353,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let da_service = self
             .create_da_service(&rollup_config, true, &mut task_manager)
             .await?;
+
+        let mut backup_manager = BackupManager::new(
+            "batch-prover",
+            rollup_config.storage.backup_path.clone(),
+            Default::default(),
+        );
+
+        if let Some(path) = restore_db {
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+        }
 
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
@@ -370,15 +396,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let backup_manager = Arc::new(BackupManager::new(
-            "batch-procver",
-            rollup_config.storage.backup_path,
-            ledger_db.clone(),
-            storage_manager.state_db(),
-            storage_manager.native_db(),
-            None,
-            None,
-        ));
+        backup_manager.add_database("ledger", ledger_db.clone());
+        backup_manager.add_database("state", storage_manager.state_db());
+        backup_manager.add_database("native-db", storage_manager.native_db());
+        let backup_manager = Arc::new(backup_manager);
 
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -462,6 +483,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         &self,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         prover_config: LightClientProverConfig,
+        restore_db: Option<PathBuf>,
     ) -> Result<
         (
             CitreaLightClientProver<Self::DaService, Self::Vm, Self::ProverService, LedgerDB>,
@@ -472,6 +494,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
+        let mut backup_manager = BackupManager::new(
+            "light-client-prover",
+            rollup_config.storage.backup_path.clone(),
+            Default::default(),
+        );
+
+        if let Some(path) = restore_db {
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+        }
+
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(
             rollup_config.storage.path.as_path(),
@@ -508,15 +540,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        let backup_manager = Arc::new(BackupManager::new(
-            "light-client-prover",
-            rollup_config.storage.backup_path,
-            ledger_db.clone(),
-            storage_manager.state_db(),
-            storage_manager.native_db(),
-            Some(mmr_db.clone()),
-            None,
-        ));
+        backup_manager.add_database("ledger", ledger_db.clone());
+        backup_manager.add_database("state", storage_manager.state_db());
+        backup_manager.add_database("native-db", storage_manager.native_db());
+        backup_manager.add_database("mmr", mmr_db.clone());
+        let backup_manager = Arc::new(backup_manager);
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
         // TODO(https://github.com/Sovereign-Labs/sovereign-sdk/issues/1218)
