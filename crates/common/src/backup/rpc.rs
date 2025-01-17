@@ -110,7 +110,7 @@ impl BackupRpcServer for BackupRpcServerImpl {
         path: PathBuf,
     ) -> RpcResult<HashMap<String, Vec<BackupInfoResponse>>> {
         self.backup_manager
-            .get_backup_info(&path)
+            .get_backup_info(path)
             .map(|info| {
                 info.into_iter()
                     .map(|(k, v)| {

@@ -67,7 +67,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
 
         if let Some(path) = restore_db {
-            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), &path)?;
         }
 
         // TODO: Double check what kind of storage needed here.
@@ -210,7 +210,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
 
         if let Some(path) = restore_db {
-            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), &path)?;
         }
 
         // TODO: Double check what kind of storage needed here.
@@ -361,7 +361,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
 
         if let Some(path) = restore_db {
-            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), &path)?;
         }
 
         // Migrate before constructing ledger_db instance so that no lock is present.
@@ -508,7 +508,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         );
 
         if let Some(path) = restore_db {
-            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), path)?;
+            backup_manager.restore_dbs_from_backup(rollup_config.storage.path.as_path(), &path)?;
         }
 
         // Migrate before constructing ledger_db instance so that no lock is present.

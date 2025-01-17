@@ -103,7 +103,7 @@ impl BackupManager {
     }
 
     /// Add a database to be backed up
-    pub fn add_database(&mut self, path: &str, db: impl Backup + 'static) {
+    pub fn add_database<DB: Backup + 'static>(&mut self, path: &str, db: DB) {
         self.databases.insert(path.to_string(), Arc::new(db));
     }
 
@@ -192,9 +192,9 @@ impl BackupManager {
         Ok(info)
     }
 
-    async fn set_metadata(
+    async fn set_metadata<P: AsRef<Path>>(
         &self,
-        backup_path: impl AsRef<Path>,
+        backup_path: P,
         info: &CreateBackupInfo,
     ) -> anyhow::Result<()> {
         let metadata_path = backup_path.as_ref().join(".metadata");
@@ -239,10 +239,10 @@ impl BackupManager {
     /// - Any required database fails to restore
     /// - File system operations (create/rename) fail
     /// ```
-    pub fn restore_dbs_from_backup(
+    pub fn restore_dbs_from_backup<P: AsRef<Path>>(
         &self,
-        db_path: impl AsRef<Path>,
-        backup_path: impl AsRef<Path>,
+        db_path: P,
+        backup_path: P,
     ) -> anyhow::Result<()> {
         // Validate backup before trying to restore
         self.validate_backup(&backup_path)?;
@@ -306,7 +306,7 @@ impl BackupManager {
     ///
     /// # Arguments
     /// * `backup_path` - Path to the backup directory to validate
-    pub(super) fn validate_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
+    pub(super) fn validate_backup<P: AsRef<Path>>(&self, backup_path: P) -> anyhow::Result<()> {
         let backup_path = backup_path.as_ref();
 
         if !backup_path.exists() {
@@ -329,12 +329,11 @@ impl BackupManager {
         Ok(())
     }
 
-    pub(super) fn get_backup_info(
+    pub(super) fn get_backup_info<P: AsRef<Path>>(
         &self,
-        backup_path: impl AsRef<Path>,
+        backup_path: P,
     ) -> anyhow::Result<HashMap<String, Vec<BackupEngineInfo>>> {
         let backup_path = backup_path.as_ref();
-
         if !backup_path.exists() {
             bail!("Backup directory does not exist: {:?}", backup_path);
         }
