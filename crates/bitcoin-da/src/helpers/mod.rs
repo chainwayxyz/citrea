@@ -106,7 +106,7 @@ pub fn calculate_sha256(input: &[u8]) -> [u8; 32] {
 /// Hashes the transaction **excluding** the segwit data (i.e. the marker, flag bytes, and the
 /// witness fields themselves). For non-segwit transactions which do not have any segwit data,
 /// this will be equal to [`Transaction::compute_wtxid()`].
-pub fn citrea_txid(tx: &Transaction) -> [u8; 32] {
+pub fn calculate_txid(tx: &Transaction) -> [u8; 32] {
     let mut enc = vec![];
     tx.version
         .consensus_encode(&mut enc)
@@ -128,7 +128,7 @@ pub fn citrea_txid(tx: &Transaction) -> [u8; 32] {
 /// Hashes the transaction **including** all segwit data (i.e. the marker, flag bytes, and the
 /// witness fields themselves). For non-segwit transactions which do not have any segwit data,
 /// this will be equal to [`Transaction::txid()`].
-pub fn citrea_wtxid(tx: &Transaction) -> [u8; 32] {
+pub fn calculate_wtxid(tx: &Transaction) -> [u8; 32] {
     let mut enc = vec![];
     tx.consensus_encode(&mut enc).expect("engines don't error");
     calculate_double_sha256(&enc)

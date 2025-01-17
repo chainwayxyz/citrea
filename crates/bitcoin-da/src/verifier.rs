@@ -10,7 +10,7 @@ use crate::helpers::parsers::{
     parse_batch_proof_transaction, parse_light_client_transaction, ParsedBatchProofTransaction,
     ParsedLightClientTransaction, VerifyParsed,
 };
-use crate::helpers::{calculate_double_sha256, citrea_txid, citrea_wtxid, merkle_tree};
+use crate::helpers::{calculate_double_sha256, calculate_txid, calculate_wtxid, merkle_tree};
 use crate::network_constants::{
     INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
     REGTEST_CONSTANTS, SIGNET_CONSTANTS, TESTNET4_CONSTANTS,
@@ -103,7 +103,7 @@ impl DaVerifier for BitcoinVerifier {
             .filter(|wtxid| wtxid.starts_with(prefix));
         for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
             // ensure completeness proof tx matches the inclusion tx
-            if &citrea_wtxid(tx) != wtxid {
+            if &calculate_wtxid(tx) != wtxid {
                 return Err(ValidationError::RelevantTxNotInProof);
             }
 
@@ -221,7 +221,7 @@ impl DaVerifier for BitcoinVerifier {
         }
 
         let claimed_root = merkle_tree::BitcoinMerkleTree::calculate_root_with_merkle_proof(
-            citrea_txid(&inclusion_proof.coinbase_tx),
+            calculate_txid(&inclusion_proof.coinbase_tx),
             0,
             inclusion_proof.coinbase_merkle_proof,
         );
