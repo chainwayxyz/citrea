@@ -170,6 +170,7 @@ pub fn create_default_rollup_config(
         },
         storage: StorageConfig {
             path: rollup_path.to_path_buf(),
+            backup_path: None,
             db_max_open_files: None,
         },
         rpc: RpcConfig {

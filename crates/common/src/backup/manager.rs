@@ -22,6 +22,8 @@ const OPTIONAL_BACKUP_DIRS: [&str; 1] = ["mmr"];
 pub struct BackupManager {
     /// Node kind
     node_kind: &'static str,
+    /// Optional base path used for backups. Can be overridden via RPC
+    base_path: Option<PathBuf>,
     /// LedgerDB
     ledger_db: LedgerDB,
     /// StateDB
@@ -61,6 +63,8 @@ impl BackupManager {
     /// Creates a new BackupManager instance with the provided databases.
     ///
     /// # Arguments
+    /// * `node_kind` - The citrea node kind associated with the BackupManager
+    /// * `base_path` - Optional base_path which will be used for creating backups.
     /// * `ledger_db` - The LedgerDB database
     /// * `state_db` - The SnapshotManager holding the underlying state_db database
     /// * `native_db` - The SnapshotManager holding the underlying native_db database
@@ -68,6 +72,7 @@ impl BackupManager {
     pub fn new(
         // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
         node_kind: &'static str,
+        base_path: Option<PathBuf>,
         ledger_db: LedgerDB,
         state_db: Arc<RwLock<SnapshotManager>>,
         native_db: Arc<RwLock<SnapshotManager>>,
@@ -75,6 +80,7 @@ impl BackupManager {
     ) -> Self {
         Self {
             node_kind,
+            base_path,
             ledger_db,
             state_db,
             native_db,
@@ -174,12 +180,12 @@ impl BackupManager {
             handle.await??;
         }
 
-        if let Err(e) = Self::validate_backup(&backup_path) {
+        if let Err(e) = Self::validate_backup(backup_path) {
             warn!("Error validating backup: {e}");
             bail!("Error creating valid backup: {e}");
         }
 
-        let backup_info = Self::get_backup_info(&backup_path)?;
+        let backup_info = Self::get_backup_info(backup_path)?;
         let backup_id = backup_info.get("ledger").unwrap().last().unwrap().backup_id;
 
         let info = CreateBackupInfo {

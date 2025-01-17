@@ -158,6 +158,8 @@ const fn default_max_subscriptions_per_connection() -> u32 {
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
+    /// Path for database backups
+    pub backup_path: Option<PathBuf>,
     /// File descriptor limit for RocksDB
     pub db_max_open_files: Option<i32>,
 }
@@ -166,6 +168,9 @@ impl FromEnv for StorageConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             path: std::env::var("STORAGE_PATH")?.into(),
+            backup_path: std::env::var("STORAGE_BACKUP_PATH")
+                .ok()
+                .and_then(|v| v.parse().ok()),
             db_max_open_files: std::env::var("DB_MAX_OPEN_FILES")
                 .ok()
                 .and_then(|val| val.parse().ok()),
@@ -495,6 +500,7 @@ mod tests {
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
+                backup_path: None,
                 db_max_open_files: Some(123),
             },
             rpc: RpcConfig {
@@ -688,6 +694,7 @@ mod tests {
             },
             storage: StorageConfig {
                 path: "/tmp/rollup".into(),
+                backup_path: None,
                 db_max_open_files: Some(123),
             },
             runner: Some(RunnerConfig {
