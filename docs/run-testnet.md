@@ -160,7 +160,7 @@ Compile Citrea by running command:
 cargo build --release
 ```
 
-If you wish to verify ZK-Proofs, add `REPR_GUEST_BUILD=1` before `cargo b...`
+If you wish to verify ZK-Proofs, add `REPR_GUEST_BUILD_LATEST=1` before `cargo b...`
 
 #### Step 2.4: Run Citrea
 

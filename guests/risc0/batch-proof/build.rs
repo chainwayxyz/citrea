@@ -5,7 +5,7 @@ use risc0_build::{embed_methods_with_options, DockerOptions, GuestOptions};
 fn main() {
     // Build environment variables
     println!("cargo:rerun-if-env-changed=SKIP_GUEST_BUILD");
-    println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD");
+    println!("cargo:rerun-if-env-changed=REPR_GUEST_BUILD_LATEST");
     println!("cargo:rerun-if-env-changed=OUT_DIR");
     // Compile time constant environment variables
     println!("cargo:rerun-if-env-changed=CITREA_NETWORK");
@@ -59,9 +59,9 @@ fn get_guest_options() -> HashMap<&'static str, risc0_build::GuestOptions> {
         features.push("testing".to_string());
     }
 
-    let use_docker = if std::env::var("REPR_GUEST_BUILD").is_ok() {
+    let use_docker = if std::env::var("REPR_GUEST_BUILD_LATEST").is_ok() {
         let this_package_dir = std::env!("CARGO_MANIFEST_DIR");
-        let root_dir = format!("{this_package_dir}/../../");
+        let root_dir = format!("{this_package_dir}/../../../");
         Some(DockerOptions {
             root_dir: Some(root_dir.into()),
         })

@@ -20,6 +20,7 @@ sov-rollup-interface = { path = "../../../rollup-interface", features = ["native
 sov-schema-db = { path = "../sov-schema-db" }
 
 # External
+alloy-primitives = { workspace = true, features=["serde"] }
 anyhow = { workspace = true, default-features = true }
 bincode = { workspace = true }
 borsh = { workspace = true, default-features = true, features = ["bytes", "rc"] }
