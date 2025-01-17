@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use citrea_batch_prover::CitreaBatchProver;
-use citrea_common::backup::BackupManager;
+use citrea_common::backup::{BackupConfig, BackupManager};
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::CitreaFullnode;
@@ -497,7 +497,14 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut backup_manager = BackupManager::new(
             "light-client-prover",
             rollup_config.storage.backup_path.clone(),
-            Default::default(),
+            Some(BackupConfig {
+                backup_dirs: vec![
+                    "ledger".to_string(),
+                    "native-db".to_string(),
+                    "state".to_string(),
+                    "mmr".to_string(),
+                ],
+            }),
         );
 
         if let Some(path) = restore_db {

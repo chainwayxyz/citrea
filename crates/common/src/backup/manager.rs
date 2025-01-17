@@ -15,20 +15,17 @@ use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupConfig {
     /// Required backup directories
-    pub required_dirs: Vec<String>,
-    /// Optional backup directories
-    pub optional_dirs: Vec<String>,
+    pub backup_dirs: Vec<String>,
 }
 
 impl Default for BackupConfig {
     fn default() -> Self {
         Self {
-            required_dirs: vec![
+            backup_dirs: vec![
                 "ledger".to_string(),
                 "state".to_string(),
                 "native-db".to_string(),
             ],
-            optional_dirs: vec!["mmr".to_string()],
         }
     }
 }
@@ -111,12 +108,13 @@ impl BackupManager {
         self.databases.insert(path.to_string(), Arc::new(db));
     }
 
-    /// Creates a backup of all the databases at `REQUIRED_BACKUP_DIRS` and `OPTIONAL_BACKUP_DIRS` at the specified path.
+    /// Creates a backup of all the databases held in config at the specified path.
     ///
     /// Acquires both L1 and L2 processing locks to ensure consistency between dbs
     ///
     /// # Arguments
-    /// * `path` - Base directory where the backup will be created
+    /// * `path`      - Base directory where the backup will be created
+    /// * `l2_height` - L2 height at which the backup was created
     ///
     /// # Returns
     /// Information about the created backup including block height, path and timestamp
@@ -141,7 +139,7 @@ impl BackupManager {
 
         let mut handles = Vec::new();
 
-        for dir in &self.config.required_dirs {
+        for dir in &self.config.backup_dirs {
             let path = backup_path.join(dir);
             let db = self
                 .databases
@@ -268,15 +266,8 @@ impl BackupManager {
             res
         };
 
-        for dir in &self.config.required_dirs {
+        for dir in &self.config.backup_dirs {
             inner_restore_from_backup(dir)?;
-        }
-
-        for dir in &self.config.optional_dirs {
-            let backup_path = backup_path.join(dir);
-            if backup_path.exists() {
-                inner_restore_from_backup(dir)?;
-            }
         }
 
         if original_path.exists() {
@@ -332,15 +323,8 @@ impl BackupManager {
             validate_backup(&path)
         };
 
-        for dir in &self.config.required_dirs {
+        for dir in &self.config.backup_dirs {
             innner_validate_backup(dir)?;
-        }
-
-        for dir in &self.config.optional_dirs {
-            let dir_path = backup_path.join(dir);
-            if dir_path.exists() {
-                innner_validate_backup(dir)?;
-            }
         }
 
         Ok(())
@@ -358,17 +342,9 @@ impl BackupManager {
 
         let mut map = HashMap::new();
 
-        for dir in &self.config.required_dirs {
+        for dir in &self.config.backup_dirs {
             let engine = get_backup_engine(backup_path.join(dir))?;
             map.insert(dir.to_string(), engine.get_backup_info());
-        }
-
-        for dir in &self.config.optional_dirs {
-            let dir_path = backup_path.join(dir);
-            if dir_path.exists() {
-                let engine = get_backup_engine(dir_path)?;
-                map.insert(dir.to_string(), engine.get_backup_info());
-            }
         }
 
         Ok(map)
