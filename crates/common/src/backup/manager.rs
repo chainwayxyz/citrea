@@ -14,7 +14,6 @@ use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupConfig {
-    /// Required backup directories
     pub backup_dirs: Vec<String>,
 }
 
@@ -120,9 +119,14 @@ impl BackupManager {
     /// Information about the created backup including block height, path and timestamp
     pub(super) async fn create_backup(
         &self,
-        path: impl AsRef<Path>,
+        path: Option<PathBuf>,
         l2_height: u64,
     ) -> anyhow::Result<CreateBackupInfo> {
+        let backup_path = path
+            .as_ref()
+            .or(self.base_path.as_ref())
+            .context("Missing path and no backup_path found in config.")?;
+
         let _l1_lock = self.l1_processing_lock.lock().await;
         let _l2_lock = self.l2_processing_lock.lock().await;
 
@@ -130,7 +134,6 @@ impl BackupManager {
         info!("Starting database backup process...");
 
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-        let backup_path = path.as_ref();
         info!(
             "Creating {} backup at path {}",
             self.node_kind,
@@ -163,7 +166,12 @@ impl BackupManager {
         }
 
         let backup_info = self.get_backup_info(backup_path)?;
-        let backup_id = backup_info.get("ledger").unwrap().last().unwrap().backup_id;
+        let backup_id = backup_info
+            .get("ledger")
+            .expect("Would fail on validate_backup")
+            .last()
+            .expect("Would fail on validate_backup")
+            .backup_id;
 
         let info = CreateBackupInfo {
             node_kind: self.node_kind.to_string(),

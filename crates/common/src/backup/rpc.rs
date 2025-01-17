@@ -36,7 +36,7 @@ pub struct BackupInfoResponse {
 #[rpc(client, server, namespace = "backup")]
 pub trait BackupRpc {
     #[method(name = "create")]
-    async fn backup_create(&self, path: PathBuf) -> RpcResult<CreateBackupInfo>;
+    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo>;
 
     #[method(name = "validate")]
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse>;
@@ -64,7 +64,7 @@ impl BackupRpcServerImpl {
 
 #[async_trait::async_trait]
 impl BackupRpcServer for BackupRpcServerImpl {
-    async fn backup_create(&self, path: PathBuf) -> RpcResult<CreateBackupInfo> {
+    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo> {
         let l2_height = self
             .ledger_db
             .get_head_soft_confirmation_height()
