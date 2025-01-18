@@ -20,13 +20,10 @@ use metrics_util::MetricKindMask;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::MockDaConfig;
-use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_rollup_interface::zk::StorageRootHash;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
-use sov_state::ArrayWitness;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument};
 
@@ -179,7 +176,7 @@ where
 
     match node_type {
         NodeType::Sequencer(sequencer_config) => {
-            let mut sequencer = rollup_blueprint
+            let (mut sequencer, rpc_module) = rollup_blueprint
                 .create_sequencer(
                     genesis_config,
                     rollup_config.clone(),
@@ -189,11 +186,19 @@ where
                     storage_manager,
                     prover_storage,
                     soft_confirmation_channel.0,
-                    task_manager,
+                    rpc_module,
                 )
                 .expect("Could not start sequencer");
 
-            if let Err(e) = sequencer.run().await {
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &mut task_manager,
+                rpc_module,
+                None,
+            )
+            .await;
+
+            if let Err(e) = sequencer.run(task_manager).await {
                 error!("Error: {}", e);
             }
         }
@@ -235,9 +240,6 @@ where
                 _,
                 <S as RollupBlueprint>::Vm,
                 _,
-                StorageRootHash,
-                ArrayWitness,
-                Transaction<<S as RollupBlueprint>::NativeContext>,
                 <S as RollupBlueprint>::NativeRuntime,
             >(
                 da_service.clone(),
@@ -250,6 +252,7 @@ where
                 elfs_by_spec,
                 rpc_module,
             )?;
+
             start_rpc_server(
                 rollup_config.rpc.clone(),
                 &mut task_manager,
@@ -314,34 +317,37 @@ where
         }
         _ => {
             let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db).await?;
-            let code_commitments_by_spec = rollup_blueprint.get_batch_proof_code_commitments();
-            let l1_block_handler = rollup_blueprint.create_full_node_l1_block_handler(
-                ledger_db.clone(),
-                da_service.clone(),
-                rollup_config.public_keys.clone(),
-                code_commitments_by_spec,
-            );
+
+            let (mut full_node, l1_block_handler, rpc_module) =
+                CitreaRollupBlueprint::create_full_node(
+                    &rollup_blueprint,
+                    genesis_config,
+                    rollup_config.clone(),
+                    da_service,
+                    ledger_db,
+                    storage_manager,
+                    prover_storage,
+                    soft_confirmation_channel.0,
+                    rpc_module,
+                )
+                .await
+                .expect("Could not start full-node");
+
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &mut task_manager,
+                rpc_module,
+                None,
+            )
+            .await;
+
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler
                     .run(start_l1_height, cancellation_token)
                     .await
             });
 
-            let mut full_node = CitreaRollupBlueprint::create_full_node(
-                &rollup_blueprint,
-                genesis_config,
-                rollup_config,
-                da_service,
-                ledger_db,
-                storage_manager,
-                prover_storage,
-                soft_confirmation_channel.0,
-                task_manager,
-            )
-            .await
-            .expect("Could not start full-node");
-
-            if let Err(e) = full_node.run().await {
+            if let Err(e) = full_node.run(task_manager).await {
                 error!("Error: {}", e);
             }
         }

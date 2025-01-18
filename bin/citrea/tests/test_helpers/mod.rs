@@ -70,7 +70,7 @@ pub async fn start_rollup(
                 .pub_key()
         );
         let span = info_span!("Sequencer");
-        let (mut sequencer, rpc_methods) = CitreaRollupBlueprint::create_new_sequencer(
+        let (mut sequencer, rpc_methods) = CitreaRollupBlueprint::create_sequencer(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config.clone(),
@@ -89,7 +89,7 @@ pub async fn start_rollup(
         sequencer.run().instrument(span).await.unwrap();
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_batch_prover(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_batch_prover(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config,
@@ -108,7 +108,7 @@ pub async fn start_rollup(
         rollup.run().instrument(span).await.unwrap();
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_light_client_prover(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_light_client_prover(
             &mock_demo_rollup,
             rollup_config.clone(),
             light_client_prover_config,
@@ -126,7 +126,7 @@ pub async fn start_rollup(
         rollup.run().instrument(span).await.unwrap();
     } else {
         let span = info_span!("FullNode");
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_rollup(
+        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             &rt_genesis_paths,
             rollup_config.clone(),

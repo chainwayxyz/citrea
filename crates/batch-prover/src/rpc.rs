@@ -65,7 +65,7 @@ where
 
 /// Creates a shared RpcContext with all required data.
 #[allow(clippy::type_complexity)]
-fn create_rpc_context<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, RT>(
+fn create_rpc_context<C, Da, Ps, Vm, DB, RT>(
     da_service: Arc<Da>,
     prover_service: Arc<Ps>,
     ledger: DB,
@@ -90,14 +90,6 @@ where
     DB: BatchProverLedgerOps + Clone,
     Vm: ZkvmHost + Zkvm,
     Ps: ProverService<DaService = Da> + Send + Sync,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
     RT: Runtime<C, Da::Spec>,
 {
     RpcContext {
@@ -118,7 +110,7 @@ where
 }
 
 /// Updates the given RpcModule with Prover methods.
-pub fn register_rpc_methods<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, RT>(
+pub fn register_rpc_methods<C, Da, Ps, Vm, DB, RT>(
     da_service: Arc<Da>,
     prover_service: Arc<Ps>,
     ledger: DB,
@@ -135,17 +127,9 @@ where
     DB: BatchProverLedgerOps + Clone + 'static,
     Vm: ZkvmHost + Zkvm + 'static,
     Ps: ProverService<DaService = Da> + Send + Sync + 'static,
-    StateRoot: BorshDeserialize
-        + BorshSerialize
-        + Serialize
-        + DeserializeOwned
-        + Clone
-        + AsRef<[u8]>
-        + Debug,
-    Witness: Default + BorshDeserialize + Serialize + DeserializeOwned,
     RT: Runtime<C, Da::Spec>,
 {
-    let rpc_context = create_rpc_context::<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, RT>(
+    let rpc_context = create_rpc_context::<C, Da, Ps, Vm, DB, RT>(
         da_service,
         prover_service,
         ledger,

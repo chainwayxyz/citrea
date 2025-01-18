@@ -62,7 +62,6 @@ where
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     pruning_config: Option<PruningConfig>,
-    task_manager: TaskManager<()>,
 }
 
 impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
@@ -88,7 +87,6 @@ where
         init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -132,7 +130,6 @@ where
             fork_manager,
             soft_confirmation_tx,
             pruning_config: runner_config.pruning_config,
-            task_manager,
         })
     }
 
@@ -238,7 +235,7 @@ where
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self, mut task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
         // Last L1/L2 height before shutdown.
         if let Some(config) = &self.pruning_config {
             let pruner = Pruner::<DB>::new(
@@ -248,8 +245,7 @@ where
                 self.ledger_db.clone(),
             );
 
-            self.task_manager
-                .spawn(|cancellation_token| pruner.run(cancellation_token));
+            task_manager.spawn(|cancellation_token| pruner.run(cancellation_token));
         }
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
@@ -308,15 +304,12 @@ where
                         }
                     }
                 },
-                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
+                Some(_) = shutdown_signal.recv() => {
+                    info!("Shutting down");
+                    task_manager.abort().await;
+                },
             }
         }
-    }
-
-    async fn shutdown(&self) -> anyhow::Result<()> {
-        info!("Shutting down");
-        self.task_manager.abort().await;
-        Ok(())
     }
 
     /// Allows to read current state root

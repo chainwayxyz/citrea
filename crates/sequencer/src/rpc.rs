@@ -16,7 +16,7 @@ use reth_rpc_eth_types::error::EthApiError;
 use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_db::ledger_db::SequencerLedgerOps;
-use sov_modules_api::WorkingSet;
+use sov_modules_api::{Context, WorkingSet};
 use tracing::{debug, error};
 
 use crate::deposit_data_mempool::DepositDataMempool;
@@ -24,13 +24,48 @@ use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
 use crate::utils::recover_raw_transaction;
 
-pub(crate) struct RpcContext<C: sov_modules_api::Context, DB: SequencerLedgerOps> {
+pub struct RpcContext<C: sov_modules_api::Context, DB: SequencerLedgerOps> {
     pub mempool: Arc<CitreaMempool<C>>,
     pub deposit_mempool: Arc<Mutex<DepositDataMempool>>,
     pub l2_force_block_tx: UnboundedSender<()>,
     pub storage: C::Storage,
     pub ledger: DB,
     pub test_mode: bool,
+}
+
+/// Creates a shared RpcContext with all required data.
+pub fn create_rpc_context<C, DB>(
+    mempool: Arc<CitreaMempool<C>>,
+    deposit_mempool: Arc<Mutex<DepositDataMempool>>,
+    l2_force_block_tx: UnboundedSender<()>,
+    storage: C::Storage,
+    ledger_db: DB,
+    test_mode: bool,
+) -> RpcContext<C, DB>
+where
+    C: Context,
+    DB: SequencerLedgerOps + Send + Clone + 'static,
+{
+    RpcContext {
+        mempool: mempool,
+        deposit_mempool: deposit_mempool,
+        l2_force_block_tx,
+        storage: storage,
+        ledger: ledger_db,
+        test_mode: test_mode,
+    }
+}
+/// Updates the given RpcModule with Sequencer methods.
+pub fn register_rpc_methods<
+    C: sov_modules_api::Context,
+    DB: SequencerLedgerOps + Send + Sync + 'static,
+>(
+    rpc_context: RpcContext<C, DB>,
+    mut rpc_methods: jsonrpsee::RpcModule<()>,
+) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+    let rpc = create_rpc_module(rpc_context);
+    rpc_methods.merge(rpc)?;
+    Ok(rpc_methods)
 }
 
 #[rpc(client, server)]
