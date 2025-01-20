@@ -24,7 +24,7 @@ use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
 use tracing::{debug, error, info, instrument};
 
-use crate::cli::{client_from_args, Args, NodeType, SupportedDaLayer};
+use crate::cli::{node_type_from_args, Args, NodeType, SupportedDaLayer};
 
 mod cli;
 #[cfg(test)]
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     };
     initialize_logging(logging_level);
 
-    let client = client_from_args(&args)?;
+    let client = node_type_from_args(&args)?;
 
     let mut network = args.network.into();
     if args.dev {

@@ -68,7 +68,7 @@ pub(crate) enum NodeType {
     LightClientProver(LightClientProverConfig),
 }
 
-pub(crate) fn client_from_args(args: &Args) -> anyhow::Result<NodeType> {
+pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeType> {
     let sequencer_config = match &args.sequencer {
         Some(Some(path)) => Some(
             from_toml_path(path)
