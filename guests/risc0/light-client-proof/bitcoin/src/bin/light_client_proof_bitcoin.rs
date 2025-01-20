@@ -55,12 +55,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
                     "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
                 ),
             ),
-            (
-                999999999,
-                decode_to_u32_array(
-                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
-                ),
-            ),
+            (5546000, decode_to_u32_array("TODO")),
         ],
         Network::Devnet => &[
             (
