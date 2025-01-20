@@ -1911,7 +1911,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=af85eae3010331df0e0cda5288f741b6d298813f#af85eae3010331df0e0cda5288f741b6d298813f"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=7a08605#7a08605d7089659acc7d7f866c6a857af08ef0aa"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -224,7 +224,7 @@ impl TestCase for DaMonitoringTest {
         assert!(mempool0.contains(&pending_txs[0].txid));
         assert!(mempool0.contains(&pending_txs[1].txid));
 
-        sequencer.restart(None).await?;
+        sequencer.restart(None, None).await?;
 
         // Assert that txs are properly monitored after a restart
         let pending_txs = sequencer
