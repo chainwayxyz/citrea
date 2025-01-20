@@ -1,13 +1,14 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
 use sov_rollup_interface::rpc::{
-    BatchProofOutputRpcResponse, BatchProofResponse, HexTx, LatestDaStateRpcResponse,
-    LightClientProofOutputRpcResponse, LightClientProofResponse, SoftConfirmationResponse,
-    VerifiedBatchProofResponse,
+    BatchProofMethodIdRpcResponse, BatchProofOutputRpcResponse, BatchProofResponse, HexTx,
+    LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse,
+    SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::zk::{
@@ -103,19 +104,36 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
     fn from(value: StoredLightClientProofOutput) -> Self {
         Self {
             state_root: value.state_root,
-            light_client_proof_method_id: value.light_client_proof_method_id,
+            light_client_proof_method_id: value.light_client_proof_method_id.into(),
             latest_da_state: LatestDaStateRpcResponse {
                 block_hash: value.latest_da_state.block_hash,
-                block_height: value.latest_da_state.block_height,
+                block_height: U64::from(value.latest_da_state.block_height),
                 total_work: value.latest_da_state.total_work,
-                current_target_bits: value.latest_da_state.current_target_bits,
-                epoch_start_time: value.latest_da_state.epoch_start_time,
-                prev_11_timestamps: value.latest_da_state.prev_11_timestamps,
+                current_target_bits: U32::from(value.latest_da_state.current_target_bits),
+                epoch_start_time: U32::from(value.latest_da_state.epoch_start_time),
+                prev_11_timestamps: value
+                    .latest_da_state
+                    .prev_11_timestamps
+                    .into_iter()
+                    .map(U32::from)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .expect("should have 11 elements"),
             },
-            unchained_batch_proofs_info: value.unchained_batch_proofs_info,
-            last_l2_height: value.last_l2_height,
-            batch_proof_method_ids: value.batch_proof_method_ids,
-            mmr_guest: value.mmr_guest,
+            unchained_batch_proofs_info: value
+                .unchained_batch_proofs_info
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            last_l2_height: U64::from(value.last_l2_height),
+            batch_proof_method_ids: value
+                .batch_proof_method_ids
+                .into_iter()
+                .map(|(height, method_id)| {
+                    BatchProofMethodIdRpcResponse::new(U64::from(height), method_id.into())
+                })
+                .collect(),
+            mmr_guest: value.mmr_guest.into(),
         }
     }
 }

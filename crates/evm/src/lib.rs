@@ -11,6 +11,10 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
+#[cfg(feature = "native")]
+use primitive_types::DoNotUseSealedBlock;
+#[cfg(feature = "native")]
+use primitive_types::DoNotUseTransactionSignedAndRecovered;
 pub use system_events::SYSTEM_SIGNER;
 
 #[cfg(feature = "native")]
@@ -136,7 +140,11 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: The vec is extended with `pending_head` in `finalize_hook`.
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) blocks: sov_modules_api::AccessoryStateVec<SealedBlock, RlpCodec>,
+    pub(crate) blocks: sov_modules_api::AccessoryStateVec<DoNotUseSealedBlock, BcsCodec>,
+
+    #[cfg(feature = "native")]
+    #[state]
+    pub(crate) blocks_rlp: sov_modules_api::AccessoryStateVec<SealedBlock, RlpCodec>,
 
     /// Used only by the RPC: block_hash => block_number mapping,
     #[cfg(feature = "native")]
@@ -147,6 +155,11 @@ pub struct Evm<C: sov_modules_api::Context> {
     #[cfg(feature = "native")]
     #[state]
     pub(crate) transactions:
+        sov_modules_api::AccessoryStateVec<DoNotUseTransactionSignedAndRecovered, BcsCodec>,
+
+    #[cfg(feature = "native")]
+    #[state]
+    pub(crate) transactions_rlp:
         sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, RlpCodec>,
 
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
@@ -157,7 +170,11 @@ pub struct Evm<C: sov_modules_api::Context> {
     /// Used only by the RPC: Receipts.
     #[cfg(feature = "native")]
     #[state]
-    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
+    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
+
+    #[cfg(feature = "native")]
+    #[state]
+    pub(crate) receipts_rlp: sov_modules_api::AccessoryStateVec<Receipt, RlpCodec>,
 }
 
 impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {

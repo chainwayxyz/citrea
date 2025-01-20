@@ -21,6 +21,7 @@ citrea-primitives = { path = "../primitives" }
 
 borsh = { workspace = true, features = ["rc"] }
 clap = { workspace = true, optional = true }
+derive_more = { workspace = true, optional = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 schemars = { workspace = true, optional = true }
@@ -102,5 +103,6 @@ native = [
   "serde_json",
   "secp256k1",
   "dep:tracing",
+  "derive_more",
 ]
 serde = []

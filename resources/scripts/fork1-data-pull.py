@@ -4,7 +4,7 @@ import requests
 import json
 
 def json_rpc_req(method, params):
-    url = "https://rpc.devnet.citrea.xyz"
+    url = "https://rpc.testnet.citrea.xyz"
     payload = json.dumps({
       "jsonrpc": "2.0",
       "id": 1,
@@ -44,7 +44,7 @@ for i in range(start, 0, -1):
     sequencer_commitments = get_sequencer_commitments_on_slot_by_number(i)
 
     if sequencer_commitments is not None:
-        print("Found sequencer commitment(s) on slot:\t", i, "using first one.")
+        print("Found", len(sequencer_commitments),  "sequencer commitment(s) on slot:\t", i, "using first one.")
         sequencer_commitment = sequencer_commitments[0]
 
         print("Sequencer commitment start:\t", sequencer_commitment['l2StartBlockNumber'], "\tend:\t", sequencer_commitment['l2EndBlockNumber'])

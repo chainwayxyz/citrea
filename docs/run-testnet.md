@@ -3,7 +3,7 @@
 Download our testnet docker-compose file:
 
 ```sh
-curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker-compose.yml --output docker-compose.yml
+curl https://raw.githubusercontent.com/chainwayxyz/citrea/nightly/docker/docker-compose.yml --output docker-compose.yml
 ```
 
 Then use `docker-compose` to both launch a Bitcoin testnet4 node and Citrea full node:
@@ -24,7 +24,7 @@ Citrea testnet uses Bitcoin testnet4 as its DA and settlement layer.
 
 So running a Citrea fullnode requires a fully synced Bitcoin testnet4 node.
 
-Testnet4 is only enabled in version 28.0rc.1.
+Testnet4 is only enabled in versions bigger than 28.0.
 
 ### Option 1: Build from source
 
@@ -34,16 +34,16 @@ Testnet4 is only enabled in version 28.0rc.1.
 ```sh
 git clone https://github.com/bitcoin/bitcoin.git
 cd bitcoin
-git checkout v28.0rc1
+git checkout v28.0
 ```
 
 #### Step 1.2: Build Bitcoin Core
 
 Then follow the instructions on the links below for the build. However, don't clone the repository since we already did.
 
-OSX: https://github.com/bitcoin/bitcoin/blob/v28.0rc1/doc/build-osx.md
+OSX: https://github.com/bitcoin/bitcoin/blob/v28.0/doc/build-osx.md
 
-Linux: https://github.com/bitcoin/bitcoin/blob/v28.0rc1/doc/build-unix.md
+Linux: https://github.com/bitcoin/bitcoin/blob/v28.0/doc/build-unix.md
 
 
 #### Step 1.3: Run testnet4 node:
@@ -66,7 +66,7 @@ Follow instructions to install Docker here: https://docs.docker.com/engine/insta
 
 #### Step 2.2: Run testnet4 node:
 
-After Docker is installed, run this command to pull Bitcoin v0.28rc.1 image and run it as a container:
+After Docker is installed, run this command to pull Bitcoin v0.28.0 image and run it as a container:
 
 ```sh
 docker run -d \
@@ -74,7 +74,7 @@ docker run -d \
   --name bitcoin-testnet4 \
   -p 18443:18443 \
   -p 18444:18444 \
-  bitcoin/bitcoin:28.0rc1 \
+  bitcoin/bitcoin:28.0 \
   -printtoconsole \
   -testnet4=1 \
   -rest \
@@ -117,12 +117,73 @@ Finally run this command to run your Citrea full node:
 
 Mac:
 ```sh
-./citrea-v0.5.5-osx-arm64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+RISC0_DEV_MODE=1 ./citrea-v0.6.0-osx-arm64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+```
+
+or if you wish to use environment variables for configuring your node:
+
+```sh
+SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
+SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
+PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
+NODE_URL=http://0.0.0.0:18443 \
+NODE_USERNAME=citrea \
+NODE_PASSWORD=citrea \
+NETWORK=testnet \
+TX_BACKUP_DIR="" \
+STORAGE_PATH=resources/dbs \
+DB_MAX_OPEN_FILES=5000 \
+RPC_BIND_HOST=0.0.0.0 \
+RPC_BIND_PORT=8080 \
+RPC_MAX_CONNECTIONS=100 \
+RPC_MAX_REQUEST_BODY_SIZE=10485760 \
+RPC_MAX_RESPONSE_BODY_SIZE=10485760 \
+RPC_BATCH_REQUESTS_LIMIT=50 \
+RPC_ENABLE_SUBSCRIPTIONS=true \
+RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
+SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
+INCLUDE_TX_BODY=false \
+SYNC_BLOCKS_COUNT=10 \
+RUST_LOG=info \
+JSON_LOGS=1 \
+RISC0_DEV_MODE=1  \
+./citrea-v0.6.0-osx-arm64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Linux:
 ```sh
-./citrea-v0.5.5-linux-amd64 --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+RISC0_DEV_MODE=1 ./citrea-v0.6.0-linux-amd64 --network testnet --da-layer bitcoin --rollup-config-path ./rollup_config.toml --genesis-paths ./genesis
+```
+
+or if you wish to use environment variables for configuring your node:
+
+
+```sh
+SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
+SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
+PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
+NODE_URL=http://0.0.0.0:18443 \
+NODE_USERNAME=citrea \
+NODE_PASSWORD=citrea \
+NETWORK=testnet \
+TX_BACKUP_DIR="" \
+STORAGE_PATH=resources/dbs \
+DB_MAX_OPEN_FILES=5000 \
+RPC_BIND_HOST=0.0.0.0 \
+RPC_BIND_PORT=8080 \
+RPC_MAX_CONNECTIONS=100 \
+RPC_MAX_REQUEST_BODY_SIZE=10485760 \
+RPC_MAX_RESPONSE_BODY_SIZE=10485760 \
+RPC_BATCH_REQUESTS_LIMIT=50 \
+RPC_ENABLE_SUBSCRIPTIONS=true \
+RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
+SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
+INCLUDE_TX_BODY=false \
+SYNC_BLOCKS_COUNT=10 \
+RUST_LOG=info \
+JSON_LOGS=1 \
+RISC0_DEV_MODE=1  \
+./citrea-v0.6.0-linux-amd64 --network testnet --da-layer bitcoin --genesis-paths ./genesis
 ```
 
 Your full node should be serving RPC at `http://0.0.0.0:8080` now.
@@ -146,21 +207,14 @@ git checkout $(git describe --tags `git rev-list --tags --max-count=1`)
 ```
 
 #### Step 2.3: Build Citrea
-If you wish to verify ZK-Proofs, then you'll need to compile our ZK VM binaries inside docker. To do so, follow instructions to install Docker: https://docs.docker.com/engine/install/
-
-Install development dependencies:
-
-```sh
-make install-dev-tools
-```
 
 Compile Citrea by running command:
 
 ```sh
-cargo build --release
+SKIP_GUEST_BUILD=1 cargo build --release
 ```
 
-If you wish to verify ZK-Proofs, add `REPR_GUEST_BUILD=1` before `cargo b...`
+Citrea ZK proof circuits are read from `resuources/guests`. Rebuilding the circuits are unnecessary if you only wish to run a testnet node, that's why build is made with `SKIP_GUEST_BUILD=1`.
 
 #### Step 2.4: Run Citrea
 
@@ -169,8 +223,40 @@ Look through the `rollup_config.toml` and apply changes as you wish, if you modi
 And then run the full node by executing this command
 
 ```sh
-./target/release/citrea --network testnet --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
+RISC0_DEV_MODE=1 ./target/release/citrea --network testnet --da-layer bitcoin --rollup-config-path ./resources/configs/testnet/rollup_config.toml --genesis-paths ./resources/genesis/testnet
 ```
+
+If you'd like to use environment variables to pass configs instead of using .toml files you can do so like this:
+
+```sh
+SEQUENCER_PUBLIC_KEY=4682a70af1d3fae53a5a26b682e2e75f7a1de21ad5fc8d61794ca889880d39d1 \
+SEQUENCER_DA_PUB_KEY=03015a7c4d2cc1c771198686e2ebef6fe7004f4136d61f6225b061d1bb9b821b9b \
+PROVER_DA_PUB_KEY=0357d255ab93638a2d880787ebaadfefdfc9bb51a26b4a37e5d588e04e54c60a42 \
+NODE_URL=http://0.0.0.0:18443 \
+NODE_USERNAME=citrea \
+NODE_PASSWORD=citrea \
+NETWORK=testnet \
+TX_BACKUP_DIR="" \
+STORAGE_PATH=resources/dbs \
+DB_MAX_OPEN_FILES=5000 \
+RPC_BIND_HOST=0.0.0.0 \
+RPC_BIND_PORT=8080 \
+RPC_MAX_CONNECTIONS=100 \
+RPC_MAX_REQUEST_BODY_SIZE=10485760 \
+RPC_MAX_RESPONSE_BODY_SIZE=10485760 \
+RPC_BATCH_REQUESTS_LIMIT=50 \
+RPC_ENABLE_SUBSCRIPTIONS=true \
+RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION=10 \
+SEQUENCER_CLIENT_URL=https://rpc.testnet.citrea.xyz \
+INCLUDE_TX_BODY=false \
+SYNC_BLOCKS_COUNT=10 \
+RUST_LOG=info \
+JSON_LOGS=1 \
+RISC0_DEV_MODE=1  \
+./target/release/citrea --network testnet --da-layer bitcoin --genesis-paths ./resources/genesis/testnet
+```
+
+If you've made any changes to your bitcoin node url, username or password, don't forget to change values for `NODE_URL`, `NODE_USERNAME` and `NODE_PASSWORD`.
 
 ### Option 3: Using Docker
 

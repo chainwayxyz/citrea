@@ -38,7 +38,7 @@ fn test_sys_bitcoin_light_client() {
     let (mut evm, mut working_set) = get_evm(&config);
 
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .iter(&mut working_set.accessory_state())
             .collect::<Vec<_>>(),
         [
@@ -199,7 +199,7 @@ fn test_sys_bitcoin_light_client() {
     assert_eq!(system_account.nonce, 4);
 
     let receipts: Vec<_> = evm
-        .receipts
+        .receipts_rlp
         .iter(&mut working_set.accessory_state())
         .collect();
     assert_eq!(receipts.len(), 5); // 3 from first L2 block + 2 from second L2 block

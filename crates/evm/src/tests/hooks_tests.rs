@@ -169,25 +169,25 @@ fn end_soft_confirmation_hook_moves_transactions_and_receipts() {
     let tx2_hash = tx2.transaction.signed_transaction.hash;
 
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .get(4, &mut working_set.accessory_state())
             .unwrap(),
         tx1.receipt
     );
     assert_eq!(
-        evm.receipts
+        evm.receipts_rlp
             .get(5, &mut working_set.accessory_state())
             .unwrap(),
         tx2.receipt
     );
     assert_eq!(
-        evm.transactions
+        evm.transactions_rlp
             .get(4, &mut working_set.accessory_state())
             .unwrap(),
         tx1.transaction
     );
     assert_eq!(
-        evm.transactions
+        evm.transactions_rlp
             .get(5, &mut working_set.accessory_state())
             .unwrap(),
         tx2.transaction
@@ -257,7 +257,7 @@ fn finalize_hook_creates_final_block() {
 
     // hack to get the root hash
     let binding = evm
-        .blocks
+        .blocks_rlp
         .get(1, &mut working_set.accessory_state())
         .unwrap();
     let root = binding.header.header().state_root.as_slice();
@@ -290,7 +290,7 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
     evm.finalize_hook(&root_hash.into(), &mut accessory_state);
-    assert_eq!(evm.blocks.len(&mut accessory_state), 3);
+    assert_eq!(evm.blocks_rlp.len(&mut accessory_state), 3);
 
     l2_height += 1;
 
@@ -312,9 +312,9 @@ fn finalize_hook_creates_final_block() {
 
     let mut accessory_state = working_set.accessory_state();
 
-    let parent_block = evm.blocks.get(1usize, &mut accessory_state).unwrap();
+    let parent_block = evm.blocks_rlp.get(1usize, &mut accessory_state).unwrap();
     let parent_hash = parent_block.header.hash();
-    let block = evm.blocks.get(2usize, &mut accessory_state).unwrap();
+    let block = evm.blocks_rlp.get(2usize, &mut accessory_state).unwrap();
 
     let header = Header {
         parent_hash,
@@ -375,7 +375,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
 
     // hack to get the root hash
     let binding = evm
-        .blocks
+        .blocks_rlp
         .get(1, &mut working_set.accessory_state())
         .unwrap();
     let root = binding.header.header().state_root.as_slice();
@@ -404,7 +404,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
             evm.latest_block_hashes
                 .get(&U256::from(i), &mut working_set)
                 .unwrap(),
-            evm.blocks
+            evm.blocks_rlp
                 .get(i, &mut working_set.accessory_state())
                 .unwrap()
                 .header
@@ -472,7 +472,7 @@ fn begin_soft_confirmation_hook_appends_last_block_hashes() {
         evm.latest_block_hashes
             .get(&U256::from(256), &mut working_set)
             .unwrap(),
-        evm.blocks
+        evm.blocks_rlp
             .get(256, &mut working_set.accessory_state())
             .unwrap()
             .header

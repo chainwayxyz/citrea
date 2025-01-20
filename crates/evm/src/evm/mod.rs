@@ -19,6 +19,8 @@ pub(crate) mod system_events;
 
 #[cfg(feature = "native")]
 pub(crate) mod call;
+#[cfg(feature = "native")]
+pub(crate) mod compat;
 
 #[cfg(all(test, feature = "native"))]
 mod tests;

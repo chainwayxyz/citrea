@@ -21,8 +21,7 @@ const NETWORK: Network = match option_env!("CITREA_NETWORK") {
 const L2_GENESIS_ROOT: [u8; 32] = {
     let hex_root = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
-        // TODO: Update this after finding out the first batch prover output of the next release
-        Network::Testnet => "05183faf24857f0fa6d4a7738fe5ef14b7ebe88be0f66e6f87f461485554d531",
+        Network::Testnet => "30137f8bc0844bbbe0a324c17cb3a1920b086c6f8a2e11999f77299455c33079",
         Network::Devnet => "c6584931466a25793f7f4d6d512d0ce53af4067d3ac61af20df968f5835d3743",
         Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
@@ -56,9 +55,9 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
                 ),
             ),
             (
-                999999999,
+                5546000,
                 decode_to_u32_array(
-                    "3631d90630a3f0deb47f3a3411fe6e7ede1b0d86ad4216c75041e1a2020f009f",
+                    "b4a441f12ec8eb7e53967198bf006e98c2898cfe4ef68757d3d40918254e6bce",
                 ),
             ),
         ],
@@ -115,7 +114,7 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
 pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
         Network::Devnet => "0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
         Network::Nightly | Network::TestNetworkWithForks => {
             match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {

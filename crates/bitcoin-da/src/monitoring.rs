@@ -3,11 +3,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use anyhow::anyhow;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::hashes::Hash;
 use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
+use citrea_common::FromEnv;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::select;
@@ -18,10 +20,6 @@ use tracing::{debug, error, info, instrument};
 
 use crate::service::FINALITY_DEPTH;
 use crate::spec::utxo::UTXO;
-
-const DEFAULT_CHECK_INTERVAL: u64 = 60;
-const DEFAULT_HISTORY_LIMIT: usize = 1_000; // Keep track of last 1k txs
-const DEFAULT_MAX_HISTORY_SIZE: usize = 200_000_000; // Default max monitored tx total size to 200mb
 
 type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
@@ -124,19 +122,62 @@ pub enum MonitorError {
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
 }
 
+mod monitoring_defaults {
+    pub const fn check_interval() -> u64 {
+        60
+    }
+
+    pub const fn history_limit() -> usize {
+        1_000 // Keep track of last 1k txs
+    }
+
+    pub const fn max_history_size() -> usize {
+        200_000_000 // Default max monitored tx total size to 200mb
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MonitoringConfig {
+    #[serde(default = "monitoring_defaults::check_interval")]
     pub check_interval: u64,
+    #[serde(default = "monitoring_defaults::history_limit")]
     pub history_limit: usize,
+    #[serde(default = "monitoring_defaults::max_history_size")]
     pub max_history_size: usize,
 }
 
 impl Default for MonitoringConfig {
     fn default() -> Self {
         Self {
-            check_interval: DEFAULT_CHECK_INTERVAL,
-            history_limit: DEFAULT_HISTORY_LIMIT,
-            max_history_size: DEFAULT_MAX_HISTORY_SIZE,
+            check_interval: monitoring_defaults::check_interval(),
+            history_limit: monitoring_defaults::history_limit(),
+            max_history_size: monitoring_defaults::max_history_size(),
+        }
+    }
+}
+
+impl FromEnv for MonitoringConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        match (
+            std::env::var("DA_MONITORING_CHECK_INTERVAL"),
+            std::env::var("DA_MONITORING_HISTORY_LIMIT"),
+            std::env::var("DA_MONITORING_MAX_HISTORY_SIZE"),
+        ) {
+            (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
+            (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
+                check_interval: check_interval.map_or_else(
+                    |_| Ok(monitoring_defaults::check_interval()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                history_limit: history_limit.map_or_else(
+                    |_| Ok(monitoring_defaults::history_limit()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                max_history_size: max_history_size.map_or_else(
+                    |_| Ok(monitoring_defaults::max_history_size()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+            }),
         }
     }
 }

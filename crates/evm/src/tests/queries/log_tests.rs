@@ -133,7 +133,10 @@ fn log_filter_test_at_block_hash() {
        5) [[A, B], [A, B]] “(A OR B) in first position AND (A OR B) in second position (and anything after)”
     */
 
-    let block = evm.blocks.last(&mut working_set.accessory_state()).unwrap();
+    let block = evm
+        .blocks_rlp
+        .last(&mut working_set.accessory_state())
+        .unwrap();
     let mut address = FilterSet::default();
     // Test without address and topics
     let mut topics: [FilterSet<B256>; 4] = [

@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
+use citrea_primitives::forks::fork_from_block_number;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -16,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{BatchProofCircuitInputV1, ZkvmHost};
 use sov_stf_runner::ProverService;
 use tokio::sync::Mutex;
 
@@ -162,7 +163,7 @@ where
                 )
             })?;
 
-        let (_, inputs) = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
+        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
             self.context.da_service.clone(),
             self.context.ledger.clone(),
             self.context.sequencer_pub_key.clone(),
@@ -185,7 +186,18 @@ where
         for input in inputs {
             let range_start = input.sequencer_commitments_range.0;
             let range_end = input.sequencer_commitments_range.1;
-            let serialized_circuit_input = serialize_batch_proof_circuit_input(input);
+
+            let last_seq_com = sequencer_commitments
+                .get(range_end as usize)
+                .expect("Commitment does not exist");
+            let last_l2_height = last_seq_com.l2_end_block_number;
+            let current_spec = fork_from_block_number(last_l2_height).spec_id;
+
+            let serialized_circuit_input = match current_spec {
+                SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input)),
+                _ => borsh::to_vec(&input),
+            }
+            .expect("Risc0 hint serialization is infallible");
 
             let response = ProverInputResponse {
                 commitment_range: (range_start, range_end),
@@ -255,10 +267,6 @@ where
 
         Ok(())
     }
-}
-
-fn serialize_batch_proof_circuit_input<T: BorshSerialize>(item: T) -> Vec<u8> {
-    borsh::to_vec(&item).expect("Risc0 hint serialization is infallible")
 }
 
 pub fn create_rpc_module<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>(

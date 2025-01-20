@@ -93,11 +93,7 @@ impl citrea_common::FromEnv for BitcoinServiceConfig {
             network: serde_json::from_str(&format!("\"{}\"", std::env::var("NETWORK")?))?,
             da_private_key: std::env::var("DA_PRIVATE_KEY").ok(),
             tx_backup_dir: std::env::var("TX_BACKUP_DIR")?,
-            monitoring: Some(MonitoringConfig {
-                check_interval: std::env::var("DA_MONITORING_CHECK_INTERVAL")?.parse()?,
-                history_limit: std::env::var("DA_MONITORING_HISTORY_LIMIT")?.parse()?,
-                max_history_size: std::env::var("DA_MONITORING_MAX_HISTORY_SIZE")?.parse()?,
-            }),
+            monitoring: MonitoringConfig::from_env().ok(),
             mempool_space_url: std::env::var("MEMPOOL_SPACE_URL").ok(),
         })
     }

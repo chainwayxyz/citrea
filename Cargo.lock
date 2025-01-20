@@ -1949,6 +1949,7 @@ dependencies = [
  "bytes",
  "citrea-primitives",
  "clap",
+ "derive_more",
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
@@ -7808,6 +7809,7 @@ dependencies = [
 name = "sov-db"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "bincode",
  "borsh",
@@ -8012,6 +8014,7 @@ dependencies = [
 name = "sov-rollup-interface"
 version = "0.6.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "borsh",
@@ -8020,6 +8023,7 @@ dependencies = [
  "futures",
  "hex",
  "jmt",
+ "risc0-zkp",
  "serde",
  "serde_json",
  "sha2",
