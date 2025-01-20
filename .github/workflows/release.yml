@@ -111,7 +111,6 @@ jobs:
 
   update-public-fullnode:
     runs-on: ubuntu-latest
-    needs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,7 +119,6 @@ jobs:
         run: |
           echo $PWD
           ls -la
-
 
       - name: Download Citrea binary and Move required resources
         run: |
