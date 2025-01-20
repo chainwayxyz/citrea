@@ -1,6 +1,6 @@
 services:  
   citrea-bitcoin-testnet4:
-    image: bitcoin/bitcoin:28
+    image: bitcoin/bitcoin:28.0
     container_name: bitcoin-testnet4
     ports:
       - "18443:18443"
