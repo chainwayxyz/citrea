@@ -66,7 +66,7 @@ Follow instructions to install Docker here: https://docs.docker.com/engine/insta
 
 #### Step 2.2: Run testnet4 node:
 
-After Docker is installed, run this command to pull Bitcoin v0.28rc.1 image and run it as a container:
+After Docker is installed, run this command to pull Bitcoin v0.28.0 image and run it as a container:
 
 ```sh
 docker run -d \
