@@ -137,13 +137,13 @@ jobs:
           BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"   
           echo "Downloading binary from ${BINARY_URL}"
           # Download the binary using wget 
-          wget -O docker/build-push/nightly/citrea "${BINARY_URL}"
+          wget -O docker/build-push/testnet/citrea "${BINARY_URL}"
           
           # Make the downloaded file executable
-          chmod +x docker/build-push/nightly/citrea
+          chmod +x docker/build-push/testnet/citrea
           
-          mkdir -p docker/build-push/nightly/genesis/
-          mv resources/genesis/testnet/* docker/build-push/nightly/genesis/
+          mkdir -p docker/build-push/testnet/genesis/
+          mv resources/genesis/testnet/* docker/build-push/testnet/genesis/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -163,8 +163,8 @@ jobs:
           DOCKERHUB_REPOSITORY: citrea-fullnode
           IMAGE_TAG: testnet
         with:
-          context: docker/build-push/nightly/
-          file: docker/build-push/nightly/Dockerfile
+          context: docker/build-push/testnet/
+          file: docker/build-push/testnet/Dockerfile
           platforms: linux/amd64
           push: true
           load: false
