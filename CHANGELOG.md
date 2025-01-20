@@ -14,7 +14,7 @@ Citrea Kumquat upgrade will go live on testnet at block 5546000, activating many
 For a detailed list of changes, see auto generated changelog at [v0.6.0 release notes](https://github.com/chainwayxyz/citrea/releases/tag/v0.6.0).
 
 ## v0.5.7 (2024-12-21)
-- Comapatability version for upcoming v0.6.0
+- Compatibility version for upcoming v0.6.0
 
 ## v0.5.6 (2024-12-13)
 - Bitcoin DA finality depth increased to 30 due to long and common testnet4 reorgs. ([commit](https://github.com/chainwayxyz/citrea/commit/cb4a86e8de714fea15698742d77dbafeef82a95a))
