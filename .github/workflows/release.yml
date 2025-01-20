@@ -84,7 +84,7 @@ jobs:
           path: target/release/citrea
 
   release:
-    needs: [ linux_amd64_binary_extraction ]
+    needs: [ linux_amd64_binary_extraction, osx_arm64_binary_extraction ]
     runs-on: ubuntu-latest
     steps:
       - name: Download linux-amd64 Binary
@@ -97,10 +97,21 @@ jobs:
         run: |
           mv release/citrea release/citrea-${{ github.ref_name }}-linux-amd64
 
+      - name: Download OSX ARM64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: citrea-${{ github.ref_name }}-osx-arm64
+          path: release
+
+      - name: rename file
+        run: |
+            mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            release/citrea-${{ github.ref_name }}-osx-arm64
             release/citrea-${{ github.ref_name }}-linux-amd64
           name: Release ${{ github.ref_name }}
           body: |
@@ -108,8 +119,9 @@ jobs:
 
             It includes:
             - citrea-${{ github.ref_name }}-linux-amd64
+            - citrea-${{ github.ref_name }}-osx-arm64
 
-  update-public-fullnode:
+  update-dockerhub:
     runs-on: ubuntu-latest
     needs: [ release ]
     steps:
@@ -120,7 +132,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt -y install wget
-          RELEASE="${{ github.ref_name }}"
+          RELEASE="${{ github.ref_name}}"
           
           BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"   
           echo "Downloading binary from ${BINARY_URL}"
