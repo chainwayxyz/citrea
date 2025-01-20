@@ -111,14 +111,10 @@ jobs:
 
   update-public-fullnode:
     runs-on: ubuntu-latest
+    needs: [ release ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: echo current path and list files
-        run: |
-          echo $PWD
-          ls -la
 
       - name: Download Citrea binary and Move required resources
         run: |
@@ -129,7 +125,7 @@ jobs:
           BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"   
           echo "Downloading binary from ${BINARY_URL}"
           # Download the binary using wget 
-          wget -O ./docker/build-push/nightly/citrea "${BINARY_URL}"
+          wget -O docker/build-push/nightly/citrea "${BINARY_URL}"
           
           # Make the downloaded file executable
           chmod +x docker/build-push/nightly/citrea
@@ -155,7 +151,7 @@ jobs:
           DOCKERHUB_REPOSITORY: citrea-fullnode
           IMAGE_TAG: testnet
         with:
-          context: .
+          context: docker/build-push/nightly/
           file: docker/build-push/nightly/Dockerfile
           platforms: linux/amd64
           push: true
