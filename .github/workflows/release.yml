@@ -105,7 +105,7 @@ jobs:
 
       - name: rename file
         run: |
-            mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
+          mv release/citrea release/citrea-${{ github.ref_name }}-osx-arm64
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -128,11 +128,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download linux-amd64 Binary
-        uses: actions/download-artifact@v4
-        with:
-          name: citrea-${{ github.ref_name }}-linux-amd64
-          path: .
+      - name: Download Citrea binary and Move required resources
+        run: |
+          sudo apt update
+          sudo apt -y install wget
+          RELEASE="${{ github.event.inputs.release }}"
+          
+          BINARY_URL="https://github.com/chainwayxyz/citrea/releases/download/${RELEASE}/citrea-${RELEASE}-linux-amd64"   
+          echo "Downloading binary from ${BINARY_URL}"
+          # Download the binary using wget 
+          wget -O docker/build-push/nightly/citrea "${BINARY_URL}"
+          
+          # Make the downloaded file executable
+          chmod +x docker/build-push/nightly/citrea
+          
+          mkdir -p docker/build-push/nightly/genesis/
+          mv resources/genesis/testnet/* docker/build-push/nightly/genesis/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -145,14 +156,6 @@ jobs:
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Rename binary and Move required resources
-        run: |
-          mv citrea-${{ github.ref_name }}-linux-amd64 docker/build-push/nightly/citrea
-          chmod +x docker/build-push/nightly/citrea
-          
-          mkdir -p docker/build-push/nightly/genesis/
-          mv resources/genesis/testnet/ docker/build-push/nightly/genesis/
 
       - name: Build and push Linux image
         uses: docker/build-push-action@v5
