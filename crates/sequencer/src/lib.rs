@@ -57,6 +57,8 @@ where
         sequencer_config.mempool_conf.clone(),
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
+    let native_stf = StfBlueprint::new();
+
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
         deposit_mempool.clone(),
@@ -66,7 +68,6 @@ where
         sequencer_config.test_mode,
     );
     let rpc_module = rpc::register_rpc_methods::<C, DB>(rpc_context, rpc_module)?;
-    let native_stf = StfBlueprint::new();
 
     let seq = CitreaSequencer::new(
         da_service,

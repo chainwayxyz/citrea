@@ -1,6 +1,5 @@
 use core::fmt::Debug as DebugTrait;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context as _};
@@ -8,11 +7,10 @@ use bitcoin_da::service::BitcoinServiceConfig;
 use citrea::{
     initialize_logging, BitcoinRollup, CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage,
 };
-use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig};
-use citrea_light_client_prover::runner::StartVariant;
+use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_stf::genesis_config::GenesisPaths;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusBuilder;
@@ -24,7 +22,6 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
 use sov_rollup_interface::Network;
 use sov_state::storage::NativeStorage;
-use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument};
 
 use crate::cli::{client_from_args, Args, NodeType, SupportedDaLayer};
@@ -164,15 +161,13 @@ where
         _ => None,
     };
 
-    let mut rpc_module = rollup_blueprint.setup_rpc(
+    let rpc_module = rollup_blueprint.setup_rpc(
         &prover_storage,
         ledger_db.clone(),
         da_service.clone(),
         sequencer_client_url,
         soft_confirmation_rx,
     )?;
-
-    let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 
     match node_type {
         NodeType::Sequencer(sequencer_config) => {
@@ -204,54 +199,22 @@ where
         }
         NodeType::BatchProver(batch_prover_config) => {
             let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db).await?;
-            let batch_prover_code_commitments = rollup_blueprint.get_batch_proof_code_commitments();
-            let elfs_by_spec = rollup_blueprint.get_batch_proof_elfs();
-            let prover_service = Arc::new(
-                rollup_blueprint
-                    .create_prover_service(
-                        batch_prover_config.proving_mode,
-                        &da_service,
-                        ledger_db.clone(),
-                        batch_prover_config.proof_sampling_number,
-                    )
-                    .await,
-            );
 
-            // Spawn L1 block handler
-            let l1_block_handler = rollup_blueprint
-                .create_batch_prover_l1_block_handler(
-                    batch_prover_config.clone(),
-                    ledger_db.clone(),
-                    da_service.clone(),
-                    rollup_config.public_keys.clone(),
-                    batch_prover_code_commitments.clone(),
+            let (mut prover, l1_block_handler, rpc_module) =
+                CitreaRollupBlueprint::create_batch_prover(
+                    &rollup_blueprint,
+                    batch_prover_config,
+                    genesis_config,
+                    rollup_config.clone(),
+                    da_service,
+                    ledger_db,
+                    storage_manager,
+                    prover_storage,
+                    soft_confirmation_channel.0,
+                    rpc_module,
                 )
-                .await;
-            task_manager.spawn(|cancellation_token| async move {
-                l1_block_handler
-                    .run(start_l1_height, cancellation_token)
-                    .await
-            });
-
-            // Spawn RPC
-            rpc_module = citrea_batch_prover::rpc::register_rpc_methods::<
-                <S as RollupBlueprint>::NativeContext,
-                _,
-                _,
-                <S as RollupBlueprint>::Vm,
-                _,
-                <S as RollupBlueprint>::NativeRuntime,
-            >(
-                da_service.clone(),
-                prover_service.clone(),
-                ledger_db.clone(),
-                rollup_config.public_keys.sequencer_da_pub_key.clone(),
-                rollup_config.public_keys.sequencer_public_key.clone(),
-                l1_block_cache,
-                batch_prover_code_commitments,
-                elfs_by_spec,
-                rpc_module,
-            )?;
+                .await
+                .expect("Could not start batch prover");
 
             start_rpc_server(
                 rollup_config.rpc.clone(),
@@ -261,21 +224,13 @@ where
             )
             .await;
 
-            let mut prover = CitreaRollupBlueprint::create_batch_prover(
-                &rollup_blueprint,
-                genesis_config,
-                rollup_config,
-                da_service,
-                ledger_db,
-                storage_manager,
-                prover_storage,
-                soft_confirmation_channel.0,
-                task_manager,
-            )
-            .await
-            .expect("Could not start batch prover");
+            task_manager.spawn(|cancellation_token| async move {
+                l1_block_handler
+                    .run(start_l1_height, cancellation_token)
+                    .await
+            });
 
-            if let Err(e) = prover.run().await {
+            if let Err(e) = prover.run(task_manager).await {
                 error!("Error: {}", e);
             }
         }
@@ -286,32 +241,35 @@ where
                 // start from the block given in the config
                 None => StartVariant::FromBlock(light_client_prover_config.initial_da_height),
             };
-            let batch_prover_code_commitments = rollup_blueprint.get_batch_proof_code_commitments();
-            let l1_block_handler = rollup_blueprint
-                .create_light_client_prover_l1_block_handler(
+
+            let (mut prover, l1_block_handler, rpc_module) =
+                CitreaRollupBlueprint::create_light_client_prover(
+                    &rollup_blueprint,
                     light_client_prover_config,
+                    rollup_config.clone(),
                     &rocksdb_config,
-                    ledger_db.clone(),
-                    da_service.clone(),
-                    rollup_config.public_keys.clone(),
-                    batch_prover_code_commitments,
+                    da_service,
+                    ledger_db,
+                    rpc_module,
                 )
-                .await?;
+                .await
+                .expect("Could not start light client prover");
+
+            start_rpc_server(
+                rollup_config.rpc.clone(),
+                &mut task_manager,
+                rpc_module,
+                None,
+            )
+            .await;
+
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler
                     .run(starting_block, cancellation_token)
                     .await
             });
-            let mut prover = CitreaRollupBlueprint::create_light_client_prover(
-                &rollup_blueprint,
-                rollup_config,
-                ledger_db,
-                task_manager,
-            )
-            .await
-            .expect("Could not start light client prover");
 
-            if let Err(e) = prover.run().await {
+            if let Err(e) = prover.run(task_manager).await {
                 error!("Error: {}", e);
             }
         }

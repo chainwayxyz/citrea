@@ -62,7 +62,6 @@ where
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
-    task_manager: TaskManager<()>,
 }
 
 impl<C, Da, DB, RT> CitreaBatchProver<C, Da, DB, RT>
@@ -88,7 +87,6 @@ where
         init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
         let (prev_state_root, prev_batch_hash) = match init_variant {
             InitVariant::Initialized((state_root, batch_hash)) => {
@@ -129,13 +127,12 @@ where
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
-            task_manager,
         })
     }
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self, task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
         // Create l2 sync worker task
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
 
@@ -193,15 +190,12 @@ where
                         }
                     }
                 },
-                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
+                Some(_) = shutdown_signal.recv() => {
+                    info!("Shutting down");
+                    task_manager.abort().await;
+                },
             }
         }
-    }
-
-    async fn shutdown(&self) -> anyhow::Result<()> {
-        info!("Shutting down");
-        self.task_manager.abort().await;
-        Ok(())
     }
 
     async fn process_l2_block(

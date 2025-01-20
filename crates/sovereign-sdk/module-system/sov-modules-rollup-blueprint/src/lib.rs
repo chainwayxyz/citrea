@@ -71,7 +71,7 @@ pub trait RollupBlueprint: Sized + Send + Sync {
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 
     /// Get light client prover code commitment.
-    fn get_light_client_proof_code_commitment(
+    fn get_light_client_proof_code_commitments(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>;
 

@@ -14,6 +14,32 @@ where
     pub ledger: DB,
 }
 
+/// Creates a shared RpcContext with all required data.
+pub fn create_rpc_context<DB: LightClientProverLedgerOps + Clone>(ledger_db: DB) -> RpcContext<DB> {
+    RpcContext { ledger: ledger_db }
+}
+
+pub fn create_rpc_module<DB>(
+    rpc_context: RpcContext<DB>,
+) -> jsonrpsee::RpcModule<LightClientProverRpcServerImpl<DB>>
+where
+    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
+{
+    let server = LightClientProverRpcServerImpl::new(rpc_context);
+
+    LightClientProverRpcServer::into_rpc(server)
+}
+
+/// Updates the given RpcModule with Prover methods.
+pub fn register_rpc_methods<DB: LightClientProverLedgerOps + Clone + 'static>(
+    mut rpc_methods: jsonrpsee::RpcModule<()>,
+    rpc_context: RpcContext<DB>,
+) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
+    let rpc = create_rpc_module(rpc_context);
+    rpc_methods.merge(rpc)?;
+    Ok(rpc_methods)
+}
+
 #[rpc(client, server, namespace = "lightClientProver")]
 pub trait LightClientProverRpc {
     /// Generate state transition data for the given L1 block height, and return the data as a borsh serialized hex string.
@@ -65,15 +91,4 @@ where
         let res = proof.map(LightClientProofResponse::from);
         Ok(res)
     }
-}
-
-pub fn create_rpc_module<DB>(
-    rpc_context: RpcContext<DB>,
-) -> jsonrpsee::RpcModule<LightClientProverRpcServerImpl<DB>>
-where
-    DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-{
-    let server = LightClientProverRpcServerImpl::new(rpc_context);
-
-    LightClientProverRpcServer::into_rpc(server)
 }

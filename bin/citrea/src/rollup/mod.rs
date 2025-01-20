@@ -1,15 +1,11 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use citrea_batch_prover::da_block_handler::L1BlockHandler as BatchProverL1BlockHandler;
 use citrea_batch_prover::CitreaBatchProver;
-use citrea_common::cache::L1BlockCache;
 use citrea_common::tasks::manager::TaskManager;
-use citrea_common::{
-    BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, SequencerConfig,
-};
+use citrea_common::{BatchProverConfig, FullNodeConfig, LightClientProverConfig, SequencerConfig};
 use citrea_fullnode::da_block_handler::L1BlockHandler as FullNodeL1BlockHandler;
 use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
@@ -19,23 +15,19 @@ use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
-use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{Spec, Zkvm};
+use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::{
-    GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
-};
+use sov_modules_stf_blueprint::{GenesisParams as StfGenesisParams, Runtime as RuntimeTrait};
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage};
 use sov_stf_runner::InitVariant;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 use tracing::{info, instrument};
 
 mod bitcoin;
@@ -288,6 +280,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     #[instrument(level = "trace", skip_all)]
     async fn create_batch_prover(
         &self,
+        prover_config: BatchProverConfig,
         genesis_config: GenesisParams<Self>,
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
@@ -295,10 +288,20 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        task_manager: TaskManager<()>,
-    ) -> Result<
+        rpc_module: RpcModule<()>,
+    ) -> Result<(
         CitreaBatchProver<Self::NativeContext, Self::DaService, LedgerDB, Self::NativeRuntime>,
-    >
+        BatchProverL1BlockHandler<
+            Self::Vm,
+            Self::DaService,
+            Self::ProverService,
+            LedgerDB,
+            StorageRootHash,
+            ArrayWitness,
+            Transaction<<Self as RollupBlueprint>::NativeContext>,
+        >,
+        RpcModule<()>,
+    )>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -313,7 +316,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
-        let native_stf = StfBlueprint::new();
         let genesis_root = prover_storage.get_root_hash(1);
         let init_variant = match ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
@@ -344,30 +346,51 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
-        let runner = CitreaBatchProver::new(
+        let prover_service = Arc::new(
+            self.create_prover_service(
+                prover_config.proving_mode,
+                &da_service,
+                ledger_db.clone(),
+                prover_config.proof_sampling_number,
+            )
+            .await,
+        );
+        let code_commitments = self.get_batch_proof_code_commitments();
+        let elfs = self.get_batch_proof_elfs();
+
+        citrea_batch_prover::build_services(
+            prover_config,
             runner_config,
+            init_variant,
             rollup_config.public_keys,
             da_service,
+            prover_service,
             ledger_db,
-            native_stf,
             storage_manager,
-            init_variant,
-            fork_manager,
             soft_confirmation_tx,
-            task_manager,
-        )?;
-
-        Ok(runner)
+            fork_manager,
+            code_commitments,
+            elfs,
+            rpc_module,
+        )
+        .await
     }
 
     /// Creates a new light client prover
     #[instrument(level = "trace", skip_all)]
     async fn create_light_client_prover(
         &self,
+        prover_config: LightClientProverConfig,
         rollup_config: FullNodeConfig<Self::DaConfig>,
+        rocksdb_config: &RocksdbConfig,
+        da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        task_manager: TaskManager<()>,
-    ) -> Result<CitreaLightClientProver<LedgerDB>>
+        rpc_module: RpcModule<()>,
+    ) -> Result<(
+        CitreaLightClientProver,
+        LightClientProverL1BlockHandler<Self::Vm, Self::DaService, Self::ProverService, LedgerDB>,
+        RpcModule<()>,
+    )>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
@@ -387,31 +410,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
-        let runner = CitreaLightClientProver::new(runner_config, ledger_db, task_manager)?;
-
-        Ok(runner)
-    }
-
-    /// Create the batch prover DA block handler
-    async fn create_batch_prover_l1_block_handler(
-        &self,
-        prover_config: BatchProverConfig,
-        ledger_db: LedgerDB,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        public_keys: RollupPublicKeys,
-        code_commitments_by_spec: HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>,
-    ) -> BatchProverL1BlockHandler<
-        Self::Vm,
-        Self::DaService,
-        Self::ProverService,
-        LedgerDB,
-        StorageRootHash,
-        ArrayWitness,
-        Transaction<<Self as RollupBlueprint>::NativeContext>,
-    > {
-        let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
-            .map_or(0u64, |v| v.parse().unwrap_or(0));
-        let elfs_by_spec = self.get_batch_proof_elfs();
         let prover_service = Arc::new(
             self.create_prover_service(
                 prover_config.proving_mode,
@@ -421,55 +419,24 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             )
             .await,
         );
-        BatchProverL1BlockHandler::new(
-            prover_config,
-            prover_service,
-            ledger_db,
-            da_service,
-            public_keys.sequencer_public_key,
-            public_keys.sequencer_da_pub_key,
-            code_commitments_by_spec,
-            elfs_by_spec,
-            skip_submission_until_l1,
-            Arc::new(Mutex::new(L1BlockCache::new())),
-        )
-    }
 
-    /// Create the light client prover DA block handler
-    async fn create_light_client_prover_l1_block_handler(
-        &self,
-        prover_config: LightClientProverConfig,
-        rocksdb_config: &RocksdbConfig,
-        ledger_db: LedgerDB,
-        da_service: Arc<<Self as RollupBlueprint>::DaService>,
-        public_keys: RollupPublicKeys,
-        batch_prover_code_commitments: HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment>,
-    ) -> anyhow::Result<
-        LightClientProverL1BlockHandler<Self::Vm, Self::DaService, Self::ProverService, LedgerDB>,
-    > {
-        let light_client_prover_code_commitments = self.get_light_client_proof_code_commitment();
-        let light_client_prover_elfs = self.get_light_client_elfs();
-        let prover_service = Arc::new(
-            self.create_prover_service(
-                prover_config.proving_mode,
-                &da_service,
-                ledger_db.clone(),
-                prover_config.proof_sampling_number,
-            )
-            .await,
-        );
-        let mmr_db = MmrDB::new(&rocksdb_config)?;
-        Ok(LightClientProverL1BlockHandler::new(
+        let batch_prover_code_commitments = self.get_batch_proof_code_commitments();
+        let code_commitments = self.get_light_client_proof_code_commitments();
+        let elfs = self.get_light_client_elfs();
+
+        citrea_light_client_prover::build_services(
             prover_config,
-            prover_service,
+            runner_config,
+            rocksdb_config,
             ledger_db,
             da_service,
-            public_keys.prover_da_pub_key,
+            prover_service,
+            rollup_config.public_keys,
             batch_prover_code_commitments,
-            light_client_prover_code_commitments,
-            light_client_prover_elfs,
-            mmr_db,
-        ))
+            code_commitments,
+            elfs,
+            rpc_module,
+        )
     }
 
     /// Run Ledger DB migrations

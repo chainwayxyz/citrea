@@ -25,7 +25,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::metrics::LIGHT_CLIENT_METRICS;
-use crate::runner::StartVariant;
+
+pub enum StartVariant {
+    LastScanned(u64),
+    FromBlock(u64),
+}
 
 pub struct L1BlockHandler<Vm, Da, Ps, DB>
 where

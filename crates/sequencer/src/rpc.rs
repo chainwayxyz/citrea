@@ -47,14 +47,15 @@ where
     DB: SequencerLedgerOps + Send + Clone + 'static,
 {
     RpcContext {
-        mempool: mempool,
-        deposit_mempool: deposit_mempool,
+        mempool,
+        deposit_mempool,
         l2_force_block_tx,
-        storage: storage,
+        storage,
         ledger: ledger_db,
-        test_mode: test_mode,
+        test_mode,
     }
 }
+
 /// Updates the given RpcModule with Sequencer methods.
 pub fn register_rpc_methods<
     C: sov_modules_api::Context,
