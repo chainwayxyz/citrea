@@ -109,7 +109,7 @@ const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
 pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY: [u8; 33] = {
     let hex_pub_key = match NETWORK {
         Network::Mainnet => "000000000000000000000000000000000000000000000000000000000000000000",
-        Network::Testnet => "000000000000000000000000000000000000000000000000000000000000000000",
+        Network::Testnet => "03796a3a8a86ff1cc37437585f0450f6059c397c01bce06bfbaaa36242f7ebfc02",
         Network::Devnet => "0388e988066db18e19750fa92aa0fbf9c85104be2b5b507ce0aa7f30f3fe24b1ac",
         Network::Nightly | Network::TestNetworkWithForks => {
             match option_env!("METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEY") {
