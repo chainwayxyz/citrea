@@ -27,6 +27,7 @@ pub mod db_migrations;
 mod metrics;
 mod runner;
 
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Da, C, DB, RT, Vm, StateRoot>(
     runner_config: RunnerConfig,
     init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,

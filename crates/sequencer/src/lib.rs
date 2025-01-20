@@ -31,6 +31,7 @@ pub mod rpc;
 mod runner;
 mod utils;
 
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<C, Da, DB, RT>(
     sequencer_config: SequencerConfig,
     init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,

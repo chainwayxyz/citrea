@@ -72,7 +72,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     ) -> Result<Dependencies<Self>> {
         let mut task_manager = TaskManager::default();
         let da_service = self
-            .create_da_service(&rollup_config, true, &mut task_manager)
+            .create_da_service(rollup_config, true, &mut task_manager)
             .await?;
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -116,7 +116,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         soft_confirmation_rx: Option<broadcast::Receiver<u64>>,
     ) -> Result<RpcModule<()>> {
         self.create_rpc_methods(
-            &prover_storage,
+            prover_storage,
             &ledger_db,
             &da_service,
             sequencer_client_url,
@@ -126,6 +126,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new sequencer
     #[instrument(level = "trace", skip_all)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     fn create_sequencer(
         &self,
         genesis_config: GenesisParams<Self>,
@@ -195,6 +196,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new rollup.
     #[instrument(level = "trace", skip_all)]
+    #[allow(clippy::too_many_arguments)]
     async fn create_full_node(
         &self,
         genesis_config: GenesisParams<Self>,
@@ -278,6 +280,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new prover
     #[instrument(level = "trace", skip_all)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     async fn create_batch_prover(
         &self,
         prover_config: BatchProverConfig,
@@ -446,7 +449,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         migrations: Migrations,
     ) -> anyhow::Result<()> {
         // Migrate before constructing ledger_db instance so that no lock is present.
-        let migrator = LedgerDBMigrator::new(rollup_config.storage.path.as_path(), &migrations);
+        let migrator = LedgerDBMigrator::new(rollup_config.storage.path.as_path(), migrations);
         migrator.migrate(rollup_config.storage.db_max_open_files)?;
         Ok(())
     }

@@ -30,6 +30,7 @@ mod proving;
 pub mod rpc;
 mod runner;
 
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,

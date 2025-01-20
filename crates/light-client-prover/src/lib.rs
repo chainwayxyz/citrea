@@ -29,6 +29,7 @@ pub mod runner;
 mod tests;
 pub(crate) mod utils;
 
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Vm, Da, Ps, DB>(
     prover_config: LightClientProverConfig,
     runner_config: RunnerConfig,
@@ -55,7 +56,7 @@ where
     let rpc_context = rpc::create_rpc_context(ledger_db.clone());
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
-    let mmr_db = MmrDB::new(&rocksdb_config)?;
+    let mmr_db = MmrDB::new(rocksdb_config)?;
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
         prover_service,

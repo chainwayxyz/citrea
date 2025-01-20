@@ -53,7 +53,7 @@ where
 }
 
 /// Creates a shared RpcContext with all required data.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn create_rpc_context<C, Da, Ps, Vm, DB, RT>(
     da_service: Arc<Da>,
     prover_service: Arc<Ps>,

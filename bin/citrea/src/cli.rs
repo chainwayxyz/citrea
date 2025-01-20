@@ -105,22 +105,6 @@ pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeType> {
         None => None,
     };
 
-    if batch_prover_config.is_some() && sequencer_config.is_some() {
-        return Err(anyhow::anyhow!(
-            "Cannot run in both batch prover and sequencer mode at the same time"
-        ));
-    }
-    if batch_prover_config.is_some() && light_client_prover_config.is_some() {
-        return Err(anyhow::anyhow!(
-            "Cannot run in both batch prover and light client prover mode at the same time"
-        ));
-    }
-    if light_client_prover_config.is_some() && sequencer_config.is_some() {
-        return Err(anyhow::anyhow!(
-            "Cannot run in both light client prover and sequencer mode at the same time"
-        ));
-    }
-
     if let Some(sequencer_config) = sequencer_config {
         return Ok(NodeType::Sequencer(sequencer_config));
     } else if let Some(batch_prover_config) = batch_prover_config {
@@ -128,5 +112,5 @@ pub(crate) fn node_type_from_args(args: &Args) -> anyhow::Result<NodeType> {
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         return Ok(NodeType::LightClientProver(light_client_prover_config));
     }
-    return Ok(NodeType::FullNode);
+    Ok(NodeType::FullNode)
 }
