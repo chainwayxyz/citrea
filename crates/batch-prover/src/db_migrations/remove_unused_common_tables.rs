@@ -24,7 +24,7 @@ impl LedgerMigration for RemoveUnusedTables {
         let diff_tables = diff.iter().map(|x| x.to_string()).collect::<Vec<_>>();
         for table in diff_tables {
             // Check if table exists in the database
-            if let Ok(_cf_handle) = ledger_db.get_cf_handle(&table) {
+            if ledger_db.get_cf_handle(&table).is_ok() {
                 tables_to_drop.push(table);
             }
         }
