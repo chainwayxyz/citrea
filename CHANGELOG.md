@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.6.0 (2025-1-20)
+Citrea Kumquat upgrade will go live on testnet at block 5546000, activating many new features:
+- EVM Cancun support.
+  - BLOBBASEFEE returns 1 always as blob transactions are not supported.
+  - KZG precompile is not activated.
+- Offchain smart contracts.
+  - Smart contract bytecodes are not commited to the state any more, reducing transaction costs when deploying smart contracts.
+- Reduced diff size estimation by accounting for brotli compression discount, resulting in lower transaction costs for all transactions.
+- Light client proofs are activated.
+  - Succinct ZK proofs for any actor to know Citrea's final state trustlessly by verifying a single ZK proof.
+
+For a detailed list of changes, see auto generated changelog at [v0.6.0 release notes](https://github.com/chainwayxyz/citrea/releases/tag/v0.6.0).
+
+## v0.5.7 (2024-12-21)
+- Compatibility version for upcoming v0.6.0
+
+## v0.5.6 (2024-12-13)
+- Bitcoin DA finality depth increased to 30 due to long and common testnet4 reorgs. ([commit](https://github.com/chainwayxyz/citrea/commit/cb4a86e8de714fea15698742d77dbafeef82a95a))
+
 ## v0.5.5 (2024-12-9)
 - 100 wei constant priority fee suggestion from nodes. ([#1561](https://github.com/chainwayxyz/citrea/pull/1561))
 - Sequencer checks compressed diff size of a commitment before commiting. ([#1349](https://github.com/chainwayxyz/citrea/pull/1349) and [#1557](https://github.com/chainwayxyz/citrea/pull/1557))
