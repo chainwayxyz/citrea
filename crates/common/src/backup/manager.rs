@@ -11,8 +11,10 @@ use tracing::{info, warn};
 
 use super::utils::{get_backup_engine, restore_from_backup, validate_backup};
 
+/// Configuration for database backups
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupConfig {
+    /// List of database directories that should be included in backups
     pub backup_dirs: Vec<String>,
 }
 
@@ -67,7 +69,7 @@ struct BackupMetadata {
 }
 
 impl BackupManager {
-    /// Creates a new BackupManager instance with the provided databases.
+    /// Creates a new BackupManager instance.
     ///
     /// # Arguments
     /// * `node_kind` - The citrea node kind associated with the BackupManager
@@ -101,12 +103,27 @@ impl BackupManager {
         self.l2_processing_lock.lock().await
     }
 
+    /// Register a database with the backup manager.
+    ///
+    /// # Arguments
+    /// * `path` - Identifier/path for the database (e.g. "ledger", "state", "native-db")
+    /// * `db` - Reference to the database instance
+    ///
+    /// # Returns
+    /// * `Ok(())` if registration succeeds
+    /// * `Err` if the path is not in the configured backup directories
+    ///
+    /// # Errors
+    /// Returns error if the provided path is not present in backup_dirs configuration
     pub fn register_database(
         &mut self,
         path: String,
         db: Arc<sov_schema_db::DB>,
     ) -> anyhow::Result<()> {
-        ensure!(self.config.backup_dirs.contains(&path));
+        ensure!(
+            self.config.backup_dirs.contains(&path),
+            "Unexpect database identifier"
+        );
         self.databases.insert(path, db);
         Ok(())
     }

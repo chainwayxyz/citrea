@@ -158,7 +158,8 @@ const fn default_max_subscriptions_per_connection() -> u32 {
 pub struct StorageConfig {
     /// Path that can be utilized by concrete rollup implementation
     pub path: PathBuf,
-    /// Path for database backups
+    /// Optional path for storing database backups
+    /// If not specified, backup path will need to be provided on each backup creation
     pub backup_path: Option<PathBuf>,
     /// File descriptor limit for RocksDB
     pub db_max_open_files: Option<i32>,

@@ -77,7 +77,9 @@ struct Args {
     #[arg(long, short = 'q', action)]
     quiet: bool,
 
-    /// Logging verbosity
+    /// Optionally restore DB state from a backup before starting the node.
+    /// If provided, databases are restored from the specified backup path
+    /// before any services are initialized.
     #[arg(long)]
     restore_db: Option<PathBuf>,
 }

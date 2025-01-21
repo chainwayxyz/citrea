@@ -11,6 +11,7 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 
 use super::{BackupManager, CreateBackupInfo};
 
+/// Response from backup validation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationResponse {
     /// Path that was validated
@@ -21,6 +22,7 @@ pub struct ValidationResponse {
     pub message: Option<String>,
 }
 
+/// Information about a specific backup
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupInfoResponse {
     /// Timestamp of the backup
