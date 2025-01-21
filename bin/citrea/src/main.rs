@@ -200,8 +200,7 @@ where
                 &mut task_manager,
                 rpc_module,
                 None,
-            )
-            .await;
+            );
 
             if let Err(e) = sequencer.run(task_manager).await {
                 error!("Error: {}", e);
@@ -231,8 +230,7 @@ where
                 &mut task_manager,
                 rpc_module,
                 None,
-            )
-            .await;
+            );
 
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler
@@ -270,8 +268,7 @@ where
                 &mut task_manager,
                 rpc_module,
                 None,
-            )
-            .await;
+            );
 
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler
@@ -306,8 +303,7 @@ where
                 &mut task_manager,
                 rpc_module,
                 None,
-            )
-            .await;
+            );
 
             task_manager.spawn(|cancellation_token| async move {
                 l1_block_handler

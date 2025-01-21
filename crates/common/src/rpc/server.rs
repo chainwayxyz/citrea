@@ -9,7 +9,7 @@ use crate::tasks::manager::TaskManager;
 use crate::RpcConfig;
 
 /// Starts a RPC server with provided rpc methods.
-pub async fn start_rpc_server(
+pub fn start_rpc_server(
     rpc_config: RpcConfig,
     task_manager: &mut TaskManager<()>,
     methods: RpcModule<()>,

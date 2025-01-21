@@ -154,8 +154,7 @@ pub async fn start_rollup(
             &mut task_manager,
             rpc_methods,
             Some(rpc_reporting_channel),
-        )
-        .await;
+        );
 
         sequencer.run(task_manager).instrument(span).await.unwrap();
     } else if let Some(rollup_prover_config) = rollup_prover_config {
@@ -187,12 +186,13 @@ pub async fn start_rollup(
             &mut task_manager,
             rpc_module,
             None,
-        )
-        .await;
+        );
 
+        let handler_span = span.clone();
         task_manager.spawn(|cancellation_token| async move {
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
+                .instrument(handler_span.clone())
                 .await
         });
         prover.run(task_manager).instrument(span).await.unwrap();
@@ -228,12 +228,13 @@ pub async fn start_rollup(
             &mut task_manager,
             rpc_module,
             None,
-        )
-        .await;
+        );
 
+        let handler_span = span.clone();
         task_manager.spawn(|cancellation_token| async move {
             l1_block_handler
                 .run(starting_block, cancellation_token)
+                .instrument(handler_span.clone())
                 .await
         });
 
@@ -265,12 +266,13 @@ pub async fn start_rollup(
             &mut task_manager,
             rpc_module,
             None,
-        )
-        .await;
+        );
 
+        let handler_span = span.clone();
         task_manager.spawn(|cancellation_token| async move {
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
+                .instrument(handler_span.clone())
                 .await
         });
 
