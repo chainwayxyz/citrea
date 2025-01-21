@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use super::migrations::utils::{drop_column_families, list_column_families};
 use super::LedgerDB;
@@ -61,8 +61,6 @@ impl<'a> LedgerDBMigrator<'a> {
             return Ok(());
         }
 
-        debug!("Starting LedgerDB migrations...");
-
         let dbs_path = &self.ledger_path;
 
         if !dbs_path.join(LEDGER_DB_PATH_SUFFIX).exists() {
@@ -78,8 +76,13 @@ impl<'a> LedgerDBMigrator<'a> {
                     "Should mark migrations as executed, otherwise, something is seriously wrong",
                 );
             }
+
+            info!("Creating ledger DB for the first time, no migrations to run.");
+
             return Ok(());
         }
+
+        info!("Checking for pending LedgerDB migrations...");
 
         let column_families_in_db = list_column_families(self.ledger_path);
 
@@ -94,10 +97,23 @@ impl<'a> LedgerDBMigrator<'a> {
         // Return an empty vector for executed migrations in case of an error since the iteration fails
         // because of the absence of the table.
         let executed_migrations = ledger_db.get_executed_migrations().unwrap_or(vec![]);
+        let unexecuted_migrations: Vec<_> = self
+            .migrations
+            .iter()
+            .filter(|migration| !executed_migrations.contains(&migration.identifier()))
+            .collect();
+
+        // Do not invoke backup the database and prepare for migration
+        // if there are no migrations that were not previously executed.
+        if unexecuted_migrations.is_empty() {
+            info!("No pending ledger migrations found, skipping.");
+            return Ok(());
+        }
 
         // Drop the lock file
         drop(ledger_db);
 
+        info!("Pending migrations exist. Preparing backups...");
         // Copy files over, if temp_db_path falls out of scope, the directory is removed.
         let temp_db_path = tempfile::tempdir()?;
         copy_db_dir_recursive(dbs_path, temp_db_path.path())?;
@@ -110,25 +126,19 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let mut tables_to_drop = vec![];
 
-        for migration in self.migrations {
-            if !executed_migrations.contains(&migration.identifier()) {
-                debug!("Running migration: {}", migration.identifier().0);
-                if let Err(e) = migration.execute(new_ledger_db.clone(), &mut tables_to_drop) {
-                    error!(
-                        "Error executing migration {}\n: {:?}",
-                        migration.identifier().0,
-                        e
-                    );
-
-                    // Error happened on the temporary DB, therefore,
-                    // fail the node.
-                    return Err(e);
-                }
-            } else {
-                debug!(
-                    "Skip previously executed migration: {}",
-                    migration.identifier().0
+        info!("Executing pending migrations.");
+        for migration in unexecuted_migrations {
+            debug!("Running migration: {}", migration.identifier().0);
+            if let Err(e) = migration.execute(new_ledger_db.clone(), &mut tables_to_drop) {
+                error!(
+                    "Error executing migration {}\n: {:?}",
+                    migration.identifier().0,
+                    e
                 );
+
+                // Error happened on the temporary DB, therefore,
+                // fail the node.
+                return Err(e);
             }
         }
 
@@ -155,6 +165,7 @@ impl<'a> LedgerDBMigrator<'a> {
             tables_to_drop,
         )?;
 
+        info!("Migrations executed, restoring to original path");
         // Construct a backup path adjacent to original path
         let ledger_path = dbs_path.join(LEDGER_DB_PATH_SUFFIX);
         let temp_ledger_path = temp_db_path.path().join(LEDGER_DB_PATH_SUFFIX);
