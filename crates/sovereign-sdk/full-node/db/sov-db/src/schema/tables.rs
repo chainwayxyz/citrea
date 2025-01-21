@@ -74,6 +74,7 @@ pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
     PendingSequencerCommitmentL2Range::table_name(),
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
+    ProverLastScannedSlot::table_name(),
     CommitmentsByNumber::table_name(),
     MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
@@ -112,6 +113,7 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     ExecutedMigrations::table_name(),
     SlotByHash::table_name(),
     LightClientProofBySlotNumber::table_name(),
+    ProverLastScannedSlot::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
