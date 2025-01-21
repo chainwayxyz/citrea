@@ -18,7 +18,7 @@ use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::sync::broadcast;
 
 mod commitment;
@@ -34,7 +34,8 @@ mod utils;
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<C, Da, DB, RT>(
     sequencer_config: SequencerConfig,
-    init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
@@ -58,7 +59,6 @@ where
         sequencer_config.mempool_conf.clone(),
     )?);
     let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
-    let native_stf = StfBlueprint::new();
 
     let rpc_context = rpc::create_rpc_context(
         mempool.clone(),
@@ -73,9 +73,9 @@ where
     let seq = CitreaSequencer::new(
         da_service,
         sequencer_config,
+        init_params,
         native_stf,
         storage_manager,
-        init_variant,
         public_keys,
         ledger_db,
         db_provider,

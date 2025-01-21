@@ -20,15 +20,18 @@ use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
-use sov_modules_stf_blueprint::{GenesisParams as StfGenesisParams, Runtime as RuntimeTrait};
+use sov_modules_stf_blueprint::{
+    GenesisParams as StfGenesisParams, Runtime as RuntimeTrait, StfBlueprint,
+};
 use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::fork::ForkManager;
+use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::StorageRootHash;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage};
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::sync::broadcast;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 mod bitcoin;
 mod mock;
@@ -134,7 +137,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         sequencer_config: SequencerConfig,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
+        mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
@@ -145,10 +148,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        self.run_ledger_migrations(
-            &rollup_config,
-            citrea_sequencer::db_migrations::migrations(),
-        )?;
+        // self.run_ledger_migrations(
+        //     &rollup_config,
+        //     citrea_sequencer::db_migrations::migrations(),
+        // )?;
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -159,30 +162,19 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut fork_manager = ForkManager::new(get_forks(), current_l2_height.0);
         fork_manager.register_handler(Box::new(ledger_db.clone()));
 
-        let genesis_root = prover_storage.get_root_hash(1);
-        let init_variant = match ledger_db.get_head_soft_confirmation()? {
-            // At least one soft confirmation was processed
-            Some((number, soft_confirmation)) => {
-                info!("Initialize sequencer at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+        let native_stf = StfBlueprint::new();
+        let init_params = self.init_chain(
+            genesis_config,
+            &native_stf,
+            &ledger_db,
+            &mut storage_manager,
+            &prover_storage,
+        )?;
 
-                InitVariant::Initialized((
-                    prover_storage.get_root_hash(number.0 + 1)?,
-                    soft_confirmation.hash,
-                ))
-            }
-            None => {
-                info!("Initialize sequencer at genesis.");
-                match genesis_root {
-                    // Chain was initialized but no soft confirmations was processed
-                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                    // Not even initialized
-                    _ => InitVariant::Genesis(genesis_config),
-                }
-            }
-        };
         citrea_sequencer::build_services(
             sequencer_config,
-            init_variant,
+            init_params,
+            native_stf,
             rollup_config.public_keys,
             da_service,
             ledger_db,
@@ -203,7 +195,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
+        mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
@@ -225,33 +217,18 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         // Maybe whole "prev_root" can be initialized inside runner
         // Getting block here, so prover_service doesn't have to be `Send`
 
-        self.run_ledger_migrations(&rollup_config, citrea_fullnode::db_migrations::migrations())?;
+        // self.run_ledger_migrations(&rollup_config, citrea_fullnode::db_migrations::migrations())?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
-        let genesis_root = prover_storage.get_root_hash(1);
-        let head_sc = ledger_db.get_head_soft_confirmation()?;
-        let init_variant = match head_sc {
-            // At least one soft confirmation was processed
-            Some((number, soft_confirmation)) => {
-                let state_root = prover_storage.get_root_hash(number.0 + 1)?;
-                info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, state_root.as_ref(), soft_confirmation.hash);
-
-                InitVariant::Initialized((
-                    prover_storage.get_root_hash(number.0 + 1)?,
-                    soft_confirmation.hash,
-                ))
-            }
-            None => {
-                info!("Initialize node at genesis.");
-                match genesis_root {
-                    // Chain was initialized but no soft confirmations was processed
-                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                    // Not even initialized
-                    _ => InitVariant::Genesis(genesis_config),
-                }
-            }
-        };
+        let native_stf = StfBlueprint::new();
+        let init_params = self.init_chain(
+            genesis_config,
+            &native_stf,
+            &ledger_db,
+            &mut storage_manager,
+            &prover_storage,
+        )?;
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
@@ -266,7 +243,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         citrea_fullnode::build_services(
             runner_config,
-            init_variant,
+            init_params,
+            native_stf,
             rollup_config.public_keys,
             da_service,
             ledger_db,
@@ -288,7 +266,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         rollup_config: FullNodeConfig<Self::DaConfig>,
         da_service: Arc<<Self as RollupBlueprint>::DaService>,
         ledger_db: LedgerDB,
-        storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
+        mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
         rpc_module: RpcModule<()>,
@@ -308,10 +286,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        self.run_ledger_migrations(
-            &rollup_config,
-            citrea_batch_prover::db_migrations::migrations(),
-        )?;
+        // self.run_ledger_migrations(
+        //     &rollup_config,
+        //     citrea_batch_prover::db_migrations::migrations(),
+        // )?;
 
         // TODO: Double check what kind of storage needed here.
         // Maybe whole "prev_root" can be initialized inside runner
@@ -319,27 +297,14 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
-        let genesis_root = prover_storage.get_root_hash(1);
-        let init_variant = match ledger_db.get_head_soft_confirmation()? {
-            // At least one soft confirmation was processed
-            Some((number, soft_confirmation)) => {
-                info!("Initialize prover at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
-
-                InitVariant::Initialized((
-                    prover_storage.get_root_hash(number.0 + 1)?,
-                    soft_confirmation.hash,
-                ))
-            }
-            None => {
-                info!("Initialize prover at genesis.");
-                match genesis_root {
-                    // Chain was initialized but no soft confirmations was processed
-                    Ok(root_hash) => InitVariant::Initialized((root_hash, [0; 32])),
-                    // Not even initialized
-                    _ => InitVariant::Genesis(genesis_config),
-                }
-            }
-        };
+        let native_stf = StfBlueprint::new();
+        let init_params = self.init_chain(
+            genesis_config,
+            &native_stf,
+            &ledger_db,
+            &mut storage_manager,
+            &prover_storage,
+        )?;
 
         let current_l2_height = ledger_db
             .get_head_soft_confirmation_height()
@@ -364,7 +329,8 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         citrea_batch_prover::build_services(
             prover_config,
             runner_config,
-            init_variant,
+            init_params,
+            native_stf,
             rollup_config.public_keys,
             da_service,
             prover_service,
@@ -397,10 +363,10 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        self.run_ledger_migrations(
-            &rollup_config,
-            citrea_light_client_prover::db_migrations::migrations(),
-        )?;
+        // self.run_ledger_migrations(
+        //     &rollup_config,
+        //     citrea_light_client_prover::db_migrations::migrations(),
+        // )?;
 
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
@@ -452,5 +418,57 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let migrator = LedgerDBMigrator::new(rollup_config.storage.path.as_path(), migrations);
         migrator.migrate(rollup_config.storage.db_max_open_files)?;
         Ok(())
+    }
+
+    /// Initialize the chain from existing data, if any.
+    /// Otherwise, fallback to initialization from genesis
+    #[allow(clippy::type_complexity)]
+    fn init_chain(
+        &self,
+        genesis_config: GenesisParams<Self>,
+        stf: &StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+        ledger_db: &LedgerDB,
+        storage_manager: &mut ProverStorageManager<Self::DaSpec>,
+        prover_storage: &ProverStorage<SnapshotManager>,
+    ) -> anyhow::Result<
+        InitParams<
+            StfBlueprint<Self::NativeContext, Self::DaSpec, Self::NativeRuntime>,
+            Self::DaSpec,
+        >,
+    > {
+        let genesis_root = prover_storage.get_root_hash(1);
+        if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
+            // At least one soft confirmation was processed
+            info!("Initialize sequencer at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+
+            return Ok(InitParams {
+                state_root: prover_storage.get_root_hash(number.0 + 1)?,
+                batch_hash: soft_confirmation.hash,
+            });
+        }
+
+        if let Ok(state_root) = genesis_root {
+            // Chain was initialized but no soft confirmations was processed
+            debug!("Chain is already initialized. Skipping initialization.");
+            return Ok(InitParams {
+                state_root,
+                batch_hash: [0; 32],
+            });
+        }
+
+        info!("No history detected. Initializing chain...",);
+        let storage = storage_manager.create_storage_on_l2_height(0)?;
+        let (genesis_root, initialized_storage) = stf.init_chain(storage, genesis_config);
+        storage_manager.save_change_set_l2(0, initialized_storage)?;
+        storage_manager.finalize_l2(0)?;
+        ledger_db.set_l2_genesis_state_root(&genesis_root)?;
+        info!(
+            "Chain initialization is done. Genesis root: 0x{}",
+            hex::encode(genesis_root.as_ref()),
+        );
+        Ok(InitParams {
+            state_root: genesis_root,
+            batch_hash: [0; 32],
+        })
     }
 }

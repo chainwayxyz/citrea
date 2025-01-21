@@ -41,7 +41,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
@@ -107,9 +107,9 @@ where
     pub fn new(
         da_service: Arc<Da>,
         config: SequencerConfig,
+        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         stf: StfBlueprint<C, Da::Spec, RT>,
-        mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        storage_manager: ProverStorageManager<Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
         db_provider: DbProvider<C>,
@@ -119,26 +119,6 @@ where
         soft_confirmation_tx: broadcast::Sender<u64>,
         l2_force_block_rx: UnboundedReceiver<()>,
     ) -> anyhow::Result<Self> {
-        let (prev_state_root, prev_batch_hash) = match init_variant {
-            InitVariant::Initialized((state_root, batch_hash)) => {
-                debug!("Chain is already initialized. Skipping initialization.");
-                (state_root, batch_hash)
-            }
-            InitVariant::Genesis(params) => {
-                info!("No history detected. Initializing chain...",);
-                let storage = storage_manager.create_storage_on_l2_height(0)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set_l2(0, initialized_storage)?;
-                storage_manager.finalize_l2(0)?;
-                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
-                info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
-                );
-                (genesis_root, [0; 32])
-            }
-        };
-
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
         Ok(Self {
@@ -152,8 +132,8 @@ where
             stf,
             deposit_mempool,
             storage_manager,
-            state_root: prev_state_root,
-            batch_hash: prev_batch_hash,
+            state_root: init_params.state_root,
+            batch_hash: init_params.batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,

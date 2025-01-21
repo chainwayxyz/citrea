@@ -26,7 +26,7 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
@@ -79,35 +79,15 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
+        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        stf: StfBlueprint<C, Da::Spec, RT>,
         public_keys: RollupPublicKeys,
         da_service: Arc<Da>,
         ledger_db: DB,
-        stf: StfBlueprint<C, Da::Spec, RT>,
-        mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        storage_manager: ProverStorageManager<Da::Spec>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
     ) -> Result<Self, anyhow::Error> {
-        let (prev_state_root, prev_batch_hash) = match init_variant {
-            InitVariant::Initialized((state_root, batch_hash)) => {
-                info!("Chain is already initialized. Skipping initialization. State root: {}. Previous soft confirmation hash: {}", hex::encode(state_root.as_ref()), hex::encode(batch_hash));
-                (state_root, batch_hash)
-            }
-            InitVariant::Genesis(params) => {
-                info!("No history detected. Initializing chain...");
-                let storage = storage_manager.create_storage_on_l2_height(0)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set_l2(0, initialized_storage)?;
-                storage_manager.finalize_l2(0)?;
-                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
-                info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
-                );
-                (genesis_root, [0; 32])
-            }
-        };
-
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
@@ -118,8 +98,8 @@ where
             stf,
             storage_manager,
             ledger_db,
-            state_root: prev_state_root,
-            batch_hash: prev_batch_hash,
+            state_root: init_params.state_root,
+            batch_hash: init_params.batch_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,

@@ -19,7 +19,7 @@ use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, ProverService};
+use sov_stf_runner::{InitParams, ProverService};
 use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;
@@ -34,7 +34,8 @@ mod runner;
 pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
-    init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     prover_service: Arc<Ps>,
@@ -67,8 +68,6 @@ where
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshSerialize + BorshDeserialize,
 {
-    let native_stf = StfBlueprint::new();
-
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 
     let rpc_context = rpc::create_rpc_context::<C, Da, Ps, Vm, DB, RT>(
@@ -85,12 +84,12 @@ where
 
     let batch_prover = CitreaBatchProver::new(
         runner_config,
+        init_params,
+        native_stf,
         public_keys.clone(),
         da_service.clone(),
         ledger_db.clone(),
-        native_stf,
         storage_manager,
-        init_variant,
         fork_manager,
         soft_confirmation_tx,
     )?;

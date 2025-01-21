@@ -19,7 +19,7 @@ use sov_prover_storage_manager::{ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::sync::{broadcast, Mutex};
 
 pub mod da_block_handler;
@@ -30,7 +30,8 @@ mod runner;
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn build_services<Da, C, DB, RT, Vm, StateRoot>(
     runner_config: RunnerConfig,
-    init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+    native_stf: StfBlueprint<C, <Da as DaService>::Spec, RT>,
     public_keys: RollupPublicKeys,
     da_service: Arc<Da>,
     ledger_db: DB,
@@ -58,15 +59,14 @@ where
         + AsRef<[u8]>
         + Debug,
 {
-    let native_stf = StfBlueprint::new();
     let runner = CitreaFullnode::new(
         runner_config,
+        init_params,
+        native_stf,
         public_keys.clone(),
         da_service.clone(),
         ledger_db.clone(),
-        native_stf,
         storage_manager,
-        init_variant,
         fork_manager,
         soft_confirmation_tx,
     )?;
