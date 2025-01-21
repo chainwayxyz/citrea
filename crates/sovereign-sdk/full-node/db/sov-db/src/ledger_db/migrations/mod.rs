@@ -10,7 +10,6 @@ use super::migrations::utils::{drop_column_families, list_column_families};
 use super::LedgerDB;
 use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::LEDGER_TABLES;
 
 /// Utilities for ledger db migrations
 pub mod utils;
