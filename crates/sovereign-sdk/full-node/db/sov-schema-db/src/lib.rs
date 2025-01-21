@@ -369,10 +369,6 @@ impl DB {
 
     /// Create backup at directory specified by `backup_path`
     pub fn create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
-        tokio::task::block_in_place(|| self._create_backup(backup_path))
-    }
-
-    fn _create_backup(&self, backup_path: impl AsRef<Path>) -> anyhow::Result<()> {
         std::fs::create_dir_all(&backup_path)?;
 
         let backup_opts = rocksdb::backup::BackupEngineOptions::new(backup_path.as_ref())?;

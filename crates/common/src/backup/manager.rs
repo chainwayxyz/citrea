@@ -6,7 +6,6 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::traits::Backup;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::{info, warn};
 
@@ -37,7 +36,7 @@ pub struct BackupManager {
     /// Optional base path used for backups. Can be overridden via RPC
     base_path: Option<PathBuf>,
     /// Map of path to backupable database
-    databases: HashMap<String, Arc<dyn Backup>>,
+    databases: HashMap<String, Arc<sov_schema_db::DB>>,
     /// Lock to hold during l1 block processing
     l1_processing_lock: Mutex<()>,
     /// Lock to hold during l2 block processing
@@ -102,14 +101,9 @@ impl BackupManager {
         self.l2_processing_lock.lock().await
     }
 
-    /// Add a database to be backed up
-    pub fn add_database<DB: Backup + 'static>(
-        &mut self,
-        path: String,
-        db: DB,
-    ) -> anyhow::Result<()> {
+    pub fn add_database(&mut self, path: String, db: Arc<sov_schema_db::DB>) -> anyhow::Result<()> {
         ensure!(self.config.backup_dirs.contains(&path));
-        self.databases.insert(path, Arc::new(db));
+        self.databases.insert(path, db);
         Ok(())
     }
 
@@ -133,8 +127,8 @@ impl BackupManager {
             .or(self.base_path.as_ref())
             .context("Missing path and no backup_path found in config.")?;
 
-        let _l1_lock = self.l1_processing_lock.lock().await;
-        let _l2_lock = self.l2_processing_lock.lock().await;
+        let l1_lock = self.l1_processing_lock.lock().await;
+        let l2_lock = self.l2_processing_lock.lock().await;
 
         let start_time = Instant::now();
         info!("Starting database backup process...");
@@ -155,12 +149,12 @@ impl BackupManager {
                 .get(dir)
                 .context("Missing required db")?
                 .clone();
-            handles.push(tokio::task::spawn_blocking(move || db.backup(&path)));
+            handles.push(tokio::task::spawn_blocking(move || db.create_backup(&path)));
         }
 
         // Wait for all dbs to starting backing up under lock before releasing
-        drop(_l1_lock);
-        drop(_l2_lock);
+        drop(l1_lock);
+        drop(l2_lock);
 
         for handle in handles {
             handle.await??;

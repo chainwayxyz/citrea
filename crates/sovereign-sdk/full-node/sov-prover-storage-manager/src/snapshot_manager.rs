@@ -1,10 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::{btree_map, HashMap};
 use std::iter::{Peekable, Rev};
-use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use sov_db::traits::Backup;
 use sov_schema_db::schema::{KeyCodec, ValueCodec};
 use sov_schema_db::snapshot::{QueryManager, ReadOnlyDbSnapshot, SnapshotId};
 use sov_schema_db::{
@@ -17,7 +15,7 @@ use crate::snapshot_manager::DataLocation::Snapshot;
 /// down to DB level
 /// Managed externally by [`crate::ProverStorageManager`]
 pub struct SnapshotManager {
-    db: sov_schema_db::DB,
+    db: Arc<sov_schema_db::DB>,
     snapshots: HashMap<SnapshotId, ReadOnlyDbSnapshot>,
     /// Hierarchical
     to_parent: Arc<RwLock<HashMap<SnapshotId, SnapshotId>>>,
@@ -29,7 +27,7 @@ impl SnapshotManager {
         to_parent: Arc<RwLock<HashMap<SnapshotId, SnapshotId>>>,
     ) -> Self {
         Self {
-            db,
+            db: Arc::new(db),
             snapshots: HashMap::new(),
             to_parent,
         }
@@ -39,7 +37,7 @@ impl SnapshotManager {
     /// So it only reads from database.
     pub fn orphan(db: sov_schema_db::DB) -> Self {
         Self {
-            db,
+            db: Arc::new(db),
             snapshots: HashMap::new(),
             to_parent: Arc::new(RwLock::new(Default::default())),
         }
@@ -122,8 +120,8 @@ impl SnapshotManager {
         Ok(SnapshotManagerIter::new(db_iter, snapshot_iterators))
     }
 
-    pub fn db_ref(&self) -> &sov_schema_db::DB {
-        &self.db
+    pub fn get_db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
     }
 }
 
@@ -292,12 +290,6 @@ impl QueryManager for SnapshotManager {
         upper_bound: SchemaKey,
     ) -> anyhow::Result<Self::RangeIter<'_, S>> {
         self.iter_range::<S>(snapshot_id, upper_bound)
-    }
-}
-
-impl Backup for SnapshotManager {
-    fn backup(&self, backup_path: &Path) -> anyhow::Result<()> {
-        self.db.create_backup(backup_path)
     }
 }
 

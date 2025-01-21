@@ -26,7 +26,6 @@ use crate::schema::types::{
     StoredLightClientProof, StoredLightClientProofOutput, StoredSoftConfirmation,
     StoredTransaction, StoredVerifiedProof,
 };
-use crate::traits::Backup;
 
 /// Implementation of database migrator
 pub mod migrations;
@@ -129,8 +128,8 @@ impl LedgerDB {
     }
 
     /// Reference to underlying sov DB
-    pub fn db_ref(&self) -> &sov_schema_db::DB {
-        &self.db
+    pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
     }
 }
 
@@ -793,11 +792,5 @@ impl ForkMigration for LedgerDB {
     fn fork_activated(&self, _fork: &Fork) -> anyhow::Result<()> {
         // TODO: Implement later
         Ok(())
-    }
-}
-
-impl Backup for LedgerDB {
-    fn backup(&self, backup_path: &Path) -> anyhow::Result<()> {
-        self.db.create_backup(backup_path)
     }
 }

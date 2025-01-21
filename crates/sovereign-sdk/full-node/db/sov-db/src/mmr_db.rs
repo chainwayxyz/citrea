@@ -1,5 +1,4 @@
 #![allow(missing_docs)]
-use std::path::Path;
 use std::sync::Arc;
 
 use sov_rollup_interface::mmr::NodeStore;
@@ -8,7 +7,6 @@ use tracing::instrument;
 
 use crate::rocks_db_config::RocksdbConfig;
 use crate::schema::tables::{MMRChunks, MMRNodes, MMRTreeSize, MMR_TABLES};
-use crate::traits::Backup;
 
 #[derive(Clone, Debug)]
 pub struct MmrDB {
@@ -45,8 +43,8 @@ impl MmrDB {
     }
 
     /// Reference to underlying sov DB
-    pub fn db_ref(&self) -> &sov_schema_db::DB {
-        &self.db
+    pub fn db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.db.clone()
     }
 }
 
@@ -93,11 +91,5 @@ impl NodeStore for MmrDB {
         hash: sov_rollup_interface::mmr::MMRNodeHash,
     ) -> anyhow::Result<Option<sov_rollup_interface::mmr::MMRChunk>> {
         self.db.get::<MMRChunks>(&hash)
-    }
-}
-
-impl Backup for MmrDB {
-    fn backup(&self, backup_path: &Path) -> anyhow::Result<()> {
-        self.db.create_backup(backup_path)
     }
 }
