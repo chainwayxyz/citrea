@@ -184,7 +184,8 @@ fn test_sys_bitcoin_light_client() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -321,7 +322,8 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
                     0,
                     LogsContract::default(),
                 )],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -393,7 +395,8 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             evm.call(
                 CallMessage {
                     txs: rlp_transactions,
-                },
+                }
+                .into(),
                 &context,
                 &mut working_set,
             )
@@ -469,7 +472,8 @@ fn test_sys_tx_gas_usage_effect_on_block_gas_limit() {
             .call(
                 CallMessage {
                     txs: rlp_transactions,
-                },
+                }
+                .into(),
                 &context,
                 &mut working_set,
             )
@@ -657,7 +661,8 @@ fn test_upgrade_light_client() {
     evm.call(
         CallMessage {
             txs: vec![upgrade_tx],
-        },
+        }
+        .into(),
         &context,
         &mut working_set,
     )
@@ -781,7 +786,8 @@ fn test_change_upgrade_owner() {
     evm.call(
         CallMessage {
             txs: vec![change_owner_tx],
-        },
+        }
+        .into(),
         &context,
         &mut working_set,
     )
@@ -825,7 +831,8 @@ fn test_change_upgrade_owner() {
     evm.call(
         CallMessage {
             txs: vec![upgrade_tx],
-        },
+        }
+        .into(),
         &context,
         &mut working_set,
     )

@@ -105,7 +105,8 @@ fn log_filter_test_at_block_hash() {
         evm.call(
             CallMessage {
                 txs: rlp_transcations,
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -317,7 +318,8 @@ fn log_filter_test_with_range() {
         evm.call(
             CallMessage {
                 txs: rlp_transactions,
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -373,7 +375,8 @@ fn log_filter_test_with_range() {
                     3,
                     "message".to_string(),
                 )],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -466,7 +469,8 @@ fn test_log_limits() {
         evm.call(
             CallMessage {
                 txs: rlp_transactions,
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )

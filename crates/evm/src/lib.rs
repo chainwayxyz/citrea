@@ -182,7 +182,7 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
 
     type Config = EvmConfig;
 
-    type CallMessage = call::CallMessage;
+    type CallMessage = call::VersionedCallMessage;
 
     fn genesis(&self, config: &Self::Config, working_set: &mut WorkingSet<C::Storage>) {
         self.init_module(config, working_set)
@@ -194,7 +194,10 @@ impl<C: sov_modules_api::Context> sov_modules_api::Module for Evm<C> {
         context: &Self::Context,
         working_set: &mut WorkingSet<C::Storage>,
     ) -> Result<sov_modules_api::CallResponse, SoftConfirmationModuleCallError> {
-        self.execute_call(msg.txs, context, working_set)
+        match msg {
+            VersionedCallMessage::Kumquat(msg) => self.execute_call(msg.txs, context, working_set),
+            VersionedCallMessage::Fork2(msg) => self.execute_call2(msg.txs, context, working_set),
+        }
     }
 }
 

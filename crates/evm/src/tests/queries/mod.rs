@@ -99,7 +99,7 @@ fn init_evm() -> (
         ];
 
         evm.call(
-            CallMessage { txs: transactions },
+            CallMessage { txs: transactions }.into(),
             &context,
             &mut working_set,
         )
@@ -141,7 +141,7 @@ fn init_evm() -> (
         ];
 
         evm.call(
-            CallMessage { txs: transactions },
+            CallMessage { txs: transactions }.into(),
             &context,
             &mut working_set,
         )
@@ -181,7 +181,7 @@ fn init_evm() -> (
         ];
 
         evm.call(
-            CallMessage { txs: transactions },
+            CallMessage { txs: transactions }.into(),
             &context,
             &mut working_set,
         )
@@ -258,7 +258,8 @@ pub fn init_evm_single_block() -> (Evm<C>, WorkingSet<<C as Spec>::Storage>, Tes
     evm.call(
         CallMessage {
             txs: vec![simple_payable_contract_tx],
-        },
+        }
+        .into(),
         &context,
         &mut working_set,
     )
@@ -333,7 +334,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         ];
 
         evm.call(
-            CallMessage { txs: transactions },
+            CallMessage { txs: transactions }.into(),
             &context,
             &mut working_set,
         )
@@ -374,7 +375,7 @@ pub fn init_evm_with_caller_contract() -> (Evm<C>, WorkingSet<<C as Spec>::Stora
         )];
 
         evm.call(
-            CallMessage { txs: transactions },
+            CallMessage { txs: transactions }.into(),
             &context,
             &mut working_set,
         )

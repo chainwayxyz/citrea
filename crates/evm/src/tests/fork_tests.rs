@@ -114,7 +114,8 @@ fn test_cancun_transient_storage_activation() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -133,7 +134,7 @@ fn test_cancun_transient_storage_activation() {
             send_money_to_contract_message(contract_addr, &dev_signer, 1, 10000000000000000000);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -152,7 +153,7 @@ fn test_cancun_transient_storage_activation() {
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 2);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -192,7 +193,7 @@ fn test_cancun_transient_storage_activation() {
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 3);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -218,7 +219,7 @@ fn test_cancun_transient_storage_activation() {
             claim_gift_from_transient_storage_contract_transaction(contract_addr, &dev_signer, 4);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -268,7 +269,8 @@ fn test_cancun_mcopy_activation() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -286,7 +288,7 @@ fn test_cancun_mcopy_activation() {
         let call_tx = call_mcopy(contract_addr, &dev_signer, 1);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -325,7 +327,7 @@ fn test_cancun_mcopy_activation() {
         let call_tx = call_mcopy(contract_addr, &dev_signer, 2);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -397,7 +399,8 @@ fn test_self_destructing_constructor() {
         evm.call(
             CallMessage {
                 txs: rlp_transactions,
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -470,7 +473,8 @@ fn test_blob_base_fee_should_return_1() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -494,7 +498,7 @@ fn test_blob_base_fee_should_return_1() {
         let call_tx = store_blob_base_fee_transaction(contract_addr, &dev_signer, 1);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -532,7 +536,7 @@ fn test_blob_base_fee_should_return_1() {
         let call_tx = store_blob_base_fee_transaction(contract_addr, &dev_signer, 2);
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -591,7 +595,8 @@ fn test_kzg_point_eval_should_revert() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -641,7 +646,8 @@ fn test_kzg_point_eval_should_revert() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -714,7 +720,8 @@ fn test_offchain_contract_storage_evm() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -798,7 +805,8 @@ fn test_offchain_contract_storage_evm() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -845,7 +853,8 @@ fn test_offchain_contract_storage_evm() {
         evm.call(
             CallMessage {
                 txs: vec![call_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )

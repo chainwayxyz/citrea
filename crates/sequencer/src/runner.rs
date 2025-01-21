@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
-use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{Address, Bytes, TxHash};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
@@ -12,7 +12,7 @@ use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
-use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
+use citrea_evm::{CallMessage, CallMessage2, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
@@ -22,6 +22,7 @@ use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
 use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
+use reth_primitives::TransactionSigned;
 use reth_provider::{AccountReader, BlockReaderIdExt};
 use reth_transaction_pool::{
     BestTransactions, BestTransactionsAttributes, EthPooledTransaction, PoolTransaction,
@@ -309,9 +310,19 @@ where
                                     .encode_2718(&mut buf);
                                 let rlp_tx = RlpEvmTransaction { rlp: buf };
 
-                                let call_txs = CallMessage {
-                                    txs: vec![rlp_tx.clone()],
+                                let call_txs = if soft_confirmation_info.current_spec
+                                    >= sov_modules_api::SpecId::Fork2
+                                {
+                                    let tx = evm_tx.to_recovered_transaction().into_signed();
+
+                                    CallMessage2 { txs: vec![tx] }.into()
+                                } else {
+                                    CallMessage {
+                                        txs: vec![rlp_tx.clone()],
+                                    }
+                                    .into()
                                 };
+
                                 let raw_message = <Runtime<C, Da::Spec> as EncodeCall<
                                     citrea_evm::Evm<C>,
                                 >>::encode_call(
@@ -509,7 +520,15 @@ where
 
                 let evm_txs_count = txs_to_run.len();
                 if evm_txs_count > 0 {
-                    let call_txs = CallMessage { txs: txs_to_run };
+                    let call_txs = if active_fork_spec >= sov_modules_api::SpecId::Fork2 {
+                        let txs: Vec<_> = txs_to_run
+                            .into_iter()
+                            .map(|tx| TransactionSigned::decode_2718(&mut &*tx.rlp).unwrap())
+                            .collect();
+                        CallMessage2 { txs }.into()
+                    } else {
+                        CallMessage { txs: txs_to_run }.into()
+                    };
                     let raw_message =
                         <Runtime<C, Da::Spec> as EncodeCall<citrea_evm::Evm<C>>>::encode_call(
                             call_txs,

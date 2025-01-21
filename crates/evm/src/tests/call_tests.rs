@@ -93,7 +93,7 @@ fn call_multiple_test() {
         ];
 
         evm.call(
-            CallMessage { txs: transactions },
+            CallMessage { txs: transactions }.into(),
             &context,
             &mut working_set,
         )
@@ -258,7 +258,8 @@ fn call_test() {
 
         let call_message = CallMessage {
             txs: rlp_transactions,
-        };
+        }
+        .into();
 
         evm.call(call_message, &context, &mut working_set).unwrap();
     }
@@ -413,7 +414,8 @@ fn failed_transaction_test() {
 
         let call_message = CallMessage {
             txs: rlp_transactions,
-        };
+        }
+        .into();
 
         assert_eq!(
             evm.call(call_message, &context, working_set).unwrap_err(),
@@ -564,7 +566,8 @@ fn self_destruct_test() {
         evm.call(
             CallMessage {
                 txs: rlp_transactions,
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -624,7 +627,8 @@ fn self_destruct_test() {
                     3,
                     die_to_address,
                 )],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -688,7 +692,8 @@ fn self_destruct_test() {
         evm.call(
             CallMessage {
                 txs: rlp_transactions,
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -740,7 +745,8 @@ fn self_destruct_test() {
                     7,
                     die_to_address,
                 )],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -834,7 +840,8 @@ fn test_block_hash_in_evm() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -1007,7 +1014,8 @@ fn test_block_gas_limit() {
             evm.call(
                 CallMessage {
                     txs: rlp_transactions.clone(),
-                },
+                }
+                .into(),
                 &context,
                 &mut working_set,
             )
@@ -1071,7 +1079,8 @@ fn test_block_gas_limit() {
         let result = evm.call(
             CallMessage {
                 txs: rlp_transactions.clone(),
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         );
@@ -1219,7 +1228,8 @@ fn test_l1_fee_success() {
             evm.call(
                 CallMessage {
                     txs: vec![deploy_message],
-                },
+                }
+                .into(),
                 &context,
                 &mut working_set,
             )
@@ -1404,7 +1414,8 @@ fn test_l1_fee_not_enough_funds() {
         let call_result = evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         );
@@ -1548,7 +1559,8 @@ fn test_l1_fee_halt() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message, call_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -1724,7 +1736,7 @@ fn test_l1_fee_compression_discount() {
             .unwrap();
 
         evm.call(
-            CallMessage { txs: vec![call_tx] },
+            CallMessage { txs: vec![call_tx] }.into(),
             &context,
             &mut working_set,
         )
@@ -1797,7 +1809,8 @@ fn test_l1_fee_compression_discount() {
         evm.call(
             CallMessage {
                 txs: vec![simple_tx],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -1880,7 +1893,8 @@ fn test_call_with_block_overrides() {
         evm.call(
             CallMessage {
                 txs: vec![deploy_message],
-            },
+            }
+            .into(),
             &context,
             &mut working_set,
         )
@@ -2013,7 +2027,8 @@ fn test_blob_tx() {
             evm.call(
                 CallMessage {
                     txs: vec![blob_message],
-                },
+                }
+                .into(),
                 &context,
                 &mut working_set,
             )
