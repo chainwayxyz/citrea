@@ -148,11 +148,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // self.run_ledger_migrations(
-        //     &rollup_config,
-        //     citrea_sequencer::db_migrations::migrations(),
-        // )?;
-
         let current_l2_height = ledger_db
             .get_head_soft_confirmation()
             .map_err(|e| anyhow!("Failed to get head soft confirmation: {}", e))?
@@ -213,12 +208,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // TODO: Double check what kind of storage needed here.
-        // Maybe whole "prev_root" can be initialized inside runner
-        // Getting block here, so prover_service doesn't have to be `Send`
-
-        // self.run_ledger_migrations(&rollup_config, citrea_fullnode::db_migrations::migrations())?;
-
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let native_stf = StfBlueprint::new();
@@ -286,15 +275,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // self.run_ledger_migrations(
-        //     &rollup_config,
-        //     citrea_batch_prover::db_migrations::migrations(),
-        // )?;
-
-        // TODO: Double check what kind of storage needed here.
-        // Maybe whole "prev_root" can be initialized inside runner
-        // Getting block here, so prover_service doesn't have to be `Send`
-
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let native_stf = StfBlueprint::new();
@@ -363,11 +343,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
     {
-        // self.run_ledger_migrations(
-        //     &rollup_config,
-        //     citrea_light_client_prover::db_migrations::migrations(),
-        // )?;
-
         let runner_config = rollup_config.runner.expect("Runner config is missing");
 
         let current_l2_height = ledger_db

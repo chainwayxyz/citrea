@@ -67,6 +67,17 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
+    let migrations = if sequencer_config.is_some() {
+        citrea_sequencer::db_migrations::migrations()
+    } else if rollup_prover_config.is_some() {
+        citrea_batch_prover::db_migrations::migrations()
+    } else if light_client_prover_config.is_some() {
+        citrea_light_client_prover::db_migrations::migrations()
+    } else {
+        citrea_fullnode::db_migrations::migrations()
+    };
+    mock_demo_rollup.run_ledger_migrations(&rollup_config, migrations)?;
+
     let genesis_config = mock_demo_rollup
         .create_genesis_config(&runtime_genesis_paths, &rollup_config)
         .expect("Should be able to create genesis config");

@@ -128,6 +128,16 @@ where
 
     let rollup_blueprint = S::new(network);
 
+    /// Based on the node's type, execute migrations before constructing an instance of LedgerDB
+    /// so that avoid locking the DB.
+    let migrations = match node_type {
+        NodeType::Sequencer(_) => citrea_sequencer::db_migrations::migrations(),
+        NodeType::FullNode => citrea_fullnode::db_migrations::migrations(),
+        NodeType::BatchProver(_) => citrea_batch_prover::db_migrations::migrations(),
+        NodeType::LightClientProver(_) => citrea_light_client_prover::db_migrations::migrations(),
+    };
+    rollup_blueprint.run_ledger_migrations(&rollup_config, migrations)?;
+
     let genesis_config =
         rollup_blueprint.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
