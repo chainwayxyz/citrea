@@ -246,7 +246,7 @@ pub async fn start_rollup(
             .await
             .expect("Failed to fetch starting L1 height");
 
-        let (mut rollup, l1_block_handler, rpc_module) = CitreaRollupBlueprint::create_full_node(
+        let (mut rollup, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
@@ -255,7 +255,6 @@ pub async fn start_rollup(
             storage_manager,
             prover_storage,
             soft_confirmation_channel.0,
-            rpc_module,
         )
         .instrument(span.clone())
         .await

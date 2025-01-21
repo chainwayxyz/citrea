@@ -283,20 +283,18 @@ where
         _ => {
             let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db).await?;
 
-            let (mut full_node, l1_block_handler, rpc_module) =
-                CitreaRollupBlueprint::create_full_node(
-                    &rollup_blueprint,
-                    genesis_config,
-                    rollup_config.clone(),
-                    da_service,
-                    ledger_db,
-                    storage_manager,
-                    prover_storage,
-                    soft_confirmation_channel.0,
-                    rpc_module,
-                )
-                .await
-                .expect("Could not start full-node");
+            let (mut full_node, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
+                &rollup_blueprint,
+                genesis_config,
+                rollup_config.clone(),
+                da_service,
+                ledger_db,
+                storage_manager,
+                prover_storage,
+                soft_confirmation_channel.0,
+            )
+            .await
+            .expect("Could not start full-node");
 
             start_rpc_server(
                 rollup_config.rpc.clone(),

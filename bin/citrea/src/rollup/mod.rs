@@ -193,7 +193,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         mut storage_manager: ProverStorageManager<<Self as RollupBlueprint>::DaSpec>,
         prover_storage: ProverStorage<SnapshotManager>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        rpc_module: RpcModule<()>,
     ) -> Result<(
         CitreaFullnode<Self::DaService, Self::NativeContext, LedgerDB, Self::NativeRuntime>,
         FullNodeL1BlockHandler<
@@ -203,7 +202,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             StorageRootHash,
             LedgerDB,
         >,
-        RpcModule<()>,
     )>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
@@ -241,7 +239,6 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             soft_confirmation_tx,
             fork_manager,
             code_commitments,
-            rpc_module,
         )
     }
 

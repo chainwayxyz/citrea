@@ -7,7 +7,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{RollupPublicKeys, RunnerConfig};
 use da_block_handler::L1BlockHandler;
-use jsonrpsee::RpcModule;
 pub use runner::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -39,11 +38,9 @@ pub fn build_services<Da, C, DB, RT, Vm, StateRoot>(
     soft_confirmation_tx: broadcast::Sender<u64>,
     fork_manager: ForkManager<'static>,
     code_commitments: HashMap<SpecId, <Vm as Zkvm>::CodeCommitment>,
-    rpc_module: RpcModule<()>,
 ) -> Result<(
     CitreaFullnode<Da, C, DB, RT>,
     L1BlockHandler<C, Vm, Da, StateRoot, DB>,
-    RpcModule<()>,
 )>
 where
     Da: DaService<Error = anyhow::Error>,
@@ -81,5 +78,5 @@ where
         Arc::new(Mutex::new(L1BlockCache::new())),
     );
 
-    Ok((runner, l1_block_handler, rpc_module))
+    Ok((runner, l1_block_handler))
 }
