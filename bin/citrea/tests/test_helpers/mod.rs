@@ -185,7 +185,7 @@ pub async fn start_rollup(
             rollup_config.rpc.clone(),
             &mut task_manager,
             rpc_module,
-            None,
+            Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
@@ -227,7 +227,7 @@ pub async fn start_rollup(
             rollup_config.rpc.clone(),
             &mut task_manager,
             rpc_module,
-            None,
+            Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
@@ -265,7 +265,7 @@ pub async fn start_rollup(
             rollup_config.rpc.clone(),
             &mut task_manager,
             rpc_module,
-            None,
+            Some(rpc_reporting_channel),
         );
 
         let handler_span = span.clone();
