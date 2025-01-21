@@ -61,8 +61,6 @@ impl<'a> LedgerDBMigrator<'a> {
             return Ok(());
         }
 
-        info!("Checking for pending LedgerDB migrations...");
-
         let dbs_path = &self.ledger_path;
 
         if !dbs_path.join(LEDGER_DB_PATH_SUFFIX).exists() {
@@ -78,8 +76,13 @@ impl<'a> LedgerDBMigrator<'a> {
                     "Should mark migrations as executed, otherwise, something is seriously wrong",
                 );
             }
+
+            info!("Creating ledger DB for the first time, no migrations to run.");
+
             return Ok(());
         }
+
+        info!("Checking for pending LedgerDB migrations...");
 
         let column_families_in_db = list_column_families(self.ledger_path);
 
