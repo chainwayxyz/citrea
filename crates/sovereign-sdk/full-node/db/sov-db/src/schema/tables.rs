@@ -116,6 +116,7 @@ pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
     SlotByHash::table_name(),
     LightClientProofBySlotNumber::table_name(),
     ProverLastScannedSlot::table_name(),
+    SoftConfirmationByNumber::table_name(),
     #[cfg(test)]
     TestTableOld::table_name(),
     #[cfg(test)]
