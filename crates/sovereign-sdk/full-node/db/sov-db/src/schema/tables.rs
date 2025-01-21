@@ -53,6 +53,8 @@ pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
     LastSequencerCommitmentSent::table_name(),
     SoftConfirmationStatus::table_name(),
     CommitmentsByNumber::table_name(),
+    VerifiedBatchProofsBySlotNumber::table_name(),
+    ProverLastScannedSlot::table_name(),
     MempoolTxs::table_name(),
     LastPrunedBlock::table_name(),
     #[cfg(test)]
