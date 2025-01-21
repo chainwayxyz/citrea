@@ -76,7 +76,9 @@ pub async fn start_rollup(
     } else {
         citrea_fullnode::db_migrations::migrations()
     };
-    mock_demo_rollup.run_ledger_migrations(&rollup_config, migrations)?;
+    mock_demo_rollup
+        .run_ledger_migrations(&rollup_config, migrations)
+        .expect("Migrations should have executed successfully");
 
     let genesis_config = mock_demo_rollup
         .create_genesis_config(&runtime_genesis_paths, &rollup_config)

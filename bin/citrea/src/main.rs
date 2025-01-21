@@ -128,8 +128,8 @@ where
 
     let rollup_blueprint = S::new(network);
 
-    /// Based on the node's type, execute migrations before constructing an instance of LedgerDB
-    /// so that avoid locking the DB.
+    // Based on the node's type, execute migrations before constructing an instance of LedgerDB
+    // so that avoid locking the DB.
     let migrations = match node_type {
         NodeType::Sequencer(_) => citrea_sequencer::db_migrations::migrations(),
         NodeType::FullNode => citrea_fullnode::db_migrations::migrations(),
