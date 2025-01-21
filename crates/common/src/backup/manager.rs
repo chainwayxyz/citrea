@@ -101,7 +101,11 @@ impl BackupManager {
         self.l2_processing_lock.lock().await
     }
 
-    pub fn add_database(&mut self, path: String, db: Arc<sov_schema_db::DB>) -> anyhow::Result<()> {
+    pub fn register_database(
+        &mut self,
+        path: String,
+        db: Arc<sov_schema_db::DB>,
+    ) -> anyhow::Result<()> {
         ensure!(self.config.backup_dirs.contains(&path));
         self.databases.insert(path, db);
         Ok(())
