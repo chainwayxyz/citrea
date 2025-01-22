@@ -241,7 +241,6 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-
         let (mut rollup, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
