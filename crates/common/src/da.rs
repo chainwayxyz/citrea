@@ -33,7 +33,7 @@ pub async fn sync_l1<Da>(
 
     let start = Instant::now();
 
-    'block_sync: loop {
+    loop {
         let last_finalized_l1_block_header =
             match da_service.get_last_finalized_block_header().await {
                 Ok(header) => header,
@@ -55,21 +55,26 @@ pub async fn sync_l1<Da>(
                     Err(e) => {
                         error!("Could not fetch last finalized L1 block: {}", e);
                         sleep(Duration::from_secs(2)).await;
-                        continue 'block_sync;
+                        // In case of a failure in fetching the L1 block, trigger the retry loop.
+                        break;
                     }
                 };
 
             if block_number > last_scanned_l1_height {
+                if let Err(e) = sender.send(l1_block).await {
+                    error!("Could not notify about L1 block: {}", e);
+                    // We should not continue with the internal loop since we were not
+                    // able to notify about the L1 block
+                    break;
+                }
+                // If the send above does not succeed, we don't set new values
+                // nor do we record any metrics.
                 last_scanned_l1_height = block_number;
                 l1_block_scan_histogram.record(
                     Instant::now()
                         .saturating_duration_since(start)
                         .as_secs_f64(),
                 );
-                if let Err(e) = sender.send(l1_block).await {
-                    error!("Could not notify about L1 block: {}", e);
-                    continue 'block_sync;
-                }
             }
         }
 
