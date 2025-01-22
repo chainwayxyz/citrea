@@ -253,6 +253,12 @@ impl DB {
         Ok(())
     }
 
+    /// Deletes a key from a column family.
+    pub fn delete_cf(&self, cf_handle: &rocksdb::ColumnFamily, key: &[u8]) -> anyhow::Result<()> {
+        self.inner.delete_cf(cf_handle, key)?;
+        Ok(())
+    }
+
     /// Returns an iterator over a column family
     pub fn iter_cf<'a>(
         &'a self,

@@ -82,6 +82,15 @@ impl LedgerDB {
         self.db.put_cf(cf_handle, key, value)
     }
 
+    /// Deletes a key-value pair from a column family given key and column family.
+    pub fn delete_from_cf_raw(
+        &self,
+        cf_handle: &rocksdb::ColumnFamily,
+        key: &[u8],
+    ) -> anyhow::Result<()> {
+        self.db.delete_cf(cf_handle, key)
+    }
+
     /// Get an iterator for the given column family
     pub fn get_iterator_for_cf<'a>(
         &'a self,

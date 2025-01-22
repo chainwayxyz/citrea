@@ -387,7 +387,7 @@ define_table_with_default_codec!(
     (ProofsBySlotNumberV2) SlotNumber => Vec<StoredBatchProof>
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedBatchProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
 );
