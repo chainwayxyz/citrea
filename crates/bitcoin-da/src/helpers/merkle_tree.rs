@@ -114,6 +114,7 @@ mod tests {
     use bitcoin::hashes::Hash;
 
     use super::*;
+    use crate::helpers::calculate_wtxid;
     use crate::helpers::parsers::parse_hex_transaction;
 
     #[test]
@@ -149,7 +150,7 @@ mod tests {
             .unwrap()
             .lines()
             .map(|tx_hex| parse_hex_transaction(tx_hex).unwrap())
-            .map(|tx| tx.compute_wtxid().to_byte_array())
+            .map(|tx| calculate_wtxid(&tx))
             .collect::<Vec<_>>();
         compare_merkle_tree_against_bitcoin_impl(txs);
     }

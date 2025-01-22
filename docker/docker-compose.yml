@@ -1,6 +1,6 @@
 services:  
   citrea-bitcoin-testnet4:
-    image: bitcoin/bitcoin:28.0rc1
+    image: bitcoin/bitcoin:28.0
     container_name: bitcoin-testnet4
     ports:
       - "18443:18443"
@@ -52,6 +52,7 @@ services:
       - SYNC_BLOCKS_COUNT=10
       - RUST_LOG=info
       - JSON_LOGS=1
+      - RISC0_DEV_MODE=1
     ports:
       - "8080:8080"
     volumes:
