@@ -160,10 +160,6 @@ pub async fn start_rollup(
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
-        let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
-            .await
-            .expect("Failed to fetch start L1 height");
-
         let (mut prover, l1_block_handler, rpc_module) =
             CitreaRollupBlueprint::create_batch_prover(
                 &mock_demo_rollup,
@@ -171,7 +167,7 @@ pub async fn start_rollup(
                 genesis_config,
                 rollup_config.clone(),
                 da_service,
-                ledger_db,
+                ledger_db.clone(),
                 storage_manager,
                 prover_storage,
                 soft_confirmation_channel.0,
@@ -190,6 +186,9 @@ pub async fn start_rollup(
 
         let handler_span = span.clone();
         task_manager.spawn(|cancellation_token| async move {
+            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
+                .await
+                .expect("Failed to fetch start L1 height");
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
                 .instrument(handler_span.clone())
@@ -242,16 +241,13 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
-            .await
-            .expect("Failed to fetch starting L1 height");
 
         let (mut rollup, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
             da_service,
-            ledger_db,
+            ledger_db.clone(),
             storage_manager,
             prover_storage,
             soft_confirmation_channel.0,
@@ -269,6 +265,9 @@ pub async fn start_rollup(
 
         let handler_span = span.clone();
         task_manager.spawn(|cancellation_token| async move {
+            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
+                .await
+                .expect("Failed to fetch starting L1 height");
             l1_block_handler
                 .run(start_l1_height, cancellation_token)
                 .instrument(handler_span.clone())
