@@ -96,7 +96,7 @@ async fn start_rollup<S, DaC>(
     node_type: NodeType,
 ) -> Result<(), anyhow::Error>
 where
-    DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv,
+    DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
 {
@@ -207,8 +207,6 @@ where
             }
         }
         NodeType::BatchProver(batch_prover_config) => {
-            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db).await?;
-
             let (mut prover, l1_block_handler, rpc_module) =
                 CitreaRollupBlueprint::create_batch_prover(
                     &rollup_blueprint,
@@ -216,7 +214,7 @@ where
                     genesis_config,
                     rollup_config.clone(),
                     da_service,
-                    ledger_db,
+                    ledger_db.clone(),
                     storage_manager,
                     prover_storage,
                     soft_confirmation_channel.0,
@@ -233,6 +231,10 @@ where
             );
 
             task_manager.spawn(|cancellation_token| async move {
+                let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
+                else {
+                    return;
+                };
                 l1_block_handler
                     .run(start_l1_height, cancellation_token)
                     .await
@@ -281,14 +283,12 @@ where
             }
         }
         _ => {
-            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db).await?;
-
             let (mut full_node, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
                 &rollup_blueprint,
                 genesis_config,
                 rollup_config.clone(),
                 da_service,
-                ledger_db,
+                ledger_db.clone(),
                 storage_manager,
                 prover_storage,
                 soft_confirmation_channel.0,
@@ -304,6 +304,10 @@ where
             );
 
             task_manager.spawn(|cancellation_token| async move {
+                let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
+                else {
+                    return;
+                };
                 l1_block_handler
                     .run(start_l1_height, cancellation_token)
                     .await
