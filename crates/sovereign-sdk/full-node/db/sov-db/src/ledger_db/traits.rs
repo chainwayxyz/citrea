@@ -41,9 +41,6 @@ pub trait SharedLedgerOps {
         l2_height: SoftConfirmationNumber,
     ) -> Result<()>;
 
-    /// Gets l1 height of l1 hash
-    fn get_state_diff(&self) -> Result<StateDiff>;
-
     /// Sets l1 height of l1 hash
     fn set_l1_height_of_l1_hash(&self, hash: [u8; 32], height: u64) -> Result<()>;
 
@@ -233,6 +230,9 @@ pub trait SequencerLedgerOps: SharedLedgerOps {
 
     /// Delete a pending commitment l2 range
     fn delete_pending_commitment_l2_range(&self, l2_range: &L2HeightRange) -> Result<()>;
+
+    /// Gets the latest state diff
+    fn get_state_diff(&self) -> Result<StateDiff>;
 
     /// Sets the latest state diff
     fn set_state_diff(&self, state_diff: &StateDiff) -> Result<()>;
