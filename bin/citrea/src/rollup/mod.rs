@@ -384,11 +384,12 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     fn run_ledger_migrations(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
+        tables: Vec<String>,
         migrations: Migrations,
     ) -> anyhow::Result<()> {
         // Migrate before constructing ledger_db instance so that no lock is present.
         let migrator = LedgerDBMigrator::new(rollup_config.storage.path.as_path(), migrations);
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+        migrator.migrate(rollup_config.storage.db_max_open_files, tables)?;
         Ok(())
     }
 

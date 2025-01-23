@@ -7,7 +7,7 @@ use super::migrations::{LedgerDBMigrator, LedgerMigration, MigrationName, Migrat
 use super::LedgerDB;
 use crate::ledger_db::{SharedLedgerOps, TestLedgerOps};
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::TestTableOld;
+use crate::schema::tables::{TestTableOld, LEDGER_TABLES};
 
 pub fn successful_migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>> {
     static MIGRATIONS: OnceLock<Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>> =
@@ -77,7 +77,12 @@ fn test_successful_migrations() {
 
     // Run migrations
     let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), successful_migrations());
-    assert!(matches!(ledger_db_migrator.migrate(None), Ok(())));
+    let ledger_tables = LEDGER_TABLES.iter().map(|x| x.to_string()).collect();
+
+    assert!(matches!(
+        ledger_db_migrator.migrate(None, ledger_tables),
+        Ok(())
+    ));
 
     // This instance is post-migrations DB.
     let ledger_db =
@@ -121,7 +126,8 @@ fn test_failed_migrations() {
 
     // Run migrations
     let ledger_db_migrator = LedgerDBMigrator::new(ledger_db_path.path(), failed_migrations());
-    assert!(ledger_db_migrator.migrate(None).is_err());
+    let ledger_tables = LEDGER_TABLES.iter().map(|x| x.to_string()).collect();
+    assert!(ledger_db_migrator.migrate(None, ledger_tables).is_err());
 
     let ledger_db =
         LedgerDB::with_config(&RocksdbConfig::new(ledger_db_path.path(), None, None)).unwrap();

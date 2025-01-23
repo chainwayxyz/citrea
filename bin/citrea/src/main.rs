@@ -17,6 +17,10 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::MetricKindMask;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::{
+    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+    SEQUENCER_LEDGER_TABLES,
+};
 use sov_mock_da::MockDaConfig;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -130,13 +134,37 @@ where
 
     // Based on the node's type, execute migrations before constructing an instance of LedgerDB
     // so that avoid locking the DB.
-    let migrations = match node_type {
-        NodeType::Sequencer(_) => citrea_sequencer::db_migrations::migrations(),
-        NodeType::FullNode => citrea_fullnode::db_migrations::migrations(),
-        NodeType::BatchProver(_) => citrea_batch_prover::db_migrations::migrations(),
-        NodeType::LightClientProver(_) => citrea_light_client_prover::db_migrations::migrations(),
+    let (tables, migrations) = match node_type {
+        NodeType::Sequencer(_) => (
+            SEQUENCER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_sequencer::db_migrations::migrations(),
+        ),
+        NodeType::FullNode => (
+            FULL_NODE_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_fullnode::db_migrations::migrations(),
+        ),
+        NodeType::BatchProver(_) => (
+            BATCH_PROVER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_batch_prover::db_migrations::migrations(),
+        ),
+        NodeType::LightClientProver(_) => (
+            LIGHT_CLIENT_PROVER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_light_client_prover::db_migrations::migrations(),
+        ),
     };
-    rollup_blueprint.run_ledger_migrations(&rollup_config, migrations)?;
+    rollup_blueprint.run_ledger_migrations(&rollup_config, tables.clone(), migrations)?;
 
     let genesis_config =
         rollup_blueprint.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
@@ -145,7 +173,7 @@ where
     let rocksdb_config = RocksdbConfig::new(
         rocksdb_path.as_path(),
         rollup_config.storage.db_max_open_files,
-        None,
+        Some(tables),
     );
 
     let Storage {

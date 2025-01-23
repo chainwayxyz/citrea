@@ -13,6 +13,7 @@ use reth_primitives::BlockNumberOrTag;
 use sov_db::ledger_db::migrations::copy_db_dir_recursive;
 use sov_db::ledger_db::{LedgerDB, SequencerLedgerOps};
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::SEQUENCER_LEDGER_TABLES;
 use sov_mock_da::{MockAddress, MockDaService};
 use tokio::time::sleep;
 
@@ -246,9 +247,18 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         &sequencer_db_dir,
         &storage_dir.path().join("sequencer_unlocked"),
     );
+
+    let sequencer_tables = SEQUENCER_LEDGER_TABLES
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>();
     let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
-    let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(sequencer_db_dir.as_path(), None, None)).unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+        sequencer_db_dir.as_path(),
+        None,
+        Some(sequencer_tables.clone()),
+    ))
+    .unwrap();
     let txs = ledger_db.get_mempool_txs().unwrap();
     assert_eq!(txs.len(), 2);
     assert_eq!(txs[1].0, tx_hash.to_vec());
@@ -333,8 +343,12 @@ async fn test_sequencer_crash_restore_mempool() -> Result<(), anyhow::Error> {
         &storage_dir.path().join("sequencer_unlocked"),
     );
     let sequencer_db_dir = storage_dir.path().join("sequencer_unlocked").to_path_buf();
-    let ledger_db =
-        LedgerDB::with_config(&RocksdbConfig::new(sequencer_db_dir.as_path(), None, None)).unwrap();
+    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+        sequencer_db_dir.as_path(),
+        None,
+        Some(sequencer_tables),
+    ))
+    .unwrap();
     let txs = ledger_db.get_mempool_txs().unwrap();
     // should be removed from db
     assert_eq!(txs.len(), 0);
