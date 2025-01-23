@@ -28,6 +28,18 @@ const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array
 
 const FORKS: &[Fork] = &NIGHTLY_FORKS;
 
+fn get_forks() -> &'static [Fork] {
+    #[cfg(feature = "testing")]
+    {
+        let all_forks_flag: u32 = risc0_zkvm::guest::env::read();
+        println!("All forks: {all_forks_flag}");
+        if all_forks_flag == 1 {
+            return &citrea_primitives::forks::ALL_FORKS;
+        }
+    }
+    FORKS
+}
+
 pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
@@ -42,7 +54,7 @@ pub fn main() {
             storage,
             &SEQUENCER_PUBLIC_KEY,
             &SEQUENCER_DA_PUBLIC_KEY,
-            FORKS,
+            get_forks(),
         )
         .expect("Prover must be honest");
 
