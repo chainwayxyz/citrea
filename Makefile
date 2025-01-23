@@ -69,7 +69,7 @@ install-dev-tools:  ## Installs all necessary cargo helpers
 
 install-risc0:
 	cargo install --version 1.7.0 cargo-binstall
-	cargo binstall --no-confirm cargo-risczero@1.2.0
+	cargo binstall --no-confirm cargo-risczero@1.2.1
 	cargo risczero install --version r0.1.81.0
 
 install-sp1: ## Install necessary SP1 toolchain
