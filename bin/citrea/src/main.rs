@@ -233,6 +233,7 @@ where
             task_manager.spawn(|cancellation_token| async move {
                 let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
                 else {
+                    error!("Failed to start prover L1 block handler due to start l1 height not present");
                     return;
                 };
                 l1_block_handler
@@ -306,6 +307,7 @@ where
             task_manager.spawn(|cancellation_token| async move {
                 let Ok(start_l1_height) = get_start_l1_height(&rollup_config, &ledger_db).await
                 else {
+                    error!("Failed to start fullnode L1 block handler due to start l1 height not present");
                     return;
                 };
                 l1_block_handler
