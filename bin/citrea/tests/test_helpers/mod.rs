@@ -81,7 +81,7 @@ pub async fn start_rollup(
         )
     } else if rollup_prover_config.is_some() {
         (
-            FULL_NODE_LEDGER_TABLES
+            BATCH_PROVER_LEDGER_TABLES
                 .iter()
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
@@ -89,7 +89,7 @@ pub async fn start_rollup(
         )
     } else if light_client_prover_config.is_some() {
         (
-            BATCH_PROVER_LEDGER_TABLES
+            LIGHT_CLIENT_PROVER_LEDGER_TABLES
                 .iter()
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
@@ -97,7 +97,7 @@ pub async fn start_rollup(
         )
     } else {
         (
-            LIGHT_CLIENT_PROVER_LEDGER_TABLES
+            FULL_NODE_LEDGER_TABLES
                 .iter()
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
