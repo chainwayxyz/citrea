@@ -16,6 +16,10 @@ use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::{
+    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+    SEQUENCER_LEDGER_TABLES,
+};
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -67,17 +71,41 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
-    let migrations = if sequencer_config.is_some() {
-        citrea_sequencer::db_migrations::migrations()
+    let (tables, migrations) = if sequencer_config.is_some() {
+        (
+            SEQUENCER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_sequencer::db_migrations::migrations(),
+        )
     } else if rollup_prover_config.is_some() {
-        citrea_batch_prover::db_migrations::migrations()
+        (
+            FULL_NODE_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_batch_prover::db_migrations::migrations(),
+        )
     } else if light_client_prover_config.is_some() {
-        citrea_light_client_prover::db_migrations::migrations()
+        (
+            BATCH_PROVER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_light_client_prover::db_migrations::migrations(),
+        )
     } else {
-        citrea_fullnode::db_migrations::migrations()
+        (
+            LIGHT_CLIENT_PROVER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_fullnode::db_migrations::migrations(),
+        )
     };
     mock_demo_rollup
-        .run_ledger_migrations(&rollup_config, migrations)
+        .run_ledger_migrations(&rollup_config, tables.clone(), migrations)
         .expect("Migrations should have executed successfully");
 
     let genesis_config = mock_demo_rollup
@@ -88,7 +116,7 @@ pub async fn start_rollup(
     let rocksdb_config = RocksdbConfig::new(
         rocksdb_path.as_path(),
         rollup_config.storage.db_max_open_files,
-        None,
+        Some(tables),
     );
     let Storage {
         ledger_db,
