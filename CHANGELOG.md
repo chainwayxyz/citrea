@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.6.1 (2025-1-21)
+- Fix LedgerDB migration process ([#1730](https://github.com/chainwayxyz/citrea/pull/1730)) 
+
 ## v0.6.0 (2025-1-20)
 Citrea Kumquat upgrade will go live on testnet at block 5546000, activating many new features:
 - EVM Cancun support.
