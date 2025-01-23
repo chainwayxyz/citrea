@@ -149,6 +149,7 @@ where
             input,
             assumptions,
             elf,
+            is_post_genesis_batch,
         }: ProofData,
     ) -> Proof {
         let mut vm = self.vm.clone();
@@ -161,7 +162,8 @@ where
 
         let (tx, rx) = oneshot::channel();
         self.thread_pool.spawn(move || {
-            let proof = make_proof(vm, elf, proof_mode).expect("Proof creation must not fail");
+            let proof = make_proof(vm, elf, proof_mode, is_post_genesis_batch)
+                .expect("Proof creation must not fail");
             let _ = tx.send(proof);
         });
 
@@ -236,17 +238,18 @@ fn make_proof<Vm>(
     mut vm: Vm,
     elf: Vec<u8>,
     proof_mode: ProofGenMode,
+    is_post_genesis_batch: bool,
 ) -> Result<Proof, anyhow::Error>
 where
     Vm: ZkvmHost,
 {
     match proof_mode {
         ProofGenMode::Skip => Ok(Vec::default()),
-        ProofGenMode::Execute => vm.run(elf, false),
+        ProofGenMode::Execute => vm.run(elf, false, is_post_genesis_batch),
         ProofGenMode::ProveWithSampling => {
             // `make_proof` is called with a probability in this case.
             // When it's called, we have to produce a real proof.
-            vm.run(elf, true)
+            vm.run(elf, true, is_post_genesis_batch)
         }
         ProofGenMode::ProveWithSamplingWithFakeProofs(proof_sampling_number) => {
             // `make_proof` is called unconditionally in this case.
@@ -254,7 +257,7 @@ where
             //  and produce a real proof if we are lucky. If unlucky - produce a fake proof.
             let with_prove = proof_sampling_number == 0
                 || rand::thread_rng().gen_range(0..proof_sampling_number) == 0;
-            vm.run(elf, with_prove)
+            vm.run(elf, with_prove, is_post_genesis_batch)
         }
     }
 }
