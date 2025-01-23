@@ -14,6 +14,10 @@ use sov_db::ledger_db::migrations::LedgerDBMigrator;
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::mmr_db::MmrDB;
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::{
+    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+    SEQUENCER_LEDGER_TABLES,
+};
 use sov_db::schema::types::SoftConfirmationNumber;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -66,12 +70,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.storage.path.as_path(),
             citrea_sequencer::db_migrations::migrations(),
         );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+
+        let sequencer_tables = SEQUENCER_LEDGER_TABLES
+            .iter()
+            .map(|table| table.to_string())
+            .collect::<Vec<_>>();
+
+        migrator.migrate(
+            rollup_config.storage.db_max_open_files,
+            sequencer_tables.clone(),
+        )?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
-            None,
+            Some(sequencer_tables),
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
         let genesis_config = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
@@ -188,12 +201,20 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             citrea_fullnode::db_migrations::migrations(),
         );
 
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+        let full_node_tables = FULL_NODE_LEDGER_TABLES
+            .iter()
+            .map(|table| table.to_string())
+            .collect::<Vec<_>>();
+
+        migrator.migrate(
+            rollup_config.storage.db_max_open_files,
+            full_node_tables.clone(),
+        )?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
-            None,
+            Some(full_node_tables),
         );
 
         let ledger_db = self.create_ledger_db(&rocksdb_config);
@@ -315,12 +336,21 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.storage.path.as_path(),
             citrea_batch_prover::db_migrations::migrations(),
         );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+
+        let batch_prover_tables = BATCH_PROVER_LEDGER_TABLES
+            .iter()
+            .map(|table| table.to_string())
+            .collect::<Vec<_>>();
+
+        migrator.migrate(
+            rollup_config.storage.db_max_open_files,
+            batch_prover_tables.clone(),
+        )?;
 
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
-            None,
+            Some(batch_prover_tables),
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
 
@@ -437,7 +467,16 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             rollup_config.storage.path.as_path(),
             citrea_light_client_prover::db_migrations::migrations(),
         );
-        migrator.migrate(rollup_config.storage.db_max_open_files)?;
+
+        let light_client_prover_tables = LIGHT_CLIENT_PROVER_LEDGER_TABLES
+            .iter()
+            .map(|table| table.to_string())
+            .collect::<Vec<_>>();
+
+        migrator.migrate(
+            rollup_config.storage.db_max_open_files,
+            light_client_prover_tables.clone(),
+        )?;
 
         let mut task_manager = TaskManager::default();
         let da_service = self
@@ -447,7 +486,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let rocksdb_config = RocksdbConfig::new(
             rollup_config.storage.path.as_path(),
             rollup_config.storage.db_max_open_files,
-            None,
+            Some(light_client_prover_tables),
         );
         let ledger_db = self.create_ledger_db(&rocksdb_config);
         let mmr_db = MmrDB::new(&rocksdb_config)?;

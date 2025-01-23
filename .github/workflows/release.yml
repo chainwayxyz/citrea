@@ -157,17 +157,29 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Linux image
+      - name: Build Linux image
         uses: docker/build-push-action@v5
         env:
-          DOCKERHUB_REPOSITORY: citrea-fullnode
+          DOCKERHUB_REPOSITORY: citrea-full-node
           IMAGE_TAG: testnet
         with:
           context: docker/build-push/testnet/
           file: docker/build-push/testnet/Dockerfile
           platforms: linux/amd64
-          push: true
-          load: false
+          push: false
+          load: true
           provenance: false
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+      - name: Tag  and push image to Dockerhub
+        env:
+          DOCKERHUB_REPOSITORY: citrea-full-node
+          GENERAL_IMAGE_TAG: testnet
+          VERSION_IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          docker tag ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }} ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
+          
+          docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.VERSION_IMAGE_TAG }}
+          docker push ${{ vars.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.GENERAL_IMAGE_TAG }}
+

@@ -10,7 +10,6 @@ use super::migrations::utils::{drop_column_families, list_column_families};
 use super::LedgerDB;
 use crate::ledger_db::{SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::LEDGER_TABLES;
 
 /// Utilities for ledger db migrations
 pub mod utils;
@@ -56,7 +55,11 @@ impl<'a> LedgerDBMigrator<'a> {
     }
 
     /// Run migrations
-    pub fn migrate(&self, max_open_files: Option<i32>) -> anyhow::Result<()> {
+    pub fn migrate(
+        &self,
+        max_open_files: Option<i32>,
+        node_column_families: Vec<String>,
+    ) -> anyhow::Result<()> {
         if self.migrations.is_empty() {
             return Ok(());
         }
@@ -66,8 +69,11 @@ impl<'a> LedgerDBMigrator<'a> {
         if !dbs_path.join(LEDGER_DB_PATH_SUFFIX).exists() {
             // If this is the first time the ledger db is being created, then we don't need to run migrations
             // all migrations up to this point are considered successful
-            let ledger_db =
-                LedgerDB::with_config(&RocksdbConfig::new(self.ledger_path, max_open_files, None))?;
+            let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+                self.ledger_path,
+                max_open_files,
+                Some(node_column_families),
+            ))?;
 
             for migration in self.migrations.iter() {
                 ledger_db
@@ -86,7 +92,8 @@ impl<'a> LedgerDBMigrator<'a> {
 
         let column_families_in_db = list_column_families(self.ledger_path);
 
-        let all_column_families = merge_column_families(column_families_in_db);
+        let all_column_families =
+            merge_column_families(column_families_in_db, node_column_families);
 
         let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
             self.ledger_path,
@@ -221,10 +228,13 @@ pub fn copy_db_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn merge_column_families(column_families_in_db: Vec<String>) -> Vec<String> {
-    let column_families: HashSet<String> = LEDGER_TABLES
+fn merge_column_families(
+    column_families_in_db: Vec<String>,
+    node_column_families: Vec<String>,
+) -> Vec<String> {
+    let column_families: HashSet<String> = node_column_families
         .iter()
-        .map(|&table_name| table_name.to_string())
+        .map(|table_name| table_name.to_string())
         .chain(column_families_in_db)
         .collect();
     column_families.into_iter().collect()

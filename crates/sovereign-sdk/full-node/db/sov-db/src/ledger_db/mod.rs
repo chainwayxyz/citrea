@@ -82,6 +82,15 @@ impl LedgerDB {
         self.db.put_cf(cf_handle, key, value)
     }
 
+    /// Deletes a key-value pair from a column family given key and column family.
+    pub fn delete_from_cf_raw(
+        &self,
+        cf_handle: &rocksdb::ColumnFamily,
+        key: &[u8],
+    ) -> anyhow::Result<()> {
+        self.db.delete_cf(cf_handle, key)
+    }
+
     /// Get an iterator for the given column family
     pub fn get_iterator_for_cf<'a>(
         &'a self,
@@ -218,14 +227,6 @@ impl SharedLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
-    }
-
-    /// Gets l1 height of l1 hash
-    #[instrument(level = "trace", skip(self), err, ret)]
-    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
-        self.db
-            .get::<LastStateDiff>(&())
-            .map(|diff| diff.unwrap_or_default())
     }
 
     /// Sets l1 height of l1 hash
@@ -670,6 +671,14 @@ impl SequencerLedgerOps for LedgerDB {
         self.db.write_schemas(schema_batch)?;
 
         Ok(())
+    }
+
+    /// Gets the latest state diff
+    #[instrument(level = "trace", skip(self), err, ret)]
+    fn get_state_diff(&self) -> Result<StateDiff, anyhow::Error> {
+        self.db
+            .get::<LastStateDiff>(&())
+            .map(|diff| diff.unwrap_or_default())
     }
 
     /// Get the most recent commitment's l1 height

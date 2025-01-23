@@ -40,6 +40,89 @@ pub const STATE_TABLES: &[&str] = &[
     JmtNodes::table_name(),
 ];
 
+/// A list of all tables used by Sequencer LedgerDB
+pub const SEQUENCER_LEDGER_TABLES: &[&str] = &[
+    ExecutedMigrations::table_name(),
+    SlotByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    SoftConfirmationByHash::table_name(),
+    L2RangeByL1Height::table_name(),
+    L2GenesisStateRoot::table_name(),
+    LastStateDiff::table_name(),
+    PendingSequencerCommitmentL2Range::table_name(),
+    LastSequencerCommitmentSent::table_name(),
+    SoftConfirmationStatus::table_name(),
+    CommitmentsByNumber::table_name(),
+    VerifiedBatchProofsBySlotNumber::table_name(),
+    ProverLastScannedSlot::table_name(),
+    MempoolTxs::table_name(),
+    LastPrunedBlock::table_name(),
+    #[cfg(test)]
+    TestTableOld::table_name(),
+    #[cfg(test)]
+    TestTableNew::table_name(),
+];
+
+/// A list of all tables used by FullNode LedgerDB
+/// Also includes tables of Sequencer LedgerDB so that it can be used as a sequencer if needed
+pub const FULL_NODE_LEDGER_TABLES: &[&str] = &[
+    ExecutedMigrations::table_name(),
+    SlotByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    SoftConfirmationByHash::table_name(),
+    L2RangeByL1Height::table_name(),
+    L2GenesisStateRoot::table_name(),
+    LastStateDiff::table_name(),
+    PendingSequencerCommitmentL2Range::table_name(),
+    LastSequencerCommitmentSent::table_name(),
+    SoftConfirmationStatus::table_name(),
+    ProverLastScannedSlot::table_name(),
+    CommitmentsByNumber::table_name(),
+    MempoolTxs::table_name(),
+    LastPrunedBlock::table_name(),
+    VerifiedBatchProofsBySlotNumber::table_name(),
+    #[cfg(test)]
+    TestTableOld::table_name(),
+    #[cfg(test)]
+    TestTableNew::table_name(),
+];
+
+/// A list of all tables used by BatchProver LedgerDB
+pub const BATCH_PROVER_LEDGER_TABLES: &[&str] = &[
+    ExecutedMigrations::table_name(),
+    SlotByHash::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    SoftConfirmationByHash::table_name(),
+    L2RangeByL1Height::table_name(),
+    L2Witness::table_name(),
+    L2GenesisStateRoot::table_name(),
+    ProverLastScannedSlot::table_name(),
+    SoftConfirmationStatus::table_name(),
+    CommitmentsByNumber::table_name(),
+    ProofsBySlotNumber::table_name(),
+    ProofsBySlotNumberV2::table_name(),
+    PendingProvingSessions::table_name(),
+    ProverStateDiffs::table_name(),
+    LastPrunedBlock::table_name(),
+    #[cfg(test)]
+    TestTableOld::table_name(),
+    #[cfg(test)]
+    TestTableNew::table_name(),
+];
+
+/// A list of all tables used by LightClientProver LedgerDB
+pub const LIGHT_CLIENT_PROVER_LEDGER_TABLES: &[&str] = &[
+    ExecutedMigrations::table_name(),
+    SlotByHash::table_name(),
+    LightClientProofBySlotNumber::table_name(),
+    ProverLastScannedSlot::table_name(),
+    SoftConfirmationByNumber::table_name(),
+    #[cfg(test)]
+    TestTableOld::table_name(),
+    #[cfg(test)]
+    TestTableNew::table_name(),
+];
+
 /// A list of all tables used by the LedgerDB. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[&str] = &[
@@ -304,7 +387,7 @@ define_table_with_default_codec!(
     (ProofsBySlotNumberV2) SlotNumber => Vec<StoredBatchProof>
 );
 
-define_table_with_default_codec!(
+define_table_with_seek_key_codec!(
     /// Proof data on L1 slot verified by full node
     (VerifiedBatchProofsBySlotNumber) SlotNumber => Vec<StoredVerifiedProof>
 );
