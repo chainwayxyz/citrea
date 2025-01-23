@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     };
     initialize_logging(logging_level);
 
-    let client = node_type_from_args(&args)?;
+    let node_type = node_type_from_args(&args)?;
 
     let mut network = args.network.into();
     if args.dev {
@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
                 network,
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
-                client,
+                node_type,
             )
             .await?;
         }
@@ -76,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
                 network,
                 &GenesisPaths::from_dir(&args.genesis_paths),
                 args.rollup_config_path,
-                client,
+                node_type,
             )
             .await?;
         }
