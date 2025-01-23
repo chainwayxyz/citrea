@@ -75,7 +75,9 @@ const FORKS: &[Fork] = match NETWORK {
 fn get_forks() -> &'static [Fork] {
     #[cfg(feature = "testing")]
     {
-        if std::env::var("ALL_FORKS") == Ok(String::from("1")) {
+        let all_forks_flag: u32 = risc0_zkvm::guest::env::read();
+        println!("All forks: {all_forks_flag}");
+        if all_forks_flag == 1 {
             return &ALL_FORKS;
         }
     }

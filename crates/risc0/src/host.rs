@@ -112,7 +112,13 @@ impl ZkvmHost for Risc0BonsaiHost {
 
     /// Only with_proof = true is supported.
     /// Proofs are created on the Bonsai API.
-    fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error> {
+    fn run(
+        &mut self,
+        elf: Vec<u8>,
+        with_proof: bool,
+        // TODO: remove this when risc0 fixes its env.env_var bug
+        _is_post_genesis_batch: bool,
+    ) -> Result<Proof, anyhow::Error> {
         if !with_proof {
             if std::env::var("RISC0_PROVER") == Ok("bonsai".to_string()) {
                 panic!("Bonsai prover requires with_proof to be true");
@@ -130,8 +136,15 @@ impl ZkvmHost for Risc0BonsaiHost {
 
         #[cfg(feature = "testing")]
         {
-            if self.network == Network::TestNetworkWithForks {
-                env.env_var("ALL_FORKS", "1");
+            if _is_post_genesis_batch {
+                let all_forks_flag = if self.network == Network::TestNetworkWithForks {
+                    1u32
+                } else {
+                    0u32
+                };
+
+                env.write(&all_forks_flag)
+                    .expect("Writing testing all forks flag should not fail");
             }
         }
 
