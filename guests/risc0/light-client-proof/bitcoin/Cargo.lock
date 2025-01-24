@@ -1829,9 +1829,8 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.29.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9465315bc9d4566e1724f0fffcbcc446268cb522e60f9a27bcded6b19c108113"
+version = "0.29.0"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
 dependencies = [
  "bitcoin_hashes",
  "rand",
@@ -1841,9 +1840,8 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4387882333d3aa8cb20530a17c69a3752e97837832f34f6dccc760e715001d9"
+version = "0.10.0"
+source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
 dependencies = [
  "cc",
 ]
@@ -2437,8 +2435,3 @@ dependencies = [
 name = "k256"
 version = "0.13.4"
 source = "git+https://github.com/risc0/RustCrypto-elliptic-curves?tag=k256/v0.13.4-risczero.1#7d4a8d6477e258ce4169ee4669cf92aee0582c39"
-
-[[patch.unused]]
-name = "secp256k1"
-version = "0.29.0"
-source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?branch=risc0-compatible-0-29-0#3769ab9b2227d430ca2c58546daf3680017cfefb"
