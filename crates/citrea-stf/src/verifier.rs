@@ -53,7 +53,7 @@ where
             final_state_root,
             state_diff,
             last_l2_height,
-            last_soft_confirmation_hash,
+            final_soft_confirmation_hash,
         } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
@@ -64,9 +64,7 @@ where
                 pre_state,
                 data.da_data,
                 data.sequencer_commitments_range,
-                // data.state_transition_witnesses,
                 data.da_block_headers_of_soft_confirmations,
-                // data.soft_confirmations,
                 data.preproven_commitments.clone(),
                 forks,
             );
@@ -76,7 +74,7 @@ where
         let out = BatchProofCircuitOutput {
             initial_state_root: data.initial_state_root,
             final_state_root,
-            final_soft_confirmation_hash: last_soft_confirmation_hash,
+            final_soft_confirmation_hash,
             state_diff,
             prev_soft_confirmation_hash: data.prev_soft_confirmation_hash,
             da_slot_hash: data.da_block_header_of_commitments.hash(),

@@ -511,9 +511,7 @@ where
 
         for (sequencer_commitment, da_block_headers) in sequencer_commitments_iter
             .skip(sequencer_commitments_range.0 as usize)
-            .take(
-                sequencer_commitments_range.1 as usize - sequencer_commitments_range.0 as usize + 1,
-            )
+            .take(group_count as usize)
             .zip_eq(slot_headers)
         {
             // if the commitment is not sequential, then the proof is invalid.
@@ -667,7 +665,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
-            last_soft_confirmation_hash: previous_batch_hash.unwrap(),
+            final_soft_confirmation_hash: previous_batch_hash.unwrap(),
         }
     }
 }

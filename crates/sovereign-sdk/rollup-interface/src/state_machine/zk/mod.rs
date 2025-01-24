@@ -258,7 +258,7 @@ pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec, Tx: Clon
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned")]
-/// Data required to verify a state transition.
+/// First part of the Kumquat elf input
 pub struct BatchProofCircuitInputV2Part1<StateRoot, Da: DaSpec> {
     /// The state root before the state transition
     pub initial_state_root: StateRoot,
@@ -310,12 +310,13 @@ where
         {
             assert_eq!(confirmations.len(), witnesses.len());
 
-            let mut v = Vec::with_capacity(confirmations.len());
-            for (confirmation, (state_witness, offchain_witness)) in
-                confirmations.into_iter().zip(witnesses)
-            {
-                v.push((confirmation, state_witness, offchain_witness));
-            }
+            let v: Vec<_> = confirmations
+                .into_iter()
+                .zip(witnesses)
+                .map(|(confirmation, (state_witness, offchain_witness))| {
+                    (confirmation, state_witness, offchain_witness)
+                })
+                .collect();
 
             x.push_back(v);
         }
@@ -339,7 +340,9 @@ where
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
-/// todo doc
+/// Second part of the Kumquat elf input
+/// This is going to be read per-need basis to not go out of memory
+/// in the zkvm
 pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone>(
     VecDeque<Vec<(SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>,
 );

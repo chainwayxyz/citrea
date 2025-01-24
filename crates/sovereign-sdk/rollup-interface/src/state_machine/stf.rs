@@ -56,7 +56,7 @@ pub struct ApplySequencerCommitmentsOutput<StateRoot> {
     /// Last processed L2 block height
     pub last_l2_height: u64,
     /// Last soft confirmation hash
-    pub last_soft_confirmation_hash: [u8; 32],
+    pub final_soft_confirmation_hash: [u8; 32],
 }
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
