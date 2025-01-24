@@ -7,7 +7,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{U128, U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ pub enum SoftConfirmationIdentifier {
 #[serde(transparent, rename_all = "camelCase")]
 pub struct HexTx {
     /// Transaction hash bytes
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub tx: Vec<u8>,
 }
 
@@ -49,41 +49,41 @@ impl From<Vec<u8>> for HexTx {
 #[serde(rename_all = "camelCase")]
 pub struct SoftConfirmationResponse {
     /// The L2 height of the soft confirmation.
-    pub l2_height: u64,
+    pub l2_height: U64,
     /// The DA height of the soft confirmation.
-    pub da_slot_height: u64,
+    pub da_slot_height: U64,
     /// The DA slothash of the soft confirmation.
     // TODO: find a way to hex serialize this and then
     // deserialize in `SequencerClient`
-    #[serde(with = "hex::serde")]
+    #[serde(with = "hex::serde")] // without 0x prefix
     pub da_slot_hash: [u8; 32],
-    #[serde(with = "hex::serde")]
+    #[serde(with = "hex::serde")] // without 0x prefix
     /// The DA slot transactions commitment of the soft confirmation.
     pub da_slot_txs_commitment: [u8; 32],
     /// The hash of the soft confirmation.
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub hash: [u8; 32],
     /// The hash of the previous soft confirmation.
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub prev_hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
     /// State root of the soft confirmation.
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub state_root: Vec<u8>,
     /// Signature of the batch
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub soft_confirmation_signature: Vec<u8>,
     /// Public key of the signer
-    #[serde(with = "hex::serde")]
+    #[serde(with = "hex::serde")] // without 0x prefix ??
     pub pub_key: Vec<u8>,
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
     /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: u128,
+    pub l1_fee_rate: U128,
     /// Sequencer's block timestamp.
-    pub timestamp: u64,
+    pub timestamp: U64,
 }
 
 impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for SignedSoftConfirmation<'txs, Tx>
@@ -102,13 +102,13 @@ where
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
         let res = SignedSoftConfirmation::new(
-            val.l2_height,
+            val.l2_height.to(),
             val.hash,
             val.prev_hash,
-            val.da_slot_height,
+            val.da_slot_height.to(),
             val.da_slot_hash,
             val.da_slot_txs_commitment,
-            val.l1_fee_rate,
+            val.l1_fee_rate.to(),
             val.txs
                 .unwrap_or_default()
                 .into_iter()
@@ -118,7 +118,7 @@ where
             val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
             val.soft_confirmation_signature,
             val.pub_key,
-            val.timestamp,
+            val.timestamp.to(),
         );
         Ok(res)
     }
@@ -128,15 +128,15 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentResponse {
-    /// L1 block hash the commitment was on
-    pub found_in_l1: u64,
+    /// L1 block height the commitment was on
+    pub found_in_l1: U64,
     /// Hex encoded Merkle root of soft confirmation hashes
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub merkle_root: [u8; 32],
     /// Hex encoded Start L2 block's number
-    pub l2_start_block_number: u64,
+    pub l2_start_block_number: U64,
     /// Hex encoded End L2 block's number
-    pub l2_end_block_number: u64,
+    pub l2_end_block_number: U64,
 }
 
 /// Latest da state to verify and apply da block changes
@@ -145,12 +145,12 @@ pub struct SequencerCommitmentResponse {
 pub struct LatestDaStateRpcResponse {
     /// Proved DA block's header hash
     /// This is used to compare the previous DA block hash with first batch proof's DA block hash
-    #[serde(with = "hex::serde")]
+    #[serde(with = "hex::serde")] // without 0x prefix
     pub block_hash: [u8; 32],
     /// Height of the blockchain
     pub block_height: U64,
     /// Total work done in the DA blockchain
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub total_work: [u8; 32],
     /// Current target bits of DA
     pub current_target_bits: U32,
@@ -166,15 +166,9 @@ pub struct LatestDaStateRpcResponse {
 pub struct BatchProofMethodIdRpcResponse {
     /// Activation height
     pub height: U64,
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     /// Method id
     pub method_id: Digest,
-}
-impl BatchProofMethodIdRpcResponse {
-    /// Create a new instance from height and method id
-    pub fn new(height: U64, method_id: Digest) -> Self {
-        Self { height, method_id }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -182,10 +176,10 @@ impl BatchProofMethodIdRpcResponse {
 /// Hex serializable BatchProofInfo
 pub struct BatchProofInfoRpcResponse {
     /// Initial state root of the batch proof
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub initial_state_root: [u8; 32],
     /// Final state root of the batch proof
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub final_state_root: [u8; 32],
     /// The last processed l2 height in the batch proof
     pub last_l2_height: U64,
@@ -194,7 +188,7 @@ pub struct BatchProofInfoRpcResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 /// Hex serializable Root
-pub struct Root(#[serde(with = "hex::serde")] [u8; 32]);
+pub struct Root(#[serde(with = "utils::rpc_hex")] [u8; 32]);
 
 /// Hex serializable MMRGuest
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -230,11 +224,11 @@ impl From<BatchProofInfo> for BatchProofInfoRpcResponse {
 #[serde(rename_all = "camelCase")]
 pub struct LightClientProofOutputRpcResponse {
     /// State root of the node after the light client proof
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub light_client_proof_method_id: Digest,
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
@@ -255,7 +249,7 @@ pub struct LightClientProofOutputRpcResponse {
 /// The response to a JSON-RPC request for a light client proof
 pub struct LightClientProofResponse {
     /// The proof
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub proof: ProofRpcResponse,
     /// The output of the light client proof circuit
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
@@ -266,9 +260,10 @@ pub struct LightClientProofResponse {
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofResponse {
     /// l1 tx id of
-    #[serde(with = "hex::serde")]
+    #[serde(with = "hex::serde")] // without 0x prefix
     pub l1_tx_id: [u8; 32],
     /// Proof
+    #[serde(with = "utils::rpc_hex")]
     pub proof: ProofRpcResponse,
     /// State transition
     pub proof_output: BatchProofOutputRpcResponse,
@@ -291,7 +286,7 @@ pub struct LastVerifiedBatchProofResponse {
     /// Proof data
     pub proof: VerifiedBatchProofResponse,
     /// L1 height of the proof
-    pub height: u64,
+    pub height: U64,
 }
 
 /// The ZK proof generated by the [`ZkvmHost::run`] method to be served by rpc.
@@ -302,16 +297,16 @@ pub type ProofRpcResponse = Vec<u8>;
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup before the transition
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub initial_state_root: Vec<u8>,
     /// The state of the rollup after the transition
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub final_state_root: Vec<u8>,
     /// The hash of the last soft confirmation before the state transition
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub prev_soft_confirmation_hash: [u8; 32],
     /// The hash of the last soft confirmation in the state transition
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub final_soft_confirmation_hash: [u8; 32],
     /// State diff of L2 blocks in the processed sequencer commitments.
     #[serde(
@@ -320,21 +315,21 @@ pub struct BatchProofOutputRpcResponse {
     )]
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub da_slot_hash: [u8; 32],
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
-    pub sequencer_commitments_range: (u32, u32),
+    pub sequencer_commitments_range: (U32, U32),
     /// Sequencer public key.
-    #[serde(with = "hex::serde")]
+    #[serde(with = "utils::rpc_hex")]
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
-    #[serde(with = "hex::serde")]
+    #[serde(with = "hex::serde")] // without 0x prefix
     pub sequencer_da_public_key: Vec<u8>,
     /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
     pub preproven_commitments: Vec<usize>,
     /// The last processed l2 height in the processed sequencer commitments.
-    pub last_l2_height: u64,
+    pub last_l2_height: U64,
 }
 
 /// Custom serialization for BTreeMap
@@ -403,10 +398,10 @@ pub fn sequencer_commitment_to_response(
     l1_height: u64,
 ) -> SequencerCommitmentResponse {
     SequencerCommitmentResponse {
-        found_in_l1: l1_height,
+        found_in_l1: U64::from(l1_height),
         merkle_root: commitment.merkle_root,
-        l2_start_block_number: commitment.l2_start_block_number,
-        l2_end_block_number: commitment.l2_end_block_number,
+        l2_start_block_number: U64::from(commitment.l2_start_block_number),
+        l2_end_block_number: U64::from(commitment.l2_end_block_number),
     }
 }
 
@@ -415,7 +410,7 @@ pub fn sequencer_commitment_to_response(
 #[serde(untagged, rename_all = "camelCase")]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
-    Hash(#[serde(with = "hex::serde")] [u8; 32]),
+    Hash(#[serde(with = "utils::rpc_hex")] [u8; 32]),
     /// The full item body.
     Full(T),
 }

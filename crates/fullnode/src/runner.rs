@@ -230,7 +230,7 @@ where
 
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
-            soft_confirmation.da_slot_height,
+            soft_confirmation.da_slot_height.to(),
             self.l1_block_cache.clone(),
         )
         .await?;
@@ -532,7 +532,7 @@ async fn sync_l2(
 async fn get_initial_slot_height(client: &HttpClient) -> u64 {
     loop {
         match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(soft_confirmation)) => return soft_confirmation.da_slot_height,
+            Ok(Some(soft_confirmation)) => return soft_confirmation.da_slot_height.to(),
             _ => {
                 // sleep 1
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;

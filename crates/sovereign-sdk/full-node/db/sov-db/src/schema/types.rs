@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use alloy_primitives::{U32, U64};
+use alloy_primitives::{U32, U64, U128};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
@@ -130,7 +130,10 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
                 .batch_proof_method_ids
                 .into_iter()
                 .map(|(height, method_id)| {
-                    BatchProofMethodIdRpcResponse::new(U64::from(height), method_id.into())
+                    BatchProofMethodIdRpcResponse {
+                        height: U64::from(height), 
+                        method_id: method_id.into()
+                    }
                 })
                 .collect(),
             mmr_guest: value.mmr_guest.into(),
@@ -278,11 +281,11 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             da_slot_hash: value.da_slot_hash,
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
-            sequencer_commitments_range: value.sequencer_commitments_range,
+            sequencer_commitments_range: (U32::from(value.sequencer_commitments_range.0), U32::from(value.sequencer_commitments_range.1)),
             preproven_commitments: value.preproven_commitments,
             prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
             final_soft_confirmation_hash: value.final_soft_confirmation_hash,
-            last_l2_height: value.last_l2_height,
+            last_l2_height: U64::from(value.last_l2_height),
         }
     }
 }
@@ -361,8 +364,8 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     fn try_from(value: StoredSoftConfirmation) -> Result<Self, Self::Error> {
         Ok(Self {
             da_slot_hash: value.da_slot_hash,
-            l2_height: value.l2_height,
-            da_slot_height: value.da_slot_height,
+            l2_height: U64::from(value.l2_height),
+            da_slot_height: U64::from(value.da_slot_height),
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
             prev_hash: value.prev_hash,
@@ -381,8 +384,8 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
                 .into_iter()
                 .map(|tx_vec| HexTx { tx: tx_vec })
                 .collect(),
-            l1_fee_rate: value.l1_fee_rate,
-            timestamp: value.timestamp,
+            l1_fee_rate: U128::from(value.l1_fee_rate),
+            timestamp: U64::from(value.timestamp),
         })
     }
 }
