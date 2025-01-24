@@ -730,8 +730,8 @@ dependencies = [
  "futures",
  "hex",
  "itertools 0.13.0",
+ "k256",
  "rand",
- "secp256k1",
  "serde",
  "serde_json",
  "sha2",
@@ -1943,6 +1943,7 @@ dependencies = [
  "once_cell",
  "risc0-bigint2",
  "sha2",
+ "signature",
 ]
 
 [[package]]

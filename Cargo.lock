@@ -1303,6 +1303,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bitcoin",
+ "bitcoin-da",
  "bitcoincore-rpc",
  "borsh",
  "citrea-common",
@@ -1313,6 +1314,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "jsonrpsee",
+ "k256",
  "metrics",
  "pin-project",
  "rand",
@@ -4179,6 +4181,7 @@ dependencies = [
  "elliptic-curve",
  "once_cell",
  "sha2",
+ "signature",
 ]
 
 [[package]]
