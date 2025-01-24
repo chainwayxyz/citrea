@@ -22,7 +22,7 @@ const L2_GENESIS_ROOT: [u8; 32] = {
     let hex_root = match NETWORK {
         Network::Mainnet => "0000000000000000000000000000000000000000000000000000000000000000",
         Network::Testnet => "30137f8bc0844bbbe0a324c17cb3a1920b086c6f8a2e11999f77299455c33079",
-        Network::Devnet => "c6584931466a25793f7f4d6d512d0ce53af4067d3ac61af20df968f5835d3743",
+        Network::Devnet => "774cfc6982d0fbcbbe888ef0be395e67aac8eb1ed123021ae5380562f1d94281",
         Network::Nightly | Network::TestNetworkWithForks => match option_env!("L2_GENESIS_ROOT") {
             Some(hex_root) => hex_root,
             None => "dacb59b0ff5d16985a8418235133eee37758a3ac1b76ab6d1f87c6df20e4d4da",
@@ -71,7 +71,7 @@ const INITIAL_BATCH_PROOF_METHOD_IDS: &[(u64, [u32; 8])] = {
             (
                 1921835,
                 decode_to_u32_array(
-                    "b44b5a78d60714131e02829fe5f7575cbaff7586d6d4a7346bd495ea41ccb481",
+                    "9b21ddb0ebdc9af16fe9fc47b59242c9cac0901084b0fd063d6fe2010927d80c",
                 ),
             ),
         ],
