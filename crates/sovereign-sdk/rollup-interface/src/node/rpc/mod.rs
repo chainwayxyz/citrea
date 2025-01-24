@@ -315,7 +315,7 @@ pub struct BatchProofOutputRpcResponse {
     )]
     pub state_diff: CumulativeStateDiff,
     /// The DA slot hash that the sequencer commitments causing this state transition were found in.
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")] // without 0x prefix
     pub da_slot_hash: [u8; 32],
     /// The range of sequencer commitments in the DA slot that were processed.
     /// The range is inclusive.
