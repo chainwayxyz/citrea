@@ -561,13 +561,13 @@ where
             LayerStatus::Synced(l1_head_block_number)
         };
 
-        let l2_status = if l2_synced_block_number < l2_head_block_number {
+        let l2_status = if l2_synced_block_number < l2_head_block_number.to() {
             LayerStatus::Syncing(SyncValues {
                 synced_block_number: l2_synced_block_number,
-                head_block_number: l2_head_block_number,
+                head_block_number: l2_head_block_number.to(),
             })
         } else {
-            LayerStatus::Synced(l2_head_block_number)
+            LayerStatus::Synced(l2_head_block_number.to())
         };
 
         Ok(SyncStatus {
