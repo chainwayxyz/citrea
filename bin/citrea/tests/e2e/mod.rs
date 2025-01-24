@@ -212,7 +212,7 @@ async fn test_all_flow() {
 
     let LastVerifiedBatchProofResponse {
         proof: last_proof,
-        height: proof_l1_height,
+        l1_height: proof_l1_height,
     } = full_node_test_client
         .ledger_get_last_verified_batch_proof()
         .await
@@ -297,7 +297,7 @@ async fn test_all_flow() {
 
     let LastVerifiedBatchProofResponse {
         proof: last_proof,
-        height: proof_l1_height,
+        l1_height: proof_l1_height,
     } = full_node_test_client
         .ledger_get_last_verified_batch_proof()
         .await
