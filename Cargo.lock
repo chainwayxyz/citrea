@@ -2191,7 +2191,6 @@ dependencies = [
  "clap",
  "hex",
  "jsonrpsee",
- "secp256k1",
  "serde",
  "serde_json",
  "soft-confirmation-rule-enforcer",
