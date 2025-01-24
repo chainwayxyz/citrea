@@ -31,7 +31,7 @@ impl TestCase for BasicSequencerTest {
             .get_head_soft_confirmation()
             .await?
             .unwrap();
-        assert_eq!(head_batch0.l2_height, 1);
+        assert_eq!(head_batch0.l2_height.to::<u64>(), 1);
 
         sequencer.client.send_publish_batch_request().await?;
 
@@ -44,7 +44,7 @@ impl TestCase for BasicSequencerTest {
             .get_head_soft_confirmation()
             .await?
             .unwrap();
-        assert_eq!(head_batch1.l2_height, 2);
+        assert_eq!(head_batch1.l2_height.to::<u64>(), 2);
 
         Ok(())
     }
@@ -120,15 +120,15 @@ impl TestCase for SequencerMissedDaBlocksTest {
                 .unwrap();
 
             if i == 1 {
-                assert_eq!(soft_confirmation.da_slot_height, last_used_l1_height);
+                assert_eq!(soft_confirmation.da_slot_height.to::<u64>(), last_used_l1_height);
             } else {
                 assert!(
-                    soft_confirmation.da_slot_height == last_used_l1_height
-                        || soft_confirmation.da_slot_height == last_used_l1_height + 1,
+                    soft_confirmation.da_slot_height.to::<u64>() == last_used_l1_height
+                        || soft_confirmation.da_slot_height.to::<u64>() == last_used_l1_height + 1,
                 );
             }
 
-            last_used_l1_height = soft_confirmation.da_slot_height;
+            last_used_l1_height = soft_confirmation.da_slot_height.to::<u64>();
         }
 
         let finalized_height = da.get_finalized_height().await?;

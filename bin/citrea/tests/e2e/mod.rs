@@ -176,10 +176,10 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, 1);
-    assert_eq!(commitments[0].l2_end_block_number, 4);
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1, 3);
+    assert_eq!(commitments[0].found_in_l1.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -220,7 +220,7 @@ async fn test_all_flow() {
 
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
-    assert_eq!(proof_l1_height, 4);
+    assert_eq!(proof_l1_height.to::<u64>(), 4);
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
     assert_eq!(last_proof.proof_output, full_node_proof[0].proof_output);
 
@@ -302,7 +302,7 @@ async fn test_all_flow() {
         .ledger_get_last_verified_batch_proof()
         .await
         .unwrap();
-    assert_eq!(proof_l1_height, 6);
+    assert_eq!(proof_l1_height.to::<u64>(), 6);
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
         last_proof.proof_output,
@@ -407,7 +407,7 @@ async fn test_ledger_get_head_soft_confirmation() {
         head_soft_confirmation.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
-    assert_eq!(head_soft_confirmation.l2_height, 2);
+    assert_eq!(head_soft_confirmation.l2_height.to::<u64>(), 2);
 
     let head_soft_confirmation_height = seq_test_client
         .ledger_get_head_soft_confirmation_height()
