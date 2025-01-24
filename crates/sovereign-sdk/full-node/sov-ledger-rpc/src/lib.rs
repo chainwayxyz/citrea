@@ -16,6 +16,11 @@ pub mod server;
 #[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HexHash(#[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")] pub [u8; 32]);
 
+/// State root [`serde`]-encoded as a hex string optionally prefixed with
+/// `0x`. See [`sov_rollup_interface::rpc::utils::rpc_hex`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HexStateRoot(#[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")] pub Vec<u8>);
+
 impl From<[u8; 32]> for HexHash {
     fn from(v: [u8; 32]) -> Self {
         Self(v)
@@ -79,7 +84,7 @@ pub trait LedgerRpc {
     /// Gets the L2 genesis state root.
     #[method(name = "getL2GenesisStateRoot")]
     #[blocking]
-    fn get_l2_genesis_state_root(&self) -> RpcResult<Option<Vec<u8>>>; //not hex 
+    fn get_l2_genesis_state_root(&self) -> RpcResult<Option<HexStateRoot>>; //not hex, how do we do it here
 
     /// Gets the commitments in the DA slot with the given height.
     #[method(name = "getSequencerCommitmentsOnSlotByNumber")]
