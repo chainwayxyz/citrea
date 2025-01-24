@@ -11,6 +11,7 @@ use bitcoincore_rpc::json::{
     BumpFeeResult, CreateRawTransactionInput, WalletCreateFundedPsbtOptions,
 };
 use bitcoincore_rpc::{Client, RpcApi};
+use citrea_common::FeeThrottleConfig;
 use tracing::{debug, instrument, trace, warn};
 
 use crate::monitoring::{MonitoredTx, MonitoredTxKind};
@@ -186,10 +187,45 @@ pub(crate) async fn get_fee_rate_from_mempool_space(
     Ok(Some(fee_rate))
 }
 
+#[derive(Debug, Clone)]
+pub struct FeeThrottleService {
+    config: FeeThrottleConfig,
+}
+
+impl FeeThrottleService {
+    pub fn new(config: FeeThrottleConfig) -> Result<Self> {
+        config.validate()?;
+
+        Ok(Self { config })
+    }
+
+    /// Get adjusted fee rate according to current da usage
+    /// Returns base_fee_multiplier (1.0) when usage is below capacity threshold
+    /// When usage exceeds threshold, increases as: base_fee_multiplier * (1 + scalar * x^factor)
+    /// where x is the normalized excess usage, capped at max_fee_multiplier
+    /// Resulting multiplier is capped at max_fee_multiplier
+    #[instrument(level = "trace", skip_all, ret)]
+    pub fn get_fee_rate_multiplier(&self, usage_ratio: f64) -> f64 {
+        if usage_ratio <= self.config.capacity_threshold {
+            return self.config.base_fee_multiplier;
+        }
+
+        let excess = usage_ratio - self.config.capacity_threshold;
+        let normalized_excess = excess / (1.0 - self.config.capacity_threshold);
+        let multiplier = (self.config.base_fee_multiplier
+            * (1.0
+                + self.config.fee_multiplier_scalar
+                    * normalized_excess.powf(self.config.fee_exponential_factor)))
+        .min(self.config.max_fee_multiplier);
+
+        debug!("DA usage ratio: {usage_ratio:.2}, multiplier: {multiplier:.2}");
+        multiplier
+    }
+}
+
 #[cfg(test)]
 mod tests {
-
-    use super::{get_fee_rate_from_mempool_space, DEFAULT_MEMPOOL_SPACE_URL};
+    use super::*;
 
     #[tokio::test]
     async fn test_mempool_space_fee_rate() {
@@ -215,5 +251,33 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_fee_multiplier() {
+        let test_cases = vec![
+            (0.0, 1.0),   // No usage
+            (0.25, 1.0),  // Below threshold
+            (0.5, 1.0),   // At threshold
+            (0.6, 1.016), // Above threshold, start increasing fee
+            (0.7, 1.256),
+            (0.8, 2.296),
+            (0.85, 3.40),
+            (0.9, 4.0), // Max multiplier hit
+            (0.95, 4.0),
+            (1.0, 4.0),
+        ];
+
+        let fee_service = FeeThrottleService::new(FeeThrottleConfig::default()).unwrap();
+        for (usage, expected) in test_cases {
+            let multiplier = fee_service.get_fee_rate_multiplier(usage);
+            assert!(
+                (multiplier - expected).abs() < 0.1,
+                "Usage {}: expected multiplier {}, got {}",
+                usage,
+                expected,
+                multiplier
+            );
+        }
     }
 }

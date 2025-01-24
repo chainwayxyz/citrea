@@ -20,6 +20,7 @@ use bitcoin::{Amount, BlockHash, CompactTarget, Transaction, Txid, Wtxid};
 use bitcoincore_rpc::json::{SignRawTransactionInput, TestMempoolAcceptResult};
 use bitcoincore_rpc::{Auth, Client, Error as BitcoinError, Error, RpcApi, RpcError};
 use borsh::BorshDeserialize;
+use citrea_common::FeeThrottleConfig;
 use citrea_primitives::compression::{compress_blob, decompress_blob};
 use citrea_primitives::MAX_TXBODY_SIZE;
 use serde::{Deserialize, Serialize};
@@ -34,7 +35,7 @@ use tokio::sync::oneshot::channel as oneshot_channel;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::fee::{BumpFeeMethod, FeeService};
+use crate::fee::{BumpFeeMethod, FeeService, FeeThrottleService};
 use crate::helpers::builders::batch_proof_namespace::{
     create_seqcommitment_transactions, BatchProvingTxs,
 };
@@ -110,7 +111,8 @@ pub struct BitcoinService {
     inscribes_queue: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
     tx_backup_dir: PathBuf,
     pub monitoring: Arc<MonitoringService>,
-    fee: FeeService,
+    pub fee: FeeService,
+    pub fee_throttle: Option<FeeThrottleService>,
 }
 
 impl BitcoinService {
@@ -119,6 +121,7 @@ impl BitcoinService {
         config: BitcoinServiceConfig,
         chain_params: RollupParams,
         tx: UnboundedSender<TxRequestWithNotifier<TxidWrapper>>,
+        throttle_config: Option<FeeThrottleConfig>,
     ) -> Result<Self> {
         let client = Arc::new(
             Client::new(
@@ -162,6 +165,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            fee_throttle: throttle_config.map(FeeThrottleService::new).transpose()?,
         })
     }
 
@@ -205,6 +209,7 @@ impl BitcoinService {
             tx_backup_dir: tx_backup_dir.to_path_buf(),
             monitoring,
             fee,
+            fee_throttle: None,
         })
     }
 
@@ -1087,8 +1092,16 @@ impl DaService for BitcoinService {
     async fn get_fee_rate(&self) -> Result<u128> {
         let sat_vb_ceil = self.fee.get_fee_rate_as_sat_vb().await? as u128;
 
+        let usage_ratio = self.monitoring.get_da_usage_ratio();
+        let throttle_multiplier = self.fee_throttle.as_ref().map_or(1.0f64, |throttler| {
+            throttler.get_fee_rate_multiplier(usage_ratio)
+        });
+
         // multiply with 10^10/4 = 25*10^8 = 2_500_000_000 for BTC to CBTC conversion (decimals)
-        let multiplied_fee = sat_vb_ceil.saturating_mul(2_500_000_000);
+        let base_multiplier = 2_500_000_000f64;
+        let multiplier = (base_multiplier * throttle_multiplier) as u128;
+
+        let multiplied_fee = sat_vb_ceil.saturating_mul(multiplier);
         Ok(multiplied_fee)
     }
 

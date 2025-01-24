@@ -531,6 +531,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
+                None,
             )
             .await
             .unwrap(),
@@ -810,6 +811,7 @@ impl TestCase for LightClientUnverifiableBatchProofTest {
                     to_batch_proof_prefix: TO_BATCH_PROOF_PREFIX.to_vec(),
                 },
                 tx,
+                None,
             )
             .await
             .unwrap(),

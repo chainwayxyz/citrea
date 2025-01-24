@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -16,13 +16,51 @@ use tokio::select;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::service::FINALITY_DEPTH;
 use crate::spec::utxo::UTXO;
 
 type BlockHeight = u64;
 type Result<T> = std::result::Result<T, MonitorError>;
+
+#[derive(Debug)]
+pub struct DaUsageWindow {
+    pub start_time: AtomicU64,
+    pub current_da_usage: AtomicU64,
+    max_da_bandwith_bytes: u64,
+}
+
+impl DaUsageWindow {
+    fn new(max_da_bandwith_bytes: u64) -> Self {
+        Self {
+            start_time: AtomicU64::new(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            ),
+            current_da_usage: AtomicU64::new(0),
+            max_da_bandwith_bytes,
+        }
+    }
+
+    pub fn usage_ratio(&self) -> f64 {
+        let current_usage = self.current_da_usage.load(Ordering::SeqCst);
+        current_usage as f64 / self.max_da_bandwith_bytes as f64
+    }
+
+    fn reset(&self) {
+        self.start_time.store(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            Ordering::SeqCst,
+        );
+        self.current_da_usage.store(0, Ordering::SeqCst);
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TxStatus {
@@ -123,6 +161,13 @@ pub enum MonitorError {
 }
 
 mod monitoring_defaults {
+    pub const fn max_da_bandwidth_bytes() -> u64 {
+        4 * 1024 * 1024 // 4MB
+    }
+
+    pub const fn window_duration_secs() -> u64 {
+        600 // 10 minutes
+    }
     pub const fn check_interval() -> u64 {
         60
     }
@@ -144,6 +189,10 @@ pub struct MonitoringConfig {
     pub history_limit: usize,
     #[serde(default = "monitoring_defaults::max_history_size")]
     pub max_history_size: usize,
+    #[serde(default = "monitoring_defaults::max_da_bandwidth_bytes")]
+    max_da_bandwidth_bytes: u64,
+    #[serde(default = "monitoring_defaults::window_duration_secs")]
+    window_duration_secs: u64,
 }
 
 impl Default for MonitoringConfig {
@@ -152,6 +201,8 @@ impl Default for MonitoringConfig {
             check_interval: monitoring_defaults::check_interval(),
             history_limit: monitoring_defaults::history_limit(),
             max_history_size: monitoring_defaults::max_history_size(),
+            max_da_bandwidth_bytes: monitoring_defaults::max_da_bandwidth_bytes(),
+            window_duration_secs: monitoring_defaults::window_duration_secs(),
         }
     }
 }
@@ -162,9 +213,17 @@ impl FromEnv for MonitoringConfig {
             std::env::var("DA_MONITORING_CHECK_INTERVAL"),
             std::env::var("DA_MONITORING_HISTORY_LIMIT"),
             std::env::var("DA_MONITORING_MAX_HISTORY_SIZE"),
+            std::env::var("DA_MONITORING_MAX_DA_BANDWIDTH_BYTES"),
+            std::env::var("DA_MONITORING_WINDOW_DURATION_SECS"),
         ) {
-            (Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
-            (check_interval, history_limit, max_history_size) => Ok(MonitoringConfig {
+            (Err(_), Err(_), Err(_), Err(_), Err(_)) => Err(anyhow!("Missing monitoring config")),
+            (
+                check_interval,
+                history_limit,
+                max_history_size,
+                max_da_bandwidth_bytes,
+                window_duration_secs,
+            ) => Ok(MonitoringConfig {
                 check_interval: check_interval.map_or_else(
                     |_| Ok(monitoring_defaults::check_interval()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
@@ -175,6 +234,14 @@ impl FromEnv for MonitoringConfig {
                 )?,
                 max_history_size: max_history_size.map_or_else(
                     |_| Ok(monitoring_defaults::max_history_size()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                max_da_bandwidth_bytes: max_da_bandwidth_bytes.map_or_else(
+                    |_| Ok(monitoring_defaults::max_da_bandwidth_bytes()),
+                    |v| v.parse().map_err(Into::<anyhow::Error>::into),
+                )?,
+                window_duration_secs: window_duration_secs.map_or_else(
+                    |_| Ok(monitoring_defaults::window_duration_secs()),
                     |v| v.parse().map_err(Into::<anyhow::Error>::into),
                 )?,
             }),
@@ -193,15 +260,18 @@ pub struct MonitoringService {
     // Keep track of total monitored transaction size
     // Only takes into account inner tx field from MonitoredTx
     total_size: AtomicUsize,
+    usage_window: Arc<DaUsageWindow>,
 }
 
 impl MonitoringService {
     pub fn new(client: Arc<Client>, config: Option<MonitoringConfig>) -> Self {
+        let config = config.unwrap_or_default();
         Self {
             client,
             monitored_txs: RwLock::new(HashMap::new()),
             chain_state: RwLock::new(ChainState::default()),
-            config: config.unwrap_or_default(),
+            usage_window: Arc::new(DaUsageWindow::new(config.max_da_bandwidth_bytes)),
+            config,
             last_tx: Mutex::new(None),
             total_size: AtomicUsize::new(0),
         }
@@ -251,7 +321,8 @@ impl MonitoringService {
 
     /// Run monitoring to keep track of TX status and chain re-orgs
     pub async fn run(self: Arc<Self>, token: CancellationToken) {
-        let mut interval = interval(Duration::from_secs(self.config.check_interval));
+        let mut check_interval = interval(Duration::from_secs(self.config.check_interval));
+        let mut window_interval = interval(Duration::from_secs(self.config.window_duration_secs));
         loop {
             select! {
                 biased;
@@ -259,7 +330,10 @@ impl MonitoringService {
                     debug!("Monitoring service received shutdown signal");
                     break;
                 }
-                _ = interval.tick() => {
+                _ = window_interval.tick() => {
+                    self.usage_window.reset();
+                }
+                _ = check_interval.tick() => {
                     if let Err(e) = self.check_chain_state().await {
                         error!("Error checking chain state: {}", e);
                     }
@@ -353,6 +427,8 @@ impl MonitoringService {
             kind,
         };
 
+        self.record_da_usage(&monitored_tx.tx).await;
+
         self.monitored_txs.write().await.insert(txid, monitored_tx);
         *self.last_tx.lock().await = Some(txid);
         debug!("[monitor_transaction_chain] setting last_tx : {:?}", txid);
@@ -395,6 +471,13 @@ impl MonitoringService {
             prev_txid: monitored_tx.prev_txid,
             next_txid: monitored_tx.next_txid,
         };
+
+        // Update da usage with replacing tx
+        let old_tx_size = monitored_tx.tx.total_size() as u64;
+        self.usage_window
+            .current_da_usage
+            .fetch_sub(old_tx_size, Ordering::SeqCst);
+        self.record_da_usage(&new_tx.tx).await;
 
         {
             let mut monitored_txs = self.monitored_txs.write().await;
@@ -600,6 +683,39 @@ impl MonitoringService {
         let mut monitored_txs = self.monitored_txs.write().await;
         if let Some(parent) = monitored_txs.get_mut(txid) {
             parent.next_txid = Some(next_txid);
+        }
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub fn get_current_usage_window(&self) -> Arc<DaUsageWindow> {
+        self.usage_window.clone()
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub fn get_da_usage_ratio(&self) -> f64 {
+        self.usage_window.usage_ratio()
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub async fn record_da_usage(&self, tx: &Transaction) {
+        let tx_size = tx.total_size() as u64;
+        let new_usage = self
+            .usage_window
+            .current_da_usage
+            .fetch_add(tx_size, Ordering::SeqCst)
+            + tx_size;
+
+        debug!(
+            "Recording usage for tx {tx:?}, size {tx_size} bytes. Current total: {} bytes",
+            new_usage
+        );
+
+        // TODO decide what to do when TX goes above max_da_bandwidth_bytes.
+        if new_usage > self.config.max_da_bandwidth_bytes {
+            warn!(
+                "DA usage above the max limit. Current usage {}, limit {}",
+                new_usage, self.config.max_da_bandwidth_bytes
+            )
         }
     }
 }

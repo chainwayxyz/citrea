@@ -1369,7 +1369,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=ca3cfa2#ca3cfa2a2a6fac070d1a6116db1a3894b8fd5415"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=c863fd0#c863fd0538e1e0513048c2f764383478ec7aa181"
 dependencies = [
  "async-trait",
  "bitcoincore-rpc-json",
@@ -1384,7 +1384,7 @@ dependencies = [
 [[package]]
 name = "bitcoincore-rpc-json"
 version = "0.18.0"
-source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=ca3cfa2#ca3cfa2a2a6fac070d1a6116db1a3894b8fd5415"
+source = "git+https://github.com/chainwayxyz/rust-bitcoincore-rpc.git?rev=c863fd0#c863fd0538e1e0513048c2f764383478ec7aa181"
 dependencies = [
  "bitcoin",
  "serde",
@@ -1911,7 +1911,7 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=af85eae3010331df0e0cda5288f741b6d298813f#af85eae3010331df0e0cda5288f741b6d298813f"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=6cee848#6cee84887501a44887cefa9e92c2237f64471fbc"
 dependencies = [
  "anyhow",
  "async-trait",

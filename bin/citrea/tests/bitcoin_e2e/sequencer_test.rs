@@ -1,14 +1,21 @@
+use std::net::SocketAddr;
+use std::time::{Duration, SystemTime};
+
 use alloy_primitives::U64;
 use anyhow::bail;
 use async_trait::async_trait;
+use bitcoin_da::rpc::DaRpcClient;
 use citrea_e2e::config::SequencerConfig;
 use citrea_e2e::framework::TestFramework;
+use citrea_e2e::node::Config;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
-use citrea_e2e::traits::Restart;
+use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
+use reth_primitives::BlockNumberOrTag;
 use sov_ledger_rpc::LedgerRpcClient;
 
 use super::get_citrea_path;
+use crate::evm::make_test_client;
 
 struct BasicSequencerTest;
 
@@ -141,6 +148,117 @@ impl TestCase for SequencerMissedDaBlocksTest {
 #[tokio::test]
 async fn test_sequencer_missed_da_blocks() -> Result<()> {
     TestCaseRunner::new(SequencerMissedDaBlocksTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct DaThrottleTest;
+
+#[async_trait]
+impl TestCase for DaThrottleTest {
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let da = f.bitcoin_nodes.get(0).expect("DA not running.");
+
+        let seq_config = sequencer.config();
+        let seq_test_client = make_test_client(SocketAddr::new(
+            seq_config.rpc_bind_host().parse()?,
+            seq_config.rpc_bind_port(),
+        ))
+        .await?;
+
+        let base_l1_fee_rate = 2_500_000_000f64;
+
+        // Get initial usage stats
+        let initial_usage = sequencer.client.http_client().da_usage_window().await?;
+        assert_eq!(initial_usage.total_bytes, 0);
+        assert_eq!(initial_usage.usage_ratio, 0.0);
+
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.wait_for_l2_height(1, None).await?;
+
+        let seq_block = seq_test_client
+            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+            .await;
+
+        let l1_fee_rate = seq_block.other.get("l1FeeRate").unwrap().as_f64().unwrap();
+        assert_eq!(l1_fee_rate, base_l1_fee_rate);
+
+        // Generate seqcommitments to increase DA usage
+        for _ in 0..sequencer.min_soft_confirmations_per_commitment() - 1 {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for tx to hit mempool and check DA usage increased
+        da.wait_mempool_len(2, None).await?;
+        let da_usage = sequencer.client.http_client().da_usage_window().await?;
+        assert!(da_usage.total_bytes > 0);
+        assert!(da_usage.usage_ratio > 0.0);
+
+        // Generate more seqcoms to exceed threshold
+        let n_txs = 3;
+        for _ in 0..n_txs {
+            for _ in 0..sequencer.min_soft_confirmations_per_commitment() {
+                sequencer.client.send_publish_batch_request().await?;
+            }
+        }
+        da.wait_mempool_len(2 + 2 * n_txs, None).await?;
+
+        // Check that usage is above threshold and multiplier > 1
+        let usage_after_seqcom = sequencer.client.http_client().da_usage_window().await?;
+        assert!(usage_after_seqcom.total_bytes > da_usage.total_bytes);
+        assert!(usage_after_seqcom.usage_ratio > da_usage.usage_ratio);
+        assert!(usage_after_seqcom.fee_multiplier > Some(1.0));
+
+        sequencer.client.send_publish_batch_request().await?;
+
+        let seq_block = seq_test_client
+            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+            .await;
+        let throttled_l1_fee_rate = seq_block.other.get("l1FeeRate").unwrap().as_f64().unwrap();
+        assert_eq!(
+            throttled_l1_fee_rate,
+            (base_l1_fee_rate * usage_after_seqcom.fee_multiplier.unwrap()).floor()
+        );
+
+        // Check that usage window is correclty resetted on interval
+        let interval = seq_config
+            .rollup_config()
+            .da
+            .monitoring
+            .as_ref()
+            .unwrap()
+            .window_duration_secs;
+        let next_reset = interval
+            - (SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                - da_usage.start_time);
+
+        // Sleep until next_reset + a 1s buffer
+        tokio::time::sleep(Duration::from_secs(next_reset + 1)).await;
+        let resetted_usage = sequencer.client.http_client().da_usage_window().await?;
+        assert_eq!(resetted_usage.total_bytes, 0);
+        assert_eq!(resetted_usage.usage_ratio, 0.0);
+        assert_eq!(resetted_usage.fee_multiplier, Some(1.0));
+        assert_eq!(resetted_usage.start_time, da_usage.start_time + interval);
+
+        sequencer.client.send_publish_batch_request().await?;
+
+        let seq_block = seq_test_client
+            .eth_get_block_by_number_with_detail(Some(BlockNumberOrTag::Latest))
+            .await;
+        let l1_fee_rate = seq_block.other.get("l1FeeRate").unwrap().as_f64().unwrap();
+        assert_eq!(l1_fee_rate, base_l1_fee_rate);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_da_throttle() -> Result<()> {
+    TestCaseRunner::new(DaThrottleTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await

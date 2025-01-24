@@ -13,3 +13,10 @@ queue_tx_size = 200
 base_fee_tx_limit = 100000
 base_fee_tx_size = 200
 max_account_slots = 16
+
+[fee_throttle]
+capacity_threshold = 0.5
+base_fee_multiplier = 1.0
+max_fee_multiplier = 4.0
+fee_exponential_factor = 4.0
+fee_multiplier_scalar = 10.0
