@@ -346,8 +346,9 @@ where
 
     let mut map = serializer.serialize_map(Some(state_diff.len()))?;
     for (key, value) in state_diff.iter() {
-        let value = value.as_ref().map(hex::encode);
-        map.serialize_entry(&hex::encode(key), &value)?;
+        let key = format!("0x{}", hex::encode(key));
+        let value = value.as_ref().map(|v| format!("0x{}", hex::encode(v)));
+        map.serialize_entry(&key, &value)?;
     }
     map.end()
 }
@@ -378,9 +379,14 @@ where
         {
             let mut btree_map = BTreeMap::new();
             while let Some((key, value)) = map.next_entry::<String, Option<String>>()? {
+                let key = key.trim_start_matches("0x");
                 let key = hex::decode(&key).map_err(A::Error::custom)?;
+
                 let value = match value {
-                    Some(value) => Some(hex::decode(&value).map_err(A::Error::custom)?),
+                    Some(value) => {
+                        let value = value.trim_start_matches("0x");
+                        Some(hex::decode(&value).map_err(A::Error::custom)?)
+                    },
                     None => None,
                 };
                 btree_map.insert(key, value);
