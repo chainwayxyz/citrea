@@ -23,9 +23,10 @@ use bitcoin::{
 };
 use secp256k1::SECP256K1;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tracing::{instrument, trace, warn};
 
-use super::{calculate_sha256, TransactionKindBatchProof, TransactionKindLightClient};
+use super::{TransactionKindBatchProof, TransactionKindLightClient};
 use crate::spec::utxo::UTXO;
 use crate::REVEAL_OUTPUT_AMOUNT;
 
@@ -472,4 +473,10 @@ pub fn sign_blob_with_private_key(blob: &[u8], private_key: &SecretKey) -> (Vec<
         sig.serialize_compact().to_vec(),
         public_key.serialize().to_vec(),
     )
+}
+
+pub fn calculate_sha256(input: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::default();
+    hasher.update(input);
+    hasher.finalize().into()
 }

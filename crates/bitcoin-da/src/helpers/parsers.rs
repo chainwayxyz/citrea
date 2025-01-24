@@ -5,10 +5,8 @@ use bitcoin::opcodes::all::OP_CHECKSIGVERIFY;
 use bitcoin::script::Instruction::{Op, PushBytes};
 use bitcoin::script::{Error as ScriptError, PushBytes as StructPushBytes};
 use bitcoin::{Opcode, Script, Transaction};
-use secp256k1::{self, ecdsa, Message, SECP256K1};
+use sha2::Digest;
 use thiserror::Error;
-
-use super::calculate_sha256;
 
 #[derive(Debug, Clone)]
 pub enum ParsedLightClientTransaction {
@@ -71,21 +69,16 @@ pub trait VerifyParsed {
 
     /// Verifies the signature of the inscription and returns the hash of the body
     fn get_sig_verified_hash(&self) -> Option<[u8; 32]> {
-        let public_key = secp256k1::PublicKey::from_slice(self.public_key());
-        let signature = ecdsa::Signature::from_compact(self.signature());
-        let hash = calculate_sha256(self.body());
-        let message = Message::from_digest_slice(&hash).unwrap(); // cannot fail
-
-        if public_key.is_ok()
-            && signature.is_ok()
-            && SECP256K1
-                .verify_ecdsa(&message, &signature.unwrap(), &public_key.unwrap())
-                .is_ok()
-        {
-            Some(hash)
-        } else {
-            None
+        if let Ok(key) = k256::ecdsa::VerifyingKey::from_sec1_bytes(self.public_key()) {
+            use k256::ecdsa::signature::DigestVerifier;
+            let hash = sha2::Sha256::new_with_prefix(self.body());
+            let signature = k256::ecdsa::Signature::from_slice(self.signature());
+            if signature.is_ok() && key.verify_digest(hash.clone(), &signature.unwrap()).is_ok() {
+                return Some(hash.finalize().into());
+            }
         }
+
+        None
     }
 }
 

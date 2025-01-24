@@ -7,7 +7,7 @@ publish = false
 resolver = "2"
 
 [build-dependencies]
-risc0-build = { workspace = true }
+risc0-build = { workspace = true, features = ["unstable"] }
 
 [package.metadata.risc0]
 methods = [
