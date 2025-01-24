@@ -19,7 +19,8 @@ sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 citrea-primitives = { path = "../primitives" }
 
-borsh = { workspace = true, features = ["rc"] }
+borsh = { workspace = true, features = ["bytes", "rc"] }
+bytes = { workspace = true }
 clap = { workspace = true, optional = true }
 derive_more = { workspace = true, optional = true }
 hex = { workspace = true }

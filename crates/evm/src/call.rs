@@ -1,6 +1,5 @@
 use core::panic;
 
-use alloy_rlp::{Decodable, Encodable};
 use reth_primitives::{TransactionSigned, TransactionSignedEcRecovered};
 use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, SpecId};
 #[cfg(feature = "serde")]
@@ -8,6 +7,7 @@ use serde_with::serde_as;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{native_error, CallResponse, SoftConfirmationModuleCallError, WorkingSet};
 
+use crate::borsh_compat::{borsh_de_txsigned, borsh_ser_txsigned};
 use crate::conversions::ConversionError;
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -95,41 +95,6 @@ impl borsh::BorshDeserialize for VersionedCallMessage {
         let msg = CallMessage::deserialize_reader(reader)?;
         Ok(VersionedCallMessage::Kumquat(msg))
     }
-}
-
-fn borsh_ser_txsigned<W: borsh::io::Write>(
-    txs: &Vec<TransactionSigned>,
-    writer: &mut W,
-) -> Result<(), borsh::io::Error> {
-    borsh::BorshSerialize::serialize(&txs.len(), writer)?;
-
-    let mut res = Vec::with_capacity(txs.len());
-    for tx in txs {
-        let mut buf = vec![];
-        tx.encode(&mut buf);
-        res.push(buf);
-    }
-
-    borsh::BorshSerialize::serialize(&res, writer)
-}
-
-fn borsh_de_txsigned<R: borsh::io::Read>(
-    reader: &mut R,
-) -> Result<Vec<TransactionSigned>, borsh::io::Error> {
-    let bufs: Vec<Vec<u8>> = borsh::BorshDeserialize::deserialize_reader(reader)?;
-    let mut res = Vec::with_capacity(bufs.len());
-    for (i, buf) in bufs.into_iter().enumerate() {
-        match TransactionSigned::decode(&mut &*buf) {
-            Ok(tx) => res.push(tx),
-            Err(e) => {
-                return Err(borsh::io::Error::new(
-                    borsh::io::ErrorKind::InvalidData,
-                    format!("Failed to deserialize {i} tx: {e}"),
-                ));
-            }
-        }
-    }
-    Ok(res)
 }
 
 impl<C: sov_modules_api::Context> Evm<C> {

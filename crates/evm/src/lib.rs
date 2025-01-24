@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
+mod borsh_compat;
 mod call;
 mod evm;
 mod genesis;
