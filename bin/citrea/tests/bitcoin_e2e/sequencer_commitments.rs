@@ -107,7 +107,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
             min_soft_confirmations_per_commitment
         );
 
-        assert_eq!(commitments[0].found_in_l1.to::<u64>(), finalized_height);
+        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 
@@ -180,7 +180,7 @@ impl TestCase for LedgerGetCommitmentsTest {
             min_soft_confirmations_per_commitment
         );
 
-        assert_eq!(commitments[0].found_in_l1.to::<u64>(), finalized_height);
+        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 

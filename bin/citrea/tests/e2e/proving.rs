@@ -130,7 +130,7 @@ async fn full_node_verify_proof_and_store() {
     assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1.to::<u64>(), 3);
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -317,7 +317,7 @@ async fn test_batch_prover_prove_rpc() {
     assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
     assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1.to::<u64>(), 3);
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 

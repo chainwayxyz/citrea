@@ -129,7 +129,7 @@ where
 #[serde(rename_all = "camelCase")]
 pub struct SequencerCommitmentResponse {
     /// L1 block height the commitment was on
-    pub found_in_l1: U64,
+    pub l1_height: U64,
     /// Hex encoded Merkle root of soft confirmation hashes
     #[serde(with = "utils::rpc_hex")]
     pub merkle_root: [u8; 32],
@@ -405,7 +405,7 @@ pub fn sequencer_commitment_to_response(
     l1_height: u64,
 ) -> SequencerCommitmentResponse {
     SequencerCommitmentResponse {
-        found_in_l1: U64::from(l1_height),
+        l1_height: U64::from(l1_height),
         merkle_root: commitment.merkle_root,
         l2_start_block_number: U64::from(commitment.l2_start_block_number),
         l2_end_block_number: U64::from(commitment.l2_end_block_number),
