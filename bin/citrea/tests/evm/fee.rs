@@ -22,7 +22,7 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     let rollup_config =
         create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
     let sequencer_config = SequencerConfig::default();
-    tokio::spawn(async {
+    let seq_task = tokio::spawn(async {
         // Don't provide a prover since the EVM is not currently provable
         start_rollup(
             port_tx,
@@ -59,5 +59,6 @@ async fn test_minimum_base_fee() -> Result<(), anyhow::Error> {
     // Base fee should at most be 0.01 gwei
     assert_eq!(block.header.base_fee_per_gas.unwrap(), 10000000);
 
+    seq_task.abort();
     Ok(())
 }

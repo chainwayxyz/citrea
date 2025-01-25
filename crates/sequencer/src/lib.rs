@@ -5,7 +5,6 @@ use citrea_common::RollupPublicKeys;
 pub use citrea_common::SequencerConfig;
 use db_provider::DbProvider;
 use deposit_data_mempool::DepositDataMempool;
-use futures::channel::mpsc::unbounded;
 use jsonrpsee::RpcModule;
 use mempool::CitreaMempool;
 use parking_lot::Mutex;
@@ -20,6 +19,7 @@ use sov_rollup_interface::services::da::DaService;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitParams;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc::unbounded_channel;
 
 mod commitment;
 pub mod db_migrations;
@@ -51,7 +51,7 @@ where
     DB: SequencerLedgerOps + Send + Sync + Clone + 'static,
     RT: Runtime<C, Da::Spec>,
 {
-    let (l2_force_block_tx, l2_force_block_rx) = unbounded();
+    let (l2_force_block_tx, l2_force_block_rx) = unbounded_channel();
     // used as client of reth's mempool
     let db_provider = DbProvider::new(prover_storage.clone());
     let mempool = Arc::new(CitreaMempool::new(

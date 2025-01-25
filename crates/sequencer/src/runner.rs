@@ -15,8 +15,6 @@ use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
-use futures::channel::mpsc::{unbounded, UnboundedReceiver};
-use futures::StreamExt;
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -43,6 +41,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitParams;
 use tokio::signal;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
@@ -591,7 +590,7 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, da_commitment_rx) = unbounded::<(u64, StateDiff)>();
+        let (da_commitment_tx, da_commitment_rx) = unbounded_channel::<(u64, StateDiff)>();
 
         let mut commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
@@ -646,7 +645,7 @@ where
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
-                _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
+                _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
@@ -663,7 +662,7 @@ where
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
-                            let _ = da_commitment_tx.unbounded_send((l2_height, state_diff));
+                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -695,7 +694,7 @@ where
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
-                            let _ = da_commitment_tx.unbounded_send((l2_height, state_diff));
+                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);

@@ -4,7 +4,6 @@ use alloy_eips::eip2718::Encodable2718;
 use alloy_network::AnyNetwork;
 use alloy_primitives::{Bytes, B256};
 use citrea_evm::Evm;
-use futures::channel::mpsc::UnboundedSender;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
@@ -17,6 +16,7 @@ use reth_rpc_types_compat::transaction::from_recovered;
 use reth_transaction_pool::{EthPooledTransaction, PoolTransaction};
 use sov_db::ledger_db::SequencerLedgerOps;
 use sov_modules_api::{Context, WorkingSet};
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
 
 use crate::deposit_data_mempool::DepositDataMempool;
@@ -213,16 +213,13 @@ impl<C: sov_modules_api::Context, DB: SequencerLedgerOps + Send + Sync + 'static
         }
 
         debug!("Sequencer: citrea_testPublishBlock");
-        self.context
-            .l2_force_block_tx
-            .unbounded_send(())
-            .map_err(|e| {
-                ErrorObjectOwned::owned(
-                    INTERNAL_ERROR_CODE,
-                    INTERNAL_ERROR_MSG,
-                    Some(format!("Could not send L2 force block transaction: {e}")),
-                )
-            })
+        self.context.l2_force_block_tx.send(()).map_err(|e| {
+            ErrorObjectOwned::owned(
+                INTERNAL_ERROR_CODE,
+                INTERNAL_ERROR_MSG,
+                Some(format!("Could not send L2 force block transaction: {e}")),
+            )
+        })
     }
 }
 
