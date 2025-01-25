@@ -1785,6 +1785,7 @@ dependencies = [
  "citrea-fullnode",
  "citrea-light-client-prover",
  "citrea-primitives",
+ "citrea-pruning",
  "citrea-risc0-adapter",
  "citrea-risc0-batch-proof",
  "citrea-risc0-light-client",
