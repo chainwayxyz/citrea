@@ -543,10 +543,12 @@ impl MonitoringService {
                     TxStatus::Pending {
                         in_mempool: true,
                         base_fee,
-                        timestamp: U64::from(SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs()),
+                        timestamp: U64::from(
+                            SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs(),
+                        ),
                     }
                 }
                 Err(_) => TxStatus::Evicted,

@@ -188,7 +188,10 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
             .unwrap();
 
         if i != 1 {
-            assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height.to::<u64>());
+            assert_eq!(
+                last_da_slot_height,
+                seq_soft_conf.da_slot_height.to::<u64>()
+            );
             assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
 
@@ -225,10 +228,16 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
             .unwrap();
 
         if i != 7 {
-            assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height.to::<u64>());
+            assert_eq!(
+                last_da_slot_height,
+                seq_soft_conf.da_slot_height.to::<u64>()
+            );
             assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         } else {
-            assert_ne!(last_da_slot_height, seq_soft_conf.da_slot_height.to::<u64>());
+            assert_ne!(
+                last_da_slot_height,
+                seq_soft_conf.da_slot_height.to::<u64>()
+            );
             assert_ne!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
 
@@ -464,7 +473,10 @@ async fn test_full_node_sync_status() {
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
     match l2_status {
         LayerStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number.to::<u64>() > 0 && syncing.synced_block_number.to::<u64>() < 300);
+            assert!(
+                syncing.synced_block_number.to::<u64>() > 0
+                    && syncing.synced_block_number.to::<u64>() < 300
+            );
             assert_eq!(syncing.head_block_number.to::<u64>(), 300);
         }
         _ => panic!("Expected syncing status"),
@@ -489,7 +501,10 @@ async fn test_full_node_sync_status() {
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
         LayerStatus::Syncing(syncing) => {
-            assert!(syncing.synced_block_number.to::<u64>() > 0 && syncing.synced_block_number.to::<u64>() < 20);
+            assert!(
+                syncing.synced_block_number.to::<u64>() > 0
+                    && syncing.synced_block_number.to::<u64>() < 20
+            );
             assert_eq!(syncing.head_block_number.to::<u64>(), 20);
         }
         _ => panic!("Expected syncing status"),

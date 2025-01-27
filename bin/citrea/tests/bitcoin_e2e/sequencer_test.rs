@@ -120,7 +120,10 @@ impl TestCase for SequencerMissedDaBlocksTest {
                 .unwrap();
 
             if i == 1 {
-                assert_eq!(soft_confirmation.da_slot_height.to::<u64>(), last_used_l1_height);
+                assert_eq!(
+                    soft_confirmation.da_slot_height.to::<u64>(),
+                    last_used_l1_height
+                );
             } else {
                 assert!(
                     soft_confirmation.da_slot_height.to::<u64>() == last_used_l1_height

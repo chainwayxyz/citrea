@@ -6,7 +6,7 @@ mod trace;
 use std::sync::Arc;
 
 use alloy_network::AnyNetwork;
-use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
+use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
@@ -34,7 +34,6 @@ use sov_state::storage::NativeStorage;
 use tokio::join;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
-use alloy_primitives::U64;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -604,7 +604,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into()
+                    ]
+                    .into()
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
@@ -656,7 +657,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into()
+                    ]
+                    .into()
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
@@ -681,7 +683,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into()
+                    ]
+                    .into()
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),
@@ -718,7 +721,8 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
                     method_id: [
                         1129196088, 155917133, 2638897170, 1970178024, 1745057535, 2098237452,
                         402126456, 572125060
-                    ].into()
+                    ]
+                    .into()
                 },
                 BatchProofMethodIdRpcResponse {
                     height: U64::from(100),

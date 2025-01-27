@@ -381,13 +381,13 @@ where
             let mut btree_map = BTreeMap::new();
             while let Some((key, value)) = map.next_entry::<String, Option<String>>()? {
                 let key = key.trim_start_matches("0x");
-                let key = hex::decode(&key).map_err(A::Error::custom)?;
+                let key = hex::decode(key).map_err(A::Error::custom)?;
 
                 let value = match value {
                     Some(value) => {
                         let value = value.trim_start_matches("0x");
-                        Some(hex::decode(&value).map_err(A::Error::custom)?)
-                    },
+                        Some(hex::decode(value).map_err(A::Error::custom)?)
+                    }
                     None => None,
                 };
                 btree_map.insert(key, value);

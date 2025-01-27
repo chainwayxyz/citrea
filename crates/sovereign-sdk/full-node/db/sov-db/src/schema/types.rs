@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use alloy_primitives::{U32, U64, U128};
+use alloy_primitives::{U128, U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
@@ -129,11 +129,9 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             batch_proof_method_ids: value
                 .batch_proof_method_ids
                 .into_iter()
-                .map(|(height, method_id)| {
-                    BatchProofMethodIdRpcResponse {
-                        height: U64::from(height), 
-                        method_id: method_id.into()
-                    }
+                .map(|(height, method_id)| BatchProofMethodIdRpcResponse {
+                    height: U64::from(height),
+                    method_id: method_id.into(),
                 })
                 .collect(),
             mmr_guest: value.mmr_guest.into(),
@@ -281,7 +279,10 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             da_slot_hash: value.da_slot_hash,
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
-            sequencer_commitments_range: (U32::from(value.sequencer_commitments_range.0), U32::from(value.sequencer_commitments_range.1)),
+            sequencer_commitments_range: (
+                U32::from(value.sequencer_commitments_range.0),
+                U32::from(value.sequencer_commitments_range.1),
+            ),
             preproven_commitments: value.preproven_commitments,
             prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
             final_soft_confirmation_hash: value.final_soft_confirmation_hash,
