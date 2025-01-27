@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use borsh::BorshDeserialize;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::get_da_block_at_height;
+use citrea_common::da::sync_l1;
 use citrea_common::LightClientProverConfig;
 use citrea_primitives::forks::fork_from_block_number;
 use sov_db::ledger_db::{LightClientProverLedgerOps, SharedLedgerOps};
@@ -20,14 +20,18 @@ use sov_rollup_interface::zk::{
 use sov_stf_runner::{ProofData, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::metrics::LIGHT_CLIENT_METRICS;
-use crate::runner::StartVariant;
 
-pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB>
+pub enum StartVariant {
+    LastScanned(u64),
+    FromBlock(u64),
+}
+
+pub struct L1BlockHandler<Vm, Da, Ps, DB>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -97,13 +101,17 @@ where
         //         .clear_pending_proving_sessions()
         //         .expect("Failed to clear pending proving sessions");
         // }
-
+        let start_l1_height = match last_l1_height_scanned {
+            StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
+            StartVariant::FromBlock(height) => height,       // first block to scan
+        };
         let (l1_tx, mut l1_rx) = mpsc::channel(1);
         let l1_sync_worker = sync_l1(
-            last_l1_height_scanned,
+            start_l1_height,
             self.da_service.clone(),
             l1_tx,
             self.l1_block_cache.clone(),
+            LIGHT_CLIENT_METRICS.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
@@ -467,6 +475,7 @@ where
                 input: borsh::to_vec(&circuit_input)?,
                 assumptions,
                 elf: light_client_elf,
+                is_post_genesis_batch: false,
             })
             .await;
 
@@ -475,60 +484,5 @@ where
         assert_eq!(proofs.len(), 1);
 
         Ok(proofs[0].clone())
-    }
-}
-
-async fn sync_l1<Da>(
-    start_l1_height: StartVariant,
-    da_service: Arc<Da>,
-    sender: mpsc::Sender<Da::FilteredBlock>,
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) where
-    Da: DaService,
-{
-    let mut l1_height = match start_l1_height {
-        StartVariant::LastScanned(height) => height + 1, // last scanned block + 1
-        StartVariant::FromBlock(height) => height,       // first block to scan
-    };
-    info!("Starting to sync from L1 height {}", l1_height);
-
-    'block_sync: loop {
-        let last_finalized_l1_block_header =
-            match da_service.get_last_finalized_block_header().await {
-                Ok(header) => header,
-                Err(e) => {
-                    error!("Could not fetch last finalized L1 block header: {}", e);
-                    sleep(Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
-
-        let new_l1_height = last_finalized_l1_block_header.height();
-
-        for block_number in l1_height..=new_l1_height {
-            let l1_block =
-                match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
-                    .await
-                {
-                    Ok(block) => block,
-                    Err(e) => {
-                        error!("Could not fetch last finalized L1 block: {}", e);
-                        sleep(Duration::from_secs(2)).await;
-                        continue 'block_sync;
-                    }
-                };
-
-            if let Err(e) = sender.send(l1_block).await {
-                error!("Could not notify about L1 block: {}", e);
-                continue 'block_sync;
-            }
-        }
-
-        // next iteration of he loop will start from the next block
-        if new_l1_height >= l1_height {
-            l1_height = new_l1_height + 1;
-        }
-
-        sleep(Duration::from_secs(2)).await;
     }
 }

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context as _};
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::get_da_block_at_height;
+use citrea_common::da::{get_da_block_at_height, sync_l1};
 use citrea_common::utils::merge_state_diffs;
 use citrea_common::BatchProverConfig;
 use citrea_primitives::compression::compress_blob;
@@ -27,7 +27,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{ProverGuestRunConfig, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
@@ -41,7 +41,7 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub(crate) struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -137,6 +137,7 @@ where
             self.da_service.clone(),
             l1_tx,
             self.l1_block_cache.clone(),
+            BATCH_PROVER_METRICS.scan_l1_block.clone(),
         );
         tokio::pin!(l1_sync_worker);
 
@@ -313,55 +314,6 @@ where
         .await?;
 
         Ok(())
-    }
-}
-
-async fn sync_l1<Da>(
-    start_l1_height: u64,
-    da_service: Arc<Da>,
-    sender: mpsc::Sender<Da::FilteredBlock>,
-    l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
-) where
-    Da: DaService,
-{
-    let mut l1_height = start_l1_height;
-    info!("Starting to sync from L1 height {}", l1_height);
-
-    'block_sync: loop {
-        let last_finalized_l1_block_header =
-            match da_service.get_last_finalized_block_header().await {
-                Ok(header) => header,
-                Err(e) => {
-                    error!("Could not fetch last finalized L1 block header: {}", e);
-                    sleep(Duration::from_secs(2)).await;
-                    continue;
-                }
-            };
-
-        let new_l1_height = last_finalized_l1_block_header.height();
-
-        for block_number in l1_height + 1..=new_l1_height {
-            let l1_block =
-                match get_da_block_at_height(&da_service, block_number, l1_block_cache.clone())
-                    .await
-                {
-                    Ok(block) => block,
-                    Err(e) => {
-                        error!("Could not fetch last finalized L1 block: {}", e);
-                        sleep(Duration::from_secs(2)).await;
-                        continue 'block_sync;
-                    }
-                };
-            if block_number > l1_height {
-                l1_height = block_number;
-                if let Err(e) = sender.send(l1_block).await {
-                    error!("Could not notify about L1 block: {}", e);
-                    continue 'block_sync;
-                }
-            }
-        }
-
-        sleep(Duration::from_secs(2)).await;
     }
 }
 

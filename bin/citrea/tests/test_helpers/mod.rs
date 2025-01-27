@@ -4,13 +4,22 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
-use citrea::{CitreaRollupBlueprint, MockDemoRollup};
+use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
+use citrea_common::da::get_start_l1_height;
+use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
 };
+use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
 use citrea_stf::genesis_config::GenesisPaths;
+use sov_db::ledger_db::SharedLedgerOps;
+use sov_db::rocks_db_config::RocksdbConfig;
+use sov_db::schema::tables::{
+    BATCH_PROVER_LEDGER_TABLES, FULL_NODE_LEDGER_TABLES, LIGHT_CLIENT_PROVER_LEDGER_TABLES,
+    SEQUENCER_LEDGER_TABLES,
+};
 use sov_mock_da::{MockAddress, MockBlock, MockDaConfig, MockDaService};
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::PrivateKey;
@@ -38,7 +47,7 @@ pub enum NodeMode {
 
 pub async fn start_rollup(
     rpc_reporting_channel: oneshot::Sender<SocketAddr>,
-    rt_genesis_paths: GenesisPaths,
+    runtime_genesis_paths: GenesisPaths,
     rollup_prover_config: Option<BatchProverConfig>,
     light_client_prover_config: Option<LightClientProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
@@ -62,6 +71,89 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
+    let (tables, migrations) = if sequencer_config.is_some() {
+        (
+            SEQUENCER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_sequencer::db_migrations::migrations(),
+        )
+    } else if rollup_prover_config.is_some() {
+        (
+            BATCH_PROVER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_batch_prover::db_migrations::migrations(),
+        )
+    } else if light_client_prover_config.is_some() {
+        (
+            LIGHT_CLIENT_PROVER_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_light_client_prover::db_migrations::migrations(),
+        )
+    } else {
+        (
+            FULL_NODE_LEDGER_TABLES
+                .iter()
+                .map(|table| table.to_string())
+                .collect::<Vec<_>>(),
+            citrea_fullnode::db_migrations::migrations(),
+        )
+    };
+    mock_demo_rollup
+        .run_ledger_migrations(&rollup_config, tables.clone(), migrations)
+        .expect("Migrations should have executed successfully");
+
+    let genesis_config = mock_demo_rollup
+        .create_genesis_config(&runtime_genesis_paths, &rollup_config)
+        .expect("Should be able to create genesis config");
+
+    let rocksdb_path = rollup_config.storage.path.clone();
+    let rocksdb_config = RocksdbConfig::new(
+        rocksdb_path.as_path(),
+        rollup_config.storage.db_max_open_files,
+        Some(tables),
+    );
+    let Storage {
+        ledger_db,
+        storage_manager,
+        prover_storage,
+    } = mock_demo_rollup
+        .setup_storage(&rollup_config, &rocksdb_config)
+        .expect("Storage setup should work");
+
+    let Dependencies {
+        da_service,
+        mut task_manager,
+        soft_confirmation_channel,
+    } = mock_demo_rollup
+        .setup_dependencies(&rollup_config)
+        .await
+        .expect("Dependencies setup should work");
+
+    let sequencer_client_url = rollup_config
+        .runner
+        .clone()
+        .map(|runner| runner.sequencer_client_url);
+    let soft_confirmation_rx = if light_client_prover_config.is_none() {
+        soft_confirmation_channel.1
+    } else {
+        None
+    };
+    let rpc_module = mock_demo_rollup
+        .setup_rpc(
+            &prover_storage,
+            ledger_db.clone(),
+            da_service.clone(),
+            sequencer_client_url,
+            soft_confirmation_rx,
+        )
+        .expect("RPC module setup should work");
+
     if let Some(sequencer_config) = sequencer_config {
         warn!(
             "Starting sequencer node pub key: {:?}",
@@ -70,77 +162,146 @@ pub async fn start_rollup(
                 .pub_key()
         );
         let span = info_span!("Sequencer");
-        let (mut sequencer, rpc_methods) = CitreaRollupBlueprint::create_new_sequencer(
+
+        let (mut sequencer, rpc_module) = CitreaRollupBlueprint::create_sequencer(
             &mock_demo_rollup,
-            &rt_genesis_paths,
+            genesis_config,
             rollup_config.clone(),
             sequencer_config,
+            da_service,
+            ledger_db,
+            storage_manager,
+            prover_storage,
+            soft_confirmation_channel.0,
+            rpc_module,
         )
-        .instrument(span.clone())
-        .await
         .unwrap();
 
-        sequencer
-            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
-            .instrument(span.clone())
-            .await
-            .unwrap();
+        start_rpc_server(
+            rollup_config.rpc,
+            &mut task_manager,
+            rpc_module,
+            Some(rpc_reporting_channel),
+        );
 
-        sequencer.run().instrument(span).await.unwrap();
+        sequencer.run(task_manager).instrument(span).await.unwrap();
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_batch_prover(
-            &mock_demo_rollup,
-            &rt_genesis_paths,
-            rollup_config,
-            rollup_prover_config,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
 
-        rollup
-            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
+        let (mut prover, l1_block_handler, rpc_module) =
+            CitreaRollupBlueprint::create_batch_prover(
+                &mock_demo_rollup,
+                rollup_prover_config,
+                genesis_config,
+                rollup_config.clone(),
+                da_service,
+                ledger_db.clone(),
+                storage_manager,
+                prover_storage,
+                soft_confirmation_channel.0,
+                rpc_module,
+            )
             .instrument(span.clone())
             .await
             .unwrap();
 
-        rollup.run().instrument(span).await.unwrap();
+        start_rpc_server(
+            rollup_config.rpc.clone(),
+            &mut task_manager,
+            rpc_module,
+            Some(rpc_reporting_channel),
+        );
+
+        let handler_span = span.clone();
+        task_manager.spawn(|cancellation_token| async move {
+            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
+                .await
+                .expect("Failed to fetch start L1 height");
+            l1_block_handler
+                .run(start_l1_height, cancellation_token)
+                .instrument(handler_span.clone())
+                .await
+        });
+        prover.run(task_manager).instrument(span).await.unwrap();
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_light_client_prover(
-            &mock_demo_rollup,
-            rollup_config.clone(),
-            light_client_prover_config,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
 
-        rollup
-            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
+        let starting_block = match ledger_db
+            .get_last_scanned_l1_height()
+            .expect("Should be able to read DB")
+        {
+            Some(l1_height) => StartVariant::LastScanned(l1_height.0),
+            // first time starting the prover
+            // start from the block given in the config
+            None => StartVariant::FromBlock(light_client_prover_config.initial_da_height),
+        };
+
+        let (mut rollup, l1_block_handler, rpc_module) =
+            CitreaRollupBlueprint::create_light_client_prover(
+                &mock_demo_rollup,
+                light_client_prover_config,
+                rollup_config.clone(),
+                &rocksdb_config,
+                da_service,
+                ledger_db,
+                rpc_module,
+            )
             .instrument(span.clone())
             .await
             .unwrap();
 
-        rollup.run().instrument(span).await.unwrap();
+        start_rpc_server(
+            rollup_config.rpc.clone(),
+            &mut task_manager,
+            rpc_module,
+            Some(rpc_reporting_channel),
+        );
+
+        let handler_span = span.clone();
+        task_manager.spawn(|cancellation_token| async move {
+            l1_block_handler
+                .run(starting_block, cancellation_token)
+                .instrument(handler_span.clone())
+                .await
+        });
+
+        rollup.run(task_manager).instrument(span).await.unwrap();
     } else {
         let span = info_span!("FullNode");
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_rollup(
+
+        let (mut rollup, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
-            &rt_genesis_paths,
+            genesis_config,
             rollup_config.clone(),
+            da_service,
+            ledger_db.clone(),
+            storage_manager,
+            prover_storage,
+            soft_confirmation_channel.0,
         )
         .instrument(span.clone())
         .await
         .unwrap();
 
-        rollup
-            .start_rpc_server(rpc_methods, Some(rpc_reporting_channel))
-            .instrument(span.clone())
-            .await;
+        start_rpc_server(
+            rollup_config.rpc.clone(),
+            &mut task_manager,
+            rpc_module,
+            Some(rpc_reporting_channel),
+        );
 
-        rollup.run().instrument(span).await.unwrap();
+        let handler_span = span.clone();
+        task_manager.spawn(|cancellation_token| async move {
+            let start_l1_height = get_start_l1_height(&rollup_config, &ledger_db)
+                .await
+                .expect("Failed to fetch starting L1 height");
+            l1_block_handler
+                .run(start_l1_height, cancellation_token)
+                .instrument(handler_span.clone())
+                .await
+        });
+
+        rollup.run(task_manager).instrument(span).await.unwrap();
     }
 }
 

@@ -1,23 +1,20 @@
 use core::panic;
-use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use alloy_primitives::U64;
-use anyhow::{anyhow, bail, Context as _};
+use anyhow::{bail, Context as _};
 use backoff::exponential::ExponentialBackoffBuilder;
 use backoff::future::retry as retry_backoff;
 use citrea_common::cache::L1BlockCache;
-use citrea_common::da::{get_da_block_at_height, get_initial_slot_height};
+use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
-use citrea_common::{BatchProverConfig, RollupPublicKeys, RpcConfig, RunnerConfig};
+use citrea_common::{RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::server::{BatchRequestConfig, ServerBuilder};
-use jsonrpsee::RpcModule;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -28,30 +25,26 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::ZkvmHost;
-use sov_stf_runner::{InitVariant, ProverService};
+use sov_stf_runner::InitParams;
 use tokio::select;
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument};
 
-use crate::da_block_handler::L1BlockHandler;
 use crate::metrics::BATCH_PROVER_METRICS;
-use crate::rpc::{create_rpc_module, RpcContext};
 
-type StfStateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
-type StfTransaction<C, Da, RT> =
+pub(crate) type StfStateRoot<C, Da, RT> =
+    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
+pub(crate) type StfTransaction<C, Da, RT> =
     <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
-type StfWitness<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Witness;
+pub(crate) type StfWitness<C, Da, RT> =
+    <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Witness;
 
-pub struct CitreaBatchProver<C, Da, Vm, Ps, DB, RT>
+pub struct CitreaBatchProver<C, Da, DB, RT>
 where
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService,
-    Vm: ZkvmHost,
-    Ps: ProverService,
     DB: BatchProverLedgerOps + Clone,
     RT: Runtime<C, Da::Spec>,
 {
@@ -62,28 +55,19 @@ where
     ledger_db: DB,
     state_root: StfStateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
-    rpc_config: RpcConfig,
-    prover_service: Arc<Ps>,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
-    sequencer_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
-    prover_config: BatchProverConfig,
-    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-    elfs_by_spec: HashMap<SpecId, Vec<u8>>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
-    task_manager: TaskManager<()>,
 }
 
-impl<C, Da, Vm, Ps, DB, RT> CitreaBatchProver<C, Da, Vm, Ps, DB, RT>
+impl<C, Da, DB, RT> CitreaBatchProver<C, Da, DB, RT>
 where
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     Da: DaService<Error = anyhow::Error> + Send + 'static,
-    Vm: ZkvmHost + 'static,
-    Ps: ProverService<DaService = Da> + Send + Sync + 'static,
     DB: BatchProverLedgerOps + Clone + 'static,
     RT: Runtime<C, Da::Spec>,
 {
@@ -95,41 +79,15 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
+        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        stf: StfBlueprint<C, Da::Spec, RT>,
         public_keys: RollupPublicKeys,
-        rpc_config: RpcConfig,
         da_service: Arc<Da>,
         ledger_db: DB,
-        stf: StfBlueprint<C, Da::Spec, RT>,
-        mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
-        prover_service: Arc<Ps>,
-        prover_config: BatchProverConfig,
-        code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
-        elfs_by_spec: HashMap<SpecId, Vec<u8>>,
+        storage_manager: ProverStorageManager<Da::Spec>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        task_manager: TaskManager<()>,
     ) -> Result<Self, anyhow::Error> {
-        let (prev_state_root, prev_batch_hash) = match init_variant {
-            InitVariant::Initialized((state_root, batch_hash)) => {
-                debug!("Chain is already initialized. Skipping initialization.");
-                (state_root, batch_hash)
-            }
-            InitVariant::Genesis(params) => {
-                info!("No history detected. Initializing chain...");
-                let storage = storage_manager.create_storage_on_l2_height(0)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set_l2(0, initialized_storage)?;
-                storage_manager.finalize_l2(0)?;
-                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
-                info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
-                );
-                (genesis_root, [0; 32])
-            }
-        };
-
         // Last L1/L2 height before shutdown.
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
@@ -139,186 +97,22 @@ where
             stf,
             storage_manager,
             ledger_db,
-            state_root: prev_state_root,
-            batch_hash: prev_batch_hash,
-            rpc_config,
-            prover_service,
+            state_root: init_params.state_root,
+            batch_hash: init_params.batch_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
-            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             phantom: std::marker::PhantomData,
-            prover_config,
-            code_commitments_by_spec,
-            elfs_by_spec,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             sync_blocks_count: runner_config.sync_blocks_count,
             fork_manager,
             soft_confirmation_tx,
-            task_manager,
         })
-    }
-
-    /// Creates a shared RpcContext with all required data.
-    #[allow(clippy::type_complexity)]
-    fn create_rpc_context(
-        &self,
-    ) -> RpcContext<
-        C,
-        Da,
-        Ps,
-        Vm,
-        DB,
-        StfStateRoot<C, Da::Spec, RT>,
-        StfWitness<C, Da::Spec, RT>,
-        StfTransaction<C, Da::Spec, RT>,
-    > {
-        RpcContext {
-            ledger: self.ledger_db.clone(),
-            da_service: self.da_service.clone(),
-            sequencer_da_pub_key: self.sequencer_da_pub_key.clone(),
-            sequencer_pub_key: self.sequencer_pub_key.clone(),
-            l1_block_cache: self.l1_block_cache.clone(),
-            prover_service: self.prover_service.clone(),
-            code_commitments_by_spec: self.code_commitments_by_spec.clone(),
-            elfs_by_spec: self.elfs_by_spec.clone(),
-            phantom_c: std::marker::PhantomData,
-            phantom_vm: std::marker::PhantomData,
-            phantom_sr: std::marker::PhantomData,
-            phantom_w: std::marker::PhantomData,
-            phantom_tx: std::marker::PhantomData,
-        }
-    }
-
-    /// Updates the given RpcModule with Prover methods.
-    pub fn register_rpc_methods(
-        &self,
-        mut rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
-        let rpc_context = self.create_rpc_context();
-        let rpc = create_rpc_module(rpc_context);
-        rpc_methods.merge(rpc)?;
-        Ok(rpc_methods)
-    }
-
-    /// Starts a RPC server with provided rpc methods.
-    pub async fn start_rpc_server(
-        &mut self,
-        methods: RpcModule<()>,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-    ) -> anyhow::Result<()> {
-        let methods = self.register_rpc_methods(methods)?;
-
-        let listen_address = SocketAddr::new(
-            self.rpc_config
-                .bind_host
-                .parse()
-                .map_err(|e| anyhow!("Failed to parse bind host: {}", e))?,
-            self.rpc_config.bind_port,
-        );
-
-        let max_connections = self.rpc_config.max_connections;
-        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
-        let max_request_body_size = self.rpc_config.max_request_body_size;
-        let max_response_body_size = self.rpc_config.max_response_body_size;
-        let batch_requests_limit = self.rpc_config.batch_requests_limit;
-
-        let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
-        //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
-
-        self.task_manager.spawn(|cancellation_token| async move {
-            let server = ServerBuilder::default()
-                .max_connections(max_connections)
-                .max_subscriptions_per_connection(max_subscriptions_per_connection)
-                .max_request_body_size(max_request_body_size)
-                .max_response_body_size(max_response_body_size)
-                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-                .set_http_middleware(middleware)
-                .build([listen_address].as_ref())
-                .await;
-
-            match server {
-                Ok(server) => {
-                    let bound_address = match server.local_addr() {
-                        Ok(address) => address,
-                        Err(e) => {
-                            error!("{}", e);
-                            return;
-                        }
-                    };
-                    if let Some(channel) = channel {
-                        if let Err(e) = channel.send(bound_address) {
-                            error!("Could not send bound_address {}: {}", bound_address, e);
-                            return;
-                        }
-                    }
-                    info!("Starting RPC server at {} ", &bound_address);
-
-                    let _server_handle = server.start(methods);
-                    cancellation_token.cancelled().await;
-                }
-                Err(e) => {
-                    error!("Could not start RPC server: {}", e);
-                }
-            }
-        });
-        Ok(())
     }
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
-        let skip_submission_until_l1 = std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1")
-            .map_or(0u64, |v| v.parse().unwrap_or(0));
-
-        // Prover node should sync when a new sequencer commitment arrives
-        // Check da block get and sync up to the latest block in the latest commitment
-        let last_scanned_l1_height = self
-            .ledger_db
-            .get_last_scanned_l1_height()
-            .unwrap_or_else(|_| panic!("Failed to get last scanned l1 height from the ledger db"));
-
-        let start_l1_height = match last_scanned_l1_height {
-            Some(height) => height.0,
-            None => get_initial_slot_height(&self.sequencer_client).await,
-        };
-
-        let ledger_db = self.ledger_db.clone();
-        let prover_config = self.prover_config.clone();
-        let prover_service = self.prover_service.clone();
-        let da_service = self.da_service.clone();
-        let sequencer_pub_key = self.sequencer_pub_key.clone();
-        let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
-        let code_commitments_by_spec = self.code_commitments_by_spec.clone();
-        let elfs_by_spec = self.elfs_by_spec.clone();
-        let l1_block_cache = self.l1_block_cache.clone();
-
-        self.task_manager.spawn(|cancellation_token| async move {
-            let l1_block_handler = L1BlockHandler::<
-                Vm,
-                Da,
-                Ps,
-                DB,
-                StfStateRoot<C, Da::Spec, RT>,
-                StfWitness<C, Da::Spec, RT>,
-                StfTransaction<C, Da::Spec, RT>,
-            >::new(
-                prover_config,
-                prover_service,
-                ledger_db,
-                da_service,
-                sequencer_pub_key,
-                sequencer_da_pub_key,
-                code_commitments_by_spec,
-                elfs_by_spec,
-                skip_submission_until_l1,
-                l1_block_cache.clone(),
-            );
-            l1_block_handler
-                .run(start_l1_height, cancellation_token)
-                .await
-        });
-
+    pub async fn run(&mut self, task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
         // Create l2 sync worker task
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
 
@@ -376,15 +170,12 @@ where
                         }
                     }
                 },
-                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
+                Some(_) = shutdown_signal.recv() => {
+                    info!("Shutting down");
+                    task_manager.abort().await;
+                },
             }
         }
-    }
-
-    async fn shutdown(&self) -> anyhow::Result<()> {
-        info!("Shutting down");
-        self.task_manager.abort().await;
-        Ok(())
     }
 
     async fn process_l2_block(

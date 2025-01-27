@@ -23,7 +23,7 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
     StateTransitionError, StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{CumulativeStateDiff, StorageRootHash};
+use sov_rollup_interface::zk::{CumulativeStateDiff, StorageRootHash, ZkvmGuest};
 use sov_state::Storage;
 
 mod stf_blueprint;
@@ -323,7 +323,6 @@ where
     type TxReceiptContents = TxEffect;
 
     type BatchReceiptContents = ();
-    // SequencerOutcome<<Da::BlobTransaction as BlobReaderTrait>::Address>;
 
     type Witness = <C::Storage as Storage>::Witness;
 
@@ -422,17 +421,14 @@ where
 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &mut self,
+        guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
-        witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        soft_confirmations: std::collections::VecDeque<
-            Vec<SignedSoftConfirmation<Self::Transaction>>,
-        >,
         preproven_commitment_indices: Vec<usize>,
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {
@@ -502,20 +498,20 @@ where
 
         // Then verify these soft confirmations.
         let mut current_state_root = *initial_state_root;
-        let mut previous_batch_hash = soft_confirmations[0][0].prev_hash();
+        let mut previous_batch_hash: Option<[u8; 32]> = None;
         let mut last_commitment_end_height: Option<u64> = None;
 
-        // should panic if number of sequencer commitments, soft confirmations, slot headers and witnesses don't match
-        for (((sequencer_commitment, soft_confirmations), da_block_headers), witnesses) in
-            sequencer_commitments_iter
-                .skip(sequencer_commitments_range.0 as usize)
-                .take(
-                    sequencer_commitments_range.1 as usize - sequencer_commitments_range.0 as usize
-                        + 1,
-                )
-                .zip_eq(soft_confirmations)
-                .zip_eq(slot_headers)
-                .zip_eq(witnesses)
+        let group_count: u32 = guest.read_from_host();
+
+        assert_eq!(
+            group_count,
+            sequencer_commitments_range.1 - sequencer_commitments_range.0 + 1
+        );
+
+        for (sequencer_commitment, da_block_headers) in sequencer_commitments_iter
+            .skip(sequencer_commitments_range.0 as usize)
+            .take(group_count as usize)
+            .zip_eq(slot_headers)
         {
             // if the commitment is not sequential, then the proof is invalid.
             if let Some(end_height) = last_commitment_end_height {
@@ -529,51 +525,38 @@ where
 
             // we must verify given DA headers match the commitments
             let mut index_headers = 0;
-            let mut index_soft_confirmation = 0;
             let mut current_da_height = da_block_headers[index_headers].height();
+            let mut l2_height = sequencer_commitment.l2_start_block_number;
+            let mut fork_manager = ForkManager::new(forks, l2_height);
 
-            assert_eq!(
-                soft_confirmations[index_soft_confirmation].prev_hash(),
-                previous_batch_hash,
-                "Soft confirmation previous hash must match the hash of the block before"
-            );
-            previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
+            let state_change_count: u32 = guest.read_from_host();
+            let mut soft_confirmation_hashes = Vec::with_capacity(state_change_count as usize);
 
-            assert_eq!(
-                soft_confirmations[index_soft_confirmation].da_slot_hash(),
-                da_block_headers[index_headers].hash().into(),
-                "Soft confirmation DA slot hash must match DA block header hash"
-            );
+            for _ in 0..state_change_count {
+                let (mut soft_confirmation, state_witness, offchain_witness) = guest
+                    .read_from_host::<(
+                        SignedSoftConfirmation<Self::Transaction>,
+                        <C::Storage as Storage>::Witness,
+                        <C::Storage as Storage>::Witness,
+                    )>();
 
-            assert_eq!(
-                soft_confirmations[index_soft_confirmation].da_slot_height(),
-                da_block_headers[index_headers].height(),
-                "Soft confirmation DA slot height must match DA block header height"
-            );
+                if let Some(hash) = previous_batch_hash {
+                    assert_eq!(
+                        soft_confirmation.prev_hash(),
+                        hash,
+                        "Soft confirmation previous hash must match the hash of the block before"
+                    );
+                }
 
-            index_soft_confirmation += 1;
-
-            while index_soft_confirmation < soft_confirmations.len() {
                 // the soft confirmations DA hash must equal to da hash in index_headers
                 // if it's not matching, and if it's not matching the next one, then state transition is invalid.
-
-                if soft_confirmations[index_soft_confirmation].da_slot_hash()
-                    == da_block_headers[index_headers].hash().into()
+                if soft_confirmation.da_slot_hash() == da_block_headers[index_headers].hash().into()
                 {
                     assert_eq!(
-                        soft_confirmations[index_soft_confirmation].da_slot_height(),
+                        soft_confirmation.da_slot_height(),
                         da_block_headers[index_headers].height(),
                         "Soft confirmation DA slot height must match DA block header height"
                     );
-
-                    assert_eq!(
-                        soft_confirmations[index_soft_confirmation].prev_hash(),
-                        previous_batch_hash,
-                        "Soft confirmation previous hash must match the hash of the block before"
-                    );
-
-                    previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
-                    index_soft_confirmation += 1;
                 } else {
                     // before going to the next DA block header, we must check if it's hash was supplied
                     // correctly
@@ -601,70 +584,16 @@ where
 
                     // if the next one is not matching, then the state transition is invalid.
                     assert_eq!(
-                        soft_confirmations[index_soft_confirmation].da_slot_hash(),
+                        soft_confirmation.da_slot_hash(),
                         da_block_headers[index_headers].hash().into(),
                         "Soft confirmation DA slot hash must match DA block header hash"
                     );
 
                     assert_eq!(
-                        soft_confirmations[index_soft_confirmation].da_slot_height(),
+                        soft_confirmation.da_slot_height(),
                         da_block_headers[index_headers].height(),
                         "Soft confirmation DA slot height must match DA block header height"
                     );
-
-                    assert_eq!(
-                        soft_confirmations[index_soft_confirmation].prev_hash(),
-                        previous_batch_hash,
-                        "Soft confirmation previous hash must match the hash of the block before"
-                    );
-
-                    previous_batch_hash = soft_confirmations[index_soft_confirmation].hash();
-                    index_soft_confirmation += 1;
-                }
-            }
-
-            // final da header was checked against
-            assert_eq!(
-                index_headers,
-                da_block_headers.len() - 1,
-                "All DA headers must be checked"
-            );
-
-            // also it's hash wasn't verified
-            assert!(
-                da_block_headers[index_headers].verify_hash(),
-                "Invalid DA block header hash"
-            );
-
-            // collect the soft confirmation hashes
-            let soft_confirmation_hashes = soft_confirmations
-                .iter()
-                .map(|soft_confirmation| soft_confirmation.hash())
-                .collect::<Vec<_>>();
-            // now verify the claimed merkle root of soft confirmation hashes
-            let calculated_root =
-                MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
-
-            assert_eq!(
-                calculated_root,
-                Some(sequencer_commitment.merkle_root),
-                "Invalid merkle root"
-            );
-
-            let mut da_block_headers_iter = da_block_headers.into_iter();
-            let mut da_block_header = da_block_headers_iter.next().unwrap();
-
-            let mut l2_height = sequencer_commitment.l2_start_block_number;
-
-            let mut fork_manager = ForkManager::new(forks, l2_height);
-
-            // now that we verified the claimed root, we can apply the soft confirmations
-            // should panic if the number of witnesses and soft confirmations don't match
-            for (mut soft_confirmation, (state_witness, offchain_witness)) in
-                soft_confirmations.into_iter().zip_eq(witnesses)
-            {
-                if soft_confirmation.da_slot_height() != da_block_header.height() {
-                    da_block_header = da_block_headers_iter.next().unwrap();
                 }
 
                 assert_eq!(
@@ -687,7 +616,7 @@ where
                         pre_state.clone(),
                         state_witness,
                         offchain_witness,
-                        &da_block_header,
+                        &da_block_headers[index_headers],
                         &mut soft_confirmation,
                     )
                     // TODO: this can be just ignoring the failing seq. com.
@@ -700,7 +629,33 @@ where
                 state_diff.extend(result.state_diff);
 
                 l2_height += 1;
+
+                previous_batch_hash = Some(soft_confirmation.hash());
+
+                soft_confirmation_hashes.push(soft_confirmation.hash());
             }
+
+            assert_eq!(
+                index_headers,
+                da_block_headers.len() - 1,
+                "All DA headers must be checked"
+            );
+            // also it's hash wasn't verified
+            assert!(
+                da_block_headers[index_headers].verify_hash(),
+                "Invalid DA block header hash"
+            );
+
+            // now verify the claimed merkle root of soft confirmation hashes
+            let calculated_root =
+                MerkleTree::<Sha256>::from_leaves(soft_confirmation_hashes.as_slice()).root();
+
+            assert_eq!(
+                calculated_root,
+                Some(sequencer_commitment.merkle_root),
+                "Invalid merkle root"
+            );
+
             assert_eq!(sequencer_commitment.l2_end_block_number, l2_height - 1);
         }
 
@@ -709,6 +664,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height.unwrap(),
+            final_soft_confirmation_hash: previous_batch_hash.unwrap(),
         }
     }
 }

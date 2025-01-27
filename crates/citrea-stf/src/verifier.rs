@@ -1,7 +1,7 @@
 use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
-use sov_rollup_interface::zk::{BatchProofCircuitInput, BatchProofCircuitOutput};
+use sov_rollup_interface::zk::{BatchProofCircuitInputV2Part1, BatchProofCircuitOutput, ZkvmGuest};
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da>
@@ -26,13 +26,15 @@ where
     /// Verify the next block
     pub fn run_sequencer_commitments_in_da_slot(
         &mut self,
-        data: BatchProofCircuitInput<Stf::StateRoot, Stf::Witness, Da::Spec, Stf::Transaction>,
+        guest: &impl ZkvmGuest,
         pre_state: Stf::PreState,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         forks: &[Fork],
     ) -> Result<BatchProofCircuitOutput<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
+
+        let data: BatchProofCircuitInputV2Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");
@@ -46,36 +48,23 @@ where
             DaNamespace::ToBatchProver,
         )?;
 
-        // the hash will be checked inside the stf
-        // so we can early copy that and use in the output
-        // since the run will fail if the hash is wrong
-        let final_soft_confirmation_hash = data
-            .soft_confirmations
-            .iter()
-            .last()
-            .expect("Should have at least one sequencer commitment")
-            .iter()
-            .last()
-            .expect("Should have at least one soft confirmation")
-            .hash();
-
         println!("going into apply_soft_confirmations_from_sequencer_commitments");
         let ApplySequencerCommitmentsOutput {
             final_state_root,
             state_diff,
             last_l2_height,
+            final_soft_confirmation_hash,
         } = self
             .app
             .apply_soft_confirmations_from_sequencer_commitments(
+                guest,
                 sequencer_public_key,
                 sequencer_da_public_key,
                 &data.initial_state_root,
                 pre_state,
                 data.da_data,
                 data.sequencer_commitments_range,
-                data.state_transition_witnesses,
                 data.da_block_headers_of_soft_confirmations,
-                data.soft_confirmations,
                 data.preproven_commitments.clone(),
                 forks,
             );

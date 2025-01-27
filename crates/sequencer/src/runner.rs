@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
@@ -11,15 +10,11 @@ use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::soft_confirmation_to_receipt;
-use citrea_common::{RollupPublicKeys, RpcConfig, SequencerConfig};
+use citrea_common::{RollupPublicKeys, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
 use citrea_primitives::basefee::calculate_next_block_base_fee;
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_stf::runtime::Runtime;
-use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
-use futures::StreamExt;
-use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
-use jsonrpsee::RpcModule;
 use parking_lot::Mutex;
 use reth_execution_types::ChangedAccount;
 use reth_provider::{AccountReader, BlockReaderIdExt};
@@ -44,8 +39,9 @@ use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::ProverStorage;
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::signal;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
@@ -58,7 +54,6 @@ use crate::db_provider::DbProvider;
 use crate::deposit_data_mempool::DepositDataMempool;
 use crate::mempool::CitreaMempool;
 use crate::metrics::SEQUENCER_METRICS;
-use crate::rpc::{create_rpc_module, RpcContext};
 use crate::utils::recover_raw_transaction;
 
 type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
@@ -80,10 +75,8 @@ where
     da_service: Arc<Da>,
     mempool: Arc<CitreaMempool<C>>,
     sov_tx_signer_priv_key: C::PrivateKey,
-    l2_force_block_tx: UnboundedSender<()>,
     l2_force_block_rx: UnboundedReceiver<()>,
     db_provider: DbProvider<C>,
-    storage: C::Storage,
     ledger_db: DB,
     config: SequencerConfig,
     stf: StfBlueprint<C, Da::Spec, RT>,
@@ -93,10 +86,8 @@ where
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
-    rpc_config: RpcConfig,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
-    task_manager: TaskManager<()>,
 }
 
 enum L2BlockMode {
@@ -114,136 +105,39 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         da_service: Arc<Da>,
-        storage: C::Storage,
         config: SequencerConfig,
+        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
         stf: StfBlueprint<C, Da::Spec, RT>,
-        mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        storage_manager: ProverStorageManager<Da::Spec>,
         public_keys: RollupPublicKeys,
         ledger_db: DB,
-        rpc_config: RpcConfig,
+        db_provider: DbProvider<C>,
+        mempool: Arc<CitreaMempool<C>>,
+        deposit_mempool: Arc<Mutex<DepositDataMempool>>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        task_manager: TaskManager<()>,
+        l2_force_block_rx: UnboundedReceiver<()>,
     ) -> anyhow::Result<Self> {
-        let (l2_force_block_tx, l2_force_block_rx) = unbounded();
-
-        let (prev_state_root, prev_batch_hash) = match init_variant {
-            InitVariant::Initialized((state_root, batch_hash)) => {
-                debug!("Chain is already initialized. Skipping initialization.");
-                (state_root, batch_hash)
-            }
-            InitVariant::Genesis(params) => {
-                info!("No history detected. Initializing chain...",);
-                let storage = storage_manager.create_storage_on_l2_height(0)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set_l2(0, initialized_storage)?;
-                storage_manager.finalize_l2(0)?;
-                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
-                info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
-                );
-                (genesis_root, [0; 32])
-            }
-        };
-
-        // used as client of reth's mempool
-        let db_provider = DbProvider::new(storage.clone());
-
-        let pool = CitreaMempool::new(db_provider.clone(), config.mempool_conf.clone())?;
-
-        let deposit_mempool = Arc::new(Mutex::new(DepositDataMempool::new()));
-
         let sov_tx_signer_priv_key = C::PrivateKey::try_from(&hex::decode(&config.private_key)?)?;
 
         Ok(Self {
             da_service,
-            mempool: Arc::new(pool),
+            mempool,
             sov_tx_signer_priv_key,
-            l2_force_block_tx,
             l2_force_block_rx,
             db_provider,
-            storage,
             ledger_db,
             config,
             stf,
             deposit_mempool,
             storage_manager,
-            state_root: prev_state_root,
-            batch_hash: prev_batch_hash,
+            state_root: init_params.state_root,
+            batch_hash: init_params.batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
-            rpc_config,
             fork_manager,
             soft_confirmation_tx,
-            task_manager,
         })
-    }
-
-    pub async fn start_rpc_server(
-        &mut self,
-        methods: RpcModule<()>,
-        channel: Option<tokio::sync::oneshot::Sender<SocketAddr>>,
-    ) -> anyhow::Result<()> {
-        let methods = self.register_rpc_methods(methods).await?;
-
-        let listen_address = SocketAddr::new(
-            self.rpc_config
-                .bind_host
-                .parse()
-                .map_err(|e| anyhow!("Failed to parse bind host: {}", e))?,
-            self.rpc_config.bind_port,
-        );
-
-        let max_connections = self.rpc_config.max_connections;
-        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
-        let max_request_body_size = self.rpc_config.max_request_body_size;
-        let max_response_body_size = self.rpc_config.max_response_body_size;
-        let batch_requests_limit = self.rpc_config.batch_requests_limit;
-
-        let middleware = tower::ServiceBuilder::new().layer(citrea_common::rpc::get_cors_layer());
-        //  .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
-        let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
-
-        self.task_manager.spawn(|cancellation_token| async move {
-            let server = ServerBuilder::default()
-                .max_connections(max_connections)
-                .max_subscriptions_per_connection(max_subscriptions_per_connection)
-                .max_request_body_size(max_request_body_size)
-                .max_response_body_size(max_response_body_size)
-                .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-                .set_http_middleware(middleware)
-                .set_rpc_middleware(rpc_middleware)
-                .build([listen_address].as_ref())
-                .await;
-
-            match server {
-                Ok(server) => {
-                    let bound_address = match server.local_addr() {
-                        Ok(address) => address,
-                        Err(e) => {
-                            error!("{}", e);
-                            return;
-                        }
-                    };
-                    if let Some(channel) = channel {
-                        if let Err(e) = channel.send(bound_address) {
-                            error!("Could not send bound_address {}: {}", bound_address, e);
-                            return;
-                        }
-                    }
-                    info!("Starting RPC server at {} ", &bound_address);
-
-                    let _server_handle = server.start(methods);
-                    cancellation_token.cancelled().await;
-                }
-                Err(e) => {
-                    error!("Could not start RPC server: {}", e);
-                }
-            }
-        });
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -659,8 +553,8 @@ where
         }
     }
 
-    #[instrument(level = "trace", skip(self), err, ret)]
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+    #[instrument(level = "trace", skip(self, task_manager), err, ret)]
+    pub async fn run(&mut self, mut task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
@@ -696,7 +590,7 @@ where
 
         // Setup required workers to update our knowledge of the DA layer every X seconds (configurable).
         let (da_height_update_tx, mut da_height_update_rx) = mpsc::channel(1);
-        let (da_commitment_tx, da_commitment_rx) = unbounded::<(u64, StateDiff)>();
+        let (da_commitment_tx, da_commitment_rx) = unbounded_channel::<(u64, StateDiff)>();
 
         let mut commitment_service = CommitmentService::new(
             self.ledger_db.clone(),
@@ -709,10 +603,10 @@ where
             // Resubmit if there were pending commitments on restart, skip it on first init
             commitment_service.resubmit_pending_commitments().await?;
         }
-        self.task_manager
-            .spawn(|cancellation_token| commitment_service.run(cancellation_token));
 
-        self.task_manager.spawn(|cancellation_token| {
+        task_manager.spawn(|cancellation_token| commitment_service.run(cancellation_token));
+
+        task_manager.spawn(|cancellation_token| {
             da_block_monitor(
                 self.da_service.clone(),
                 da_height_update_tx,
@@ -751,7 +645,7 @@ where
                 // If sequencer is in test mode, it will build a block every time it receives a message
                 // The RPC from which the sender can be called is only registered for test mode. This means
                 // that evey though we check the receiver here, it'll never be "ready" to be consumed unless in test mode.
-                _ = self.l2_force_block_rx.next(), if self.config.test_mode => {
+                _ = self.l2_force_block_rx.recv(), if self.config.test_mode => {
                     if missed_da_blocks_count > 0 {
                         if let Err(e) = self.process_missed_da_blocks(missed_da_blocks_count, last_used_l1_height, l1_fee_rate).await {
                             error!("Sequencer error: {}", e);
@@ -768,7 +662,7 @@ where
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
-                            let _ = da_commitment_tx.unbounded_send((l2_height, state_diff));
+                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -800,7 +694,7 @@ where
                             // Only errors when there are no receivers
                             let _ = self.soft_confirmation_tx.send(l2_height);
 
-                            let _ = da_commitment_tx.unbounded_send((l2_height, state_diff));
+                            let _ = da_commitment_tx.send((l2_height, state_diff));
                         },
                         Err(e) => {
                             error!("Sequencer error: {}", e);
@@ -809,7 +703,7 @@ where
                 },
                 _ = signal::ctrl_c() => {
                     info!("Shutting down sequencer");
-                    self.task_manager.abort().await;
+                    task_manager.abort().await;
                     return Ok(());
                 }
             }
@@ -952,31 +846,6 @@ where
             AccountExists { addr: _, nonce } => Ok(nonce),
             AccountEmpty => Ok(0),
         }
-    }
-
-    /// Creates a shared RpcContext with all required data.
-    async fn create_rpc_context(&self) -> RpcContext<C, DB> {
-        let l2_force_block_tx = self.l2_force_block_tx.clone();
-
-        RpcContext {
-            mempool: self.mempool.clone(),
-            deposit_mempool: self.deposit_mempool.clone(),
-            l2_force_block_tx,
-            storage: self.storage.clone(),
-            ledger: self.ledger_db.clone(),
-            test_mode: self.config.test_mode,
-        }
-    }
-
-    /// Updates the given RpcModule with Sequencer methods.
-    pub async fn register_rpc_methods(
-        &self,
-        mut rpc_methods: jsonrpsee::RpcModule<()>,
-    ) -> Result<jsonrpsee::RpcModule<()>, jsonrpsee::core::RegisterMethodError> {
-        let rpc_context = self.create_rpc_context().await;
-        let rpc = create_rpc_module(rpc_context);
-        rpc_methods.merge(rpc)?;
-        Ok(rpc_methods)
     }
 
     pub async fn restore_mempool(&self) -> Result<(), anyhow::Error> {

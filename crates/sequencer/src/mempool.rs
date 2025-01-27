@@ -26,7 +26,7 @@ type CitreaMempoolImpl<C> = Pool<
 
 type Transaction<C> = <CitreaMempoolImpl<C> as TransactionPool>::Transaction;
 
-pub(crate) struct CitreaMempool<C: sov_modules_api::Context>(CitreaMempoolImpl<C>);
+pub struct CitreaMempool<C: sov_modules_api::Context>(CitreaMempoolImpl<C>);
 
 impl<C: sov_modules_api::Context> CitreaMempool<C> {
     pub(crate) fn new(

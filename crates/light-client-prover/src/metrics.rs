@@ -1,4 +1,4 @@
-use metrics::Gauge;
+use metrics::{Gauge, Histogram};
 use metrics_derive::Metrics;
 use once_cell::sync::Lazy;
 
@@ -7,6 +7,8 @@ use once_cell::sync::Lazy;
 pub struct LightClientProverMetrics {
     #[metric(describe = "The current L1 block number which is used to produce L2 blocks")]
     pub current_l1_block: Gauge,
+    #[metric(describe = "The duration of scanning and processing a single L1 block")]
+    pub scan_l1_block: Histogram,
 }
 
 /// Light client metrics

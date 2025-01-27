@@ -263,7 +263,7 @@ where
 
             let input = match current_spec {
                 SpecId::Genesis => borsh::to_vec(&BatchProofCircuitInputV1::from(input))?,
-                _ => borsh::to_vec(&input)?,
+                _ => borsh::to_vec(&input.into_v2_parts())?,
             };
 
             prover_service
@@ -271,6 +271,7 @@ where
                     input,
                     assumptions: vec![],
                     elf,
+                    is_post_genesis_batch: current_spec > SpecId::Genesis,
                 })
                 .await;
         }

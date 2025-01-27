@@ -6,16 +6,14 @@ use citrea_evm::system_contracts::BridgeWrapper;
 use citrea_evm::SYSTEM_SIGNER;
 use tracing::instrument;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DepositDataMempool {
     accepted_deposit_txs: VecDeque<Vec<u8>>,
 }
 
 impl DepositDataMempool {
     pub fn new() -> Self {
-        Self {
-            accepted_deposit_txs: VecDeque::new(),
-        }
+        Self::default()
     }
 
     pub fn make_deposit_tx_from_data(&mut self, deposit_tx_data: Vec<u8>) -> TransactionRequest {

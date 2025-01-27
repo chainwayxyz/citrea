@@ -118,7 +118,7 @@ impl RollupBlueprint for MockDemoRollup {
             .collect()
     }
 
-    fn get_light_client_proof_code_commitment(
+    fn get_light_client_proof_code_commitments(
         &self,
     ) -> HashMap<SpecId, <Self::Vm as Zkvm>::CodeCommitment> {
         LIGHT_CLIENT_LATEST_MOCK_GUESTS

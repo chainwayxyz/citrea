@@ -18,6 +18,8 @@ pub mod utils;
 pub type MigrationName = String;
 /// Alias for migration version type
 pub type MigrationVersion = u64;
+/// Alias for migrations list
+pub type Migrations = &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>;
 
 /// A trait that should be implemented by migrations.
 pub trait LedgerMigration {
@@ -39,7 +41,7 @@ pub trait LedgerMigration {
 /// made by any run migration useless.
 pub struct LedgerDBMigrator<'a> {
     ledger_path: &'a Path,
-    migrations: &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>,
+    migrations: Migrations,
 }
 
 impl<'a> LedgerDBMigrator<'a> {

@@ -48,7 +48,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
 clap = { workspace = true }
-hex = { workspace = true, optional = true }
+hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 lazy_static = { workspace = true }
 log-panics = { workspace = true }
@@ -80,7 +80,6 @@ alloy-rpc-types = { workspace = true }
 alloy-rpc-types-trace = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
-hex = { workspace = true }
 jmt = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }

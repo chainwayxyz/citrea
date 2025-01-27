@@ -1,3 +1,6 @@
+#[cfg(feature = "native")]
+pub use services::*;
+
 pub mod circuit;
 #[cfg(feature = "native")]
 pub mod da_block_handler;
@@ -9,6 +12,8 @@ pub mod metrics;
 pub mod rpc;
 #[cfg(feature = "native")]
 pub mod runner;
+#[cfg(feature = "native")]
+mod services;
 #[cfg(test)]
 mod tests;
 pub(crate) mod utils;
