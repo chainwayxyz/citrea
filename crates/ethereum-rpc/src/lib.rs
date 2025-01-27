@@ -34,16 +34,17 @@ use sov_state::storage::NativeStorage;
 use tokio::join;
 use tokio::sync::broadcast;
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
+use alloy_primitives::U64;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncValues {
-    pub head_block_number: u64,
-    pub synced_block_number: u64,
+    pub head_block_number: U64,
+    pub synced_block_number: U64,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum LayerStatus {
-    Synced(u64),
+    Synced(U64),
     Syncing(SyncValues),
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -554,17 +555,17 @@ where
 
         let l1_status = if l1_synced_block_number < l1_head_block_number {
             LayerStatus::Syncing(SyncValues {
-                synced_block_number: l1_synced_block_number,
-                head_block_number: l1_head_block_number,
+                synced_block_number: U64::from(l1_synced_block_number),
+                head_block_number: U64::from(l1_head_block_number),
             })
         } else {
-            LayerStatus::Synced(l1_head_block_number)
+            LayerStatus::Synced(U64::from(l1_head_block_number))
         };
 
         let l2_status = if l2_synced_block_number < l2_head_block_number.to() {
             LayerStatus::Syncing(SyncValues {
-                synced_block_number: l2_synced_block_number,
-                head_block_number: l2_head_block_number.to(),
+                synced_block_number: U64::from(l2_synced_block_number),
+                head_block_number: l2_head_block_number,
             })
         } else {
             LayerStatus::Synced(l2_head_block_number.to())
