@@ -41,6 +41,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitParams;
 use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
@@ -626,6 +627,7 @@ where
         let mut block_production_tick = tokio::time::interval(target_block_time);
         block_production_tick.tick().await;
 
+        let mut sigterm = signal(SignalKind::terminate()).expect("failed to setup SIGTERM handler");
         loop {
             tokio::select! {
                 // Receive updates from DA layer worker.
@@ -701,7 +703,12 @@ where
                         }
                     };
                 },
-                _ = signal::ctrl_c() => {
+                _ = async {
+                    tokio::select! {
+                        _ = signal::ctrl_c() => (),
+                        _ = sigterm.recv() => ()
+                    }
+                } => {
                     info!("Shutting down sequencer");
                     task_manager.abort().await;
                     return Ok(());
