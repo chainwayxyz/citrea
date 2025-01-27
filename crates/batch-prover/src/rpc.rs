@@ -204,7 +204,7 @@ where
             let response = ProverInputResponse {
                 commitment_range: (U32::from(range_start), U32::from(range_end)),
                 l1_block_height: U64::from(l1_height),
-                encoded_serialized_batch_proof_input: hex::encode(serialized_circuit_input),
+                encoded_serialized_batch_proof_input: format!("0x{}", hex::encode(serialized_circuit_input)),
             };
 
             batch_proof_circuit_input_responses.push(response);
