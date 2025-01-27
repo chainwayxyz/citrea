@@ -27,8 +27,8 @@ impl<Q> Clone for NativeDB<Q> {
 }
 
 impl<Q> NativeDB<Q> {
-    const DB_PATH_SUFFIX: &'static str = "native-db";
-    const DB_NAME: &'static str = "native";
+    const DB_PATH_SUFFIX: &'static str = "native";
+    const DB_NAME: &'static str = "native-db";
 
     /// Initialize [`sov_schema_db::DB`] that matches tables and columns for NativeDB
     pub fn setup_schema_db(cfg: &RocksdbConfig) -> anyhow::Result<sov_schema_db::DB> {
