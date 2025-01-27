@@ -25,6 +25,7 @@ use tokio::sync::Mutex;
 use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProverInputResponse {
     pub commitment_range: (U32, U32),
     pub l1_block_height: U64,
