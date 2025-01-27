@@ -3,8 +3,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::anyhow;
-use futures::channel::mpsc::UnboundedReceiver;
-use futures::StreamExt;
 use parking_lot::RwLock;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -14,6 +12,7 @@ use sov_modules_api::StateDiff;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, TxRequestWithNotifier};
 use tokio::select;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
@@ -73,7 +72,7 @@ where
                 _ = cancellation_token.cancelled() => {
                     return;
                 },
-                info = self.soft_confirmation_rx.next() => {
+                info = self.soft_confirmation_rx.recv() => {
                     let Some((height, state_diff)) = info else {
                         // An error is returned because the channel is either
                         // closed or lagged.

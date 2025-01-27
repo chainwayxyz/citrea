@@ -14,6 +14,8 @@ use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 use sov_db::schema::types::SoftConfirmationNumber;
 use tower_http::cors::{Any, CorsLayer};
 
+pub mod server;
+
 // Exit early if head_batch_num is below this threshold
 const BLOCK_NUM_THRESHOLD: u64 = 2;
 

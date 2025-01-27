@@ -18,7 +18,6 @@ clap = { workspace = true, optional = true }
 # tokio = { workspace = true, features = ["sync"], optional = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"], optional = true }
-secp256k1 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }

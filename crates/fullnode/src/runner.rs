@@ -1,5 +1,4 @@
-use std::collections::{HashMap, VecDeque};
-use std::net::SocketAddr;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -12,13 +11,11 @@ use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
 use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
-use citrea_common::{RollupPublicKeys, RpcConfig, RunnerConfig};
+use citrea_common::{RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::server::{BatchRequestConfig, RpcServiceBuilder, ServerBuilder};
-use jsonrpsee::RpcModule;
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
@@ -29,16 +26,13 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::fork::ForkManager;
 use sov_rollup_interface::rpc::SoftConfirmationResponse;
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_rollup_interface::zk::{Zkvm, ZkvmHost};
-use sov_stf_runner::InitVariant;
+use sov_stf_runner::InitParams;
 use tokio::select;
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, instrument};
 
-use crate::da_block_handler::L1BlockHandler;
 use crate::metrics::FULLNODE_METRICS;
 
 type StateRoot<C, Da, RT> = <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::StateRoot;
@@ -46,10 +40,9 @@ type StfTransaction<C, Da, RT> =
     <StfBlueprint<C, Da, RT> as StateTransitionFunction<Da>>::Transaction;
 
 /// Citrea's own STF runner implementation.
-pub struct CitreaFullnode<Da, Vm, C, DB, RT>
+pub struct CitreaFullnode<Da, C, DB, RT>
 where
     Da: DaService,
-    Vm: ZkvmHost + Zkvm,
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>>,
     DB: NodeLedgerOps + Clone,
     RT: Runtime<C, Da::Spec>,
@@ -61,28 +54,21 @@ where
     ledger_db: DB,
     state_root: StateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
-    rpc_config: RpcConfig,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
-    sequencer_da_pub_key: Vec<u8>,
-    prover_da_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
-    code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
     pruning_config: Option<PruningConfig>,
-    task_manager: TaskManager<()>,
     backup_manager: Arc<BackupManager>,
 }
 
-impl<Da, Vm, C, DB, RT> CitreaFullnode<Da, Vm, C, DB, RT>
+impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
 where
     Da: DaService<Error = anyhow::Error>,
-    Vm: ZkvmHost + Zkvm,
-    <Vm as Zkvm>::CodeCommitment: Send,
     C: Context + Spec<Storage = ProverStorage<SnapshotManager>> + Send + Sync,
     DB: NodeLedgerOps + Clone + Send + Sync + 'static,
     RT: Runtime<C, Da::Spec>,
@@ -95,39 +81,16 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         runner_config: RunnerConfig,
+        init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
+        stf: StfBlueprint<C, Da::Spec, RT>,
         public_keys: RollupPublicKeys,
-        rpc_config: RpcConfig,
         da_service: Arc<Da>,
         ledger_db: DB,
-        stf: StfBlueprint<C, Da::Spec, RT>,
-        mut storage_manager: ProverStorageManager<Da::Spec>,
-        init_variant: InitVariant<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
-        code_commitments_by_spec: HashMap<SpecId, Vm::CodeCommitment>,
+        storage_manager: ProverStorageManager<Da::Spec>,
         fork_manager: ForkManager<'static>,
         soft_confirmation_tx: broadcast::Sender<u64>,
-        task_manager: TaskManager<()>,
         backup_manager: Arc<BackupManager>,
     ) -> Result<Self, anyhow::Error> {
-        let (prev_state_root, prev_batch_hash) = match init_variant {
-            InitVariant::Initialized((state_root, batch_hash)) => {
-                info!("Chain is already initialized. Skipping initialization. State root: {}. Previous soft confirmation hash: {}", hex::encode(state_root.as_ref()), hex::encode(batch_hash));
-                (state_root, batch_hash)
-            }
-            InitVariant::Genesis(params) => {
-                info!("No history detected. Initializing chain...");
-                let storage = storage_manager.create_storage_on_l2_height(0)?;
-                let (genesis_root, initialized_storage) = stf.init_chain(storage, params);
-                storage_manager.save_change_set_l2(0, initialized_storage)?;
-                storage_manager.finalize_l2(0)?;
-                ledger_db.set_l2_genesis_state_root(&genesis_root)?;
-                info!(
-                    "Chain initialization is done. Genesis root: 0x{}",
-                    hex::encode(genesis_root.as_ref()),
-                );
-                (genesis_root, [0; 32])
-            }
-        };
-
         let start_l2_height = ledger_db.get_head_soft_confirmation_height()?.unwrap_or(0) + 1;
 
         info!("Starting L2 height: {}", start_l2_height);
@@ -138,91 +101,20 @@ where
             stf,
             storage_manager,
             ledger_db,
-            state_root: prev_state_root,
-            batch_hash: prev_batch_hash,
-            rpc_config,
+            state_root: init_params.state_root,
+            batch_hash: init_params.batch_hash,
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
-            sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
-            prover_da_pub_key: public_keys.prover_da_pub_key,
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
-            code_commitments_by_spec,
             sync_blocks_count: runner_config.sync_blocks_count,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,
             pruning_config: runner_config.pruning_config,
-            task_manager,
             backup_manager,
         })
-    }
-
-    /// Starts a RPC server with provided rpc methods.
-    pub async fn start_rpc_server(
-        &mut self,
-        methods: RpcModule<()>,
-        channel: Option<oneshot::Sender<SocketAddr>>,
-    ) {
-        let bind_host = match self.rpc_config.bind_host.parse() {
-            Ok(bind_host) => bind_host,
-            Err(e) => {
-                error!("Failed to parse bind host: {}", e);
-                return;
-            }
-        };
-        let listen_address = SocketAddr::new(bind_host, self.rpc_config.bind_port);
-
-        let max_connections = self.rpc_config.max_connections;
-        let max_subscriptions_per_connection = self.rpc_config.max_subscriptions_per_connection;
-        let max_request_body_size = self.rpc_config.max_request_body_size;
-        let max_response_body_size = self.rpc_config.max_response_body_size;
-        let batch_requests_limit = self.rpc_config.batch_requests_limit;
-
-        let middleware = tower::ServiceBuilder::new()
-            .layer(citrea_common::rpc::get_cors_layer())
-            .layer(citrea_common::rpc::get_healthcheck_proxy_layer());
-        let rpc_middleware = RpcServiceBuilder::new().layer_fn(citrea_common::rpc::Logger);
-
-        self.task_manager
-            .spawn(move |cancellation_token| async move {
-                let server = ServerBuilder::default()
-                    .max_connections(max_connections)
-                    .max_subscriptions_per_connection(max_subscriptions_per_connection)
-                    .max_request_body_size(max_request_body_size)
-                    .max_response_body_size(max_response_body_size)
-                    .set_batch_request_config(BatchRequestConfig::Limit(batch_requests_limit))
-                    .set_http_middleware(middleware)
-                    .set_rpc_middleware(rpc_middleware)
-                    .build([listen_address].as_ref())
-                    .await;
-
-                match server {
-                    Ok(server) => {
-                        let bound_address = match server.local_addr() {
-                            Ok(address) => address,
-                            Err(e) => {
-                                error!("{}", e);
-                                return;
-                            }
-                        };
-                        if let Some(channel) = channel {
-                            if let Err(e) = channel.send(bound_address) {
-                                error!("Could not send bound_address {}: {}", bound_address, e);
-                                return;
-                            }
-                        }
-                        info!("Starting RPC server at {} ", &bound_address);
-
-                        let _server_handle = server.start(methods);
-                        cancellation_token.cancelled().await;
-                    }
-                    Err(e) => {
-                        error!("Could not start RPC server: {}", e);
-                    }
-                }
-            });
     }
 
     async fn process_l2_block(
@@ -327,22 +219,8 @@ where
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self, mut task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
         // Last L1/L2 height before shutdown.
-        let start_l1_height = {
-            let last_scanned_l1_height = self
-                .ledger_db
-                .get_last_scanned_l1_height()
-                .unwrap_or_else(|_| {
-                    panic!("Failed to get last scanned l1 height from the ledger db")
-                });
-
-            match last_scanned_l1_height {
-                Some(height) => height.0,
-                None => get_initial_slot_height(&self.sequencer_client).await,
-            }
-        };
-
         if let Some(config) = &self.pruning_config {
             let pruner = Pruner::<DB>::new(
                 config.clone(),
@@ -351,35 +229,8 @@ where
                 self.ledger_db.clone(),
             );
 
-            self.task_manager
-                .spawn(|cancellation_token| pruner.run(cancellation_token));
+            task_manager.spawn(|cancellation_token| pruner.run(cancellation_token));
         }
-
-        let ledger_db = self.ledger_db.clone();
-        let da_service = self.da_service.clone();
-        let sequencer_pub_key = self.sequencer_pub_key.clone();
-        let sequencer_da_pub_key = self.sequencer_da_pub_key.clone();
-        let prover_da_pub_key = self.prover_da_pub_key.clone();
-        let code_commitments_by_spec = self.code_commitments_by_spec.clone();
-        let l1_block_cache = self.l1_block_cache.clone();
-        let backup_manager = self.backup_manager.clone();
-
-        self.task_manager
-            .spawn(move |cancellation_token| async move {
-                let l1_block_handler =
-                    L1BlockHandler::<C, Vm, Da, StateRoot<C, Da::Spec, RT>, DB>::new(
-                        ledger_db,
-                        da_service,
-                        sequencer_pub_key,
-                        sequencer_da_pub_key,
-                        prover_da_pub_key,
-                        code_commitments_by_spec,
-                        l1_block_cache.clone(),
-                    );
-                l1_block_handler
-                    .run(start_l1_height, cancellation_token)
-                    .await
-            });
 
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
@@ -396,6 +247,7 @@ where
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         interval.tick().await;
 
+        let backup_manager = self.backup_manager.clone();
         let mut shutdown_signal = create_shutdown_signal().await;
 
         loop {
@@ -441,15 +293,12 @@ where
                         }
                     }
                 },
-                Some(_) = shutdown_signal.recv() => return self.shutdown().await,
+                Some(_) = shutdown_signal.recv() => {
+                    info!("Shutting down");
+                    task_manager.abort().await;
+                },
             }
         }
-    }
-
-    async fn shutdown(&self) -> anyhow::Result<()> {
-        info!("Shutting down");
-        self.task_manager.abort().await;
-        Ok(())
     }
 
     /// Allows to read current state root
@@ -534,19 +383,6 @@ async fn sync_l2(
 
         if let Err(e) = sender.send(soft_confirmations).await {
             error!("Could not notify about L2 block: {}", e);
-        }
-    }
-}
-
-async fn get_initial_slot_height(client: &HttpClient) -> u64 {
-    loop {
-        match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(soft_confirmation)) => return soft_confirmation.da_slot_height,
-            _ => {
-                // sleep 1
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                continue;
-            }
         }
     }
 }

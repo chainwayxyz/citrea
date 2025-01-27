@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context};
@@ -34,11 +34,11 @@ impl Default for BackupConfig {
 /// with L1/L2 block processing.
 pub struct BackupManager {
     /// Node kind
-    node_kind: &'static str,
+    node_kind: String,
     /// Optional base path used for backups. Can be overridden via RPC
     base_path: Option<PathBuf>,
     /// Map of path to backupable database
-    databases: HashMap<String, Arc<sov_schema_db::DB>>,
+    databases: RwLock<HashMap<String, Arc<sov_schema_db::DB>>>,
     /// Lock to hold during l1 block processing
     l1_processing_lock: Mutex<()>,
     /// Lock to hold during l2 block processing
@@ -77,14 +77,14 @@ impl BackupManager {
     /// * `config` - Optional config to override required/optional directories
     pub fn new(
         // Todo Wait on https://github.com/chainwayxyz/citrea/pull/1714 and RollupClient enum
-        node_kind: &'static str,
+        node_kind: String,
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
         Self {
             node_kind,
             base_path,
-            databases: HashMap::new(),
+            databases: RwLock::new(HashMap::new()),
             l1_processing_lock: Mutex::new(()),
             l2_processing_lock: Mutex::new(()),
             config: config.unwrap_or_default(),
@@ -116,7 +116,7 @@ impl BackupManager {
     /// # Errors
     /// Returns error if the provided path is not present in backup_dirs configuration
     pub fn register_database(
-        &mut self,
+        &self,
         path: String,
         db: Arc<sov_schema_db::DB>,
     ) -> anyhow::Result<()> {
@@ -124,7 +124,7 @@ impl BackupManager {
             self.config.backup_dirs.contains(&path),
             "Unexpect database identifier"
         );
-        self.databases.insert(path, db);
+        self.databases.write().unwrap().insert(path, db);
         Ok(())
     }
 
@@ -167,6 +167,8 @@ impl BackupManager {
             let path = backup_path.join(dir);
             let db = self
                 .databases
+                .read()
+                .unwrap()
                 .get(dir)
                 .context("Missing required db")?
                 .clone();

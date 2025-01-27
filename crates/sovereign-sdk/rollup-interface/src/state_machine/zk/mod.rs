@@ -47,7 +47,12 @@ pub trait ZkvmHost: Zkvm + Clone {
     /// This runs the guest binary compiled for the zkVM target, optionally
     /// creating a SNARK of correct execution. Running the true guest binary comes
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
-    fn run(&mut self, elf: Vec<u8>, with_proof: bool) -> Result<Proof, anyhow::Error>;
+    fn run(
+        &mut self,
+        elf: Vec<u8>,
+        with_proof: bool,
+        is_post_genesis_batch: bool,
+    ) -> Result<Proof, anyhow::Error>;
 
     /// Extracts public input and receipt from the proof.
     fn extract_output<T: BorshDeserialize>(proof: &Proof) -> Result<T, Self::Error>;
@@ -248,6 +253,99 @@ pub struct BatchProofCircuitInput<'txs, StateRoot, Witness, Da: DaSpec, Tx: Clon
     /// The range is inclusive.
     pub sequencer_commitments_range: (u32, u32),
 }
+
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+// Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
+// StateTransitionFunction, DA, and Zkvm traits.
+#[serde(bound = "StateRoot: Serialize + DeserializeOwned")]
+/// First part of the Kumquat elf input
+pub struct BatchProofCircuitInputV2Part1<StateRoot, Da: DaSpec> {
+    /// The state root before the state transition
+    pub initial_state_root: StateRoot,
+    /// The state root after the state transition
+    pub final_state_root: StateRoot,
+    /// The hash before the state transition
+    pub prev_soft_confirmation_hash: [u8; 32],
+    /// The `crate::da::DaData` that are being processed as blobs. Everything that's not `crate::da::DaData::SequencerCommitment` will be ignored.
+    pub da_data: Vec<Da::BlobTransaction>,
+    /// DA block header that the sequencer commitments were found in.
+    pub da_block_header_of_commitments: Da::BlockHeader,
+    /// The inclusion proof for all DA data.
+    pub inclusion_proof: Da::InclusionMultiProof,
+    /// The completeness proof for all DA data.
+    pub completeness_proof: Da::CompletenessProof,
+    /// Pre-proven commitments L2 ranges which also exist in the current L1 `da_data`.
+    pub preproven_commitments: Vec<usize>,
+    /// DA block headers the soft confirmations was constructed on.
+    pub da_block_headers_of_soft_confirmations: VecDeque<Vec<Da::BlockHeader>>,
+    /// The range of sequencer commitments that are being processed.
+    /// The range is inclusive.
+    pub sequencer_commitments_range: (u32, u32),
+}
+
+impl<'txs, StateRoot, Witness, Da, Tx> BatchProofCircuitInput<'txs, StateRoot, Witness, Da, Tx>
+where
+    Da: DaSpec,
+    Tx: Clone,
+    StateRoot: Serialize + DeserializeOwned,
+    Witness: Serialize + DeserializeOwned,
+{
+    /// Into Kumquat expected inputs
+    pub fn into_v2_parts(
+        self,
+    ) -> (
+        BatchProofCircuitInputV2Part1<StateRoot, Da>,
+        BatchProofCircuitInputV2Part2<'txs, Witness, Tx>,
+    ) {
+        assert_eq!(
+            self.soft_confirmations.len(),
+            self.state_transition_witnesses.len()
+        );
+        let mut x = VecDeque::with_capacity(self.soft_confirmations.len());
+
+        for (confirmations, witnesses) in self
+            .soft_confirmations
+            .into_iter()
+            .zip(self.state_transition_witnesses)
+        {
+            assert_eq!(confirmations.len(), witnesses.len());
+
+            let v: Vec<_> = confirmations
+                .into_iter()
+                .zip(witnesses)
+                .map(|(confirmation, (state_witness, offchain_witness))| {
+                    (confirmation, state_witness, offchain_witness)
+                })
+                .collect();
+
+            x.push_back(v);
+        }
+
+        (
+            BatchProofCircuitInputV2Part1 {
+                initial_state_root: self.initial_state_root,
+                final_state_root: self.final_state_root,
+                prev_soft_confirmation_hash: self.prev_soft_confirmation_hash,
+                da_data: self.da_data,
+                da_block_header_of_commitments: self.da_block_header_of_commitments,
+                inclusion_proof: self.inclusion_proof,
+                completeness_proof: self.completeness_proof,
+                preproven_commitments: self.preproven_commitments,
+                da_block_headers_of_soft_confirmations: self.da_block_headers_of_soft_confirmations,
+                sequencer_commitments_range: self.sequencer_commitments_range,
+            },
+            BatchProofCircuitInputV2Part2(x),
+        )
+    }
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+/// Second part of the Kumquat elf input
+/// This is going to be read per-need basis to not go out of memory
+/// in the zkvm
+pub struct BatchProofCircuitInputV2Part2<'txs, Witness, Tx: Clone>(
+    VecDeque<Vec<(SignedSoftConfirmation<'txs, Tx>, Witness, Witness)>>,
+);
 
 #[derive(Serialize, Deserialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the

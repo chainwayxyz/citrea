@@ -26,11 +26,12 @@ crypto-bigint = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 itertools = { workspace = true }
 jsonrpsee = { workspace = true, optional = true }
+k256 = { workspace = true }
 metrics = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true, features = [] }
 rand = { workspace = true }
 reqwest = { workspace = true, optional = true }
-secp256k1 = { workspace = true }
+secp256k1 = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror = { workspace = true }
@@ -43,6 +44,7 @@ sha2 = { workspace = true }
 bitcoincore-rpc = { workspace = true, optional = true }
 
 [dev-dependencies]
+bitcoin-da = { path = ".", features = ["native"] }
 citrea-e2e = { workspace = true }
 
 [features]
@@ -59,4 +61,5 @@ native = [
   "dep:bitcoincore-rpc",
   "dep:reqwest",
   "dep:jsonrpsee",
+  "dep:secp256k1",
 ]

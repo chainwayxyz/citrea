@@ -20,8 +20,6 @@ use sov_modules_api::DaSpec;
 use sov_rollup_interface::stf::StateTransitionFunction;
 
 #[cfg(feature = "native")]
-type GenesisParams<ST, Da> = <ST as StateTransitionFunction<Da>>::GenesisParams;
-#[cfg(feature = "native")]
 type SoftConfirmationHash = [u8; 32];
 
 #[cfg(feature = "native")]
@@ -41,10 +39,9 @@ pub fn read_json_file<T: serde::de::DeserializeOwned, P: AsRef<Path>>(
 
 #[cfg(feature = "native")]
 /// How [`StateTransitionRunner`] is initialized
-pub enum InitVariant<Stf: StateTransitionFunction<Da>, Da: DaSpec> {
-    /// From given state root and soft confirmation hash
-    Initialized((Stf::StateRoot, SoftConfirmationHash)),
-    /// From empty state root
-    /// Genesis params for Stf::init
-    Genesis(GenesisParams<Stf, Da>),
+pub struct InitParams<Stf: StateTransitionFunction<Da>, Da: DaSpec> {
+    /// The last known state root
+    pub state_root: Stf::StateRoot,
+    /// The last known batch hash
+    pub batch_hash: SoftConfirmationHash,
 }

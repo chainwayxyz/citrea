@@ -95,12 +95,6 @@ pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-pub fn calculate_sha256(input: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::default();
-    hasher.update(input);
-    hasher.finalize().into()
-}
-
 /// Computes the [`Txid`].
 ///
 /// Hashes the transaction **excluding** the segwit data (i.e. the marker, flag bytes, and the

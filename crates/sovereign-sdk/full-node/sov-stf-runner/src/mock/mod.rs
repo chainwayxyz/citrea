@@ -7,6 +7,7 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationResult, StateTransitionError,
     StateTransitionFunction,
 };
+use sov_rollup_interface::zk::ZkvmGuest;
 
 /// A mock implementation of the [`StateTransitionFunction`]
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -50,17 +51,15 @@ impl<Da: DaSpec> StateTransitionFunction<Da> for MockStf {
 
     fn apply_soft_confirmations_from_sequencer_commitments(
         &mut self,
+        _guest: &impl ZkvmGuest,
         _sequencer_public_key: &[u8],
         _sequencer_da_public_key: &[u8],
         _initial_state_root: &Self::StateRoot,
         _pre_state: Self::PreState,
         _da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         _sequencer_commitments_range: (u32, u32),
-        _witnesses: std::collections::VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         _slot_headers: std::collections::VecDeque<Vec<<Da as DaSpec>::BlockHeader>>,
-        _soft_confirmations: std::collections::VecDeque<
-            Vec<sov_modules_api::SignedSoftConfirmation<Self::Transaction>>,
-        >,
+
         _preproven_commitment_indicies: Vec<usize>,
         _forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot> {

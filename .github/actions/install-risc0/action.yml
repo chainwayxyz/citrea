@@ -12,7 +12,7 @@ runs:
     - name: Install cargo-risczero
       uses: taiki-e/install-action@v2
       with:
-        tool: cargo-risczero@1.2.0
+        tool: cargo-risczero@1.2.1
 
     - name: Install risc0-zkvm toolchain
       shell: bash

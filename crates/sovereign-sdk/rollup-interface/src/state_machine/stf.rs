@@ -15,6 +15,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::zk::ZkvmGuest;
 use crate::da::DaSpec;
 use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
@@ -54,6 +55,8 @@ pub struct ApplySequencerCommitmentsOutput<StateRoot> {
     pub state_diff: CumulativeStateDiff,
     /// Last processed L2 block height
     pub last_l2_height: u64,
+    /// Last soft confirmation hash
+    pub final_soft_confirmation_hash: [u8; 32],
 }
 
 /// A receipt for a soft confirmation of transactions. These receipts are stored in the rollup's database
@@ -220,15 +223,14 @@ pub trait StateTransitionFunction<Da: DaSpec> {
     #[allow(clippy::too_many_arguments)]
     fn apply_soft_confirmations_from_sequencer_commitments(
         &mut self,
+        guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
         sequencer_da_public_key: &[u8],
         initial_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         da_data: Vec<<Da as DaSpec>::BlobTransaction>,
         sequencer_commitments_range: (u32, u32),
-        witnesses: VecDeque<Vec<(Self::Witness, Self::Witness)>>,
         slot_headers: VecDeque<Vec<Da::BlockHeader>>,
-        soft_confirmations: VecDeque<Vec<SignedSoftConfirmation<Self::Transaction>>>,
         preproven_commitment_indicies: Vec<usize>,
         forks: &[Fork],
     ) -> ApplySequencerCommitmentsOutput<Self::StateRoot>;
