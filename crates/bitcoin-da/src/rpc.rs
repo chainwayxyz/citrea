@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use alloy_primitives::U64;
 use bitcoin::Txid;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -12,12 +13,13 @@ use crate::monitoring::{MonitoredTx, TxStatus};
 use crate::service::BitcoinService;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MonitoredTxResponse {
     pub txid: Txid,
-    pub vsize: usize,
-    pub base_fee: Option<u64>,
-    pub initial_broadcast: u64,
-    pub initial_height: u64,
+    pub vsize: U64,
+    pub base_fee: Option<U64>,
+    pub initial_broadcast: U64,
+    pub initial_height: U64,
     pub prev_txid: Option<Txid>,
     pub next_txid: Option<Txid>,
     pub status: TxStatus,
@@ -33,10 +35,10 @@ impl From<(Txid, MonitoredTx)> for MonitoredTxResponse {
 
         MonitoredTxResponse {
             txid,
-            base_fee,
-            vsize: tx.tx.vsize(),
-            initial_broadcast: tx.initial_broadcast,
-            initial_height: tx.initial_height,
+            base_fee: base_fee.map(U64::from),
+            vsize: U64::from(tx.tx.vsize()),
+            initial_broadcast: U64::from(tx.initial_broadcast),
+            initial_height: U64::from(tx.initial_height),
             prev_txid: tx.prev_txid,
             next_txid: tx.next_txid,
             status: tx.status,
