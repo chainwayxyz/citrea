@@ -76,7 +76,7 @@ pub struct SoftConfirmationResponse {
     #[serde(with = "utils::rpc_hex")]
     pub soft_confirmation_signature: Vec<u8>,
     /// Public key of the signer
-    #[serde(with = "hex::serde")] // without 0x prefix ??
+    #[serde(with = "hex::serde")] // without 0x prefix
     pub pub_key: Vec<u8>,
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
