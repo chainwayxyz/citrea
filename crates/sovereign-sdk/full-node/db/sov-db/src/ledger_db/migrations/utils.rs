@@ -2,7 +2,7 @@ use std::path::Path;
 
 use sov_schema_db::DB;
 
-use crate::ledger_db::{LEDGER_DB_PATH_SUFFIX, LEDGER_TABLES};
+use crate::ledger_db::{LEDGER_DB_NAME, LEDGER_DB_PATH_SUFFIX, LEDGER_TABLES};
 use crate::rocks_db_config::RocksdbConfig;
 
 /// Drop a column family from the database
@@ -11,7 +11,7 @@ pub fn drop_column_families(cfg: &RocksdbConfig, cf_names: Vec<String>) -> anyho
     let raw_options = cfg.as_raw_options(false);
     let mut inner = DB::open(
         path,
-        "ledger-db",
+        LEDGER_DB_NAME,
         cfg.column_families
             .clone()
             .unwrap_or_else(|| LEDGER_TABLES.iter().map(|s| s.to_string()).collect()),

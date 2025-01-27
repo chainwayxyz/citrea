@@ -43,6 +43,7 @@ pub use traits::*;
 
 /// LedgerDB path suffix
 pub const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
+pub const LEDGER_DB_NAME: &str = "ledger-db";
 
 #[derive(Clone, Debug)]
 /// A database which stores the ledger history (slots, transactions, events, etc).
@@ -66,7 +67,7 @@ impl LedgerDB {
             .column_families
             .clone()
             .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
-        let inner = DB::open(path, "ledger-db", tables, &raw_options)?;
+        let inner = DB::open(path, LEDGER_DB_NAME, tables, &raw_options)?;
 
         Ok(Self {
             db: Arc::new(inner),
