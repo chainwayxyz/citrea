@@ -56,18 +56,21 @@ pub struct LedgerDB {
 }
 
 impl LedgerDB {
+    const DB_PATH_SUFFIX: &'static str = "ledger";
+    const DB_NAME: &'static str = "ledger-db";
+
     /// Open a [`LedgerDB`] (backed by RocksDB) at the specified path.
     /// Will take optional column families, used for migration purposes.
     /// The returned instance will be at the path `{path}/ledger`.
     #[instrument(level = "trace", skip_all, err)]
     pub fn with_config(cfg: &RocksdbConfig) -> Result<Self, anyhow::Error> {
-        let path = cfg.path.join(LEDGER_DB_PATH_SUFFIX);
+        let path = cfg.path.join(LedgerDB::DB_PATH_SUFFIX);
         let raw_options = cfg.as_raw_options(false);
         let tables = cfg
             .column_families
             .clone()
             .unwrap_or_else(|| LEDGER_TABLES.iter().map(|e| e.to_string()).collect());
-        let inner = DB::open(path, LEDGER_DB_NAME, tables, &raw_options)?;
+        let inner = DB::open(path, LedgerDB::DB_NAME, tables, &raw_options)?;
 
         Ok(Self {
             db: Arc::new(inner),
