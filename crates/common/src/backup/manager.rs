@@ -7,6 +7,7 @@ use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LEDGER_DB_PATH_SUFFIX;
+use sov_db::mmr_db::MmrDB;
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
 use tokio::sync::{Mutex, MutexGuard};
@@ -21,15 +22,19 @@ pub struct BackupConfig {
     pub backup_dirs: Vec<String>,
 }
 
-impl Default for BackupConfig {
-    fn default() -> Self {
-        Self {
-            backup_dirs: vec![
-                LEDGER_DB_PATH_SUFFIX.to_string(),
-                StateDB::<()>::DB_PATH_SUFFIX.to_string(),
-                NativeDB::<()>::DB_PATH_SUFFIX.to_string(),
-            ],
+impl BackupConfig {
+    fn new(node_kind: &str) -> Self {
+        let mut backup_dirs = vec![
+            LEDGER_DB_PATH_SUFFIX.to_string(),
+            StateDB::<()>::DB_PATH_SUFFIX.to_string(),
+            NativeDB::<()>::DB_PATH_SUFFIX.to_string(),
+        ];
+
+        if node_kind == "mmr" {
+            backup_dirs.push(MmrDB::DB_PATH_SUFFIX.to_string());
         }
+
+        Self { backup_dirs }
     }
 }
 
@@ -84,13 +89,15 @@ impl BackupManager {
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
+        let config = config.unwrap_or_else(|| BackupConfig::new(node_kind.as_str()));
+
         Self {
             node_kind,
             base_path,
             databases: RwLock::new(HashMap::new()),
             l1_processing_lock: Mutex::new(()),
             l2_processing_lock: Mutex::new(()),
-            config: config.unwrap_or_default(),
+            config,
         }
     }
 
@@ -166,16 +173,13 @@ impl BackupManager {
 
         let mut handles = Vec::new();
 
-        for dir in &self.config.backup_dirs {
-            let path = backup_path.join(dir);
-            let db = self
-                .databases
-                .read()
-                .unwrap()
-                .get(dir)
-                .context("Missing required db")?
-                .clone();
-            handles.push(tokio::task::spawn_blocking(move || db.create_backup(&path)));
+        {
+            let dbs = self.databases.read().unwrap();
+            for dir in &self.config.backup_dirs {
+                let path = backup_path.join(dir);
+                let db = dbs.get(dir).context("Missing required db")?.clone();
+                handles.push(tokio::task::spawn_blocking(move || db.create_backup(&path)));
+            }
         }
 
         // Wait for all dbs to starting backing up under lock before releasing
