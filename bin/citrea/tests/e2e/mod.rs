@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, U256, U64};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
@@ -176,10 +176,10 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
-    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
+    assert_eq!(commitments[0].l2_start_block_number, U64::from(1));
+    assert_eq!(commitments[0].l2_end_block_number, U64::from(4));
 
-    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
+    assert_eq!(commitments[0].l1_height, U64::from(3));
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -220,7 +220,7 @@ async fn test_all_flow() {
 
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
-    assert_eq!(proof_l1_height.to::<u64>(), 4);
+    assert_eq!(proof_l1_height, U64::from(4));
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
     assert_eq!(last_proof.proof_output, full_node_proof[0].proof_output);
 
@@ -302,7 +302,7 @@ async fn test_all_flow() {
         .ledger_get_last_verified_batch_proof()
         .await
         .unwrap();
-    assert_eq!(proof_l1_height.to::<u64>(), 6);
+    assert_eq!(proof_l1_height, U64::from(6));
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
         last_proof.proof_output,

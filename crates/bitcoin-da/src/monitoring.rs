@@ -469,7 +469,8 @@ impl MonitoringService {
 
         for (txid, tx) in txs.iter_mut() {
             if let TxStatus::Confirmed { confirmations, .. } = tx.status {
-                if confirmations.to::<u64>() <= depth {
+                let confirmations: u64 = confirmations.try_into().expect("U64 to u64 must succeed");
+                if confirmations <= depth {
                     let tx_result = self.client.get_transaction(txid, None).await?;
                     tx.status = self.determine_tx_status(&tx_result).await?;
 

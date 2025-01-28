@@ -2,7 +2,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U64};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
 use ethereum_rpc::LayerStatus;
@@ -473,11 +473,12 @@ async fn test_full_node_sync_status() {
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
     match l2_status {
         LayerStatus::Syncing(syncing) => {
+            let synced_block_number: u64 = syncing.synced_block_number.try_into().expect("U64 to u64 must succeed");
+            let head_block_number: u64 = syncing.head_block_number.try_into().expect("U64 to u64 must succeed");
             assert!(
-                syncing.synced_block_number.to::<u64>() > 0
-                    && syncing.synced_block_number.to::<u64>() < 300
+                (synced_block_number > 0) && (synced_block_number < 300)
             );
-            assert_eq!(syncing.head_block_number.to::<u64>(), 300);
+            assert_eq!(head_block_number, 300);
         }
         _ => panic!("Expected syncing status"),
     }
@@ -486,7 +487,7 @@ async fn test_full_node_sync_status() {
 
     let l2_status = full_node_test_client.citrea_sync_status().await.l2_status;
     match l2_status {
-        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to.to::<u64>(), 300),
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, U64::from(300)),
         _ => panic!("Expected synced status"),
     }
 
@@ -501,11 +502,12 @@ async fn test_full_node_sync_status() {
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
         LayerStatus::Syncing(syncing) => {
+            let synced_block_number: u64 = syncing.synced_block_number.try_into().expect("U64 to u64 must succeed");
+            let head_block_number: u64 = syncing.head_block_number.try_into().expect("U64 to u64 must succeed");
             assert!(
-                syncing.synced_block_number.to::<u64>() > 0
-                    && syncing.synced_block_number.to::<u64>() < 20
+                (synced_block_number > 0) && (synced_block_number < 20)
             );
-            assert_eq!(syncing.head_block_number.to::<u64>(), 20);
+            assert_eq!(head_block_number, 20);
         }
         _ => panic!("Expected syncing status"),
     }
@@ -514,7 +516,7 @@ async fn test_full_node_sync_status() {
         .unwrap();
     let l1_status = full_node_test_client.citrea_sync_status().await.l1_status;
     match l1_status {
-        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to.to::<u64>(), 20),
+        LayerStatus::Synced(synced_up_to) => assert_eq!(synced_up_to, U64::from(20)),
         _ => panic!("Expected synced status"),
     }
 
