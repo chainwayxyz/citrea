@@ -1,6 +1,5 @@
-use citrea_common::tasks::manager::TaskManager;
 use citrea_common::RunnerConfig;
-use tokio::signal;
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 pub struct CitreaLightClientProver {
@@ -17,9 +16,11 @@ impl CitreaLightClientProver {
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self, task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
-        signal::ctrl_c().await.expect("Failed to listen ctrl+c");
-        task_manager.abort().await;
+    pub async fn run(
+        &mut self,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), anyhow::Error> {
+        cancellation_token.cancelled().await;
 
         Ok(())
     }

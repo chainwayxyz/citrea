@@ -10,8 +10,7 @@ use backoff::future::retry as retry_backoff;
 use citrea_common::backup::BackupManager;
 use citrea_common::cache::L1BlockCache;
 use citrea_common::da::get_da_block_at_height;
-use citrea_common::tasks::manager::TaskManager;
-use citrea_common::utils::{create_shutdown_signal, soft_confirmation_to_receipt};
+use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
 use jsonrpsee::core::client::Error as JsonrpseeError;
@@ -31,6 +30,7 @@ use sov_stf_runner::InitParams;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
 use crate::metrics::BATCH_PROVER_METRICS;
@@ -116,7 +116,10 @@ where
 
     /// Runs the rollup.
     #[instrument(level = "trace", skip_all, err)]
-    pub async fn run(&mut self, task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
+    pub async fn run(
+        &mut self,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), anyhow::Error> {
         // Create l2 sync worker task
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
 
@@ -134,7 +137,6 @@ where
         interval.tick().await;
 
         let backup_manager = self.backup_manager.clone();
-        let mut shutdown_signal = create_shutdown_signal().await;
 
         loop {
             select! {
@@ -177,9 +179,10 @@ where
                         }
                     }
                 },
-                Some(_) = shutdown_signal.recv() => {
-                    info!("Shutting down");
-                    task_manager.abort().await;
+                _ = cancellation_token.cancelled() => {
+                    info!("Shutting down batch prover");
+                    l2_rx.close();
+                    return Ok(());
                 },
             }
         }

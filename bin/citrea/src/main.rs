@@ -109,6 +109,7 @@ where
     DaC: serde::de::DeserializeOwned + DebugTrait + Clone + FromEnv + Send + Sync + 'static,
     S: CitreaRollupBlueprint<DaConfig = DaC>,
     <<S as RollupBlueprint>::NativeContext as Spec>::Storage: NativeStorage,
+    <S as RollupBlueprint>::NativeRuntime: 'static,
 {
     let rollup_config: FullNodeConfig<DaC> = match rollup_config_path {
         Some(path) => from_toml_path(path)
@@ -248,9 +249,11 @@ where
                 None,
             );
 
-            if let Err(e) = sequencer.run(task_manager).await {
-                error!("Error: {}", e);
-            }
+            task_manager.spawn(|cancellation_token| async move {
+                if let Err(e) = sequencer.run(cancellation_token).await {
+                    error!("Error: {}", e);
+                }
+            });
         }
         NodeType::BatchProver(batch_prover_config) => {
             let (mut prover, l1_block_handler, rpc_module) =
@@ -288,9 +291,11 @@ where
                     .await
             });
 
-            if let Err(e) = prover.run(task_manager).await {
-                error!("Error: {}", e);
-            }
+            task_manager.spawn(|cancellation_token| async move {
+                if let Err(e) = prover.run(cancellation_token).await {
+                    error!("Error: {}", e);
+                }
+            });
         }
         NodeType::LightClientProver(light_client_prover_config) => {
             let starting_block = match ledger_db.get_last_scanned_l1_height()? {
@@ -327,9 +332,11 @@ where
                     .await
             });
 
-            if let Err(e) = prover.run(task_manager).await {
-                error!("Error: {}", e);
-            }
+            task_manager.spawn(|cancellation_token| async move {
+                if let Err(e) = prover.run(cancellation_token).await {
+                    error!("Error: {}", e);
+                }
+            });
         }
         _ => {
             let (mut full_node, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
@@ -364,11 +371,15 @@ where
                     .await
             });
 
-            if let Err(e) = full_node.run(task_manager).await {
-                error!("Error: {}", e);
-            }
+            task_manager.spawn(|cancellation_token| async move {
+                if let Err(e) = full_node.run(cancellation_token).await {
+                    error!("Error: {}", e);
+                }
+            });
         }
     }
+
+    task_manager.wait_shutdown().await;
 
     Ok(())
 }

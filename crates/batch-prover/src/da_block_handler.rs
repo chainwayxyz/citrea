@@ -152,6 +152,7 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
+                    l1_rx.close();
                     return;
                 }
                 _ = &mut l1_sync_worker => {},

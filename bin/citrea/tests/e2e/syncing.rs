@@ -524,17 +524,15 @@ async fn test_healthcheck() {
         test_mode: false,
         ..Default::default()
     };
-    let seq_task = tokio::spawn(async {
-        start_rollup(
-            seq_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            Some(sequencer_config),
-        )
-        .await;
-    });
+    let seq_task_manager = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+    )
+    .await;
 
     let seq_addr = seq_port_rx.await.unwrap();
     let seq_test_client = init_test_rollup(seq_addr).await;
@@ -547,17 +545,15 @@ async fn test_healthcheck() {
         &da_db_dir,
         NodeMode::FullNode(seq_addr),
     );
-    let full_node_task = tokio::spawn(async {
-        start_rollup(
-            full_node_port_tx,
-            GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
-            None,
-            None,
-            rollup_config,
-            None,
-        )
-        .await;
-    });
+    let full_node_task_manager = start_rollup(
+        full_node_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        None,
+    )
+    .await;
 
     wait_for_l2_block(&seq_test_client, 2, None).await;
 
@@ -568,11 +564,10 @@ async fn test_healthcheck() {
     assert_eq!(status, 200);
 
     wait_for_l2_block(&full_node_test_client, 4, None).await;
-    seq_task.abort();
+    seq_task_manager.abort().await;
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
     let status = full_node_test_client.healthcheck().await.unwrap();
     assert_eq!(status, 500);
 
-    full_node_task.abort();
+    full_node_task_manager.abort().await;
 }
