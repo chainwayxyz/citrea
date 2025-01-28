@@ -1914,8 +1914,9 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=af85eae3010331df0e0cda5288f741b6d298813f#af85eae3010331df0e0cda5288f741b6d298813f"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=b18f5564f60a7fcef264517654d00a55573629e2#b18f5564f60a7fcef264517654d00a55573629e2"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "bitcoin",
