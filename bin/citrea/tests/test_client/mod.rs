@@ -518,11 +518,7 @@ impl TestClient {
     }
 
     pub(crate) async fn ledger_get_last_scanned_l1_height(&self) -> u64 {
-        self.http_client
-            .get_last_scanned_l1_height()
-            .await
-            .unwrap()
-            .to()
+        self.http_client.get_last_scanned_l1_height().await.unwrap()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_number(
@@ -589,7 +585,6 @@ impl TestClient {
         self.http_client
             .get_head_soft_confirmation_height()
             .await
-            .map(|v| v.to())
             .map_err(|e| e.into())
     }
 
