@@ -2,7 +2,7 @@ ifndef CITREA_NETWORK
 $(error CITREA_NETWORK is not set)
 endif
 
-OUT_PATH := resources/guests/risc0/
+OUT_PATH ?= resources/guests/risc0/
 
 .PHONY: batch-proof-bitcoin-docker
 batch-proof-bitcoin-docker:
