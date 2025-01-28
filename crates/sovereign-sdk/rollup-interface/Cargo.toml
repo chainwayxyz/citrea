@@ -21,7 +21,6 @@ alloy-primitives = { workspace = true, features=["serde"], optional = true}
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
-faster-hex = { workspace = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true }
 jmt = { workspace = true, optional = true }
