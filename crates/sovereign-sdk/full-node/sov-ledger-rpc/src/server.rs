@@ -76,9 +76,10 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_last_scanned_l1_height(&self) -> RpcResult<u64> {
+    fn get_last_scanned_l1_height(&self) -> RpcResult<U64> {
         self.ledger
             .get_last_scanned_l1_height()
+            .map(U64::from)
             .map_err(to_ledger_rpc_error)
     }
 
