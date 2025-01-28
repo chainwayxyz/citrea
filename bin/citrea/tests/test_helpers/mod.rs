@@ -184,7 +184,13 @@ pub async fn start_rollup(
             Some(rpc_reporting_channel),
         );
 
-        sequencer.run(task_manager).instrument(span).await.unwrap();
+        task_manager.spawn(|cancellation_token| async move {
+            sequencer
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
@@ -222,7 +228,14 @@ pub async fn start_rollup(
                 .instrument(handler_span.clone())
                 .await
         });
-        prover.run(task_manager).instrument(span).await.unwrap();
+
+        task_manager.spawn(|cancellation_token| async move {
+            prover
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
 
@@ -265,7 +278,13 @@ pub async fn start_rollup(
                 .await
         });
 
-        rollup.run(task_manager).instrument(span).await.unwrap();
+        task_manager.spawn(|cancellation_token| async move {
+            rollup
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     } else {
         let span = info_span!("FullNode");
 
@@ -301,8 +320,16 @@ pub async fn start_rollup(
                 .await
         });
 
-        rollup.run(task_manager).instrument(span).await.unwrap();
+        task_manager.spawn(|cancellation_token| async move {
+            rollup
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     }
+
+    task_manager.wait_shutdown().await;
 }
 
 pub fn create_default_rollup_config(

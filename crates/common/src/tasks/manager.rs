@@ -1,6 +1,8 @@
 use std::future::Future;
 use std::time::Duration;
 
+use tokio::signal;
+use tokio::signal::unix::{signal, SignalKind};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
@@ -54,5 +56,31 @@ impl<T: Send + 'static> TaskManager<T> {
     /// so that all child tasks can be cancelled at once.
     pub fn child_token(&self) -> CancellationToken {
         self.cancellation_token.child_token()
+    }
+
+    /// Wait for a termination signal and cancel all running tasks
+    pub async fn wait_shutdown(&self) {
+        let mut term_signal =
+            signal(SignalKind::terminate()).expect("Failed to create termination signal");
+        let mut interrupt_signal =
+            signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
+
+        loop {
+            tokio::select! {
+                _ = signal::ctrl_c() => {
+                    self.shutdown();
+                }
+                _ = term_signal.recv() => {
+                    self.shutdown();
+                },
+                _ = interrupt_signal.recv() => {
+                    self.shutdown();
+                }
+            }
+        }
+    }
+
+    fn shutdown(&self) {
+        self.cancellation_token.cancel()
     }
 }
