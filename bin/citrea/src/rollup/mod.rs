@@ -15,9 +15,11 @@ use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
 use sov_db::schema::types::SoftConfirmationNumber;
+use sov_db::state_db::StateDB;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::RollupBlueprint;
@@ -104,11 +106,14 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
         let mut storage_manager = self.create_storage_manager(rollup_config)?;
         let prover_storage = storage_manager.create_finalized_storage()?;
 
-        backup_manager.register_database("ledger".to_string(), ledger_db.db_handle())?;
         backup_manager
-            .register_database("state".to_string(), storage_manager.get_state_db_handle())?;
+            .register_database(LEDGER_DB_PATH_SUFFIX.to_string(), ledger_db.db_handle())?;
         backup_manager.register_database(
-            "native-db".to_string(),
+            StateDB::<()>::DB_PATH_SUFFIX.to_string(),
+            storage_manager.get_state_db_handle(),
+        )?;
+        backup_manager.register_database(
+            NativeDB::<()>::DB_PATH_SUFFIX.to_string(),
             storage_manager.get_native_db_handle(),
         )?;
 
@@ -342,6 +347,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
 
     /// Creates a new light client prover
     #[instrument(level = "trace", skip_all)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     async fn create_light_client_prover(
         &self,
         prover_config: LightClientProverConfig,

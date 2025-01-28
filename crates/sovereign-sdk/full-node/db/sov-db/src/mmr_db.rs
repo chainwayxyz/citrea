@@ -14,7 +14,7 @@ pub struct MmrDB {
 }
 
 impl MmrDB {
-    const DB_PATH_SUFFIX: &'static str = "mmr";
+    pub const DB_PATH_SUFFIX: &'static str = "mmr";
     const DB_NAME: &'static str = "mmr-db";
 
     /// Initialize [`sov_schema_db::DB`] that should be used by snapshots.

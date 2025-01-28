@@ -36,7 +36,8 @@ mod traits;
 
 pub use traits::*;
 
-const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
+/// LedgerDB path suffix
+pub const LEDGER_DB_PATH_SUFFIX: &str = "ledger";
 
 #[derive(Clone, Debug)]
 /// A database which stores the ledger history (slots, transactions, events, etc).

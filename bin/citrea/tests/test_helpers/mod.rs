@@ -1,10 +1,12 @@
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
 use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
+use citrea_common::backup::BackupManager;
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::{
@@ -71,6 +73,8 @@ pub async fn start_rollup(
         panic!("Both batch prover and light client prover config cannot be set at the same time");
     }
 
+    let backup_manager = Arc::new(BackupManager::new("test".to_string(), None, None));
+
     let (tables, migrations) = if sequencer_config.is_some() {
         (
             SEQUENCER_LEDGER_TABLES
@@ -123,7 +127,7 @@ pub async fn start_rollup(
         storage_manager,
         prover_storage,
     } = mock_demo_rollup
-        .setup_storage(&rollup_config, &rocksdb_config)
+        .setup_storage(&rollup_config, &rocksdb_config, &backup_manager)
         .expect("Storage setup should work");
 
     let Dependencies {
@@ -151,6 +155,7 @@ pub async fn start_rollup(
             da_service.clone(),
             sequencer_client_url,
             soft_confirmation_rx,
+            &backup_manager,
         )
         .expect("RPC module setup should work");
 
@@ -168,16 +173,13 @@ pub async fn start_rollup(
             genesis_config,
             rollup_config.clone(),
             sequencer_config,
-<<<<<<< HEAD
-            None,
-=======
             da_service,
             ledger_db,
             storage_manager,
             prover_storage,
             soft_confirmation_channel.0,
             rpc_module,
->>>>>>> 87bf7ff218f608aa0f75dccb4673f63223790639
+            backup_manager,
         )
         .unwrap();
 
@@ -191,19 +193,6 @@ pub async fn start_rollup(
         sequencer.run(task_manager).instrument(span).await.unwrap();
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
-<<<<<<< HEAD
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_batch_prover(
-            &mock_demo_rollup,
-            &rt_genesis_paths,
-            rollup_config,
-            rollup_prover_config,
-            None,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
-=======
->>>>>>> 87bf7ff218f608aa0f75dccb4673f63223790639
 
         let (mut prover, l1_block_handler, rpc_module) =
             CitreaRollupBlueprint::create_batch_prover(
@@ -217,6 +206,7 @@ pub async fn start_rollup(
                 prover_storage,
                 soft_confirmation_channel.0,
                 rpc_module,
+                backup_manager,
             )
             .instrument(span.clone())
             .await
@@ -242,18 +232,6 @@ pub async fn start_rollup(
         prover.run(task_manager).instrument(span).await.unwrap();
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
-<<<<<<< HEAD
-        let (mut rollup, rpc_methods) = CitreaRollupBlueprint::create_new_light_client_prover(
-            &mock_demo_rollup,
-            rollup_config.clone(),
-            light_client_prover_config,
-            None,
-        )
-        .instrument(span.clone())
-        .await
-        .unwrap();
-=======
->>>>>>> 87bf7ff218f608aa0f75dccb4673f63223790639
 
         let starting_block = match ledger_db
             .get_last_scanned_l1_height()
@@ -274,6 +252,7 @@ pub async fn start_rollup(
                 da_service,
                 ledger_db,
                 rpc_module,
+                backup_manager,
             )
             .instrument(span.clone())
             .await
@@ -302,15 +281,12 @@ pub async fn start_rollup(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
-<<<<<<< HEAD
-            None,
-=======
             da_service,
             ledger_db.clone(),
             storage_manager,
             prover_storage,
             soft_confirmation_channel.0,
->>>>>>> 87bf7ff218f608aa0f75dccb4673f63223790639
+            backup_manager,
         )
         .instrument(span.clone())
         .await

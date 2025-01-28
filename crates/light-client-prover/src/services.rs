@@ -46,7 +46,7 @@ where
     let rpc_module = rpc::register_rpc_methods(rpc_module, rpc_context)?;
 
     let mmr_db = MmrDB::new(rocksdb_config)?;
-    backup_manager.register_database("mmr".to_string(), mmr_db.db_handle())?;
+    backup_manager.register_database(MmrDB::DB_PATH_SUFFIX.to_string(), mmr_db.db_handle())?;
 
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
