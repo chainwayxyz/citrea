@@ -702,6 +702,8 @@ where
                 },
                 _ = cancellation_token.cancelled() => {
                     info!("Shutting down sequencer");
+                    da_height_update_rx.close();
+                    self.l2_force_block_rx.close();
                     return Ok(());
                 }
             }

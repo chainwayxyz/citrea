@@ -287,6 +287,7 @@ where
                 },
                 _ = cancellation_token.cancelled() => {
                     info!("Shutting down fullnode");
+                    l2_rx.close();
                     return Ok(());
                 },
             }

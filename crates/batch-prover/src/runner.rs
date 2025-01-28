@@ -173,6 +173,7 @@ where
                 },
                 _ = cancellation_token.cancelled() => {
                     info!("Shutting down batch prover");
+                    l2_rx.close();
                     return Ok(());
                 },
             }
