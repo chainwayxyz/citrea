@@ -28,7 +28,10 @@ build: ## Build the project
 build-test: ## Build the project
 	@cargo build $(TEST_FEATURES)
 
-build-release: build-risc0-docker build-sp1 ## Build the project in release mode
+build-reproducible: build-risc0-docker build-sp1 ## Build the project in release mode with reproducible guest builds
+	@cargo build --release
+
+build-release: ## Build the project in release mode
 	@cargo build --release
 
 clean: ## Cleans compiled
