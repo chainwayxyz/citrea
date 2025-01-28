@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use alloy_primitives::{U128, U32, U64};
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::LatestDaState;
 use sov_rollup_interface::mmr::MMRGuest;
@@ -365,8 +365,8 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
     fn try_from(value: StoredSoftConfirmation) -> Result<Self, Self::Error> {
         Ok(Self {
             da_slot_hash: value.da_slot_hash,
-            l2_height: U64::from(value.l2_height),
-            da_slot_height: U64::from(value.da_slot_height),
+            l2_height: value.l2_height,
+            da_slot_height: value.da_slot_height,
             da_slot_txs_commitment: value.da_slot_txs_commitment,
             hash: value.hash,
             prev_hash: value.prev_hash,
@@ -385,8 +385,8 @@ impl TryFrom<StoredSoftConfirmation> for SoftConfirmationResponse {
                 .into_iter()
                 .map(|tx_vec| HexTx { tx: tx_vec })
                 .collect(),
-            l1_fee_rate: U128::from(value.l1_fee_rate),
-            timestamp: U64::from(value.timestamp),
+            l1_fee_rate: value.l1_fee_rate,
+            timestamp: value.timestamp,
         })
     }
 }

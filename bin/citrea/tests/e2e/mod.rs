@@ -407,7 +407,7 @@ async fn test_ledger_get_head_soft_confirmation() {
         head_soft_confirmation.state_root.as_slice(),
         latest_block.header.state_root.as_slice()
     );
-    assert_eq!(head_soft_confirmation.l2_height.to::<u64>(), 2);
+    assert_eq!(head_soft_confirmation.l2_height, 2);
 
     let head_soft_confirmation_height = seq_test_client
         .ledger_get_head_soft_confirmation_height()

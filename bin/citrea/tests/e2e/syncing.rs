@@ -190,7 +190,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         if i != 1 {
             assert_eq!(
                 last_da_slot_height,
-                seq_soft_conf.da_slot_height.to::<u64>()
+                seq_soft_conf.da_slot_height
             );
             assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
@@ -202,7 +202,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
         assert_eq!(seq_soft_conf.da_slot_hash, full_node_soft_conf.da_slot_hash);
 
-        last_da_slot_height = seq_soft_conf.da_slot_height.to::<u64>();
+        last_da_slot_height = seq_soft_conf.da_slot_height;
         last_da_slot_hash = MockHash(seq_soft_conf.da_slot_hash);
     }
 
@@ -230,13 +230,13 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
         if i != 7 {
             assert_eq!(
                 last_da_slot_height,
-                seq_soft_conf.da_slot_height.to::<u64>()
+                seq_soft_conf.da_slot_height
             );
             assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         } else {
             assert_ne!(
                 last_da_slot_height,
-                seq_soft_conf.da_slot_height.to::<u64>()
+                seq_soft_conf.da_slot_height
             );
             assert_ne!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
@@ -248,7 +248,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
 
         assert_eq!(seq_soft_conf.da_slot_hash, full_node_soft_conf.da_slot_hash);
 
-        last_da_slot_height = seq_soft_conf.da_slot_height.to::<u64>();
+        last_da_slot_height = seq_soft_conf.da_slot_height;
         last_da_slot_hash = MockHash(seq_soft_conf.da_slot_hash);
     }
 

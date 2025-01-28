@@ -7,7 +7,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use alloy_primitives::{U128, U32, U64};
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ pub enum SoftConfirmationIdentifier {
 #[serde(transparent, rename_all = "camelCase")]
 pub struct HexTx {
     /// Transaction hash bytes
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub tx: Vec<u8>,
 }
 
@@ -49,41 +49,41 @@ impl From<Vec<u8>> for HexTx {
 #[serde(rename_all = "camelCase")]
 pub struct SoftConfirmationResponse {
     /// The L2 height of the soft confirmation.
-    pub l2_height: U64,
+    pub l2_height: u64,
     /// The DA height of the soft confirmation.
-    pub da_slot_height: U64,
+    pub da_slot_height: u64,
     /// The DA slothash of the soft confirmation.
     // TODO: find a way to hex serialize this and then
     // deserialize in `SequencerClient`
-    #[serde(with = "hex::serde")] // without 0x prefix
+    #[serde(with = "hex::serde")]
     pub da_slot_hash: [u8; 32],
-    #[serde(with = "hex::serde")] // without 0x prefix
+    #[serde(with = "hex::serde")]
     /// The DA slot transactions commitment of the soft confirmation.
     pub da_slot_txs_commitment: [u8; 32],
     /// The hash of the soft confirmation.
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub hash: [u8; 32],
     /// The hash of the previous soft confirmation.
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub prev_hash: [u8; 32],
     /// The transactions in this batch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub txs: Option<Vec<HexTx>>,
     /// State root of the soft confirmation.
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub state_root: Vec<u8>,
     /// Signature of the batch
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "hex::serde")]
     pub soft_confirmation_signature: Vec<u8>,
     /// Public key of the signer
-    #[serde(with = "hex::serde")] // without 0x prefix
+    #[serde(with = "hex::serde")]
     pub pub_key: Vec<u8>,
     /// Deposit data from the L1 chain
     pub deposit_data: Vec<HexTx>, // Vec<u8> wrapper around deposit data
     /// Base layer fee rate sats/wei etc. per byte.
-    pub l1_fee_rate: U128,
+    pub l1_fee_rate: u128,
     /// Sequencer's block timestamp.
-    pub timestamp: U64,
+    pub timestamp: u64,
 }
 
 impl<'txs, Tx> TryFrom<SoftConfirmationResponse> for SignedSoftConfirmation<'txs, Tx>
@@ -102,13 +102,13 @@ where
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
         let res = SignedSoftConfirmation::new(
-            val.l2_height.to(),
+            val.l2_height,
             val.hash,
             val.prev_hash,
-            val.da_slot_height.to(),
+            val.da_slot_height,
             val.da_slot_hash,
             val.da_slot_txs_commitment,
-            val.l1_fee_rate.to(),
+            val.l1_fee_rate,
             val.txs
                 .unwrap_or_default()
                 .into_iter()
@@ -118,7 +118,7 @@ where
             val.deposit_data.into_iter().map(|tx| tx.tx).collect(),
             val.soft_confirmation_signature,
             val.pub_key,
-            val.timestamp.to(),
+            val.timestamp,
         );
         Ok(res)
     }
