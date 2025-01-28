@@ -274,7 +274,7 @@ pub struct BatchProofResponse {
 #[serde(rename_all = "camelCase")]
 pub struct VerifiedBatchProofResponse {
     /// Proof
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub proof: ProofRpcResponse,
     /// State transition
     pub proof_output: BatchProofOutputRpcResponse,
@@ -347,11 +347,19 @@ where
 
     let mut map = serializer.serialize_map(Some(state_diff.len()))?;
     for (key, value) in state_diff.iter() {
-        let key = format!("0x{}", hex::encode(key));
-        let value = value.as_ref().map(|v| format!("0x{}", hex::encode(v)));
+        let key = format!("0x{}", faster_hex::hex_string(key));
+        let value = value.as_ref().map(|v| format!("0x{}", faster_hex::hex_string(v)));
         map.serialize_entry(&key, &value)?;
     }
     map.end()
+}
+
+/// Helper function to use faster_hex::hex_decode, value must not contain 0x and the len should be even
+fn faster_hex_decode(value: &str) -> Result<Vec<u8>, faster_hex::Error> {
+    let src = value.as_bytes();
+    let mut dst = vec![0; src.len() / 2];
+    faster_hex::hex_decode(src, &mut dst)?;
+    Ok(dst)
 }
 
 /// Custom deserialization for BTreeMap
@@ -381,12 +389,12 @@ where
             let mut btree_map = BTreeMap::new();
             while let Some((key, value)) = map.next_entry::<String, Option<String>>()? {
                 let key = key.trim_start_matches("0x");
-                let key = hex::decode(key).map_err(A::Error::custom)?;
+                let key = faster_hex_decode(key).map_err(A::Error::custom)?;
 
                 let value = match value {
                     Some(value) => {
                         let value = value.trim_start_matches("0x");
-                        Some(hex::decode(value).map_err(A::Error::custom)?)
+                        Some(faster_hex_decode(value).map_err(A::Error::custom)?)
                     }
                     None => None,
                 };
