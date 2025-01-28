@@ -72,6 +72,7 @@ pub struct CreateBackupInfo {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct BackupMetadata {
+    version: u32,
     node_kind: String,
     backups: HashMap<u32, u64>, // backup_id -> block_height
 }
@@ -89,7 +90,7 @@ impl BackupManager {
         base_path: Option<PathBuf>,
         config: Option<BackupConfig>,
     ) -> Self {
-        let config = config.unwrap_or_else(|| BackupConfig::new(node_kind.as_str()));
+        let config = config.unwrap_or_else(|| BackupConfig::new(&node_kind));
 
         Self {
             node_kind,
@@ -235,6 +236,7 @@ impl BackupManager {
             BackupMetadata {
                 node_kind: self.node_kind.to_string(),
                 backups: HashMap::new(),
+                version: 0,
             }
         };
         metadata.backups.insert(info.backup_id, info.block_height);
