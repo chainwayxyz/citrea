@@ -274,7 +274,7 @@ pub struct BatchProofResponse {
 #[serde(rename_all = "camelCase")]
 pub struct VerifiedBatchProofResponse {
     /// Proof
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub proof: ProofRpcResponse,
     /// State transition
     pub proof_output: BatchProofOutputRpcResponse,
