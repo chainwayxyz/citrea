@@ -126,7 +126,7 @@ pub trait LedgerRpc {
     /// Gets the height pf most recent committed soft confirmation.
     #[method(name = "getHeadSoftConfirmationHeight")]
     #[blocking]
-    fn get_head_soft_confirmation_height(&self) -> RpcResult<U64>;
+    fn get_head_soft_confirmation_height(&self) -> RpcResult<u64>;
 
     /// Gets verified proofs by slot height
     #[method(name = "getVerifiedBatchProofsBySlotHeight")]
@@ -144,5 +144,5 @@ pub trait LedgerRpc {
     /// Get last scanned l1 height
     #[method(name = "getLastScannedL1Height")]
     #[blocking]
-    fn get_last_scanned_l1_height(&self) -> RpcResult<U64>;
+    fn get_last_scanned_l1_height(&self) -> RpcResult<u64>;
 }
