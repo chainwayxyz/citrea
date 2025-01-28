@@ -7,6 +7,7 @@ use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -52,7 +53,7 @@ pub async fn start_rollup(
     light_client_prover_config: Option<LightClientProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
-) {
+) -> TaskManager<()> {
     // create rollup config default creator function and use them here for the configs
 
     // We enable risc0 dev mode in tests because the provers in dev mode generate fake receipts that can be verified if the verifier is also in dev mode
@@ -329,7 +330,7 @@ pub async fn start_rollup(
         });
     }
 
-    task_manager.wait_shutdown().await;
+    task_manager
 }
 
 pub fn create_default_rollup_config(
