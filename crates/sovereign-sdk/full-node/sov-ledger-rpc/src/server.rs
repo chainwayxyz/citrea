@@ -156,9 +156,10 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_head_soft_confirmation_height(&self) -> RpcResult<u64> {
+    fn get_head_soft_confirmation_height(&self) -> RpcResult<U64> {
         self.ledger
             .get_head_soft_confirmation_height()
+            .map(U64::from)
             .map_err(to_ledger_rpc_error)
     }
 }

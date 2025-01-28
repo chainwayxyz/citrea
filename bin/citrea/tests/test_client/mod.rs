@@ -585,6 +585,7 @@ impl TestClient {
         self.http_client
             .get_head_soft_confirmation_height()
             .await
+            .map(|v| v.try_into().expect("U64 to u64 must succeed"))
             .map_err(|e| e.into())
     }
 
