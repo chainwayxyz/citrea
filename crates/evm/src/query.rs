@@ -389,7 +389,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             None => BlockNumberOrTag::Latest,
         };
 
-        let block_number = self.block_number_for_id(&block_number, working_set)?;
+        let block_number = match block_number {
+            BlockNumberOrTag::Pending => {
+                self.block_number_for_id(&BlockNumberOrTag::Latest, working_set)? + 1
+            }
+            _ => self.block_number_for_id(&block_number, working_set)?,
+        };
 
         let current_spec = citrea_spec_id_to_evm_spec_id(fork_fn(block_number).spec_id);
 
