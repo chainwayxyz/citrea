@@ -97,8 +97,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build citrea
         run: make build-release
-        env:
-          CITREA_NETWORK: nightly
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
