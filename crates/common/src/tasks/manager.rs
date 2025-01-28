@@ -65,22 +65,16 @@ impl<T: Send + 'static> TaskManager<T> {
         let mut interrupt_signal =
             signal(SignalKind::interrupt()).expect("Failed to create interrupt signal");
 
-        loop {
-            tokio::select! {
-                _ = signal::ctrl_c() => {
-                    self.shutdown();
-                }
-                _ = term_signal.recv() => {
-                    self.shutdown();
-                },
-                _ = interrupt_signal.recv() => {
-                    self.shutdown();
-                }
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                self.abort().await;
+            }
+            _ = term_signal.recv() => {
+                self.abort().await;
+            },
+            _ = interrupt_signal.recv() => {
+                self.abort().await;
             }
         }
-    }
-
-    fn shutdown(&self) {
-        self.cancellation_token.cancel()
     }
 }
