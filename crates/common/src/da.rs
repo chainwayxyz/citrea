@@ -146,7 +146,7 @@ pub async fn extract_zk_proofs<Da: DaService>(
 pub async fn get_initial_slot_height(client: &HttpClient) -> u64 {
     loop {
         match client.get_soft_confirmation_by_number(U64::from(1)).await {
-            Ok(Some(batch)) => return batch.da_slot_height.try_into().expect("U64 to u64 must succeed"),
+            Ok(Some(batch)) => return batch.da_slot_height.to(),
             _ => {
                 // sleep 1
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;

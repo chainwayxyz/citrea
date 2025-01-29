@@ -78,7 +78,7 @@ impl MonitoredTx {
         let confirmations = match self.status {
             TxStatus::Pending { .. } => 0,
             TxStatus::Confirmed { confirmations, .. }
-            | TxStatus::Finalized { confirmations, .. } => confirmations.try_into().expect("U64 to u64 must succeed"),
+            | TxStatus::Finalized { confirmations, .. } => confirmations.to(),
             _ => return None,
         };
 
