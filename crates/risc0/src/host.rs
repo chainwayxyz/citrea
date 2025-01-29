@@ -148,6 +148,8 @@ impl ZkvmHost for Risc0BonsaiHost {
             }
         }
 
+        // std::fs::write("kumquat-input.bin", &self.env).unwrap();
+
         let env = env.write_slice(&self.env).build().unwrap();
 
         // The `RISC0_PROVER` environment variable, if specified, will select the

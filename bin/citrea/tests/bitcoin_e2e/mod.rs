@@ -5,6 +5,7 @@ pub mod light_client_test;
 // pub mod mempool_accept;
 pub mod bitcoin_test;
 pub mod full_node;
+pub mod guest_cycles;
 pub mod sequencer_commitments;
 pub mod sequencer_test;
 pub mod tx_chain;
