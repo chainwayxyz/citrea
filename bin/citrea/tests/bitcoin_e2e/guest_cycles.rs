@@ -147,6 +147,8 @@ async fn guest_cycles() {
         .unwrap();
 
     env::set_var("RISC0_DEV_MODE", "1");
+    env::set_var("RISC0_INFO", "1");
+    env::set_var("RUST_LOG", "info");
     let prover = default_prover();
 
     let ProveInfo { stats, .. } = prover
