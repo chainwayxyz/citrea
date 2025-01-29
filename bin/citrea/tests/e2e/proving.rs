@@ -1,7 +1,6 @@
 /// Prover node, proving and full node proof verification related tests
 use std::time::Duration;
 
-use alloy_primitives::U64;
 use citrea_batch_prover::GroupCommitments;
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_stf::genesis_config::GenesisPaths;
@@ -128,10 +127,10 @@ async fn full_node_verify_proof_and_store() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, U64::from(1));
-    assert_eq!(commitments[0].l2_end_block_number, U64::from(4));
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].l1_height, U64::from(3));
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -315,10 +314,10 @@ async fn test_batch_prover_prove_rpc() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, U64::from(1));
-    assert_eq!(commitments[0].l2_end_block_number, U64::from(4));
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].l1_height, U64::from(3));
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
