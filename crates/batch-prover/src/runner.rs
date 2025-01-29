@@ -187,7 +187,7 @@ where
 
         let current_l1_block = get_da_block_at_height(
             &self.da_service,
-            soft_confirmation.da_slot_height.to(),
+            soft_confirmation.da_slot_height,
             self.l1_block_cache.clone(),
         )
         .await?;
