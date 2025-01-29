@@ -117,6 +117,10 @@ async fn generate_proof_input() -> Result<()> {
 
 #[tokio::test]
 async fn guest_cycles() {
+    let input =
+        fs::read("tests/bitcoin_e2e/test-data/kumquat-2seqcomms-100blocks-input.bin").unwrap();
+    println!("Input size: {}", input.len());
+
     // Convert tmpdir to path so it's not deleted after the run for debugging purposes
     let tmpdir = tempfile::tempdir().unwrap().into_path();
 
@@ -132,14 +136,9 @@ async fn guest_cycles() {
         .status()
         .expect("'make batch-proof-bitcoin-docker' command failed");
     assert!(status.success());
-    assert!(fs::exists(&elf_path).unwrap());
 
     println!("\nELF path: {:?}", elf_path);
-
     let elf = fs::read(elf_path).unwrap();
-    let input = fs::read("test-data/kumquat-2seqcomms-100blocks-input.bin").unwrap();
-
-    println!("Input size: {}", input.len());
 
     let exec_env = ExecutorEnvBuilder::default()
         .write_slice(&input)
