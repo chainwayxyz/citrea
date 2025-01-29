@@ -37,7 +37,7 @@ impl TestCase for GenerateProofInput {
 
     fn sequencer_config() -> SequencerConfig {
         SequencerConfig {
-            min_soft_confirmations_per_commitment: 100,
+            min_soft_confirmations_per_commitment: 50,
             mempool_conf: SequencerMempoolConfig {
                 pending_tx_limit: 1_000_000,
                 pending_tx_size: 100_000_000,
@@ -85,7 +85,7 @@ impl TestCase for GenerateProofInput {
                 .unwrap();
         }
         println!("All txs sent");
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(10)).await;
 
         da.wait_mempool_len(2, None).await?;
         da.generate(FINALITY_DEPTH).await?;
@@ -137,10 +137,12 @@ async fn guest_cycles() {
     println!("\nELF path: {:?}", elf_path);
 
     let elf = fs::read(elf_path).unwrap();
-    let input = include_bytes!("test-data/kumquat-input.bin");
+    let input = fs::read("test-data/kumquat-2seqcomms-100blocks-input.bin").unwrap();
+
+    println!("Input size: {}", input.len());
 
     let exec_env = ExecutorEnvBuilder::default()
-        .write_slice(input)
+        .write_slice(&input)
         .build()
         .unwrap();
 
