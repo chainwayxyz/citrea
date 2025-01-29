@@ -522,8 +522,7 @@ impl TestClient {
             .get_last_scanned_l1_height()
             .await
             .unwrap()
-            .try_into()
-            .unwrap()
+            .to()
     }
 
     pub(crate) async fn ledger_get_sequencer_commitments_on_slot_by_number(
@@ -590,7 +589,7 @@ impl TestClient {
         self.http_client
             .get_head_soft_confirmation_height()
             .await
-            .map(|v| v.try_into().expect("U64 to u64 must succeed"))
+            .map(|v| v.to())
             .map_err(|e| e.into())
     }
 
