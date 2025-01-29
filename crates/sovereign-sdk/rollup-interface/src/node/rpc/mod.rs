@@ -249,7 +249,7 @@ pub struct LightClientProofOutputRpcResponse {
 /// The response to a JSON-RPC request for a light client proof
 pub struct LightClientProofResponse {
     /// The proof
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub proof: ProofRpcResponse,
     /// The output of the light client proof circuit
     pub light_client_proof_output: LightClientProofOutputRpcResponse,
@@ -263,7 +263,7 @@ pub struct BatchProofResponse {
     #[serde(with = "hex::serde")] // without 0x prefix
     pub l1_tx_id: [u8; 32],
     /// Proof
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub proof: ProofRpcResponse,
     /// State transition
     pub proof_output: BatchProofOutputRpcResponse,
@@ -298,10 +298,10 @@ pub type ProofRpcResponse = Vec<u8>;
 #[serde(rename_all = "camelCase")]
 pub struct BatchProofOutputRpcResponse {
     /// The state of the rollup before the transition
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub initial_state_root: Vec<u8>,
     /// The state of the rollup after the transition
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub final_state_root: Vec<u8>,
     /// The hash of the last soft confirmation before the state transition
     #[serde(with = "utils::rpc_hex")]
@@ -322,7 +322,7 @@ pub struct BatchProofOutputRpcResponse {
     /// The range is inclusive.
     pub sequencer_commitments_range: (U32, U32),
     /// Sequencer public key.
-    #[serde(with = "utils::rpc_hex")]
+    #[serde(with = "faster_hex")]
     pub sequencer_public_key: Vec<u8>,
     /// Sequencer DA public key.
     #[serde(with = "hex::serde")] // without 0x prefix
