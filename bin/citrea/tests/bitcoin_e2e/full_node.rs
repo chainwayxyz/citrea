@@ -31,7 +31,7 @@ impl TestCase for FullNodeRestartTest {
             .await?
             .unwrap();
 
-        full_node.restart(None).await?;
+        full_node.restart(None, None).await?;
 
         let genesis_state_root_after = full_node
             .client
@@ -54,7 +54,7 @@ impl TestCase for FullNodeRestartTest {
             .unwrap()
             .state_root;
 
-        full_node.restart(None).await?;
+        full_node.restart(None, None).await?;
 
         let state_root_after = full_node
             .client

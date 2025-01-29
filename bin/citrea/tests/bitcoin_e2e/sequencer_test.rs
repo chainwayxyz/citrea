@@ -94,7 +94,7 @@ impl TestCase for SequencerMissedDaBlocksTest {
         da.generate(10).await?;
 
         // Restart the sequencer
-        sequencer.start(None).await?;
+        sequencer.start(None, None).await?;
 
         for _ in 0..10 {
             sequencer.client.send_publish_batch_request().await?;
