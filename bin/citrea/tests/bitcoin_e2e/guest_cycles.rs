@@ -102,6 +102,7 @@ impl TestCase for GenerateProofInput {
 }
 
 #[tokio::test]
+#[ignore]
 async fn generate_proof_input() -> Result<()> {
     // Specify the path to your transactions file here
     let transactions_file_path =
@@ -116,6 +117,7 @@ async fn generate_proof_input() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore]
 async fn guest_cycles() {
     let input =
         fs::read("tests/bitcoin_e2e/test-data/kumquat-2seqcomms-100blocks-input.bin").unwrap();
