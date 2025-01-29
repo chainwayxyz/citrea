@@ -564,7 +564,11 @@ where
             LayerStatus::Synced(U64::from(l1_head_block_number))
         };
 
-        let l2_status = if l2_synced_block_number < l2_head_block_number.try_into().expect("U64 to u64 must succeed") {
+        let l2_status = if l2_synced_block_number
+            < l2_head_block_number
+                .try_into()
+                .expect("U64 to u64 must succeed")
+        {
             LayerStatus::Syncing(SyncValues {
                 synced_block_number: U64::from(l2_synced_block_number),
                 head_block_number: U64::from(l2_head_block_number),

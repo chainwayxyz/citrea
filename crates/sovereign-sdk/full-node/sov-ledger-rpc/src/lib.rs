@@ -16,7 +16,7 @@ pub mod server;
 #[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HexHash(#[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")] pub [u8; 32]);
 
-/// State root [`serde`]-encoded as a hex string prefixed with `0x`. 
+/// State root [`serde`]-encoded as a hex string prefixed with `0x`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HexStateRoot(#[serde(with = "faster_hex")] pub Vec<u8>);
 

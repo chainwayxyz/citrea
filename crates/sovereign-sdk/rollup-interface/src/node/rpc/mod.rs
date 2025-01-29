@@ -348,7 +348,9 @@ where
     let mut map = serializer.serialize_map(Some(state_diff.len()))?;
     for (key, value) in state_diff.iter() {
         let key = format!("0x{}", faster_hex::hex_string(key));
-        let value = value.as_ref().map(|v| format!("0x{}", faster_hex::hex_string(v)));
+        let value = value
+            .as_ref()
+            .map(|v| format!("0x{}", faster_hex::hex_string(v)));
         map.serialize_entry(&key, &value)?;
     }
     map.end()

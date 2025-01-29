@@ -106,10 +106,7 @@ async fn test_sequencer_fill_missing_da_blocks() -> Result<(), anyhow::Error> {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        head_soft_confirmation.da_slot_height,
-        latest_da_block
-    );
+    assert_eq!(head_soft_confirmation.da_slot_height, latest_da_block);
     let head_soft_confirmation_num = seq_test_client
         .ledger_get_head_soft_confirmation_height()
         .await

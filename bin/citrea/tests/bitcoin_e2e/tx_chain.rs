@@ -128,7 +128,7 @@ impl TestSequencerTransactionChaining {
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0);
 
-        sequencer.restart(None,None).await?;
+        sequencer.restart(None, None).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();

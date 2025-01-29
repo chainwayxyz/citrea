@@ -188,10 +188,7 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
             .unwrap();
 
         if i != 1 {
-            assert_eq!(
-                last_da_slot_height,
-                seq_soft_conf.da_slot_height
-            );
+            assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
             assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
 
@@ -228,16 +225,10 @@ async fn test_soft_confirmations_on_different_blocks() -> Result<(), anyhow::Err
             .unwrap();
 
         if i != 7 {
-            assert_eq!(
-                last_da_slot_height,
-                seq_soft_conf.da_slot_height
-            );
+            assert_eq!(last_da_slot_height, seq_soft_conf.da_slot_height);
             assert_eq!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         } else {
-            assert_ne!(
-                last_da_slot_height,
-                seq_soft_conf.da_slot_height
-            );
+            assert_ne!(last_da_slot_height, seq_soft_conf.da_slot_height);
             assert_ne!(last_da_slot_hash, MockHash(seq_soft_conf.da_slot_hash));
         }
 
