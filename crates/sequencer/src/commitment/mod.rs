@@ -70,6 +70,7 @@ where
             select! {
                 biased;
                 _ = cancellation_token.cancelled() => {
+                    self.soft_confirmation_rx.close();
                     return;
                 },
                 info = self.soft_confirmation_rx.recv() => {

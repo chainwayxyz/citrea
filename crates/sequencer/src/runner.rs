@@ -8,7 +8,6 @@ use alloy_primitives::{Address, Bytes, TxHash};
 use anyhow::{anyhow, bail};
 use backoff::future::retry as retry_backoff;
 use backoff::ExponentialBackoffBuilder;
-use citrea_common::tasks::manager::TaskManager;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{RollupPublicKeys, SequencerConfig};
 use citrea_evm::{CallMessage, RlpEvmTransaction, MIN_TRANSACTION_GAS};
@@ -40,7 +39,6 @@ use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_state::ProverStorage;
 use sov_stf_runner::InitParams;
-use tokio::signal;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
@@ -553,8 +551,11 @@ where
         }
     }
 
-    #[instrument(level = "trace", skip(self, task_manager), err, ret)]
-    pub async fn run(&mut self, mut task_manager: TaskManager<()>) -> Result<(), anyhow::Error> {
+    #[instrument(level = "trace", skip(self, cancellation_token), err, ret)]
+    pub async fn run(
+        &mut self,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), anyhow::Error> {
         // TODO: hotfix for mock da
         self.da_service
             .get_block_at(1)
@@ -604,16 +605,14 @@ where
             commitment_service.resubmit_pending_commitments().await?;
         }
 
-        task_manager.spawn(|cancellation_token| commitment_service.run(cancellation_token));
+        tokio::spawn(commitment_service.run(cancellation_token.child_token()));
 
-        task_manager.spawn(|cancellation_token| {
-            da_block_monitor(
-                self.da_service.clone(),
-                da_height_update_tx,
-                self.config.da_update_interval_ms,
-                cancellation_token,
-            )
-        });
+        tokio::spawn(da_block_monitor(
+            self.da_service.clone(),
+            da_height_update_tx,
+            self.config.da_update_interval_ms,
+            cancellation_token.child_token(),
+        ));
 
         let target_block_time = Duration::from_millis(self.config.block_production_interval_ms);
 
@@ -701,9 +700,10 @@ where
                         }
                     };
                 },
-                _ = signal::ctrl_c() => {
+                _ = cancellation_token.cancelled() => {
                     info!("Shutting down sequencer");
-                    task_manager.abort().await;
+                    da_height_update_rx.close();
+                    self.l2_force_block_rx.close();
                     return Ok(());
                 }
             }

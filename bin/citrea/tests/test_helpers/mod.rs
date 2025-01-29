@@ -7,6 +7,7 @@ use borsh::BorshDeserialize;
 use citrea::{CitreaRollupBlueprint, Dependencies, MockDemoRollup, Storage};
 use citrea_common::da::get_start_l1_height;
 use citrea_common::rpc::server::start_rpc_server;
+use citrea_common::tasks::manager::TaskManager;
 use citrea_common::{
     BatchProverConfig, FullNodeConfig, LightClientProverConfig, RollupPublicKeys, RpcConfig,
     RunnerConfig, SequencerConfig, StorageConfig,
@@ -52,7 +53,7 @@ pub async fn start_rollup(
     light_client_prover_config: Option<LightClientProverConfig>,
     rollup_config: FullNodeConfig<MockDaConfig>,
     sequencer_config: Option<SequencerConfig>,
-) {
+) -> TaskManager<()> {
     // create rollup config default creator function and use them here for the configs
 
     // We enable risc0 dev mode in tests because the provers in dev mode generate fake receipts that can be verified if the verifier is also in dev mode
@@ -184,7 +185,13 @@ pub async fn start_rollup(
             Some(rpc_reporting_channel),
         );
 
-        sequencer.run(task_manager).instrument(span).await.unwrap();
+        task_manager.spawn(|cancellation_token| async move {
+            sequencer
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     } else if let Some(rollup_prover_config) = rollup_prover_config {
         let span = info_span!("Prover");
 
@@ -222,7 +229,14 @@ pub async fn start_rollup(
                 .instrument(handler_span.clone())
                 .await
         });
-        prover.run(task_manager).instrument(span).await.unwrap();
+
+        task_manager.spawn(|cancellation_token| async move {
+            prover
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     } else if let Some(light_client_prover_config) = light_client_prover_config {
         let span = info_span!("LightClientProver");
 
@@ -265,7 +279,13 @@ pub async fn start_rollup(
                 .await
         });
 
-        rollup.run(task_manager).instrument(span).await.unwrap();
+        task_manager.spawn(|cancellation_token| async move {
+            rollup
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     } else {
         let span = info_span!("FullNode");
 
@@ -301,8 +321,16 @@ pub async fn start_rollup(
                 .await
         });
 
-        rollup.run(task_manager).instrument(span).await.unwrap();
+        task_manager.spawn(|cancellation_token| async move {
+            rollup
+                .run(cancellation_token)
+                .instrument(span)
+                .await
+                .unwrap();
+        });
     }
+
+    task_manager
 }
 
 pub fn create_default_rollup_config(

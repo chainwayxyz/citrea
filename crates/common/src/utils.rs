@@ -9,9 +9,6 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::{SoftConfirmationReceipt, StateDiff, TransactionDigest};
-use tokio::signal;
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::mpsc;
 
 pub fn merge_state_diffs(old_diff: StateDiff, new_diff: StateDiff) -> StateDiff {
     let mut new_diff_map = HashMap::<Vec<u8>, Option<Vec<u8>>>::from_iter(old_diff);
@@ -119,27 +116,4 @@ pub fn soft_confirmation_to_receipt<C: Context, Tx: TransactionDigest + Clone, D
         soft_confirmation_signature: soft_confirmation.signature().to_vec(),
         pub_key: soft_confirmation.pub_key().to_vec(),
     }
-}
-pub async fn create_shutdown_signal() -> tokio::sync::mpsc::Receiver<()> {
-    let (tx, rx) = mpsc::channel(1);
-
-    tokio::spawn(async move {
-        let term_signal = signal(SignalKind::terminate()).ok();
-
-        if let Some(mut term_signal) = term_signal {
-            tokio::select! {
-                _ = signal::ctrl_c() => {
-                    let _ = tx.send(()).await;
-                }
-                _ = term_signal.recv() => {
-                    let _ = tx.send(()).await;
-                }
-            }
-        } else {
-            let _ = signal::ctrl_c().await;
-            let _ = tx.send(()).await;
-        }
-    });
-
-    rx
 }
