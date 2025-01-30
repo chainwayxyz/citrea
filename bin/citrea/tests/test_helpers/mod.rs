@@ -289,7 +289,7 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (mut rollup, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
+        let (mut rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
@@ -320,6 +320,12 @@ pub async fn start_rollup(
                 .instrument(handler_span.clone())
                 .await
         });
+
+        // Spawn pruner if configs are set
+        if let Some(pruner) = pruner {
+            task_manager
+                .spawn(|cancellation_token| async move { pruner.run(cancellation_token).await });
+        }
 
         task_manager.spawn(|cancellation_token| async move {
             rollup
