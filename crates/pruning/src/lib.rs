@@ -8,8 +8,7 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
-use crate::criteria::Criteria;
-use crate::criteria::DistanceCriteria;
+use crate::criteria::{Criteria, DistanceCriteria};
 use crate::pruners::{prune_evm, prune_ledger, prune_native_db};
 
 mod criteria;
