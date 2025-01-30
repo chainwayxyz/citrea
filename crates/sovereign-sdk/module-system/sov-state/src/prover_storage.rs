@@ -129,23 +129,21 @@ where
         let latest_version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
-        // Safe initialization of an empty tree considering snapshots
+        // Handle empty jmt during genesis
         let prev_root = if let Some(root) = jmt.get_root_hash_option(latest_version)? {
             root
         } else {
-            // Initialize an empty tree only if this is truly the first version
-            if latest_version != 0 {
-                anyhow::bail!("Root hash not found for non-zero version {}", latest_version);
-            }
+            // We should only get here during genesis
+            assert_eq!(latest_version, 0, "Root hash missing for non-genesis version");
             
             let empty_batch = Vec::default().into_iter();
             let (root, tree_update) = jmt
                 .put_value_set(empty_batch, latest_version)
-                .context("Failed to initialize empty JMT")?;
+                .expect("Genesis JMT initialization must succeed");
 
             self.db
                 .write_node_batch(&tree_update.node_batch)
-                .context("Failed to write initial empty tree")?;
+                .expect("Genesis tree write must succeed");
             
             root
         };
