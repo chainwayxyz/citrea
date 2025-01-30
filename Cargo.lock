@@ -2082,6 +2082,7 @@ dependencies = [
  "serde",
  "sov-db",
  "sov-modules-api",
+ "sov-schema-db",
  "tempfile",
  "tokio",
  "tokio-util",

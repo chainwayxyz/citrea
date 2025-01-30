@@ -406,6 +406,25 @@ where
         let prev_block_hash = block_header.prev_hash();
         self.finalize_by_hash_pair(prev_block_hash, current_block_hash)
     }
+
+    pub fn state_db(&self) -> Arc<RwLock<SnapshotManager>> {
+        self.state_snapshot_manager.clone()
+    }
+
+    pub fn native_db(&self) -> Arc<RwLock<SnapshotManager>> {
+        self.accessory_snapshot_manager.clone()
+    }
+
+    pub fn get_state_db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.state_snapshot_manager.read().unwrap().get_db_handle()
+    }
+
+    pub fn get_native_db_handle(&self) -> Arc<sov_schema_db::DB> {
+        self.accessory_snapshot_manager
+            .read()
+            .unwrap()
+            .get_db_handle()
+    }
 }
 
 /// Creates orphan [`ProverStorage`] which just points directly to the underlying database for previous data

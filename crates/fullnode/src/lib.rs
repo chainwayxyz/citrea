@@ -65,6 +65,7 @@ where
             last_pruned_block,
             soft_confirmation_tx.subscribe(),
             ledger_db.clone(),
+            storage_manager.get_native_db_handle(),
         )
     });
 

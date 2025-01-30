@@ -1,4 +1,5 @@
-use criteria::DistanceCriteria;
+use std::sync::Arc;
+
 use futures::future;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::SharedLedgerOps;
@@ -8,7 +9,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::criteria::Criteria;
-use crate::pruners::{prune_evm, prune_ledger};
+use crate::criteria::DistanceCriteria;
+use crate::pruners::{prune_evm, prune_ledger, prune_native_db};
 
 mod criteria;
 mod pruners;
@@ -38,6 +40,8 @@ where
     l2_receiver: broadcast::Receiver<u64>,
     /// Access to ledger tables.
     ledger_db: DB,
+    /// Access to native DB.
+    native_db: Arc<sov_schema_db::DB>,
     /// Criteria to decide pruning
     criteria: Box<dyn Criteria + Send + Sync>,
 }
@@ -51,6 +55,7 @@ where
         last_pruned_block: u64,
         l2_receiver: broadcast::Receiver<u64>,
         ledger_db: DB,
+        native_db: Arc<sov_schema_db::DB>,
     ) -> Self {
         // distance is the only criteria implemented at the moment.
         let criteria = Box::new(DistanceCriteria {
@@ -60,6 +65,7 @@ where
             last_pruned_block,
             l2_receiver,
             ledger_db,
+            native_db,
             criteria,
         }
     }
@@ -68,11 +74,19 @@ where
     pub async fn prune(&self, up_to_block: u64) {
         info!("Pruning up to L2 block: {}", up_to_block);
         let ledger_db = self.ledger_db.clone();
+        let native_db = self.native_db.clone();
         let ledger_pruning_handle =
             tokio::task::spawn_blocking(move || prune_ledger(ledger_db, up_to_block));
         let evm_pruning_handle = tokio::task::spawn_blocking(move || prune_evm(up_to_block));
+        let native_db_pruning_handle =
+            tokio::task::spawn_blocking(move || prune_native_db(native_db, up_to_block));
 
-        future::join_all([ledger_pruning_handle, evm_pruning_handle]).await;
+        future::join_all([
+            ledger_pruning_handle,
+            evm_pruning_handle,
+            native_db_pruning_handle,
+        ])
+        .await;
     }
 
     pub async fn run(mut self, cancellation_token: CancellationToken) {
