@@ -129,22 +129,27 @@ where
         let latest_version = self.version();
         let jmt = JellyfishMerkleTree::<_, DefaultHasher>::new(&self.db);
 
-        // Handle empty jmt
-        // TODO: Fix this before introducing snapshots!
-        if jmt.get_root_hash_option(latest_version)?.is_none() {
-            assert_eq!(latest_version, 0);
+        // Safe initialization of an empty tree considering snapshots
+        let prev_root = if let Some(root) = jmt.get_root_hash_option(latest_version)? {
+            root
+        } else {
+            // Initialize an empty tree only if this is truly the first version
+            if latest_version != 0 {
+                anyhow::bail!("Root hash not found for non-zero version {}", latest_version);
+            }
+            
             let empty_batch = Vec::default().into_iter();
-            let (_, tree_update) = jmt
+            let (root, tree_update) = jmt
                 .put_value_set(empty_batch, latest_version)
-                .expect("JMT update must succeed");
+                .context("Failed to initialize empty JMT")?;
 
             self.db
                 .write_node_batch(&tree_update.node_batch)
-                .expect("db write must succeed");
-        }
-        let prev_root = jmt
-            .get_root_hash(latest_version)
-            .expect("Previous root hash was just populated");
+                .context("Failed to write initial empty tree")?;
+            
+            root
+        };
+        
         witness.add_hint(prev_root.0);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
