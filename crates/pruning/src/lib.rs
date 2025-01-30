@@ -6,7 +6,7 @@ use sov_db::ledger_db::SharedLedgerOps;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::criteria::{Criteria, DistanceCriteria};
 use crate::pruners::{prune_evm, prune_ledger, prune_native_db};
@@ -101,6 +101,7 @@ where
                 }
                 current_l2_block = self.l2_receiver.recv() => {
                     if let Ok(current_l2_block) = current_l2_block {
+                        debug!("Pruner received L2 {}, checking criteria", current_l2_block);
                         if let Some(up_to_block) = self.criteria.should_prune(self.last_pruned_block, current_l2_block) {
                             self.prune(up_to_block).await;
                             self.last_pruned_block = up_to_block;

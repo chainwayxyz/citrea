@@ -14,6 +14,7 @@ use citrea_common::{
 };
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
+use citrea_pruning::PruningConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -384,7 +385,7 @@ pub fn create_default_rollup_config(
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 sync_blocks_count: 10,
-                pruning_config: None,
+                pruning_config: Some(PruningConfig { distance: 10 }),
             }),
             NodeMode::SequencerNode => None,
         },
