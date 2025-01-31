@@ -1,3 +1,4 @@
+use alloy_primitives::U64;
 use sov_rollup_interface::rpc::{
     sequencer_commitment_to_response, BatchProofResponse, LastVerifiedBatchProofResponse,
     LedgerRpcProvider, SequencerCommitmentResponse, SoftConfirmationIdentifier,
@@ -186,7 +187,7 @@ impl LedgerRpcProvider for LedgerDB {
         match iter.next() {
             Some(Ok(item)) => Ok(Some(LastVerifiedBatchProofResponse {
                 proof: item.value[0].clone().into(),
-                height: item.key.0,
+                l1_height: U64::from(item.key.0),
             })),
             Some(Err(e)) => Err(e),
             _ => Ok(None),

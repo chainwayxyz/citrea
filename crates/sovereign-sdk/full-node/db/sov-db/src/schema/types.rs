@@ -129,8 +129,9 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
             batch_proof_method_ids: value
                 .batch_proof_method_ids
                 .into_iter()
-                .map(|(height, method_id)| {
-                    BatchProofMethodIdRpcResponse::new(U64::from(height), method_id.into())
+                .map(|(height, method_id)| BatchProofMethodIdRpcResponse {
+                    height: U64::from(height),
+                    method_id: method_id.into(),
                 })
                 .collect(),
             mmr_guest: value.mmr_guest.into(),
@@ -278,11 +279,14 @@ impl From<StoredBatchProofOutput> for BatchProofOutputRpcResponse {
             da_slot_hash: value.da_slot_hash,
             sequencer_da_public_key: value.sequencer_da_public_key,
             sequencer_public_key: value.sequencer_public_key,
-            sequencer_commitments_range: value.sequencer_commitments_range,
+            sequencer_commitments_range: (
+                U32::from(value.sequencer_commitments_range.0),
+                U32::from(value.sequencer_commitments_range.1),
+            ),
             preproven_commitments: value.preproven_commitments,
             prev_soft_confirmation_hash: value.prev_soft_confirmation_hash,
             final_soft_confirmation_hash: value.final_soft_confirmation_hash,
-            last_l2_height: value.last_l2_height,
+            last_l2_height: U64::from(value.last_l2_height),
         }
     }
 }

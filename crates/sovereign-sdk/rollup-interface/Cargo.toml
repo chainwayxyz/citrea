@@ -21,6 +21,7 @@ alloy-primitives = { workspace = true, features=["serde"], optional = true}
 borsh = { workspace = true }
 bytes = { workspace = true, optional = true, default-features = true }
 digest = { workspace = true }
+faster-hex = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 hex = { workspace = true }
 jmt = { workspace = true, optional = true }
@@ -37,7 +38,7 @@ serde_json = { workspace = true }
 
 [features]
 default = ["std"]
-native = ["alloy-primitives", "std", "tokio", "futures", "tracing", "risc0-zkp"]
+native = ["alloy-primitives", "std", "tokio", "futures", "tracing", "risc0-zkp", "faster-hex"]
 testing = []
 std = [
   "anyhow/default",
