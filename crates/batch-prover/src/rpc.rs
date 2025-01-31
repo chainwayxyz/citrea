@@ -273,7 +273,7 @@ where
                 l1_block_height: U64::from(l1_height),
                 encoded_serialized_batch_proof_input: format!(
                     "0x{}",
-                    hex::encode(serialized_circuit_input)
+                    faster_hex::hex_string(&serialized_circuit_input)
                 ),
             };
 

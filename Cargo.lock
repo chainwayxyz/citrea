@@ -1847,6 +1847,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "faster-hex",
  "futures",
  "hex",
  "jsonrpsee",
