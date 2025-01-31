@@ -70,6 +70,7 @@ crypto-bigint = "0.5.5"
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
 derive_more = { version = "1", default-features = false }
 ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
+faster-hex = "0.10.0"
 futures = "0.3"
 hyper = "1.5.2"
 itertools = { version = "0.13.0", default-features = false }
@@ -155,7 +156,7 @@ alloy-eips = { version = "0.4.2", default-features = false }
 alloy-consensus = { version = "0.4.2", default-features = false, features = ["serde", "serde-bincode-compat"] }
 alloy-network = { version = "0.4.2", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "af85eae3010331df0e0cda5288f741b6d298813f" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "928f68178ba8d7e7a0ab7f7c4286c8cd01f42e16" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "ca3cfa2" }

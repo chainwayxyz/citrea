@@ -176,10 +176,10 @@ async fn test_all_flow() {
         .unwrap();
     assert_eq!(commitments.len(), 1);
 
-    assert_eq!(commitments[0].l2_start_block_number, 1);
-    assert_eq!(commitments[0].l2_end_block_number, 4);
+    assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
+    assert_eq!(commitments[0].l2_end_block_number.to::<u64>(), 4);
 
-    assert_eq!(commitments[0].found_in_l1, 3);
+    assert_eq!(commitments[0].l1_height.to::<u64>(), 3);
 
     let third_block_hash = da_service.get_block_at(3).await.unwrap().header.hash;
 
@@ -212,7 +212,7 @@ async fn test_all_flow() {
 
     let LastVerifiedBatchProofResponse {
         proof: last_proof,
-        height: proof_l1_height,
+        l1_height: proof_l1_height,
     } = full_node_test_client
         .ledger_get_last_verified_batch_proof()
         .await
@@ -220,7 +220,7 @@ async fn test_all_flow() {
 
     assert_eq!(prover_proof.proof, full_node_proof[0].proof);
 
-    assert_eq!(proof_l1_height, 4);
+    assert_eq!(proof_l1_height.to::<u64>(), 4);
     assert_eq!(last_proof.proof, full_node_proof[0].proof);
     assert_eq!(last_proof.proof_output, full_node_proof[0].proof_output);
 
@@ -297,12 +297,12 @@ async fn test_all_flow() {
 
     let LastVerifiedBatchProofResponse {
         proof: last_proof,
-        height: proof_l1_height,
+        l1_height: proof_l1_height,
     } = full_node_test_client
         .ledger_get_last_verified_batch_proof()
         .await
         .unwrap();
-    assert_eq!(proof_l1_height, 6);
+    assert_eq!(proof_l1_height.to::<u64>(), 6);
     assert_eq!(last_proof.proof, full_node_proof_data[0].proof);
     assert_eq!(
         last_proof.proof_output,

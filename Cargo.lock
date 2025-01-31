@@ -1299,6 +1299,7 @@ dependencies = [
 name = "bitcoin-da"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "backoff",
@@ -1846,6 +1847,7 @@ dependencies = [
  "borsh",
  "citrea-common",
  "citrea-primitives",
+ "faster-hex",
  "futures",
  "hex",
  "jsonrpsee",
@@ -1913,8 +1915,9 @@ dependencies = [
 [[package]]
 name = "citrea-e2e"
 version = "0.1.0"
-source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=af85eae3010331df0e0cda5288f741b6d298813f#af85eae3010331df0e0cda5288f741b6d298813f"
+source = "git+https://github.com/chainwayxyz/citrea-e2e?rev=928f68178ba8d7e7a0ab7f7c4286c8cd01f42e16#928f68178ba8d7e7a0ab7f7c4286c8cd01f42e16"
 dependencies = [
+ "alloy-primitives",
  "anyhow",
  "async-trait",
  "bitcoin",
@@ -2890,6 +2893,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
+name = "faster-hex"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7223ae2d2f179b803433d9c830478527e92b8117eab39460edae7f1614d9fb73"
+dependencies = [
+ "heapless",
+ "serde",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3253,6 +3266,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash32"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d60b12902ba28e2730cd37e95b8c9223af2808df9e902d4df49588d1470606"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3305,6 +3327,16 @@ checksum = "765c9198f173dd59ce26ff9f95ef0aafd0a0fe01fb9d72841bc5066a4c06511d"
 dependencies = [
  "byteorder",
  "num-traits",
+]
+
+[[package]]
+name = "heapless"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
+dependencies = [
+ "hash32",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -7859,6 +7891,7 @@ version = "0.6.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
+ "faster-hex",
  "futures",
  "jsonrpsee",
  "serde",
@@ -8043,6 +8076,7 @@ dependencies = [
  "borsh",
  "bytes",
  "digest 0.10.7",
+ "faster-hex",
  "futures",
  "hex",
  "jmt",

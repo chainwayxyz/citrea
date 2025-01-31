@@ -270,8 +270,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
-                l2_start_block_number: response.l2_start_block_number,
-                l2_end_block_number: response.l2_end_block_number,
+                l2_start_block_number: response.l2_start_block_number.to(),
+                l2_end_block_number: response.l2_end_block_number.to(),
             })
             .collect();
 
@@ -639,11 +639,11 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(proofs.len(), 2);
         assert_eq!(
-            fork_from_block_number(proofs[0].proof_output.last_l2_height).spec_id,
+            fork_from_block_number(proofs[0].proof_output.last_l2_height.to()).spec_id,
             SpecId::Genesis
         );
         assert_eq!(
-            fork_from_block_number(proofs[1].proof_output.last_l2_height).spec_id,
+            fork_from_block_number(proofs[1].proof_output.last_l2_height.to()).spec_id,
             SpecId::Kumquat
         );
 

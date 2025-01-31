@@ -101,13 +101,13 @@ impl TestCase for LedgerGetCommitmentsProverTest {
 
         assert_eq!(commitments.len(), 1);
 
-        assert_eq!(commitments[0].l2_start_block_number, 1);
+        assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
         assert_eq!(
-            commitments[0].l2_end_block_number,
+            commitments[0].l2_end_block_number.to::<u64>(),
             min_soft_confirmations_per_commitment
         );
 
-        assert_eq!(commitments[0].found_in_l1, finalized_height);
+        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 
@@ -174,13 +174,13 @@ impl TestCase for LedgerGetCommitmentsTest {
 
         assert_eq!(commitments.len(), 1);
 
-        assert_eq!(commitments[0].l2_start_block_number, 1);
+        assert_eq!(commitments[0].l2_start_block_number.to::<u64>(), 1);
         assert_eq!(
-            commitments[0].l2_end_block_number,
+            commitments[0].l2_end_block_number.to::<u64>(),
             min_soft_confirmations_per_commitment
         );
 
-        assert_eq!(commitments[0].found_in_l1, finalized_height);
+        assert_eq!(commitments[0].l1_height.to::<u64>(), finalized_height);
 
         let hash = da.get_block_hash(finalized_height).await?;
 

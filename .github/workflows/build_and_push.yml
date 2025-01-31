@@ -1,7 +1,13 @@
-name: nightly-build-and-push
+name: Build and Push Docker Image
 
 on:
   workflow_dispatch:
+    inputs:
+      testing:
+        description: "Build with testing features"
+        type: boolean
+        default: false
+        required: false
   push:
     branches:
       - nightly
@@ -34,8 +40,15 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Project
+        id: build
         run: |
-          cargo build --features testing
+          if ${{ github.event_name == 'workflow_dispatch' && inputs.testing == 'true' }} || ${{ github.ref == 'refs/heads/nightly' }}; then
+            cargo build --features testing
+            echo "image_name=citrea-test" >> $GITHUB_OUTPUT
+          else
+            cargo build
+            echo "image_name=citrea-dev" >> $GITHUB_OUTPUT
+          fi
 
       - name: Copy binary to build-push/nightly
         run: |
@@ -59,7 +72,7 @@ jobs:
         with:
           file: ./docker/build-push/nightly/Dockerfile
           context: ./docker/build-push/nightly
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/citrea-test:${{ env.IMAGE_TAG }}
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/${{ steps.build.outputs.image_name }}:${{ env.IMAGE_TAG }}
           platforms: linux/amd64
           push: true
           load: false

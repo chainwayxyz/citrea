@@ -6,7 +6,7 @@ mod trace;
 use std::sync::Arc;
 
 use alloy_network::AnyNetwork;
-use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
+use alloy_primitives::{keccak256, Address, Bytes, B256, U256, U64};
 use alloy_rpc_types::serde_helpers::JsonStorageKey;
 use alloy_rpc_types::{EIP1186AccountProofResponse, EIP1186StorageProof, FeeHistory, Index};
 use alloy_rpc_types_trace::geth::{GethDebugTracingOptions, GethTrace, TraceResult};
@@ -38,14 +38,17 @@ use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncValues {
-    pub head_block_number: u64,
-    pub synced_block_number: u64,
+    pub head_block_number: U64,
+    pub synced_block_number: U64,
 }
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum LayerStatus {
-    Synced(u64),
+    Synced(U64),
     Syncing(SyncValues),
 }
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncStatus {
@@ -554,20 +557,20 @@ where
 
         let l1_status = if l1_synced_block_number < l1_head_block_number {
             LayerStatus::Syncing(SyncValues {
-                synced_block_number: l1_synced_block_number,
-                head_block_number: l1_head_block_number,
+                synced_block_number: U64::from(l1_synced_block_number),
+                head_block_number: U64::from(l1_head_block_number),
             })
         } else {
-            LayerStatus::Synced(l1_head_block_number)
+            LayerStatus::Synced(U64::from(l1_head_block_number))
         };
 
-        let l2_status = if l2_synced_block_number < l2_head_block_number {
+        let l2_status = if l2_synced_block_number < l2_head_block_number.to() {
             LayerStatus::Syncing(SyncValues {
-                synced_block_number: l2_synced_block_number,
-                head_block_number: l2_head_block_number,
+                synced_block_number: U64::from(l2_synced_block_number),
+                head_block_number: U64::from(l2_head_block_number),
             })
         } else {
-            LayerStatus::Synced(l2_head_block_number)
+            LayerStatus::Synced(U64::from(l2_head_block_number))
         };
 
         Ok(SyncStatus {
