@@ -297,7 +297,7 @@ impl TestSequencerTransactionChaining {
         assert_eq!(mempool.len(), 0);
 
         // Assert that sequencer has properly rebuilt the TX chain on restart
-        sequencer.restart(None).await?;
+        sequencer.restart(None, None).await?;
 
         let last_monitored_tx = sequencer
             .client
@@ -374,7 +374,7 @@ impl TestSequencerTransactionChaining {
         assert_eq!(mempool.len(), 3);
 
         // Assert that sequencer has properly rebuilt the TX chain on restart
-        sequencer.restart(None).await?;
+        sequencer.restart(None, None).await?;
 
         let monitored_txs = sequencer
             .client
