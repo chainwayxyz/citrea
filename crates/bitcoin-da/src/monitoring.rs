@@ -11,6 +11,7 @@ use bitcoin::{Address, BlockHash, Transaction, Txid};
 use bitcoincore_rpc::json::GetTransactionResult;
 use bitcoincore_rpc::{Client, RpcApi};
 use citrea_common::FromEnv;
+use citrea_primitives::{TO_BATCH_PROOF_PREFIX, TO_LIGHT_CLIENT_PREFIX};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::select;
@@ -19,6 +20,7 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument};
 
+use crate::helpers::parsers::{parse_batch_proof_transaction, parse_light_client_transaction};
 use crate::service::FINALITY_DEPTH;
 use crate::spec::utxo::UTXO;
 
@@ -215,7 +217,7 @@ impl MonitoringService {
 
     pub async fn restore(&self) -> Result<()> {
         self.initialize_chainstate().await?;
-        self.restore_from_mempool().await
+        self.restore_from_utxos().await
     }
 
     async fn initialize_chainstate(&self) -> Result<()> {
@@ -240,7 +242,8 @@ impl MonitoringService {
         Ok(())
     }
 
-    async fn restore_from_mempool(&self) -> Result<()> {
+    // Restore TX chain from utxos using list_unspent in range [0..FINALITY_DEPTH] confirmations
+    async fn restore_from_utxos(&self) -> Result<()> {
         let mut unspent = self
             .client
             .list_unspent(None, Some(FINALITY_DEPTH as usize), None, None, None)
@@ -249,8 +252,37 @@ impl MonitoringService {
         unspent.sort_unstable_by_key(|utxo| {
             utxo.ancestor_count.unwrap_or(0) as i64 - utxo.confirmations as i64 - utxo.vout as i64
         });
+        tracing::trace!("[restore_from_utxos] {unspent:?}");
 
-        let txids = unspent.into_iter().map(|utxo| utxo.txid).collect();
+        let mut txids = Vec::new();
+        for tx in &unspent {
+            let txid = tx.txid;
+            let tx = self
+                .client
+                .get_transaction(&txid, None)
+                .await?
+                .transaction()
+                .unwrap();
+
+            let reveal_wtxid = tx.compute_wtxid();
+            let reveal_hash = reveal_wtxid.as_raw_hash().to_byte_array();
+
+            // Assumes that no wallet can hold both batch_proof_transaction and light_client_transaction utxos
+            if reveal_hash.starts_with(TO_BATCH_PROOF_PREFIX)
+                && parse_batch_proof_transaction(&tx).is_ok()
+            {
+                txids.push(tx.input[0].previous_output.txid);
+                txids.push(txid);
+            }
+            if reveal_hash.starts_with(TO_LIGHT_CLIENT_PREFIX)
+                && parse_light_client_transaction(&tx).is_ok()
+            {
+                txids.push(tx.input[0].previous_output.txid);
+                txids.push(txid);
+            }
+        }
+
+        tracing::trace!("[restore_from_utxos] {txids:?}");
 
         self.monitor_transaction_chain(txids).await
     }
