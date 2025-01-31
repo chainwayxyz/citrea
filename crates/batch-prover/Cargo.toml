@@ -29,6 +29,7 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 backoff = { workspace = true }
 borsh = { workspace = true }
+faster-hex = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "client"] }

@@ -5,7 +5,6 @@ use alloy_primitives::{Address, TxHash};
 use async_trait::async_trait;
 use citrea_e2e::config::TestCaseConfig;
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::node::Config;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;

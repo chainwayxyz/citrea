@@ -16,6 +16,10 @@ pub mod server;
 #[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HexHash(#[serde(with = "sov_rollup_interface::rpc::utils::rpc_hex")] pub [u8; 32]);
 
+/// State root [`serde`]-encoded as a hex string prefixed with `0x`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HexStateRoot(#[serde(with = "faster_hex")] pub Vec<u8>);
+
 impl From<[u8; 32]> for HexHash {
     fn from(v: [u8; 32]) -> Self {
         Self(v)
@@ -79,7 +83,7 @@ pub trait LedgerRpc {
     /// Gets the L2 genesis state root.
     #[method(name = "getL2GenesisStateRoot")]
     #[blocking]
-    fn get_l2_genesis_state_root(&self) -> RpcResult<Option<Vec<u8>>>;
+    fn get_l2_genesis_state_root(&self) -> RpcResult<Option<HexStateRoot>>;
 
     /// Gets the commitments in the DA slot with the given height.
     #[method(name = "getSequencerCommitmentsOnSlotByNumber")]
@@ -121,7 +125,7 @@ pub trait LedgerRpc {
     /// Gets the height pf most recent committed soft confirmation.
     #[method(name = "getHeadSoftConfirmationHeight")]
     #[blocking]
-    fn get_head_soft_confirmation_height(&self) -> RpcResult<u64>;
+    fn get_head_soft_confirmation_height(&self) -> RpcResult<U64>;
 
     /// Gets verified proofs by slot height
     #[method(name = "getVerifiedBatchProofsBySlotHeight")]
@@ -139,5 +143,5 @@ pub trait LedgerRpc {
     /// Get last scanned l1 height
     #[method(name = "getLastScannedL1Height")]
     #[blocking]
-    fn get_last_scanned_l1_height(&self) -> RpcResult<u64>;
+    fn get_last_scanned_l1_height(&self) -> RpcResult<U64>;
 }

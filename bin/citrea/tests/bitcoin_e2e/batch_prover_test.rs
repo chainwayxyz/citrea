@@ -13,8 +13,7 @@ use citrea_e2e::config::{
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::full_node::FullNode;
-use citrea_e2e::node::{Config, NodeKind};
+use citrea_e2e::node::{FullNode, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
@@ -270,8 +269,8 @@ impl TestCase for SkipPreprovenCommitmentsTest {
             .into_iter()
             .map(|response| SequencerCommitment {
                 merkle_root: response.merkle_root,
-                l2_start_block_number: response.l2_start_block_number,
-                l2_end_block_number: response.l2_end_block_number,
+                l2_start_block_number: response.l2_start_block_number.to(),
+                l2_end_block_number: response.l2_end_block_number.to(),
             })
             .collect();
 
@@ -639,11 +638,11 @@ impl TestCase for ForkElfSwitchingTest {
 
         assert_eq!(proofs.len(), 2);
         assert_eq!(
-            fork_from_block_number(proofs[0].proof_output.last_l2_height).spec_id,
+            fork_from_block_number(proofs[0].proof_output.last_l2_height.to()).spec_id,
             SpecId::Genesis
         );
         assert_eq!(
-            fork_from_block_number(proofs[1].proof_output.last_l2_height).spec_id,
+            fork_from_block_number(proofs[1].proof_output.last_l2_height.to()).spec_id,
             SpecId::Kumquat
         );
 
