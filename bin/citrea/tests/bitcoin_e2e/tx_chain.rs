@@ -45,7 +45,7 @@ impl TestCase for TestSequencerTransactionChaining {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -141,7 +141,7 @@ impl TestSequencerTransactionChaining {
         sequencer.restart(None, None).await?;
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -193,7 +193,7 @@ impl TestSequencerTransactionChaining {
         assert_eq!(mempool.len(), 0);
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // Generate seqcommitment txs and check that they are chained from prev_tx
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -308,7 +308,7 @@ impl TestSequencerTransactionChaining {
         assert_eq!(last_monitored_tx.unwrap().txid, prev_tx.compute_txid());
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -385,7 +385,7 @@ impl TestSequencerTransactionChaining {
         assert_eq!(monitored_txs.len(), 2);
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // Generate seqcommitment txs restart and make sure third batch is chained from tx2
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -474,7 +474,7 @@ impl TestCase for TestProverTransactionChaining {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;

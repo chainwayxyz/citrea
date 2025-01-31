@@ -79,7 +79,7 @@ impl TestCase for LightClientProvingTest {
         let full_node = f.full_node.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // publish min_soft_confirmations_per_commitment confirmations
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -215,7 +215,7 @@ impl TestCase for LightClientProvingTestMultipleProofs {
         let full_node = f.full_node.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         let n_commitments = 2;
 
@@ -540,7 +540,7 @@ impl TestCase for LightClientBatchProofMethodIdUpdateTest {
             .spawn(|tk| bitcoin_da_service.clone().run_da_queue(rx, tk));
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // publish min_soft_confirmations_per_commitment confirmations
         for _ in 0..min_soft_confirmations_per_commitment {

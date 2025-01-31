@@ -70,7 +70,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let prover = f.batch_prover.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -146,7 +146,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -220,7 +220,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         let initial_height = f.initial_da_height;
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // publish min_soft_confirmations_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_soft_confirmations_per_commitment - 1 {

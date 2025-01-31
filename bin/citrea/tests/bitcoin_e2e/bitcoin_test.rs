@@ -41,7 +41,7 @@ impl TestCase for BitcoinReorgTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         // Disconnect nodes before generating commitment
         f.bitcoin_nodes.disconnect_nodes().await?;
@@ -157,7 +157,7 @@ impl TestCase for DaMonitoringTest {
         let sequencer = f.sequencer.as_mut().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -266,7 +266,7 @@ impl TestCase for CpfpFeeBumpingTest {
         let da = f.bitcoin_nodes.get(0).unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.config.node.min_soft_confirmations_per_commitment;
+            sequencer.min_soft_confirmations_per_commitment();
         // Generate seqcommitments
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
