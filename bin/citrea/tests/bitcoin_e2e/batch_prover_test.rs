@@ -13,8 +13,7 @@ use citrea_e2e::config::{
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::full_node::FullNode;
-use citrea_e2e::node::{Config, NodeKind};
+use citrea_e2e::node::{FullNode, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;
@@ -80,7 +79,7 @@ impl TestCase for BasicProverTest {
         let full_node = f.full_node.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -220,7 +219,7 @@ impl TestCase for SkipPreprovenCommitmentsTest {
         da.generate(FINALITY_DEPTH).await?;
 
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -385,7 +384,7 @@ impl TestCase for LocalProvingTest {
         let full_node = f.full_node.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
         // Generate soft confirmations to invoke commitment creation
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -469,7 +468,7 @@ impl TestCase for ParallelProvingTest {
         let full_node = f.full_node.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
 
         let seq_test_client = make_test_client(SocketAddr::new(
             sequencer.config().rpc_bind_host().parse()?,
@@ -584,7 +583,7 @@ impl TestCase for ForkElfSwitchingTest {
             .await
             .unwrap();
 
-        let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
+        let min_soft_confirmations = sequencer.config.node.min_soft_confirmations_per_commitment;
 
         for _ in 0..min_soft_confirmations {
             sequencer.client.send_publish_batch_request().await?;

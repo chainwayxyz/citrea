@@ -10,8 +10,7 @@ use borsh::BorshDeserialize;
 use citrea_e2e::bitcoin::BitcoinNode;
 use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::full_node::FullNode;
-use citrea_e2e::sequencer::Sequencer;
+use citrea_e2e::node::{FullNode, Sequencer};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::Result;
 use citrea_primitives::TO_BATCH_PROOF_PREFIX;
@@ -71,7 +70,7 @@ impl TestCase for LedgerGetCommitmentsProverTest {
         let prover = f.batch_prover.as_ref().unwrap();
 
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -147,7 +146,7 @@ impl TestCase for LedgerGetCommitmentsTest {
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
         let full_node = f.full_node.as_ref().unwrap();
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -221,7 +220,7 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
         let initial_height = f.initial_da_height;
         let min_soft_confirmations_per_commitment =
-            sequencer.min_soft_confirmations_per_commitment();
+            sequencer.config.node.min_soft_confirmations_per_commitment;
 
         // publish min_soft_confirmations_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_soft_confirmations_per_commitment - 1 {
