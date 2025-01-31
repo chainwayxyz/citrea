@@ -85,9 +85,8 @@ impl TestCase for GenerateProofInput {
                 .unwrap();
         }
         println!("All txs sent");
-        tokio::time::sleep(Duration::from_secs(2)).await;
 
-        da.wait_mempool_len(2, None).await?;
+        da.wait_mempool_len(4, None).await?;
         da.generate(FINALITY_DEPTH).await?;
 
         let finalized_height = da.get_finalized_height().await.unwrap();
