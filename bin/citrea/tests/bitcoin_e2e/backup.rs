@@ -27,7 +27,7 @@ impl TestCase for BackupRestoreTest {
         let batch_prover = f.batch_prover.as_ref().unwrap();
 
         let min_soft_confirmations = sequencer.min_soft_confirmations_per_commitment();
-        let sequencer_base_dir = sequencer.dir();
+        let sequencer_base_dir = sequencer.config.base.dir;
 
         for _ in 0..min_soft_confirmations {
             sequencer.client.send_publish_batch_request().await?;
