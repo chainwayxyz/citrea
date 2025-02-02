@@ -7,10 +7,9 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::{INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG};
 use jsonrpsee::types::ErrorObjectOwned;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::LedgerDB;
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
 
-use super::job::{BackupJob, JobManager};
-use super::BackupManager;
+use super::{BackupManager, CreateBackupInfo};
 
 /// Response from backup validation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,14 +37,8 @@ pub struct BackupInfoResponse {
 
 #[rpc(client, server, namespace = "backup")]
 pub trait BackupRpc {
-    #[method(name = "jobCreate")]
-    async fn backup_job_create(&self, path: Option<PathBuf>) -> RpcResult<u32>;
-
-    #[method(name = "jobStatus")]
-    async fn backup_job_status(&self, job_id: u32) -> RpcResult<Option<BackupJob>>;
-
-    #[method(name = "jobList")]
-    async fn backup_job_list(&self) -> RpcResult<Vec<BackupJob>>;
+    #[method(name = "create")]
+    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo>;
 
     #[method(name = "validate")]
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse>;
@@ -58,25 +51,36 @@ pub trait BackupRpc {
 }
 
 pub struct BackupRpcServerImpl {
-    job_manager: Arc<JobManager>,
     backup_manager: Arc<BackupManager>,
+    ledger_db: LedgerDB,
 }
 
 impl BackupRpcServerImpl {
     pub fn new(backup_manager: Arc<BackupManager>, ledger_db: LedgerDB) -> Self {
         Self {
-            job_manager: Arc::new(JobManager::new(backup_manager.clone(), ledger_db)),
             backup_manager,
+            ledger_db,
         }
     }
 }
 
 #[async_trait::async_trait]
 impl BackupRpcServer for BackupRpcServerImpl {
-    async fn backup_job_create(&self, path: Option<PathBuf>) -> RpcResult<u32> {
-        self.job_manager
-            // .create_backup(path, l2_height)
-            .create_backup_job(path)
+    async fn backup_create(&self, path: Option<PathBuf>) -> RpcResult<CreateBackupInfo> {
+        let l2_height = self
+            .ledger_db
+            .get_head_soft_confirmation_height()
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}")),
+                )
+            })?
+            .unwrap_or_default();
+
+        self.backup_manager
+            .create_backup(path, l2_height)
             .await
             .map_err(|e| {
                 ErrorObjectOwned::owned(
@@ -85,14 +89,6 @@ impl BackupRpcServer for BackupRpcServerImpl {
                     Some(format!("{e}")),
                 )
             })
-    }
-
-    async fn backup_job_status(&self, job_id: u32) -> RpcResult<Option<BackupJob>> {
-        Ok(self.job_manager.get_job_status(job_id).await)
-    }
-
-    async fn backup_job_list(&self) -> RpcResult<Vec<BackupJob>> {
-        Ok(self.job_manager.list_jobs().await)
     }
 
     async fn backup_validate(&self, path: PathBuf) -> RpcResult<ValidationResponse> {

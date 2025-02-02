@@ -6,7 +6,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::ledger_db::LEDGER_DB_PATH_SUFFIX;
 use sov_db::mmr_db::MmrDB;
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
@@ -44,7 +44,7 @@ pub struct BackupManager {
     /// Node kind
     node_kind: String,
     /// Optional base path used for backups. Can be overridden via RPC
-    pub base_path: Option<PathBuf>,
+    base_path: Option<PathBuf>,
     /// Map of path to backupable database
     databases: RwLock<HashMap<String, Arc<sov_schema_db::DB>>>,
     /// Lock to hold during l1 block processing
@@ -151,15 +151,17 @@ impl BackupManager {
     /// Information about the created backup including block height, path and timestamp
     pub(super) async fn create_backup(
         &self,
-        backup_path: PathBuf,
-        ledger_db: LedgerDB,
+        path: Option<PathBuf>,
+        l2_height: u64,
     ) -> anyhow::Result<CreateBackupInfo> {
+        let backup_path = path
+            .as_ref()
+            .or(self.base_path.as_ref())
+            .context("Missing path and no backup_path found in config.")?;
+
         let l1_lock = self.l1_processing_lock.lock().await;
         let l2_lock = self.l2_processing_lock.lock().await;
 
-        let l2_height = ledger_db
-            .get_head_soft_confirmation_height()?
-            .unwrap_or_default();
         let start_time = Instant::now();
         info!("Starting database backup process...");
 
@@ -180,6 +182,7 @@ impl BackupManager {
                 handles.push(tokio::task::spawn_blocking(move || db.create_backup(&path)));
             }
         }
+
         // Wait for all dbs to starting backing up under lock before releasing
         drop(l1_lock);
         drop(l2_lock);
@@ -188,12 +191,12 @@ impl BackupManager {
             handle.await??;
         }
 
-        if let Err(e) = self.validate_backup(&backup_path) {
+        if let Err(e) = self.validate_backup(backup_path) {
             warn!("Error validating backup: {e}");
             bail!("Error creating valid backup: {e}");
         }
 
-        let backup_info = self.get_backup_info(&backup_path)?;
+        let backup_info = self.get_backup_info(backup_path)?;
         let backup_id = backup_info
             .get("ledger")
             .expect("Would fail on validate_backup")
@@ -204,7 +207,7 @@ impl BackupManager {
         let info = CreateBackupInfo {
             node_kind: self.node_kind.to_string(),
             block_height: l2_height,
-            backup_path,
+            backup_path: backup_path.to_path_buf(),
             created_at: timestamp,
             backup_id,
         };
@@ -215,13 +218,17 @@ impl BackupManager {
             info
         );
 
-        self.set_metadata(&info).await?;
+        self.set_metadata(&backup_path, &info).await?;
 
         Ok(info)
     }
 
-    async fn set_metadata(&self, info: &CreateBackupInfo) -> anyhow::Result<()> {
-        let metadata_path = info.backup_path.join(".metadata");
+    async fn set_metadata<P: AsRef<Path>>(
+        &self,
+        backup_path: P,
+        info: &CreateBackupInfo,
+    ) -> anyhow::Result<()> {
+        let metadata_path = backup_path.as_ref().join(".metadata");
         let mut metadata = if metadata_path.exists() {
             let content = tokio::fs::read_to_string(&metadata_path).await?;
             serde_json::from_str(&content)?

@@ -39,7 +39,6 @@
 //! ├── native-db/    # Required - stores native database
 //! └── mmr/          # Optional - used by light client prover
 //! ```
-mod job;
 mod manager;
 mod rpc;
 mod utils;
