@@ -6,7 +6,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, ensure, Context};
 use rocksdb::backup::BackupEngineInfo;
 use serde::{Deserialize, Serialize};
-use sov_db::ledger_db::{self, LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
+use sov_db::ledger_db::{LedgerDB, SharedLedgerOps, LEDGER_DB_PATH_SUFFIX};
 use sov_db::mmr_db::MmrDB;
 use sov_db::native_db::NativeDB;
 use sov_db::state_db::StateDB;
