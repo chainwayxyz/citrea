@@ -14,6 +14,7 @@ use alloy_primitives::{Address, U256};
 use citrea_common::{BatchProverConfig, SequencerConfig};
 use citrea_evm::smart_contracts::SimpleStorageContract;
 use citrea_primitives::forks::fork_from_block_number;
+use citrea_pruning::PruningConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use reth_primitives::BlockNumberOrTag;
 use sov_mock_da::{MockAddress, MockDaService};
@@ -38,6 +39,7 @@ struct TestConfig {
     sequencer_path: PathBuf,
     fullnode_path: PathBuf,
     da_path: PathBuf,
+    pruning_config: Option<PruningConfig>,
 }
 
 impl Default for TestConfig {
@@ -49,6 +51,7 @@ impl Default for TestConfig {
             sequencer_path: PathBuf::new(),
             fullnode_path: PathBuf::new(),
             da_path: PathBuf::new(),
+            pruning_config: None,
         }
     }
 }
@@ -66,8 +69,13 @@ async fn test_all_flow() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let sequencer_config = SequencerConfig::default();
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,
@@ -86,8 +94,13 @@ async fn test_all_flow() {
 
     let (prover_node_port_tx, prover_node_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &prover_db_dir, &da_db_dir, NodeMode::Prover(seq_port));
+    let rollup_config = create_default_rollup_config(
+        true,
+        &prover_db_dir,
+        &da_db_dir,
+        NodeMode::Prover(seq_port),
+        None,
+    );
     let prover_node_task = tokio::spawn(async {
         start_rollup(
             prover_node_port_tx,
@@ -115,6 +128,7 @@ async fn test_all_flow() {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        Some(PruningConfig { distance: 20 }),
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -367,8 +381,13 @@ async fn test_ledger_get_head_soft_confirmation() {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig {
         min_soft_confirmations_per_commitment: config.seq_min_soft_confirmations,
         deposit_mempool_fetch_limit: config.deposit_mempool_fetch_limit,
@@ -441,6 +460,7 @@ async fn initialize_test(
         &config.sequencer_path,
         &config.da_path,
         NodeMode::SequencerNode,
+        config.pruning_config.clone(),
     );
     let seq_task = tokio::spawn(async {
         start_rollup(
@@ -464,6 +484,7 @@ async fn initialize_test(
         &fullnode_path,
         &config.da_path,
         NodeMode::FullNode(seq_port),
+        config.pruning_config,
     );
     let full_node_task = tokio::spawn(async {
         start_rollup(
@@ -588,8 +609,13 @@ async fn test_offchain_contract_storage() {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
     let sequencer_config = SequencerConfig::default();
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let seq_task = tokio::spawn(async {
         start_rollup(
             seq_port_tx,

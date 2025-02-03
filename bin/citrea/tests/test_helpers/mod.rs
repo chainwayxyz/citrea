@@ -345,6 +345,7 @@ pub fn create_default_rollup_config(
     rollup_path: &Path,
     da_path: &Path,
     node_mode: NodeMode,
+    pruning_config: Option<PruningConfig>,
 ) -> FullNodeConfig<MockDaConfig> {
     let sequencer_da_pub_key = vec![
         2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
@@ -385,7 +386,7 @@ pub fn create_default_rollup_config(
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 sync_blocks_count: 10,
-                pruning_config: Some(PruningConfig { distance: 10 }),
+                pruning_config,
             }),
             NodeMode::SequencerNode => None,
         },
