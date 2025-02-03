@@ -13,8 +13,7 @@ use citrea_e2e::config::{
     SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::full_node::FullNode;
-use citrea_e2e::node::{Config, NodeKind};
+use citrea_e2e::node::{FullNode, NodeKind};
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::NodeT;
 use citrea_e2e::Result;

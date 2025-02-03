@@ -6,7 +6,7 @@ use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, FINALITY_DEPTH};
 use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::sequencer::Sequencer;
+use citrea_e2e::node::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
