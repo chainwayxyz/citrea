@@ -1,11 +1,3 @@
-mod proving;
-mod reopen;
-mod sequencer_behaviour;
-mod sequencer_replacement;
-mod soft_confirmation_status;
-mod syncing;
-mod system_transactions;
-
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -32,6 +24,15 @@ use crate::test_helpers::{
 use crate::{
     TEST_DATA_GENESIS_PATH, TEST_SEND_NO_COMMITMENT_MIN_SOFT_CONFIRMATIONS_PER_COMMITMENT,
 };
+
+mod proving;
+mod pruning;
+mod reopen;
+mod sequencer_behaviour;
+mod sequencer_replacement;
+mod soft_confirmation_status;
+mod syncing;
+mod system_transactions;
 
 struct TestConfig {
     seq_min_soft_confirmations: u64,
