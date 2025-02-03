@@ -6,6 +6,7 @@ use core::{fmt, mem};
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
+use super::CacheMode;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
 use crate::storage::{
@@ -163,10 +164,7 @@ impl<S: Storage> Delta<S> {
         Self {
             inner,
             witness,
-            cache: match version {
-                None => Default::default(),
-                Some(v) => StorageInternalCache::new_with_version(v),
-            },
+            cache: StorageInternalCache::new(version, super::CacheMode::State),
         }
     }
 
@@ -197,8 +195,6 @@ impl<S: Storage> StateReaderAndWriter for Delta<S> {
         self.cache.delete(key)
     }
 }
-
-// type RevertableWrites = HashMap<CacheKey, Option<CacheValue>>;
 
 #[derive(Default)]
 struct RevertableWrites {
@@ -264,11 +260,9 @@ impl<S: Storage> StateReaderAndWriter for AccessoryDelta<S> {
 }
 
 struct OffchainDelta<S: Storage> {
-    // This inner storage is never accessed inside the zkVM because reads are
-    // not allowed, so it can result as dead code.
     storage: S,
     witness: S::Witness,
-    writes: RevertableWrites,
+    cache: StorageInternalCache,
 }
 
 impl<S: Storage> OffchainDelta<S> {
@@ -277,61 +271,40 @@ impl<S: Storage> OffchainDelta<S> {
     }
 
     fn with_witness(storage: S, witness: S::Witness, version: Option<u64>) -> Self {
-        let writes = match version {
-            None => Default::default(),
-            Some(v) => RevertableWrites {
-                cache: Default::default(),
-                version: Some(v),
-            },
-        };
         Self {
             storage,
-            writes,
             witness,
+            cache: StorageInternalCache::new(version, super::CacheMode::Offchain),
         }
     }
 
     fn freeze(&mut self) -> (OrderedReadsAndWrites, S::Witness) {
-        let writes = mem::take(&mut self.writes);
-        let ordered_writes = writes
-            .cache
-            .into_iter()
-            .map(|write| (write.0, write.1))
-            .collect();
+        let cache = mem::take(&mut self.cache);
 
         let witness = mem::take(&mut self.witness);
 
-        (
-            OrderedReadsAndWrites {
-                ordered_writes,
-                ..Default::default()
-            },
-            witness,
-        )
+        // Since mem::take leaves Default::default() in place, we need to reset
+        // the cache mode to Offchain.
+        // TODO: change freeze signature to consume Self
+
+        self.cache.mode = CacheMode::Offchain;
+
+        (cache.into(), witness)
     }
 }
 
 impl<S: Storage> StateReaderAndWriter for OffchainDelta<S> {
     fn get(&mut self, key: &StorageKey) -> Option<StorageValue> {
-        let cache_key = key.to_cache_key_version(self.writes.version);
-        if let Some(value) = self.writes.cache.get(&cache_key) {
-            return value.clone().map(Into::into);
-        }
-        self.storage
-            .get_offchain(key, self.writes.version, &mut self.witness)
+        self.cache
+            .get_or_fetch(key, &self.storage, &mut self.witness)
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        self.writes.cache.insert(
-            key.to_cache_key_version(self.writes.version),
-            Some(value.into_cache_value()),
-        );
+        self.cache.set(key, value)
     }
 
     fn delete(&mut self, key: &StorageKey) {
-        self.writes
-            .cache
-            .insert(key.to_cache_key_version(self.writes.version), None);
+        self.cache.delete(key)
     }
 }
 
