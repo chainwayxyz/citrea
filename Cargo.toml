@@ -89,7 +89,7 @@ metrics-util = "0.17.0"
 num_cpus = "1.0"
 parking_lot = "0.12.3"
 proptest = { version = "1.6.0", default-features = false, features = ["alloc"] }
-pin-project = "1.1.3"
+pin-project = "1.1.9"
 rand = "0.8"
 rayon = "1.8.0"
 rlimit = "0.10.2"
