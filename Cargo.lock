@@ -1889,7 +1889,10 @@ dependencies = [
  "citrea-pruning",
  "clap",
  "sov-db",
+ "sov-prover-storage-manager",
  "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.19",
 ]
 
 [[package]]
