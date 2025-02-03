@@ -11,7 +11,7 @@ use sov_rollup_interface::rpc::{
     VerifiedBatchProofResponse,
 };
 
-use crate::{HexHash, LedgerRpcServer};
+use crate::{HexHash, HexStateRoot, LedgerRpcServer};
 
 const LEDGER_RPC_ERROR: &str = "LEDGER_RPC_ERROR";
 
@@ -69,15 +69,17 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_l2_genesis_state_root(&self) -> RpcResult<Option<Vec<u8>>> {
+    fn get_l2_genesis_state_root(&self) -> RpcResult<Option<HexStateRoot>> {
         self.ledger
             .get_l2_genesis_state_root()
+            .map(|v| v.map(HexStateRoot))
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_last_scanned_l1_height(&self) -> RpcResult<u64> {
+    fn get_last_scanned_l1_height(&self) -> RpcResult<U64> {
         self.ledger
             .get_last_scanned_l1_height()
+            .map(U64::from)
             .map_err(to_ledger_rpc_error)
     }
 
@@ -154,9 +156,10 @@ where
             .map_err(to_ledger_rpc_error)
     }
 
-    fn get_head_soft_confirmation_height(&self) -> RpcResult<u64> {
+    fn get_head_soft_confirmation_height(&self) -> RpcResult<U64> {
         self.ledger
             .get_head_soft_confirmation_height()
+            .map(U64::from)
             .map_err(to_ledger_rpc_error)
     }
 }

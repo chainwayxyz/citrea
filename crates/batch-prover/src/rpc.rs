@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use alloy_primitives::{U32, U64};
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_primitives::forks::fork_from_block_number;
@@ -26,9 +27,10 @@ use crate::proving::{data_to_prove, prove_l1, GroupCommitments};
 use crate::{StfStateRoot, StfTransaction, StfWitness};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProverInputResponse {
-    pub commitment_range: (u32, u32),
-    pub l1_block_height: u64,
+    pub commitment_range: (U32, U32),
+    pub l1_block_height: U64,
     pub encoded_serialized_batch_proof_input: String,
 }
 
@@ -267,9 +269,12 @@ where
             .expect("Risc0 hint serialization is infallible");
 
             let response = ProverInputResponse {
-                commitment_range: (range_start, range_end),
-                l1_block_height: l1_height,
-                encoded_serialized_batch_proof_input: hex::encode(serialized_circuit_input),
+                commitment_range: (U32::from(range_start), U32::from(range_end)),
+                l1_block_height: U64::from(l1_height),
+                encoded_serialized_batch_proof_input: format!(
+                    "0x{}",
+                    faster_hex::hex_string(&serialized_circuit_input)
+                ),
             };
 
             batch_proof_circuit_input_responses.push(response);

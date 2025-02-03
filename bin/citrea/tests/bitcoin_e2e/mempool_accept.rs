@@ -27,7 +27,11 @@ impl TestCase for MempoolAcceptTest {
         let sequencer = f.sequencer.as_ref().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
 
-        let min_soft_conf_per_commitment = sequencer.min_soft_confirmations_per_commitment();
+        let min_soft_conf_per_commitment = sequencer
+            .sequencer
+            .config
+            .node
+            .min_soft_confirmations_per_commitment;
 
         // publish min_soft_conf_per_commitment - 1 confirmations, no commitments should be sent
         for _ in 0..min_soft_conf_per_commitment {

@@ -1,16 +1,21 @@
 use async_trait::async_trait;
 use bitcoin::{Amount, Transaction};
+use bitcoin_da::rpc::DaRpcClient;
 use bitcoin_da::REVEAL_OUTPUT_AMOUNT;
 use bitcoincore_rpc::RpcApi;
 use citrea_e2e::bitcoin::{BitcoinNode, FINALITY_DEPTH};
-use citrea_e2e::config::{SequencerConfig, TestCaseConfig};
+use citrea_e2e::config::{BitcoinConfig, SequencerConfig, TestCaseConfig};
 use citrea_e2e::framework::TestFramework;
-use citrea_e2e::sequencer::Sequencer;
+use citrea_e2e::node::Sequencer;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 
 use super::get_citrea_path;
+
+fn get_reveal_tx_input_value(reveal_tx: &Transaction) -> Amount {
+    Amount::from_sat(reveal_tx.vsize() as u64 + REVEAL_OUTPUT_AMOUNT)
+}
 
 /// Tests sequencer's transaction chaining across multiple batches and sequencer restart
 ///
@@ -26,14 +31,15 @@ use super::get_citrea_path;
 /// Test for chaining persistence and ordering and chain integrity survive sequencer restarts.
 struct TestSequencerTransactionChaining;
 
-impl TestSequencerTransactionChaining {
-    fn get_reveal_tx_input_value(&self, reveal_tx: &Transaction) -> Amount {
-        Amount::from_sat(reveal_tx.vsize() as u64 + REVEAL_OUTPUT_AMOUNT)
-    }
-}
-
 #[async_trait]
 impl TestCase for TestSequencerTransactionChaining {
+    fn bitcoin_config() -> citrea_e2e::config::BitcoinConfig {
+        BitcoinConfig {
+            extra_args: vec!["-fallbackfee=0.00001"],
+            ..Default::default()
+        }
+    }
+
     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
         let sequencer = f.sequencer.as_mut().unwrap();
         let da = f.bitcoin_nodes.get(0).expect("DA not running.");
@@ -67,7 +73,7 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx1.output[0].value >= get_reveal_tx_input_value(tx2));
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // Generate seqcommitment txs and make sure second batch is chained from first batch
@@ -103,14 +109,18 @@ impl TestCase for TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
+        assert!(tx3.output[0].value >= get_reveal_tx_input_value(tx4));
         assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         let last_tx = self
             .test_restart_with_empty_mempool(sequencer, da, tx4)
             .await?;
 
-        self.test_restart_with_tx_in_mempool(sequencer, da, &last_tx)
+        let last_tx = self
+            .test_restart_with_tx_in_mempool(sequencer, da, &last_tx)
+            .await?;
+
+        self.test_restart_with_odd_number_of_utxos(sequencer, da, &last_tx)
             .await?;
 
         Ok(())
@@ -128,7 +138,7 @@ impl TestSequencerTransactionChaining {
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0);
 
-        sequencer.restart(None).await?;
+        sequencer.restart(None, None).await?;
 
         let min_soft_confirmations_per_commitment =
             sequencer.min_soft_confirmations_per_commitment();
@@ -166,7 +176,7 @@ impl TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx1.output[0].value >= get_reveal_tx_input_value(tx2));
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(tx2.clone())
@@ -177,7 +187,7 @@ impl TestSequencerTransactionChaining {
         sequencer: &mut Sequencer,
         da: &BitcoinNode,
         prev_tx: &Transaction,
-    ) -> Result<()> {
+    ) -> Result<Transaction> {
         // Start with empty mempool
         let mempool = da.get_raw_mempool().await?;
         assert_eq!(mempool.len(), 0);
@@ -194,7 +204,7 @@ impl TestSequencerTransactionChaining {
         da.wait_mempool_len(2, None).await?;
 
         // Restart before generating a block to check `get_prev_utxo` prioritisting UTXO from mempool
-        sequencer.restart(None).await?;
+        sequencer.restart(None, None).await?;
 
         for _ in 0..min_soft_confirmations_per_commitment {
             sequencer.client.send_publish_batch_request().await?;
@@ -220,7 +230,7 @@ impl TestSequencerTransactionChaining {
         assert_eq!(
             tx1.input[0].previous_output.txid,
             prev_tx.compute_txid(),
-            "TX5 should reference prev_tx output"
+            "TX1 should reference prev_tx output"
         );
 
         assert_eq!(
@@ -241,12 +251,194 @@ impl TestSequencerTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx1.output[0].value >= get_reveal_tx_input_value(tx2));
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
-        assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
+        assert!(tx3.output[0].value >= get_reveal_tx_input_value(tx4));
         assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
-        Ok(())
+        Ok(tx4.clone())
+    }
+
+    async fn test_restart_with_odd_number_of_utxos(
+        &self,
+        sequencer: &mut Sequencer,
+        da: &BitcoinNode,
+        prev_tx: &Transaction,
+    ) -> Result<Transaction> {
+        // Send fund to sequencer wallet
+        let seq_address = sequencer
+            .da
+            .get_new_address(None, None)
+            .await?
+            .assume_checked();
+
+        da.send_to_address(
+            &seq_address,
+            Amount::from_sat(10_000),
+            None,
+            None,
+            Some(true),
+            None,
+            None,
+            None,
+        )
+        .await?;
+        da.generate(1).await?;
+
+        // Assert that sequencer has odd number of utxo
+        let seq_unspent = sequencer
+            .da
+            .list_unspent(None, Some(FINALITY_DEPTH as usize), None, None, None)
+            .await?;
+        assert_eq!(seq_unspent.len(), 3);
+
+        // Assert that we start with empty mempool
+        let mempool = da.get_raw_mempool().await?;
+        assert_eq!(mempool.len(), 0);
+
+        // Assert that sequencer has properly rebuilt the TX chain on restart
+        sequencer.restart(None, None).await?;
+
+        let last_monitored_tx = sequencer
+            .client
+            .http_client()
+            .da_get_last_monitored_tx()
+            .await?;
+
+        assert_eq!(last_monitored_tx.unwrap().txid, prev_tx.compute_txid());
+
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        // Generate seqcommitment txs restart and make sure third batch is chained from prev_tx
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob tx to hit the mempool
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(1).await?;
+
+        // Get latest block
+        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let txs = &block.txdata;
+
+        assert_eq!(txs.len(), 3, "Block should contain exactly 3 transactions");
+
+        let _coinbase = &txs[0];
+        let tx1 = &txs[1];
+        let tx2 = &txs[2];
+
+        assert_eq!(
+            tx1.input[0].previous_output.txid,
+            prev_tx.compute_txid(),
+            "TX1 should reference prev_tx output"
+        );
+
+        assert_eq!(
+            tx2.input[0].previous_output.txid,
+            tx1.compute_txid(),
+            "TX2 should reference TX1's output"
+        );
+
+        // Verify output values
+        assert!(tx1.output[0].value >= get_reveal_tx_input_value(tx2));
+        assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+
+        // Test with odd number of TX in mempool
+        let prev_tx = tx2;
+
+        // Generate odd number of TX in mempool
+        da.send_to_address(
+            &seq_address,
+            Amount::from_sat(10_000),
+            None,
+            None,
+            Some(true),
+            None,
+            None,
+            None,
+        )
+        .await?;
+
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob tx to hit the mempool
+        da.wait_mempool_len(3, None).await?;
+
+        // Assert that we start with odd txs in mempool
+        let mempool = da.get_raw_mempool().await?;
+        assert_eq!(mempool.len(), 3);
+
+        // Assert that sequencer has properly rebuilt the TX chain on restart
+        sequencer.restart(None, None).await?;
+
+        let monitored_txs = sequencer
+            .client
+            .http_client()
+            .da_get_monitored_transactions()
+            .await?;
+
+        assert_eq!(monitored_txs.len(), 2);
+
+        let min_soft_confirmations_per_commitment =
+            sequencer.min_soft_confirmations_per_commitment();
+
+        // Generate seqcommitment txs restart and make sure third batch is chained from tx2
+        for _ in 0..min_soft_confirmations_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+        }
+
+        // Wait for blob tx to hit the mempool
+        da.wait_mempool_len(5, None).await?;
+        da.generate(1).await?;
+
+        // Get latest block
+        let block = da.get_block(&da.get_best_block_hash().await?).await?;
+        let txs = &block.txdata;
+
+        assert_eq!(txs.len(), 6, "Block should contain exactly 6 transactions");
+
+        let _coinbase = &txs[0];
+        let _send_tx = &txs[1];
+        let tx1 = &txs[2];
+        let tx2 = &txs[3];
+        let tx3 = &txs[4];
+        let tx4 = &txs[5];
+
+        assert_eq!(
+            tx1.input[0].previous_output.txid,
+            prev_tx.compute_txid(),
+            "TX1 should reference prev_tx output"
+        );
+
+        assert_eq!(
+            tx2.input[0].previous_output.txid,
+            tx1.compute_txid(),
+            "TX2 should reference TX1's output"
+        );
+
+        assert_eq!(
+            tx3.input[0].previous_output.txid,
+            tx2.compute_txid(),
+            "TX3 should reference TX2's output"
+        );
+        assert_eq!(
+            tx4.input[0].previous_output.txid,
+            tx3.compute_txid(),
+            "TX4 should reference TX3's output"
+        );
+
+        // Verify output values
+        assert!(tx1.output[0].value >= get_reveal_tx_input_value(tx2));
+        assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+        assert!(tx3.output[0].value >= get_reveal_tx_input_value(tx4));
+        assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
+
+        Ok(tx4.clone())
     }
 }
 
@@ -259,12 +451,6 @@ async fn test_sequencer_transaction_chaining() -> Result<()> {
 }
 
 struct TestProverTransactionChaining;
-
-impl TestProverTransactionChaining {
-    fn get_reveal_tx_input_value(&self, reveal_tx: &Transaction) -> Amount {
-        Amount::from_sat(reveal_tx.vsize() as u64 + REVEAL_OUTPUT_AMOUNT)
-    }
-}
 
 #[async_trait]
 impl TestCase for TestProverTransactionChaining {
@@ -329,7 +515,7 @@ impl TestCase for TestProverTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx1.output[0].value >= self.get_reveal_tx_input_value(tx2));
+        assert!(tx1.output[0].value >= get_reveal_tx_input_value(tx2));
         assert!(tx2.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         // // Do another round and make sure second batch is chained from first batch
@@ -372,10 +558,10 @@ impl TestCase for TestProverTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx3.output[0].value >= self.get_reveal_tx_input_value(tx4));
+        assert!(tx3.output[0].value >= get_reveal_tx_input_value(tx4));
         assert!(tx4.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
-        batch_prover.restart(None).await?;
+        batch_prover.restart(None, None).await?;
 
         // // Do another round post restart and make sure third batch is chained from second batch
         for _ in 0..min_soft_confirmations_per_commitment {
@@ -417,7 +603,7 @@ impl TestCase for TestProverTransactionChaining {
         );
 
         // Verify output values
-        assert!(tx5.output[0].value >= self.get_reveal_tx_input_value(tx6));
+        assert!(tx5.output[0].value >= get_reveal_tx_input_value(tx6));
         assert!(tx6.output[0].value >= Amount::from_sat(REVEAL_OUTPUT_AMOUNT));
 
         Ok(())
