@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use tracing_subscriber::fmt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod commands;
 
@@ -36,16 +39,20 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::registry().with(fmt::layer()).init();
+
     let cli = Cli::parse();
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
         Commands::Prune { db_path, distance } => {
-            println!("Pruning stuff: {:?}, distance: {}", db_path, distance);
+            commands::prune(db_path.clone(), *distance).await?;
         }
         Commands::Rollback { db_path, blocks } => {
             println!("Rolling back stuff: {:?}, blocks: {}", db_path, blocks);
         }
     }
+
+    Ok(())
 }
