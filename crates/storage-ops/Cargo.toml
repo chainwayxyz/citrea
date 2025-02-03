@@ -1,5 +1,5 @@
 [package]
-name = "citrea-pruning"
+name = "citrea-storage-ops"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

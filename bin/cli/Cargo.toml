@@ -12,7 +12,7 @@ resolver = "2"
 
 [dependencies]
 # Citrea deps
-citrea-pruning = { path = "../../crates/pruning" }
+citrea-storage-ops = { path = "../../crates/storage-ops" }
 
 # Sovereign-SDK deps
 sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
