@@ -11,8 +11,8 @@ use sov_modules_core::Witness;
 ///
 /// let mut witness = ArrayWitness::default();
 ///
-/// witness.add_hint(1u64);
-/// witness.add_hint(2u64);
+/// witness.add_hint(&1u64);
+/// witness.add_hint(&2u64);
 ///
 /// assert_eq!(witness.get_hint::<u64>(), 1u64);
 /// assert_eq!(witness.get_hint::<u64>(), 2u64);
@@ -24,8 +24,8 @@ pub struct ArrayWitness {
 }
 
 impl Witness for ArrayWitness {
-    fn add_hint<T: BorshSerialize>(&mut self, hint: T) {
-        self.hints.push(borsh::to_vec(&hint).unwrap())
+    fn add_hint<T: BorshSerialize>(&mut self, hint: &T) {
+        self.hints.push(borsh::to_vec(hint).unwrap())
     }
 
     fn get_hint<T: BorshDeserialize>(&mut self) -> T {
