@@ -1,0 +1,24 @@
+[package]
+name = "citrea-cli"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+publish = false
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Citrea deps
+
+# Sovereign-SDK deps
+
+# 3rd-party deps
+clap = { workspace = true }
+tokio = { workspace = true }
+
+[[bin]]
+name = "citrea-cli"
+path = "src/main.rs"

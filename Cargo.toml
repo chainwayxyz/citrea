@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   # Citrea
   "bin/citrea",
+  "bin/cli",
   "crates/batch-prover",
   "crates/bitcoin-da",
   "crates/citrea-stf",
