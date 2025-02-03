@@ -2,17 +2,16 @@ use std::sync::Arc;
 
 use futures::future;
 use serde::{Deserialize, Serialize};
+pub use service::*;
 use sov_db::ledger_db::SharedLedgerOps;
-use tokio::select;
-use tokio::sync::broadcast;
-use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::info;
 
 use crate::criteria::{Criteria, DistanceCriteria};
 use crate::pruners::{prune_evm, prune_ledger, prune_native_db};
 
 mod criteria;
 mod pruners;
+mod service;
 #[cfg(test)]
 mod tests;
 
@@ -33,10 +32,6 @@ pub struct Pruner<DB>
 where
     DB: SharedLedgerOps,
 {
-    /// The last block number which was pruned.
-    last_pruned_block: u64,
-    /// A channel receiver which gets notified of new L2 blocks.
-    l2_receiver: broadcast::Receiver<u64>,
     /// Access to ledger tables.
     ledger_db: DB,
     /// Access to native DB.
@@ -49,24 +44,30 @@ impl<DB> Pruner<DB>
 where
     DB: SharedLedgerOps + Send + Sync + Clone + 'static,
 {
-    pub fn new(
-        config: PruningConfig,
-        last_pruned_block: u64,
-        l2_receiver: broadcast::Receiver<u64>,
-        ledger_db: DB,
-        native_db: Arc<sov_schema_db::DB>,
-    ) -> Self {
+    pub fn new(config: PruningConfig, ledger_db: DB, native_db: Arc<sov_schema_db::DB>) -> Self {
         // distance is the only criteria implemented at the moment.
         let criteria = Box::new(DistanceCriteria {
             distance: config.distance,
         });
         Self {
-            last_pruned_block,
-            l2_receiver,
             ledger_db,
             native_db,
             criteria,
         }
+    }
+
+    pub fn store_last_pruned_l2_height(&self, last_pruned_l2_height: u64) -> anyhow::Result<()> {
+        self.ledger_db
+            .set_last_pruned_l2_height(last_pruned_l2_height)
+    }
+
+    pub(crate) fn should_prune(
+        &self,
+        last_pruned_l2_height: u64,
+        current_l2_height: u64,
+    ) -> Option<u64> {
+        self.criteria
+            .should_prune(last_pruned_l2_height, current_l2_height)
     }
 
     /// Prune everything
@@ -86,29 +87,5 @@ where
             native_db_pruning_handle,
         ])
         .await;
-    }
-
-    pub async fn run(mut self, cancellation_token: CancellationToken) {
-        loop {
-            select! {
-                biased;
-                _ = cancellation_token.cancelled() => {
-                    // Store the last pruned l2 height in ledger DB to be restored in the next initialization.
-                    if let Err(e) = self.ledger_db.set_last_pruned_l2_height(self.last_pruned_block) {
-                        error!("Failed to store last pruned L2 height {}: {:?}", self.last_pruned_block, e);
-                    }
-                    return;
-                }
-                current_l2_block = self.l2_receiver.recv() => {
-                    if let Ok(current_l2_block) = current_l2_block {
-                        debug!("Pruner received L2 {}, checking criteria", current_l2_block);
-                        if let Some(up_to_block) = self.criteria.should_prune(self.last_pruned_block, current_l2_block) {
-                            self.prune(up_to_block).await;
-                            self.last_pruned_block = up_to_block;
-                        }
-                    }
-                },
-            }
-        }
     }
 }
