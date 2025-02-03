@@ -14,7 +14,7 @@ members = [
   "crates/light-client-prover",
   "crates/primitives",
   "crates/prover-services",
-  "crates/pruning",
+  "crates/storage-ops",
   "crates/risc0",
   "crates/sequencer",
   "crates/soft-confirmation-rule-enforcer",
