@@ -6,14 +6,13 @@ use core::{fmt, mem};
 use sov_rollup_interface::zk::StorageRootHash;
 
 use self::archival_state::ArchivalOffchainWorkingSet;
-use super::CacheMode;
 use crate::archival_state::{ArchivalAccessoryWorkingSet, ArchivalJmtWorkingSet};
 use crate::common::Prefix;
 use crate::storage::{
     CacheKey, CacheValue, EncodeKeyLike, NativeStorage, OrderedReadsAndWrites, StateCodec,
     StateValueCodec, Storage, StorageInternalCache, StorageKey, StorageProof, StorageValue,
 };
-use crate::Version;
+use crate::{CacheMode, Version};
 
 /// A storage reader and writer
 pub trait StateReaderAndWriter {
@@ -164,7 +163,7 @@ impl<S: Storage> Delta<S> {
         Self {
             inner,
             witness,
-            cache: StorageInternalCache::new(version, super::CacheMode::State),
+            cache: StorageInternalCache::new(version, CacheMode::State),
         }
     }
 
@@ -274,7 +273,7 @@ impl<S: Storage> OffchainDelta<S> {
         Self {
             storage,
             witness,
-            cache: StorageInternalCache::new(version, super::CacheMode::Offchain),
+            cache: StorageInternalCache::new(version, CacheMode::Offchain),
         }
     }
 
@@ -285,7 +284,7 @@ impl<S: Storage> OffchainDelta<S> {
 
         // Since mem::take leaves Default::default() in place, we need to reset
         // the cache mode to Offchain.
-        // TODO: change freeze signature to consume Self
+        // TODO: change freeze signature to consume self
 
         self.cache.mode = CacheMode::Offchain;
 
