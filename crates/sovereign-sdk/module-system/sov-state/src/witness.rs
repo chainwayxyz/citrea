@@ -36,9 +36,6 @@ impl Witness for ArrayWitness {
     }
 
     fn merge(&mut self, rhs: &mut Self) {
-        let rhs_next_idx = rhs.next_idx;
-        let lhs_hints_lock = &mut self.hints;
-        let rhs_hints_lock = &mut rhs.hints;
-        lhs_hints_lock.extend(rhs_hints_lock.drain(rhs_next_idx..))
+        self.hints.extend(rhs.hints.drain(rhs.next_idx..))
     }
 }
