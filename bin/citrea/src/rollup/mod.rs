@@ -12,7 +12,7 @@ use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientP
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
 use citrea_sequencer::CitreaSequencer;
-use citrea_storage_ops::PrunerService;
+use citrea_storage_ops::pruning::PrunerService;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
 use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};

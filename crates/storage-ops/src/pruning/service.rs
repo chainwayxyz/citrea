@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
-use crate::Pruner;
+use super::Pruner;
 
 pub struct PrunerService<DB: SharedLedgerOps> {
     pruner: Pruner<DB>,

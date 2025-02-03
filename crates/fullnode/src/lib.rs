@@ -6,7 +6,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use citrea_common::cache::L1BlockCache;
 use citrea_common::{RollupPublicKeys, RunnerConfig};
-use citrea_storage_ops::{Pruner, PrunerService};
+use citrea_storage_ops::pruning::{Pruner, PrunerService};
 use da_block_handler::L1BlockHandler;
 pub use runner::*;
 use serde::de::DeserializeOwned;

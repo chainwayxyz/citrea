@@ -9,8 +9,8 @@ use sov_prover_storage_manager::SnapshotManager;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
-use crate::criteria::{Criteria, DistanceCriteria};
-use crate::{Pruner, PruningConfig};
+use crate::pruning::criteria::{Criteria, DistanceCriteria};
+use crate::pruning::{Pruner, PrunerService, PruningConfig};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_pruner_simple_run() {
@@ -23,13 +23,12 @@ async fn test_pruner_simple_run() {
     let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config).unwrap();
     let pruner = Pruner::new(
         PruningConfig { distance: 5 },
-        0,
-        receiver,
         ledger_db,
         Arc::new(native_db),
     );
+    let pruner_service = PrunerService::new(pruner, 0, receiver);
 
-    tokio::spawn(pruner.run(cancellation_token.clone()));
+    tokio::spawn(pruner_service.run(cancellation_token.clone()));
 
     sleep(Duration::from_secs(1));
 
