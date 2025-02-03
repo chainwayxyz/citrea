@@ -72,7 +72,7 @@ derive_more = { version = "1", default-features = false }
 ed25519-dalek = { version = "2", default-features = false, features = ["serde", "fast"] }
 faster-hex = "0.10.0"
 futures = "0.3"
-hyper = "1.5.2"
+hyper = "1.6.0"
 itertools = { version = "0.13.0", default-features = false }
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
 jsonrpsee = { version = "0.24.2", features = ["jsonrpsee-types"] }
