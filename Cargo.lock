@@ -1885,7 +1885,10 @@ dependencies = [
 name = "citrea-cli"
 version = "0.6.0"
 dependencies = [
+ "anyhow",
+ "citrea-pruning",
  "clap",
+ "sov-db",
  "tokio",
 ]
 

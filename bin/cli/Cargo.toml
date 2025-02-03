@@ -12,10 +12,13 @@ resolver = "2"
 
 [dependencies]
 # Citrea deps
+citrea-pruning = { path = "../../crates/pruning" }
 
 # Sovereign-SDK deps
+sov-db = { path = "../../crates/sovereign-sdk/full-node/db/sov-db" }
 
 # 3rd-party deps
+anyhow = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 
