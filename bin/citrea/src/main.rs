@@ -187,7 +187,13 @@ where
         da_service,
         mut task_manager,
         soft_confirmation_channel,
-    } = rollup_blueprint.setup_dependencies(&rollup_config).await?;
+    } = rollup_blueprint
+        .setup_dependencies(
+            &rollup_config,
+            matches!(node_type, NodeType::Sequencer(_))
+                || matches!(node_type, NodeType::BatchProver(_)),
+        )
+        .await?;
 
     let sequencer_client_url = rollup_config
         .runner

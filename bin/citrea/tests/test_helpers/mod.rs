@@ -133,7 +133,10 @@ pub async fn start_rollup(
         mut task_manager,
         soft_confirmation_channel,
     } = mock_demo_rollup
-        .setup_dependencies(&rollup_config)
+        .setup_dependencies(
+            &rollup_config,
+            sequencer_config.is_some() || rollup_prover_config.is_some(),
+        )
         .await
         .expect("Dependencies setup should work");
 
