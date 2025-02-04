@@ -40,7 +40,7 @@ where
             panic!("Invalid hash of DA block header of commitments");
         }
 
-        self.da_verifier.verify_transactions(
+        let da_txs = self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
             data.inclusion_proof,
             data.completeness_proof,
@@ -61,7 +61,7 @@ where
                 sequencer_da_public_key,
                 &data.initial_state_root,
                 pre_state,
-                data.da_data,
+                da_txs,
                 data.sequencer_commitments_range,
                 data.da_block_headers_of_soft_confirmations,
                 data.preproven_commitments.clone(),

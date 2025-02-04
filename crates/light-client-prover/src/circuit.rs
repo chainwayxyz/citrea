@@ -68,7 +68,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
         .map_err(|err| LightClientVerificationError::HeaderChainVerificationFailed(err))?;
 
     // Verify data from da
-    da_verifier
+    let da_txs = da_verifier
         .verify_transactions(
             &input.da_block_header,
             input.inclusion_proof,
@@ -117,7 +117,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut current_proof_index = 0u32;
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
-    'blob_loop: for blob in input.da_data {
+    'blob_loop: for blob in da_txs {
         let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
             println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
             continue;
