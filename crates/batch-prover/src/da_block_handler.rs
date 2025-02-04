@@ -18,6 +18,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
+use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
@@ -41,7 +42,7 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
+pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -55,6 +56,7 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+    C: sov_modules_api::Context,
 {
     prover_config: BatchProverConfig,
     prover_service: Arc<Ps>,
@@ -70,9 +72,11 @@ where
     _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
+    _context: PhantomData<C>,
 }
 
-impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx> L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx>
+impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>
+    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -87,6 +91,7 @@ where
         + Debug,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
     Tx: Clone + BorshDeserialize + BorshSerialize,
+    C: sov_modules_api::Context,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -116,6 +121,7 @@ where
             _state_root: PhantomData,
             _witness: PhantomData,
             _tx: PhantomData,
+            _context: PhantomData,
         }
     }
 
