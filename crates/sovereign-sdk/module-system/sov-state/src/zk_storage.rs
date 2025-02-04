@@ -82,7 +82,7 @@ where
     > {
         let prev_state_root = witness.get_hint();
 
-        // For each value that's been read from the tree, verify the provided smt proof
+        // For each value that's been read from the tree, verify the provided jmt proof
         for (key, read_value) in state_accesses.ordered_reads {
             let key_hash = KeyHash::with::<DefaultHasher>(key.key.as_ref());
             // TODO: Switch to the batch read API once it becomes available
