@@ -68,11 +68,6 @@ where
     let (mut da_data, inclusion_proof, completeness_proof) =
         da_service.extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToBatchProver);
 
-    // if we don't do this, the zk circuit can't read the sequencer commitments
-    da_data.iter_mut().for_each(|blob| {
-        blob.full_data();
-    });
-
     let sequencer_commitments: Vec<SequencerCommitment> =
         extract_sequencer_commitments::<Da>(da_service.clone(), l1_block, &sequencer_da_pub_key);
 

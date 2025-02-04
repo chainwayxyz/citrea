@@ -165,12 +165,6 @@ where
             .da_service
             .extract_relevant_blobs_with_proof(&l1_block, DaNamespace::ToLightClientProver);
 
-        // Even though following extract_batch_proofs call does full_data on batch proofs,
-        // we also need to do it for BatchProofMethodId txs
-        da_data.iter_mut().for_each(|tx| {
-            tx.full_data();
-        });
-
         let mut assumptions = vec![];
 
         let previous_l1_height = l1_height - 1;

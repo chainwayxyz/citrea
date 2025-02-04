@@ -118,7 +118,7 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     let mut expected_to_fail_hints = input.expected_to_fail_hint.into_iter().peekable();
     // Parse the batch proof da data
     'blob_loop: for blob in input.da_data {
-        let Ok(data) = DaDataLightClient::try_from_slice(blob.verified_data()) else {
+        let Ok(data) = DaDataLightClient::try_from_slice(blob.full_data()) else {
             println!("Unparseable blob in da_data, wtxid={:?}", blob.wtxid());
             continue;
         };

@@ -479,7 +479,7 @@ impl DaService for MockDaService {
                 }
             };
         }
-        (txs, [0u8; 32], ())
+        (txs.clone(), [0u8; 32], txs)
     }
 
     #[tracing::instrument(name = "MockDA", level = "debug", skip_all)]
