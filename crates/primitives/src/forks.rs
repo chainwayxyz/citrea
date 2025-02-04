@@ -65,11 +65,15 @@ pub const DEVNET_FORKS: [Fork; 2] = [
     Fork::new(SpecId::Kumquat, 1921835),
 ];
 
-pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Kumquat, 0)];
+pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::Fork2, 0)];
 
-pub const ALL_FORKS: [Fork; 2] = [
+pub const ALL_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Genesis, 0),
+    // TODO: since we didn't freeze kumquat elfs yet, tests depending on Kumquat fork
+    // are actually going to be using the current elf.
+    // So this doesn't mean anything, it will act like Fork2
     Fork::new(SpecId::Kumquat, 100),
+    Fork::new(SpecId::Fork2, 300),
 ];
 
 const _CHECK_FORKS: () = {

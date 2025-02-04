@@ -1,7 +1,7 @@
 use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
-use sov_rollup_interface::zk::batch_proof::input::v2::BatchProofCircuitInputV2Part1;
+use sov_rollup_interface::zk::batch_proof::input::v3::BatchProofCircuitInputV3Part1;
 use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::ZkvmGuest;
 
@@ -36,7 +36,7 @@ where
     ) -> Result<BatchProofCircuitOutputV2<Da::Spec, Stf::StateRoot>, Da::Error> {
         println!("Running sequencer commitments in DA slot");
 
-        let data: BatchProofCircuitInputV2Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
+        let data: BatchProofCircuitInputV3Part1<Stf::StateRoot, Da::Spec> = guest.read_from_host();
 
         if !data.da_block_header_of_commitments.verify_hash() {
             panic!("Invalid hash of DA block header of commitments");

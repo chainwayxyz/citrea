@@ -5,6 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use v2::{BatchProofCircuitInputV2Part1, BatchProofCircuitInputV2Part2};
+use v3::{BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2};
 
 use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmation;
@@ -13,6 +14,9 @@ use crate::soft_confirmation::SignedSoftConfirmation;
 pub mod v1;
 /// Kumquat input module
 pub mod v2;
+/// Fork2 input module
+/// Removes dependency on da_data so we input less data to the circuit
+pub mod v3;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
@@ -108,6 +112,53 @@ where
                 sequencer_commitments_range: self.sequencer_commitments_range,
             },
             BatchProofCircuitInputV2Part2(x),
+        )
+    }
+
+    /// Into Kumquat expected inputs
+    pub fn into_v3_parts(
+        self,
+    ) -> (
+        BatchProofCircuitInputV3Part1<StateRoot, Da>,
+        BatchProofCircuitInputV3Part2<'txs, Witness, Tx>,
+    ) {
+        assert_eq!(
+            self.soft_confirmations.len(),
+            self.state_transition_witnesses.len()
+        );
+        let mut x = VecDeque::with_capacity(self.soft_confirmations.len());
+
+        for (confirmations, witnesses) in self
+            .soft_confirmations
+            .into_iter()
+            .zip(self.state_transition_witnesses)
+        {
+            assert_eq!(confirmations.len(), witnesses.len());
+
+            let v: Vec<_> = confirmations
+                .into_iter()
+                .zip(witnesses)
+                .map(|(confirmation, (state_witness, offchain_witness))| {
+                    (confirmation, state_witness, offchain_witness)
+                })
+                .collect();
+
+            x.push_back(v);
+        }
+
+        (
+            BatchProofCircuitInputV3Part1 {
+                initial_state_root: self.initial_state_root,
+                final_state_root: self.final_state_root,
+                prev_soft_confirmation_hash: self.prev_soft_confirmation_hash,
+                da_block_header_of_commitments: self.da_block_header_of_commitments,
+                inclusion_proof: self.inclusion_proof,
+                completeness_proof: self.completeness_proof,
+                preproven_commitments: self.preproven_commitments,
+                da_block_headers_of_soft_confirmations: self.da_block_headers_of_soft_confirmations,
+                sequencer_commitments_range: self.sequencer_commitments_range,
+            },
+            BatchProofCircuitInputV3Part2(x),
         )
     }
 }
