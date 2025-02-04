@@ -5,7 +5,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
 pub(crate) fn create_mock_batch_proof(
@@ -16,7 +16,7 @@ pub(crate) fn create_mock_batch_proof(
 ) -> MockBlob {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutput::<MockDaSpec, [u8; 32]> {
+    let bp = BatchProofCircuitOutputV2::<MockDaSpec, [u8; 32]> {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],
@@ -63,7 +63,7 @@ pub(crate) fn create_serialized_mock_proof(
 ) -> Vec<u8> {
     let batch_proof_method_id = MockCodeCommitment([2u8; 32]);
 
-    let bp = BatchProofCircuitOutput::<MockDaSpec, [u8; 32]> {
+    let bp = BatchProofCircuitOutputV2::<MockDaSpec, [u8; 32]> {
         initial_state_root,
         final_state_root,
         prev_soft_confirmation_hash: [3; 32],

@@ -19,7 +19,7 @@ pub struct OldChainValidityCondition {
 
 /// The pre fork 1 batch proof circuit output
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct OldBatchProofCircuitOutput<Da: DaSpec, Root> {
+pub struct BatchProofCircuitOutputV1<Da: DaSpec, Root> {
     /// The state of the rollup before the transition
     pub initial_state_root: Root,
     /// The state of the rollup after the transition

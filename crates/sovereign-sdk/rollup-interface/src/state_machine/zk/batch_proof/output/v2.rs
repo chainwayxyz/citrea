@@ -18,7 +18,7 @@ use crate::da::DaSpec;
 /// Will be 0 for pre fork 1 proofs because this is a new output format and those fields
 /// did not exist pre fork 1
 #[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct BatchProofCircuitOutput<Da: DaSpec, Root> {
+pub struct BatchProofCircuitOutputV2<Da: DaSpec, Root> {
     /// The state of the rollup before the transition
     pub initial_state_root: Root,
     /// The state of the rollup after the transition

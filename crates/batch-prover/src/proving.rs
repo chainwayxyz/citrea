@@ -18,8 +18,8 @@ use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
 use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
-use sov_rollup_interface::zk::batch_proof::output::v1::OldBatchProofCircuitOutput;
-use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v1::BatchProofCircuitOutputV1;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::Mutex;
@@ -344,7 +344,7 @@ where
         // l1_height => (tx_id, proof, circuit_output)
         // save proof along with tx id to db, should be queryable by slot number or slot hash
         let (last_active_spec_id, circuit_output) = match Vm::extract_output::<
-            BatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+            BatchProofCircuitOutputV2<<Da as DaService>::Spec, StateRoot>,
         >(&proof)
         {
             Ok(output) => (
@@ -354,10 +354,10 @@ where
             Err(e) => {
                 info!("Failed to extract post fork 1 output from proof: {:?}. Trying to extract pre fork 1 output", e);
                 let output = Vm::extract_output::<
-                    OldBatchProofCircuitOutput<<Da as DaService>::Spec, StateRoot>,
+                    BatchProofCircuitOutputV1<<Da as DaService>::Spec, StateRoot>,
                 >(&proof)
                 .expect("Should be able to extract either pre or post fork 1 output");
-                let batch_proof_output = BatchProofCircuitOutput::<Da::Spec, StateRoot> {
+                let batch_proof_output = BatchProofCircuitOutputV2::<Da::Spec, StateRoot> {
                     initial_state_root: output.initial_state_root,
                     final_state_root: output.final_state_root,
                     state_diff: output.state_diff,
