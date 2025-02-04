@@ -5,7 +5,8 @@ use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockHash};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof};
 use sov_rollup_interface::da::{BatchProofMethodId, BlobReaderTrait, DaDataLightClient};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRInclusionProof, MMRNative};
-use sov_rollup_interface::zk::{BatchProofCircuitOutput, LightClientCircuitOutput};
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 
 pub(crate) fn create_mock_batch_proof(
     initial_state_root: [u8; 32],

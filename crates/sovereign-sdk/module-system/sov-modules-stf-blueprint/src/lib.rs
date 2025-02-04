@@ -23,7 +23,8 @@ use sov_rollup_interface::stf::{
     ApplySequencerCommitmentsOutput, SoftConfirmationError, SoftConfirmationResult,
     StateTransitionError, StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{CumulativeStateDiff, StorageRootHash, ZkvmGuest};
+use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::{StorageRootHash, ZkvmGuest};
 use sov_state::Storage;
 
 mod stf_blueprint;

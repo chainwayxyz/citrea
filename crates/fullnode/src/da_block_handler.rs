@@ -23,9 +23,9 @@ use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{
-    BatchProofCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
-};
+use sov_rollup_interface::zk::batch_proof::output::v1::OldBatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::Duration;

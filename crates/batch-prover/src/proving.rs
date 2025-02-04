@@ -12,13 +12,15 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
-use sov_modules_api::{BatchProofCircuitOutput, SlotData, SpecId, Zkvm};
+use sov_modules_api::{SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::zk::{
-    BatchProofCircuitInput, BatchProofCircuitInputV1, OldBatchProofCircuitOutput, Proof, ZkvmHost,
-};
+use sov_rollup_interface::zk::batch_proof::input::v1::BatchProofCircuitInputV1;
+use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
+use sov_rollup_interface::zk::batch_proof::output::v1::OldBatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::Mutex;
 use tracing::{debug, info};

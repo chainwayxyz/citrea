@@ -25,7 +25,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
-use sov_rollup_interface::zk::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;

@@ -11,9 +11,11 @@ use sov_rollup_interface::rpc::{
     SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
 use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
-use sov_rollup_interface::zk::{
-    BatchProofInfo, CumulativeStateDiff, LightClientCircuitOutput, Proof,
+use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    BatchProofInfo, LightClientCircuitOutput,
 };
+use sov_rollup_interface::zk::Proof;
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node
 /// (i.e. when interfacing with the database). Serializes and deserializes more efficiently,

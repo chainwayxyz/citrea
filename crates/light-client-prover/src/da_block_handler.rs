@@ -14,9 +14,10 @@ use sov_rollup_interface::da::{BlockHeaderTrait, DaDataLightClient, DaNamespace}
 use sov_rollup_interface::mmr::{MMRChunk, MMRNative, Wtxid};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::spec::SpecId;
-use sov_rollup_interface::zk::{
-    LightClientCircuitInput, LightClientCircuitOutput, OldBatchProofCircuitOutput, Proof, ZkvmHost,
-};
+use sov_rollup_interface::zk::batch_proof::output::v1::OldBatchProofCircuitOutput;
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
+use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{ProofData, ProverService};
 use tokio::select;
 use tokio::sync::{mpsc, Mutex};

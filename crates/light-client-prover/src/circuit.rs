@@ -4,10 +4,13 @@ use borsh::BorshDeserialize;
 use sov_modules_api::BlobReaderTrait;
 use sov_rollup_interface::da::{BatchProofMethodId, DaDataLightClient, DaNamespace, DaVerifier};
 use sov_rollup_interface::mmr::{MMRChunk, MMRGuest, Wtxid};
-use sov_rollup_interface::zk::{
-    BatchProofCircuitOutput, BatchProofInfo, LightClientCircuitInput, LightClientCircuitOutput,
-    OldBatchProofCircuitOutput, ZkvmGuest,
+use sov_rollup_interface::zk::batch_proof::output::v1::OldBatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
+use sov_rollup_interface::zk::light_client_proof::output::{
+    BatchProofInfo, LightClientCircuitOutput,
 };
+use sov_rollup_interface::zk::ZkvmGuest;
 use sov_rollup_interface::Network;
 
 use crate::utils::{collect_unchained_outputs, recursive_match_state_roots};

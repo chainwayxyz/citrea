@@ -1,7 +1,9 @@
 use sov_modules_api::fork::Fork;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaVerifier};
 use sov_rollup_interface::stf::{ApplySequencerCommitmentsOutput, StateTransitionFunction};
-use sov_rollup_interface::zk::{BatchProofCircuitInputV2Part1, BatchProofCircuitOutput, ZkvmGuest};
+use sov_rollup_interface::zk::batch_proof::input::v2::BatchProofCircuitInputV2Part1;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::ZkvmGuest;
 
 /// Verifies a state transition
 pub struct StateTransitionVerifier<ST, Da>

@@ -6,7 +6,8 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier};
 use sov_mock_zkvm::MockZkGuest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaDataLightClient, LatestDaState};
 use sov_rollup_interface::mmr::{InMemoryStore, MMRChunk, MMRGuest, MMRNative, MMRNodeHash};
-use sov_rollup_interface::zk::{LightClientCircuitInput, LightClientCircuitOutput};
+use sov_rollup_interface::zk::light_client_proof::input::LightClientCircuitInput;
+use sov_rollup_interface::zk::light_client_proof::output::LightClientCircuitOutput;
 use sov_rollup_interface::Network;
 use test_utils::{
     create_mmr_hints, create_mock_batch_proof, create_new_method_id_tx, create_prev_lcp_serialized,

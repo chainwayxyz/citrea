@@ -8,7 +8,8 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_mock_da::{MockAddress, MockBlockHeader, MockDaService, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::Time;
-use sov_rollup_interface::zk::{BatchProofCircuitInput, Proof, ZkvmHost};
+use sov_rollup_interface::zk::batch_proof::input::BatchProofCircuitInput;
+use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sov_stf_runner::{ProofData, ProverService};
 use tokio::sync::oneshot;
 
