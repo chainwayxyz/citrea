@@ -183,7 +183,7 @@ impl BackupManager {
             }
         }
 
-        // Wait for all dbs to starting backing up under lock before releasing
+        // Wait for all dbs to start backing up under lock before releasing
         drop(l1_lock);
         drop(l2_lock);
 
