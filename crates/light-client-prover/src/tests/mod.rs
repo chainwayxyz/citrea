@@ -632,7 +632,7 @@ fn test_light_client_circuit_verify_chunks() {
     let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
-    let mut blob1 = MockBlob::new(
+    let blob1 = MockBlob::new(
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -644,7 +644,7 @@ fn test_light_client_circuit_verify_chunks() {
     let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
-    let mut blob2 = MockBlob::new(
+    let blob2 = MockBlob::new(
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -657,7 +657,7 @@ fn test_light_client_circuit_verify_chunks() {
     let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
-    let mut blob3 = MockBlob::new(
+    let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -680,7 +680,7 @@ fn test_light_client_circuit_verify_chunks() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -737,7 +737,7 @@ fn test_missing_chunk() {
     let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
-    let mut blob1 = MockBlob::new(
+    let blob1 = MockBlob::new(
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -749,7 +749,7 @@ fn test_missing_chunk() {
     let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
-    let mut blob2 = MockBlob::new(
+    let blob2 = MockBlob::new(
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -762,7 +762,7 @@ fn test_missing_chunk() {
     let chunk3_da_data = DaDataLightClient::Chunk(chunk3.clone());
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
-    let mut blob3 = MockBlob::new(
+    let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -785,7 +785,7 @@ fn test_missing_chunk() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -853,7 +853,7 @@ fn test_mmr_hints() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -968,7 +968,7 @@ fn test_malformed_mmr_proof_internal_index() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1065,7 +1065,7 @@ fn test_malformed_mmr_proof_subroot_index() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1159,7 +1159,7 @@ fn test_malformed_mmr_chunk_body() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1252,7 +1252,7 @@ fn test_malformed_mmr_chunk_wtxid() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1351,7 +1351,7 @@ fn test_malformed_mmr_inclusion_proof() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1436,7 +1436,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk1_da_data = DaDataLightClient::Chunk(chunk1.clone());
     let chunk1_serialized = borsh::to_vec(&chunk1_da_data).expect("should serialize");
 
-    let mut blob1 = MockBlob::new(
+    let blob1 = MockBlob::new(
         chunk1_serialized.clone(),
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1448,7 +1448,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk2_da_data = DaDataLightClient::Chunk(chunk2.clone());
     let chunk2_serialized = borsh::to_vec(&chunk2_da_data).expect("should serialize");
 
-    let mut blob2 = MockBlob::new(
+    let blob2 = MockBlob::new(
         chunk2_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1501,7 +1501,7 @@ fn test_malicious_aggregate_should_not_work() {
         borsh::to_vec(&malicious_aggregate_da_data).expect("should serialize");
 
     // Malicious blob sent, takes 2/3 of the chunks and tries to break the circuit
-    let mut malicious_blob = MockBlob::new(
+    let malicious_blob = MockBlob::new(
         malicious_aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1544,7 +1544,7 @@ fn test_malicious_aggregate_should_not_work() {
     let chunk3_serialized = borsh::to_vec(&chunk3_da_data).expect("should serialize");
 
     // Last chhunk
-    let mut blob3 = MockBlob::new(
+    let blob3 = MockBlob::new(
         chunk3_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],
@@ -1567,7 +1567,7 @@ fn test_malicious_aggregate_should_not_work() {
 
     let aggregate_serialized = borsh::to_vec(&aggregate_da_data).expect("should serialize");
 
-    let mut blob4 = MockBlob::new(
+    let blob4 = MockBlob::new(
         aggregate_serialized,
         MockAddress::new([9u8; 32]),
         [0u8; 32],

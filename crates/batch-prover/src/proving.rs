@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SoftConfirmationNumber, StoredBatchProof, StoredBatchProofOutput};
-use sov_modules_api::{BatchProofCircuitOutput, BlobReaderTrait, SlotData, SpecId, Zkvm};
+use sov_modules_api::{BatchProofCircuitOutput, SlotData, SpecId, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, SequencerCommitment};
 use sov_rollup_interface::rpc::SoftConfirmationStatus;
 use sov_rollup_interface::services::da::DaService;
@@ -65,7 +65,7 @@ where
 {
     let l1_height = l1_block.header().height();
 
-    let (mut da_data, inclusion_proof, completeness_proof) =
+    let (da_data, inclusion_proof, completeness_proof) =
         da_service.extract_relevant_blobs_with_proof(l1_block, DaNamespace::ToBatchProver);
 
     let sequencer_commitments: Vec<SequencerCommitment> =

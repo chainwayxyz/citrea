@@ -1,9 +1,7 @@
 use citrea_primitives::compression::decompress_blob;
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
-use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState,
-};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaNamespace, DaSpec, DaVerifier, LatestDaState};
 use sov_rollup_interface::Network;
 
 use crate::helpers::parsers::{

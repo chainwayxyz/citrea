@@ -241,8 +241,8 @@ impl TestCase for SequencerSendCommitmentsToDaTest {
 
             let mut blobs = get_relevant_blobs_from_txs(block.txdata, TO_BATCH_PROOF_PREFIX);
 
-            for mut blob in blobs.drain(0..) {
-                let data = BlobReaderTrait::full_data(&mut blob);
+            for blob in blobs.drain(0..) {
+                let data = blob.full_data();
 
                 assert_eq!(data, &[] as &[u8]);
             }
@@ -304,9 +304,9 @@ impl SequencerSendCommitmentsToDaTest {
 
         assert_eq!(blobs.len(), 1);
 
-        let mut blob = blobs.pop().unwrap();
+        let blob = blobs.pop().unwrap();
 
-        let data = BlobReaderTrait::full_data(&mut blob);
+        let data = blob.full_data();
 
         let commitment = DaTxRequest::try_from_slice(data).unwrap();
 
