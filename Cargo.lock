@@ -2217,6 +2217,7 @@ dependencies = [
  "citrea-evm",
  "citrea-primitives",
  "futures",
+ "jmt",
  "serde",
  "sov-db",
  "sov-modules-api",

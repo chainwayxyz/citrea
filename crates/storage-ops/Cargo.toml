@@ -14,6 +14,7 @@ citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 
 # Sov SDK deps
+jmt = { workspace = true }
 sov-db = { path = "../sovereign-sdk/full-node/db/sov-db" }
 sov-modules-api = { path = "../sovereign-sdk/module-system/sov-modules-api", default-features = false }
 sov-schema-db = { path = "../sovereign-sdk/full-node/db/sov-schema-db" }

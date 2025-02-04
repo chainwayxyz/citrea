@@ -63,6 +63,7 @@ where
         let pruner = Pruner::<DB>::new(
             pruning_config.clone(),
             ledger_db.clone(),
+            storage_manager.get_state_db_handle(),
             storage_manager.get_native_db_handle(),
         );
 

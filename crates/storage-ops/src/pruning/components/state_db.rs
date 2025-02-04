@@ -1,6 +1,89 @@
+use std::iter::Peekable;
 use std::sync::Arc;
 
-use tracing::{debug, error};
+use jmt::storage::StaleNodeIndex;
+use sov_db::schema::tables::{JmtNodes, StaleNodes};
+use sov_schema_db::{SchemaBatch, SchemaIterator, DB};
+use tracing::error;
+
+struct StaleNodeIndicesByVersionIterator<'a> {
+    inner: Peekable<SchemaIterator<'a, StaleNodes>>,
+    up_to_version: u64,
+}
+
+impl<'a> StaleNodeIndicesByVersionIterator<'a> {
+    fn new(db: &'a DB, up_to_version: u64) -> anyhow::Result<Self> {
+        let iter = db.iter::<StaleNodes>()?;
+
+        Ok(Self {
+            inner: iter.peekable(),
+            up_to_version,
+        })
+    }
+
+    fn next_result(&mut self) -> anyhow::Result<Option<Vec<StaleNodeIndex>>> {
+        match self.inner.next().transpose()? {
+            None => Ok(None),
+            Some(iter_output) => {
+                let index = iter_output.key;
+                let version = index.stale_since_version;
+                if version > self.up_to_version {
+                    return Ok(None);
+                }
+
+                let mut indices = vec![index];
+                while let Some(res) = self.inner.peek() {
+                    if let Ok(iter_output_ref) = res {
+                        let index_ref = iter_output_ref.key.clone();
+                        if index_ref.stale_since_version != version {
+                            break;
+                        }
+                    }
+
+                    let iter_output = self.inner.next().transpose()?.expect("Should be Some.");
+                    indices.push(iter_output.key);
+                }
+
+                Ok(Some(indices))
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for StaleNodeIndicesByVersionIterator<'a> {
+    type Item = anyhow::Result<Vec<StaleNodeIndex>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_result().transpose()
+    }
+}
 
 /// Prune state DB
-pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64) {}
+pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
+    let Ok(indicies) = StaleNodeIndicesByVersionIterator::new(&state_db, up_to_block + 1) else {
+        error!("Could not read stale nodes");
+        return;
+    };
+
+    let indicies = indicies.into_iter().flatten().flatten().collect::<Vec<_>>();
+
+    println!("Stale Indicies: {:#?}", indicies);
+
+    if indicies.is_empty() {
+        return;
+    }
+
+    let mut batch = SchemaBatch::new();
+    for index in indicies {
+        if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
+            error!(
+                "Could not add stale node to schema batch operation: {:?}",
+                e
+            );
+        }
+        // batch.delete::<JmtValues>(&index.node_key)?;
+    }
+    if let Err(e) = state_db.write_schemas(batch) {
+        error!("Could not delete state data: {:?}", e);
+    }
+}
