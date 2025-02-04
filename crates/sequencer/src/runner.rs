@@ -28,7 +28,7 @@ use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::default_signature::k256_private_key::K256PrivateKey;
 use sov_modules_api::default_signature::private_key::DefaultPrivateKey;
 use sov_modules_api::hooks::HookSoftConfirmationInfo;
-use sov_modules_api::transaction::Transaction;
+use sov_modules_api::transaction::{PreFork2Transaction, Transaction};
 use sov_modules_api::{
     Context, EncodeCall, PrivateKey, SignedSoftConfirmation, SlotData, Spec, SpecId,
     StateCheckpoint, StateDiff, UnsignedSoftConfirmation, UnsignedSoftConfirmationV1, WorkingSet,
@@ -782,13 +782,14 @@ where
         // TODO: figure out what to do with sov-tx fields
         // chain id gas tip and gas limit
 
-        let transaction = Transaction::new_signed_tx(
+        let transaction: PreFork2Transaction<C> = Transaction::new_signed_tx(
             &self.sov_tx_signer_priv_key,
             raw_message,
             0,
             nonce,
             spec_id,
-        );
+        )
+        .into();
         borsh::to_vec(&transaction).map_err(|e| anyhow!(e))
     }
 
@@ -881,11 +882,10 @@ where
         soft_confirmation: &'txs UnsignedSoftConfirmation<'_, StfTransaction<C, Da::Spec, RT>>,
         prev_soft_confirmation_hash: [u8; 32],
     ) -> anyhow::Result<SignedSoftConfirmation<'txs, StfTransaction<C, Da::Spec, RT>>> {
-        use digest::Digest;
+        let unsigned_sc = UnsignedSoftConfirmationV1::from(soft_confirmation.clone());
+        let hash: [u8; 32] = unsigned_sc.hash::<<C as Spec>::Hasher>().into();
 
-        let raw = borsh::to_vec(&UnsignedSoftConfirmationV1::from(soft_confirmation.clone()))
-            .map_err(|e| anyhow!(e))?;
-        let hash = <C as sov_modules_api::Spec>::Hasher::digest(raw.as_slice()).into();
+        let raw = borsh::to_vec(&unsigned_sc).map_err(|e| anyhow!(e))?;
 
         let priv_key = DefaultPrivateKey::try_from(self.sov_tx_signer_priv_key.as_slice()).unwrap();
 

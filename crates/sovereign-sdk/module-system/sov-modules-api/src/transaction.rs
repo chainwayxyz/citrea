@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 #[cfg(feature = "native")]
 use sov_modules_core::PrivateKey;
-use sov_modules_core::Signature;
+use sov_modules_core::{Context, Signature};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::stf::TransactionDigest;
 
@@ -23,6 +23,46 @@ pub struct Transaction {
     runtime_msg: Vec<u8>,
     chain_id: u64,
     nonce: u64,
+}
+
+/// A Transaction object that is compatible with the module-system/sov-default-stf.
+#[derive(
+    Debug, PartialEq, Eq, Clone, borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize,
+)]
+pub struct PreFork2Transaction<C: Context> {
+    signature: C::Signature,
+    pub_key: C::PublicKey,
+    runtime_msg: Vec<u8>,
+    chain_id: u64,
+    nonce: u64,
+}
+
+impl<C: Context> From<PreFork2Transaction<C>> for Transaction {
+    fn from(value: PreFork2Transaction<C>) -> Self {
+        let signature = borsh::to_vec(&value.signature).unwrap();
+        let pub_key = borsh::to_vec(&value.pub_key).unwrap();
+        Self {
+            signature,
+            pub_key,
+            runtime_msg: value.runtime_msg,
+            chain_id: value.chain_id,
+            nonce: value.nonce,
+        }
+    }
+}
+
+impl<C: Context> From<Transaction> for PreFork2Transaction<C> {
+    fn from(value: Transaction) -> Self {
+        let signature = C::Signature::try_from_slice(&value.signature).unwrap();
+        let pub_key = C::PublicKey::try_from(value.pub_key.as_slice()).unwrap();
+        Self {
+            signature,
+            pub_key,
+            runtime_msg: value.runtime_msg,
+            chain_id: value.chain_id,
+            nonce: value.nonce,
+        }
+    }
 }
 
 impl Transaction {

@@ -17,7 +17,8 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::{Context, SignedSoftConfirmation, SlotData, Spec};
+use sov_modules_api::transaction::PreFork2Transaction;
+use sov_modules_api::{Context, SignedSoftConfirmation, SlotData, Spec, SpecId};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -208,17 +209,52 @@ where
         let pre_state = self
             .storage_manager
             .create_storage_on_l2_height(l2_height)?;
-
-        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
-            soft_confirmation
-                .clone()
-                .try_into()
-                .context("Failed to parse transactions")?;
         // Register this new block with the fork manager to active
         // the new fork on the next block
         self.fork_manager.register_block(l2_height)?;
 
         let current_spec = self.fork_manager.active_fork().spec_id;
+
+        let mut signed_soft_confirmation: SignedSoftConfirmation<StfTransaction<C, Da::Spec, RT>> =
+            if current_spec >= SpecId::Kumquat {
+                let signed_soft_confirmation: SignedSoftConfirmation<
+                    StfTransaction<C, Da::Spec, RT>,
+                > = soft_confirmation
+                    .clone()
+                    .try_into()
+                    .context("Failed to parse transactions")?;
+                signed_soft_confirmation
+            } else {
+                let signed_soft_confirmation: SignedSoftConfirmation<PreFork2Transaction<C>> =
+                    soft_confirmation
+                        .clone()
+                        .try_into()
+                        .context("Failed to parse transactions")?;
+                let parsed_txs = signed_soft_confirmation
+                    .txs()
+                    .iter()
+                    .map(|tx| {
+                        let tx: StfTransaction<C, Da::Spec, RT> = tx.clone().into();
+                        tx
+                    })
+                    .collect::<Vec<_>>();
+                SignedSoftConfirmation::new(
+                    signed_soft_confirmation.l2_height(),
+                    signed_soft_confirmation.hash(),
+                    signed_soft_confirmation.prev_hash(),
+                    signed_soft_confirmation.da_slot_height(),
+                    signed_soft_confirmation.da_slot_hash(),
+                    signed_soft_confirmation.da_slot_txs_commitment(),
+                    signed_soft_confirmation.l1_fee_rate(),
+                    signed_soft_confirmation.blobs().to_vec().into(),
+                    parsed_txs.into(),
+                    signed_soft_confirmation.deposit_data().to_vec(),
+                    signed_soft_confirmation.signature().to_vec(),
+                    signed_soft_confirmation.pub_key().to_vec(),
+                    signed_soft_confirmation.timestamp(),
+                )
+            };
+
         let soft_confirmation_result = self.stf.apply_soft_confirmation(
             current_spec,
             self.sequencer_pub_key.as_slice(),
