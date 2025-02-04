@@ -11,7 +11,6 @@ use citrea_common::da::get_da_block_at_height;
 use citrea_common::utils::soft_confirmation_to_receipt;
 use citrea_common::{RollupPublicKeys, RunnerConfig};
 use citrea_primitives::types::SoftConfirmationHash;
-use citrea_pruning::{Pruner, PruningConfig};
 use jsonrpsee::core::client::Error as JsonrpseeError;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::NodeLedgerOps;
@@ -61,7 +60,6 @@ where
     sync_blocks_count: u64,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
-    pruning_config: Option<PruningConfig>,
 }
 
 impl<Da, C, DB, RT> CitreaFullnode<Da, C, DB, RT>
@@ -109,7 +107,6 @@ where
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             fork_manager,
             soft_confirmation_tx,
-            pruning_config: runner_config.pruning_config,
         })
     }
 
@@ -219,18 +216,6 @@ where
         &mut self,
         cancellation_token: CancellationToken,
     ) -> Result<(), anyhow::Error> {
-        // Last L1/L2 height before shutdown.
-        if let Some(config) = &self.pruning_config {
-            let pruner = Pruner::<DB>::new(
-                config.clone(),
-                self.ledger_db.get_last_pruned_l2_height()?.unwrap_or(0),
-                self.soft_confirmation_tx.subscribe(),
-                self.ledger_db.clone(),
-            );
-
-            tokio::spawn(pruner.run(cancellation_token.child_token()));
-        }
-
         let (l2_tx, mut l2_rx) = mpsc::channel(1);
         let l2_sync_worker = sync_l2(
             self.start_l2_height,

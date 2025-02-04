@@ -14,6 +14,7 @@ use citrea_common::{
 };
 use citrea_light_client_prover::da_block_handler::StartVariant;
 use citrea_primitives::TEST_PRIVATE_KEY;
+use citrea_pruning::PruningConfig;
 use citrea_stf::genesis_config::GenesisPaths;
 use sov_db::ledger_db::SharedLedgerOps;
 use sov_db::rocks_db_config::RocksdbConfig;
@@ -289,7 +290,7 @@ pub async fn start_rollup(
     } else {
         let span = info_span!("FullNode");
 
-        let (mut rollup, l1_block_handler) = CitreaRollupBlueprint::create_full_node(
+        let (mut rollup, l1_block_handler, pruner) = CitreaRollupBlueprint::create_full_node(
             &mock_demo_rollup,
             genesis_config,
             rollup_config.clone(),
@@ -321,6 +322,12 @@ pub async fn start_rollup(
                 .await
         });
 
+        // Spawn pruner if configs are set
+        if let Some(pruner) = pruner {
+            task_manager
+                .spawn(|cancellation_token| async move { pruner.run(cancellation_token).await });
+        }
+
         task_manager.spawn(|cancellation_token| async move {
             rollup
                 .run(cancellation_token)
@@ -338,6 +345,7 @@ pub fn create_default_rollup_config(
     rollup_path: &Path,
     da_path: &Path,
     node_mode: NodeMode,
+    pruning_config: Option<PruningConfig>,
 ) -> FullNodeConfig<MockDaConfig> {
     let sequencer_da_pub_key = vec![
         2, 88, 141, 32, 42, 252, 193, 238, 74, 181, 37, 76, 120, 71, 236, 37, 185, 161, 53, 187,
@@ -378,7 +386,7 @@ pub fn create_default_rollup_config(
                 include_tx_body,
                 sequencer_client_url: format!("http://localhost:{}", socket_addr.port()),
                 sync_blocks_count: 10,
-                pruning_config: None,
+                pruning_config,
             }),
             NodeMode::SequencerNode => None,
         },

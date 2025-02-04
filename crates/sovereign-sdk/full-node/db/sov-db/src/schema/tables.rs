@@ -183,7 +183,7 @@ macro_rules! define_table_without_codec {
         ///
         #[doc = concat!("Takes [`", stringify!($key), "`] as a key and returns [`", stringify!($value), "`]")]
         #[derive(Clone, Copy, Debug, Default)]
-        pub(crate) struct $table_name;
+        pub struct $table_name;
 
         impl ::sov_schema_db::schema::Schema for $table_name {
             const COLUMN_FAMILY_NAME: &'static str = $table_name::table_name();

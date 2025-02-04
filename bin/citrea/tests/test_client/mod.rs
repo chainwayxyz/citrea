@@ -394,6 +394,13 @@ impl TestClient {
             .unwrap()
     }
 
+    pub(crate) async fn eth_get_block_by_hash(&self, block_hash: B256) -> Block {
+        self.http_client
+            .request("eth_getBlockByHash", rpc_params![block_hash, false])
+            .await
+            .unwrap()
+    }
+
     pub(crate) async fn eth_get_block_by_number_with_detail(
         &self,
         block_number: Option<BlockNumberOrTag>,

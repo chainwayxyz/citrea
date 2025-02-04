@@ -30,8 +30,13 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
     let seq_task = tokio::spawn(async {
         start_rollup(
@@ -54,6 +59,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     // starting full node with db path
     let rollup_task = tokio::spawn(async {
@@ -134,6 +140,7 @@ async fn test_reopen_full_node() -> Result<(), anyhow::Error> {
         &fullnode_db_dir,
         &da_db_dir,
         NodeMode::FullNode(seq_port),
+        None,
     );
     // spin up the full node again with the same data where it left of only with different path to not stuck on lock
     let rollup_task = tokio::spawn(async {
@@ -188,8 +195,13 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
     let seq_task = tokio::spawn(async {
         start_rollup(
@@ -231,8 +243,13 @@ async fn test_reopen_sequencer() -> Result<(), anyhow::Error> {
 
     let sequencer_db_dir = storage_dir.path().join("sequencer_copy");
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {
@@ -291,8 +308,13 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
 
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {
@@ -324,6 +346,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 &prover_db_dir_cloned,
                 &da_db_dir_cloned,
                 NodeMode::Prover(seq_port),
+                None,
             );
 
             let _prover_node_task = tokio::spawn(async move {
@@ -394,6 +417,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                 &prover_copy_db_dir,
                 &da_db_dir_cloned,
                 NodeMode::Prover(seq_port),
+                None,
             );
             let _prover_node_task = tokio::spawn(async move {
                 start_rollup(
@@ -448,6 +472,7 @@ async fn test_reopen_prover() -> Result<(), anyhow::Error> {
                     &prover_copy2_dir_cloned,
                     &da_db_dir_cloned,
                     NodeMode::Prover(seq_port),
+                    None,
                 );
                 start_rollup(
                     prover_node_port_tx,

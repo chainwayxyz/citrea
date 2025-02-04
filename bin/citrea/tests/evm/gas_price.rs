@@ -26,8 +26,13 @@ async fn test_gas_price_increase() -> Result<(), anyhow::Error> {
 
     let (port_tx, port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_db_dir, &da_db_dir, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let rollup_task = tokio::spawn(async {

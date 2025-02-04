@@ -19,6 +19,7 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
+citrea-pruning = { path = "../../crates/pruning" }
 citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
 citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
 citrea-risc0-light-client = { path = "../../guests/risc0/light-client-proof" }
@@ -80,6 +81,7 @@ alloy-rpc-types = { workspace = true }
 alloy-rpc-types-trace = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
+futures = { workspace = true }
 jmt = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
