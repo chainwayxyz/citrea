@@ -2214,12 +2214,9 @@ name = "citrea-storage-ops"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "citrea-evm",
- "citrea-primitives",
  "futures",
  "serde",
  "sov-db",
- "sov-modules-api",
  "sov-prover-storage-manager",
  "sov-schema-db",
  "tempfile",
