@@ -346,7 +346,7 @@ fn make_transition_data(
         initial_state_root: [],
         inclusion_proof: [0; 32],
         prev_soft_confirmation_hash: [0; 32],
-        completeness_proof: (),
+        completeness_proof: Vec::new(),
         da_data: vec![],
         sequencer_commitments_range: (0, 0),
         da_block_header_of_commitments: MockBlockHeader {
