@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::SharedLedgerOps;
 use tracing::info;
 
-use self::components::{prune_evm, prune_ledger, prune_native_db};
+use self::components::{prune_ledger, prune_native_db, prune_state_db};
 use self::criteria::{Criteria, DistanceCriteria};
 pub use self::service::*;
 
