@@ -33,7 +33,7 @@ enum Commands {
         db_path: PathBuf,
         /// The number of blocks to rollback
         #[arg(long)]
-        blocks: u64,
+        blocks: u32,
     },
 }
 
@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
             commands::prune(db_path.clone(), *distance).await?;
         }
         Commands::Rollback { db_path, blocks } => {
-            println!("Rolling back stuff: {:?}, blocks: {}", db_path, blocks);
+            commands::rollback(*blocks).await?;
         }
     }
 
