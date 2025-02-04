@@ -85,7 +85,7 @@ where
         witness: &mut Self::Witness,
     ) -> Option<StorageValue> {
         let val = self.read_value(key, version);
-        witness.add_hint(val.clone());
+        witness.add_hint(&val);
         val
     }
 
@@ -101,7 +101,7 @@ where
             .get_value_option(key.as_ref(), version_to_use)
             .unwrap()
             .map(Into::into);
-        witness.add_hint(val.clone());
+        witness.add_hint(&val);
         val
     }
 
@@ -145,7 +145,7 @@ where
         let prev_root = jmt
             .get_root_hash(latest_version)
             .expect("Previous root hash was just populated");
-        witness.add_hint(prev_root.0);
+        witness.add_hint(&prev_root.0);
 
         // For each value that's been read from the tree, read it from the logged JMT to populate hints
         for (key, read_value) in state_accesses.ordered_reads {
@@ -155,7 +155,7 @@ where
             if result.as_ref() != read_value.as_ref().map(|f| f.value.as_ref()) {
                 anyhow::bail!("Bug! Incorrect value read from jmt");
             }
-            witness.add_hint(proof);
+            witness.add_hint(&proof);
         }
 
         let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
@@ -186,8 +186,8 @@ where
             .put_value_set_with_proof(batch, next_version)
             .expect("JMT update must succeed");
 
-        witness.add_hint(update_proof);
-        witness.add_hint(new_root.0);
+        witness.add_hint(&update_proof);
+        witness.add_hint(&new_root.0);
 
         let state_update = ProverStateUpdate {
             node_batch: tree_update.node_batch,

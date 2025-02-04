@@ -575,6 +575,7 @@ async fn execute_blocks(
     Ok(())
 }
 
+// TODO: this is not testing pre-fork now
 /// Deploy pre-fork contract, activate a fork and then check fetching the contract's code
 /// through RPC to make sure that the actual code is fetched properly pre and post fork.
 #[tokio::test(flavor = "multi_thread")]

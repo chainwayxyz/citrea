@@ -37,6 +37,8 @@ impl fmt::Display for CacheValue {
     }
 }
 
+// TODO: I don't believe this is necessary
+
 /// `Access` represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
 /// The rules for defining causality are as follows:
@@ -366,14 +368,29 @@ pub struct StorageInternalCache {
     pub ordered_db_reads: Vec<(CacheKey, Option<CacheValue>)>,
     /// Version for versioned usage with cache
     pub version: Option<u64>,
+    /// What storage is used for the cache
+    pub mode: CacheMode,
+}
+
+/// The mode of the cache.
+/// State for storage cache, Offchain for offchain storage cache.
+#[derive(Default)]
+pub enum CacheMode {
+    /// Storage mode for serving state.
+    #[default]
+    State,
+    /// Offchain mode for serving offchain state.
+    Offchain,
 }
 
 impl StorageInternalCache {
     /// Wrapper around default that can create the cache with knowledge of the version
-    pub fn new_with_version(version: u64) -> Self {
+    pub fn new(version: Option<u64>, mode: CacheMode) -> Self {
         StorageInternalCache {
-            version: Some(version),
-            ..Default::default()
+            version,
+            ordered_db_reads: Vec::new(),
+            tx_cache: CacheLog::default(),
+            mode,
         }
     }
 
@@ -391,7 +408,10 @@ impl StorageInternalCache {
             ValueExists::Yes(cache_value_exists) => cache_value_exists.map(Into::into),
             // If the value does not exist in the cache, then fetch it from an external source.
             ValueExists::No => {
-                let storage_value = value_reader.get(key, self.version, witness);
+                let storage_value = match self.mode {
+                    CacheMode::State => value_reader.get(key, self.version, witness),
+                    CacheMode::Offchain => value_reader.get_offchain(key, self.version, witness),
+                };
                 let cache_value = storage_value.as_ref().map(|v| v.clone().into_cache_value());
 
                 self.add_read(cache_key, cache_value);
@@ -443,7 +463,10 @@ impl StorageInternalCache {
             .add_read(key.clone(), value.clone())
             // It is ok to panic here, we must guarantee that the cache is consistent.
             .unwrap_or_else(|e| panic!("Inconsistent read from the cache: {e:?}"));
-        self.ordered_db_reads.push((key, value))
+
+        if matches!(self.mode, CacheMode::State) {
+            self.ordered_db_reads.push((key, value));
+        }
     }
 }
 
