@@ -10,7 +10,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use jmt::storage::{NibblePath, Node, NodeKey};
+use jmt::storage::{NibblePath, Node, NodeKey, StaleNodeIndex};
 use jmt::Version;
 use sov_rollup_interface::da::SequencerCommitment;
 use sov_rollup_interface::mmr::{MMRChunk, MMRNodeHash, Wtxid};
@@ -38,6 +38,7 @@ pub const STATE_TABLES: &[&str] = &[
     KeyHashToKey::table_name(),
     JmtValues::table_name(),
     JmtNodes::table_name(),
+    StaleNodes::table_name(),
 ];
 
 /// A list of all tables used by Sequencer LedgerDB
@@ -370,6 +371,11 @@ define_table_with_default_codec!(
 define_table_without_codec!(
     /// The source of truth for JMT nodes
     (JmtNodes) NodeKey => Node
+);
+
+define_table_with_default_codec!(
+    /// The list of stale nodes in JMT
+    (StaleNodes) StaleNodeIndex => ()
 );
 
 define_table_with_default_codec!(

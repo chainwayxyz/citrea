@@ -1,12 +1,13 @@
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 
-use jmt::storage::{HasPreimage, TreeReader, TreeWriter};
+use jmt::storage::{HasPreimage, StaleNodeIndex, TreeReader, TreeWriter};
 use jmt::{KeyHash, Version};
 use sov_schema_db::snapshot::{DbSnapshot, QueryManager, ReadOnlyDbSnapshot};
 use sov_schema_db::SchemaBatch;
 
 use crate::rocks_db_config::RocksdbConfig;
-use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, STATE_TABLES};
+use crate::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes, STATE_TABLES};
 use crate::schema::types::StateKey;
 
 /// A typed wrapper around the db for storing rollup state. Internally,
@@ -101,6 +102,16 @@ impl<Q: QueryManager> StateDB<Q> {
             }
             None => Ok(None),
         }
+    }
+
+    /// Record stale nodes in state
+    pub fn set_stale_nodes(&self, stale_nodes: &BTreeSet<StaleNodeIndex>) -> anyhow::Result<()> {
+        let mut batch = SchemaBatch::new();
+        for index in stale_nodes {
+            batch.put::<StaleNodes>(index, &())?;
+        }
+        self.db.write_many(batch)?;
+        Ok(())
     }
 
     /// Increment the `next_version` counter by 1.
