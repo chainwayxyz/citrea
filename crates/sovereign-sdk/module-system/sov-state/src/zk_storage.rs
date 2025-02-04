@@ -97,7 +97,7 @@ where
             }
         }
 
-        let mut diff = vec![];
+        let mut diff = Vec::with_capacity(state_accesses.ordered_writes.len());
 
         // Compute the jmt update from the write batch
         let batch = state_accesses
