@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 use super::CumulativeStateDiff;
 use crate::da::DaSpec;
 
-// TODO: use name with v2 now.
-
 /// The public output of a SNARK batch proof in Sovereign, this struct makes a claim that
 /// the state of the rollup has transitioned from `initial_state_root` to `final_state_root`
 ///

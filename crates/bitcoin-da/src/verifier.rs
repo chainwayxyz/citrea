@@ -82,20 +82,17 @@ impl DaVerifier for BitcoinVerifier {
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
     ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
-        // Optimistically assume all txs in the completeness proof are verifiable
-        let mut blobs = Vec::with_capacity(completeness_proof.len());
-
         if block_header.tx_count as usize != inclusion_proof.wtxids.len() {
             return Err(ValidationError::HeaderInclusionTxCountMismatch);
         }
-
-        // create hash set of blobs
-        // let mut blobs_iter = blobs.iter();
 
         let prefix = match namespace {
             DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
             DaNamespace::ToLightClientProver => self.to_light_client_prefix.as_slice(),
         };
+
+        // Optimistically assume all txs in the completeness proof are verifiable
+        let mut blobs = Vec::with_capacity(completeness_proof.len());
 
         let relevant_wtxid_iter = inclusion_proof
             .wtxids
@@ -152,7 +149,7 @@ impl DaVerifier for BitcoinVerifier {
                                 blobs.push(BlobWithSender::new(
                                     chunk.body,
                                     // chunk sender and hash irrelevant
-                                    vec![0],
+                                    vec![],
                                     [0; 32],
                                     Some(*wtxid),
                                 ));
