@@ -999,7 +999,7 @@ impl DaService for BitcoinService {
                                         seq_comm.body,
                                         seq_comm.public_key,
                                         hash,
-                                        None,
+                                        Some(wtxid.to_byte_array()),
                                     );
 
                                     relevant_txs.push(relevant_tx);
