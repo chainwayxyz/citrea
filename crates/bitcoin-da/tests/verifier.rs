@@ -70,12 +70,11 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
                 ),
-                Ok(()),
+                Ok(b_txs.clone()),
             );
         }
 
@@ -84,12 +83,11 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &l_txs,
                     l_inclusion_proof.clone(),
                     l_completeness_proof.clone(),
                     DaNamespace::ToLightClientProver,
                 ),
-                Ok(()),
+                Ok(l_txs.clone()),
             );
         }
 
@@ -99,7 +97,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToLightClientProver,
@@ -111,7 +108,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &l_txs,
                     l_inclusion_proof.clone(),
                     l_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -142,12 +138,11 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &nonsegwit_block.header,
-                    &[],
                     inclusion_proof,
                     vec![],
                     DaNamespace::ToBatchProver,
                 ),
-                Ok(())
+                Ok(Vec::new())
             );
         }
 
@@ -179,7 +174,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -229,7 +223,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -286,7 +279,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &txs,
                     inclusion_proof,
                     completeness_proof,
                     DaNamespace::ToBatchProver,
@@ -305,7 +297,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -319,7 +310,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -336,7 +326,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -353,7 +342,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -370,7 +358,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof,
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -387,7 +374,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_panic!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
                     DaNamespace::ToBatchProver,
@@ -404,7 +390,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_panic!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
                     DaNamespace::ToBatchProver,
@@ -427,7 +412,6 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof.clone(),
                     DaNamespace::ToBatchProver,
@@ -444,29 +428,11 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
                     DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
-            );
-        }
-
-        // Break tx order should fail
-        {
-            let mut b_txs = b_txs.clone();
-
-            b_txs.swap(0, 1);
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &b_txs,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
-                ),
-                Err(ValidationError::BlobWasTamperedWith),
             );
         }
 
@@ -480,132 +446,11 @@ impl TestCase for BitcoinVerifierTest {
             assert_eq!(
                 verifier.verify_transactions(
                     &block.header,
-                    &b_txs,
                     b_inclusion_proof.clone(),
                     b_completeness_proof,
                     DaNamespace::ToBatchProver,
                 ),
                 Err(ValidationError::RelevantTxNotInProof),
-            );
-        }
-
-        // Missing tx should fail
-        {
-            let mut b_txs = b_txs.clone();
-
-            b_txs.pop();
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &b_txs,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
-                ),
-                Err(ValidationError::ValidBlobNotFoundInBlobs),
-            );
-        }
-
-        // Tamper tx content of batch proof should fail
-        {
-            let mut b_txs = b_txs.clone();
-
-            b_txs[0] =
-                BlobWithSender::new(vec![2; 152], b_txs[0].sender.0.clone(), b_txs[0].hash, None);
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &b_txs,
-                    b_inclusion_proof.clone(),
-                    b_completeness_proof.clone(),
-                    DaNamespace::ToBatchProver,
-                ),
-                Err(ValidationError::BlobContentWasModified),
-            );
-        }
-
-        // Tamper tx content of light client proof should fail
-        {
-            let mut l_txs = l_txs.clone();
-
-            l_txs[0] =
-                BlobWithSender::new(vec![2; 152], l_txs[0].sender.0.clone(), l_txs[0].hash, None);
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &l_txs,
-                    l_inclusion_proof.clone(),
-                    l_completeness_proof.clone(),
-                    DaNamespace::ToLightClientProver,
-                ),
-                Err(ValidationError::BlobContentWasModified),
-            );
-        }
-
-        // Tamper tx sender of batch proof should fail
-        {
-            let mut b_txs = b_txs.clone();
-
-            let mut blob = b_txs[0].blob.clone();
-            blob.advance(blob.total_len());
-            let blob = blob.accumulator().to_vec();
-
-            b_txs[0] = BlobWithSender::new(blob, vec![2; 33], b_txs[0].hash, None);
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &b_txs,
-                    b_inclusion_proof,
-                    b_completeness_proof,
-                    DaNamespace::ToBatchProver,
-                ),
-                Err(ValidationError::IncorrectSenderInBlob),
-            );
-        }
-
-        // Tamper tx sender of light client proof should fail
-        {
-            let mut l_txs = l_txs.clone();
-
-            let mut blob = l_txs[0].blob.clone();
-            blob.advance(blob.total_len());
-            let blob = blob.accumulator().to_vec();
-
-            l_txs[0] = BlobWithSender::new(blob, vec![2; 33], l_txs[0].hash, None);
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &l_txs,
-                    l_inclusion_proof.clone(),
-                    l_completeness_proof.clone(),
-                    DaNamespace::ToLightClientProver,
-                ),
-                Err(ValidationError::IncorrectSenderInBlob),
-            );
-        }
-
-        // Non-decompressed light client proof blob should fail
-        {
-            let mut l_txs = l_txs.clone();
-
-            let body = {
-                let parsed = parse_light_client_transaction(&l_completeness_proof[1]).unwrap();
-                match parsed {
-                    ParsedLightClientTransaction::Complete(complete) => complete.body, // normally we should decompress the tx body
-                    _ => panic!("Should not select zk proof tx other than complete"),
-                }
-            };
-
-            l_txs[0] = BlobWithSender::new(body, l_txs[0].sender.0.clone(), l_txs[0].hash, None);
-            assert_eq!(
-                verifier.verify_transactions(
-                    &block.header,
-                    &l_txs,
-                    l_inclusion_proof,
-                    l_completeness_proof,
-                    DaNamespace::ToLightClientProver,
-                ),
-                Err(ValidationError::BlobContentWasModified),
             );
         }
 
