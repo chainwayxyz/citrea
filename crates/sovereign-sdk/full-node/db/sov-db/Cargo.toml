@@ -16,7 +16,6 @@ resolver = "2"
 [dependencies]
 # Maintained by sovereign labs
 jmt = { workspace = true }
-
 sov-rollup-interface = { path = "../../../rollup-interface", features = ["native"] }
 sov-schema-db = { path = "../sov-schema-db" }
 
