@@ -71,7 +71,6 @@ pub fn run_circuit<DaV: DaVerifier, G: ZkvmGuest>(
     da_verifier
         .verify_transactions(
             &input.da_block_header,
-            input.da_data.as_slice(),
             input.inclusion_proof,
             input.completeness_proof,
             DaNamespace::ToLightClientProver,

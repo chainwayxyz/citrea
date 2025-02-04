@@ -70,12 +70,11 @@ impl DaVerifier for MockDaVerifier {
     fn verify_transactions(
         &self,
         _block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        _txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         _inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         _completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         _namespace: DaNamespace,
-    ) -> Result<(), Self::Error> {
-        Ok(())
+    ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
+        Ok(Vec::new())
     }
 
     fn verify_header_chain(

@@ -195,15 +195,14 @@ pub trait DaVerifier: Send + Sync {
     /// Create a new da verifier with the given chain parameters
     fn new(params: <Self::Spec as DaSpec>::ChainParams) -> Self;
 
-    /// Verify a claimed set of transactions of the given namespace against a block header.
+    /// Extract the relevant transactions from a block, using provided proofs to verify the data.
     fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        txs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error>;
 
     /// Verify that the block header is valid for the given previous light client proof output
     fn verify_header_chain(

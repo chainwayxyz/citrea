@@ -42,7 +42,6 @@ where
 
         self.da_verifier.verify_transactions(
             &data.da_block_header_of_commitments,
-            &data.da_data,
             data.inclusion_proof,
             data.completeness_proof,
             DaNamespace::ToBatchProver,

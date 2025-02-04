@@ -80,17 +80,19 @@ impl DaVerifier for BitcoinVerifier {
     fn verify_transactions(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,
-        blobs: &[<Self::Spec as DaSpec>::BlobTransaction],
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
         namespace: DaNamespace,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
+        // Optimistically assume all txs in the completeness proof are verifiable
+        let mut blobs = Vec::with_capacity(completeness_proof.len());
+
         if block_header.tx_count as usize != inclusion_proof.wtxids.len() {
             return Err(ValidationError::HeaderInclusionTxCountMismatch);
         }
 
         // create hash set of blobs
-        let mut blobs_iter = blobs.iter();
+        // let mut blobs_iter = blobs.iter();
 
         let prefix = match namespace {
             DaNamespace::ToBatchProver => self.to_batch_proof_prefix.as_slice(),
@@ -113,13 +115,13 @@ impl DaVerifier for BitcoinVerifier {
                     if let Ok(parsed_tx) = parse_batch_proof_transaction(tx) {
                         match parsed_tx {
                             ParsedBatchProofTransaction::SequencerCommitment(seq_comm) => {
-                                if let Some(blob_content) =
-                                    verified_blob_content(&seq_comm, &mut blobs_iter)?
-                                {
-                                    // assert tx content is not modified
-                                    if blob_content != seq_comm.body {
-                                        return Err(ValidationError::BlobContentWasModified);
-                                    }
+                                if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                                    blobs.push(BlobWithSender::new(
+                                        seq_comm.body,
+                                        seq_comm.public_key,
+                                        hash,
+                                        Some(*wtxid),
+                                    ));
                                 }
                             }
                         }
@@ -129,51 +131,48 @@ impl DaVerifier for BitcoinVerifier {
                     if let Ok(parsed_tx) = parse_light_client_transaction(tx) {
                         match parsed_tx {
                             ParsedLightClientTransaction::Complete(complete) => {
-                                if let Some(blob_content) =
-                                    verified_blob_content(&complete, &mut blobs_iter)?
-                                {
-                                    // assert tx content is not modified
-                                    let body = decompress_blob(&complete.body);
-                                    if blob_content != body {
-                                        return Err(ValidationError::BlobContentWasModified);
-                                    }
+                                if let Some(hash) = complete.get_sig_verified_hash() {
+                                    blobs.push(BlobWithSender::new(
+                                        decompress_blob(&complete.body),
+                                        complete.public_key,
+                                        hash,
+                                        Some(*wtxid),
+                                    ))
                                 }
                             }
                             ParsedLightClientTransaction::Aggregate(aggregate) => {
-                                if let Some(blob_content) =
-                                    verified_blob_content(&aggregate, &mut blobs_iter)?
-                                {
-                                    // assert tx content is not modified
-                                    if blob_content != aggregate.body {
-                                        return Err(ValidationError::BlobContentWasModified);
-                                    }
+                                if let Some(hash) = aggregate.get_sig_verified_hash() {
+                                    blobs.push(BlobWithSender::new(
+                                        aggregate.body,
+                                        aggregate.public_key,
+                                        hash,
+                                        Some(*wtxid),
+                                    ))
                                 }
                             }
                             ParsedLightClientTransaction::Chunk(chunk) => {
-                                let blob_content = verified_blob_chunk(&mut blobs_iter, wtxid)?;
-                                if blob_content != chunk.body {
-                                    return Err(ValidationError::BlobContentWasModified);
-                                }
+                                blobs.push(BlobWithSender::new(
+                                    chunk.body,
+                                    // chunk sender and hash irrelevant
+                                    vec![0],
+                                    [0; 32],
+                                    Some(*wtxid),
+                                ));
                             }
                             ParsedLightClientTransaction::BatchProverMethodId(method_id) => {
-                                if let Some(blob_content) =
-                                    verified_blob_content(&method_id, &mut blobs_iter)?
-                                {
-                                    // assert tx content is not modified
-                                    if blob_content != method_id.body {
-                                        return Err(ValidationError::BlobContentWasModified);
-                                    }
+                                if let Some(hash) = method_id.get_sig_verified_hash() {
+                                    blobs.push(BlobWithSender::new(
+                                        method_id.body,
+                                        method_id.public_key,
+                                        hash,
+                                        Some(*wtxid),
+                                    ))
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-
-        // assert no extra txs than the ones in the completeness proof are left
-        if blobs_iter.next().is_some() {
-            return Err(ValidationError::IncorrectCompletenessProof);
         }
 
         // verify that one of the outputs of the coinbase transaction has script pub key starting with 0x6a24aa21a9ed,
@@ -231,7 +230,7 @@ impl DaVerifier for BitcoinVerifier {
             return Err(ValidationError::IncorrectInclusionProof);
         }
 
-        Ok(())
+        Ok(blobs)
     }
 
     fn verify_header_chain(
@@ -526,56 +525,6 @@ impl BitcoinVerifier {
         }
 
         Ok(())
-    }
-}
-
-fn verified_blob_chunk<'a, I>(
-    blobs_iter: &mut I,
-    wtxid: &[u8; 32],
-) -> Result<&'a [u8], ValidationError>
-where
-    I: Iterator<Item = &'a BlobWithSender>,
-{
-    let blob = blobs_iter.next();
-
-    let Some(blob) = blob else {
-        return Err(ValidationError::ValidBlobNotFoundInBlobs);
-    };
-
-    if blob.wtxid != Some(*wtxid) {
-        return Err(ValidationError::BlobWasTamperedWith);
-    }
-
-    return Ok(blob.verified_data());
-}
-
-// Get associated blob content only if signatures, hashes and public keys match
-fn verified_blob_content<'a, T, I>(
-    tx: &T,
-    blobs_iter: &mut I,
-) -> Result<Option<&'a [u8]>, ValidationError>
-where
-    T: VerifyParsed,
-    I: Iterator<Item = &'a BlobWithSender>,
-{
-    if let Some(blob_hash) = tx.get_sig_verified_hash() {
-        let blob = blobs_iter.next();
-
-        let Some(blob) = blob else {
-            return Err(ValidationError::ValidBlobNotFoundInBlobs);
-        };
-
-        if blob.hash != blob_hash {
-            return Err(ValidationError::BlobWasTamperedWith);
-        }
-
-        if tx.public_key() != blob.sender.0 {
-            return Err(ValidationError::IncorrectSenderInBlob);
-        }
-
-        Ok(Some(blob.verified_data()))
-    } else {
-        Ok(None)
     }
 }
 
