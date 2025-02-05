@@ -64,22 +64,22 @@ impl<'a> Iterator for StaleNodeIndicesByVersionIterator<'a> {
 pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64) {
     debug!("Pruning state DB, up to L2 block {}", up_to_block);
 
-    let Ok(indicies) = StaleNodeIndicesByVersionIterator::new(&state_db, up_to_block + 1) else {
+    let Ok(indices) = StaleNodeIndicesByVersionIterator::new(&state_db, up_to_block + 1) else {
         error!("Could not read stale nodes");
         return;
     };
 
-    let indicies = indicies.into_iter().flatten().flatten().collect::<Vec<_>>();
+    let indices = indices.into_iter().flatten().flatten().collect::<Vec<_>>();
 
-    if indicies.is_empty() {
+    if indices.is_empty() {
         debug!("State: Nothing to prune");
         return;
     }
 
-    let count = indicies.len();
+    let count = indices.len();
 
     let mut batch = SchemaBatch::new();
-    for index in indicies {
+    for index in indices {
         if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
             error!(
                 "Could not add JMT node deletion to schema batch operation: {:?}",
