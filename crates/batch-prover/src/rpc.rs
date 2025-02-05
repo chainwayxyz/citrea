@@ -16,6 +16,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
+use sov_modules_api::transaction::PreFork2Transaction;
 use sov_modules_api::{SpecId, Zkvm};
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::services::da::DaService;
@@ -111,6 +112,7 @@ where
         StfStateRoot<C, Da::Spec, RT>,
         StfWitness<C, Da::Spec, RT>,
         StfTransaction<C, Da::Spec, RT>,
+        PreFork2Transaction<C>,
     >(rpc_context);
     rpc_methods.merge(rpc)?;
     Ok(rpc_methods)
@@ -135,7 +137,7 @@ pub trait BatchProverRpc {
     ) -> RpcResult<()>;
 }
 
-pub struct BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
+pub struct BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -155,10 +157,11 @@ where
     _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
+    _tx_old: PhantomData<TxOld>,
 }
 
-impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
-    BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
+impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld>
+    BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -182,13 +185,14 @@ where
             _state_root: PhantomData,
             _witness: PhantomData,
             _tx: PhantomData,
+            _tx_old: PhantomData,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx> BatchProverRpcServer
-    for BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>
+impl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld> BatchProverRpcServer
+    for BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -213,7 +217,8 @@ where
         + Send
         + Sync
         + 'static,
-    Tx: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    TxOld: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
     async fn generate_input(
         &self,
@@ -233,23 +238,24 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
-            self.context.da_service.clone(),
-            self.context.ledger.clone(),
-            self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_da_pub_key.clone(),
-            self.context.l1_block_cache.clone(),
-            &l1_block,
-            group_commitments,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
+        let (sequencer_commitments, inputs) =
+            data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld, C>(
+                self.context.da_service.clone(),
+                self.context.ledger.clone(),
+                self.context.sequencer_pub_key.clone(),
+                self.context.sequencer_da_pub_key.clone(),
+                self.context.l1_block_cache.clone(),
+                &l1_block,
+                group_commitments,
             )
-        })?;
+            .await
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}",)),
+                )
+            })?;
 
         let mut batch_proof_circuit_input_responses = vec![];
 
@@ -304,23 +310,24 @@ where
                 )
             })?;
 
-        let (sequencer_commitments, inputs) = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
-            self.context.da_service.clone(),
-            self.context.ledger.clone(),
-            self.context.sequencer_pub_key.clone(),
-            self.context.sequencer_da_pub_key.clone(),
-            self.context.l1_block_cache.clone(),
-            &l1_block,
-            group_commitments,
-        )
-        .await
-        .map_err(|e| {
-            ErrorObjectOwned::owned(
-                INTERNAL_ERROR_CODE,
-                INTERNAL_ERROR_MSG,
-                Some(format!("{e}",)),
+        let (sequencer_commitments, inputs) =
+            data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld, C>(
+                self.context.da_service.clone(),
+                self.context.ledger.clone(),
+                self.context.sequencer_pub_key.clone(),
+                self.context.sequencer_da_pub_key.clone(),
+                self.context.l1_block_cache.clone(),
+                &l1_block,
+                group_commitments,
             )
-        })?;
+            .await
+            .map_err(|e| {
+                ErrorObjectOwned::owned(
+                    INTERNAL_ERROR_CODE,
+                    INTERNAL_ERROR_MSG,
+                    Some(format!("{e}",)),
+                )
+            })?;
 
         prove_l1::<Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
             self.context.prover_service.clone(),
@@ -344,9 +351,9 @@ where
     }
 }
 
-pub fn create_rpc_module<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>(
+pub fn create_rpc_module<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld>(
     rpc_context: RpcContext<C, Da, Ps, Vm, DB>,
-) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx>>
+) -> jsonrpsee::RpcModule<BatchProverRpcServerImpl<C, Da, Ps, Vm, DB, StateRoot, Witness, Tx, TxOld>>
 where
     C: sov_modules_api::Context,
     Da: DaService,
@@ -371,7 +378,8 @@ where
         + Send
         + Sync
         + 'static,
-    Tx: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
+    TxOld: Clone + BorshSerialize + BorshDeserialize + Send + Sync + 'static,
 {
     let server = BatchProverRpcServerImpl::new(rpc_context);
 

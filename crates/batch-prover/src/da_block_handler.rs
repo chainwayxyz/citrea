@@ -19,10 +19,10 @@ use serde::Serialize;
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_modules_api::transaction::PreFork2Transaction;
-use sov_modules_api::{DaSpec, StateDiff, Zkvm};
+use sov_modules_api::{Context, DaSpec, StateDiff, Zkvm};
 use sov_rollup_interface::da::{BlockHeaderTrait, SequencerCommitment};
 use sov_rollup_interface::services::da::{DaService, SlotData};
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, SignedSoftConfirmationV2};
 use sov_rollup_interface::spec::SpecId;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_stf_runner::{ProverGuestRunConfig, ProverService};
@@ -42,7 +42,7 @@ type CommitmentStateTransitionData<'txs, Witness, Da, Tx> = (
     VecDeque<Vec<<<Da as DaService>::Spec as DaSpec>::BlockHeader>>,
 );
 
-pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>
+pub struct L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -72,11 +72,12 @@ where
     _state_root: PhantomData<StateRoot>,
     _witness: PhantomData<Witness>,
     _tx: PhantomData<Tx>,
+    _tx_old: PhantomData<TxOld>,
     _context: PhantomData<C>,
 }
 
-impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>
-    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>
+impl<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>
+    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>
 where
     Da: DaService,
     Vm: ZkvmHost + Zkvm,
@@ -90,7 +91,8 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshDeserialize + BorshSerialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshDeserialize + BorshSerialize,
+    Tx: From<TxOld> + Clone + BorshDeserialize + BorshSerialize,
+    TxOld: Clone + BorshDeserialize + BorshSerialize,
     C: sov_modules_api::Context,
 {
     #[allow(clippy::too_many_arguments)]
@@ -121,6 +123,7 @@ where
             _state_root: PhantomData,
             _witness: PhantomData,
             _tx: PhantomData,
+            _tx_old: PhantomData,
             _context: PhantomData,
         }
     }
@@ -203,7 +206,7 @@ where
                 continue;
             }
 
-            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx>(
+            let data_to_prove = data_to_prove::<Da, DB, StateRoot, Witness, Tx, TxOld, C>(
                 self.da_service.clone(),
                 self.ledger_db.clone(),
                 self.sequencer_pub_key.clone(),
@@ -329,7 +332,9 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
     Da: DaService,
     DB: BatchProverLedgerOps,
     Witness: DeserializeOwned,
-    Tx: Clone + BorshDeserialize + 'txs,
+    Tx: From<TxOld> + Clone + BorshDeserialize + 'txs,
+    TxOld: Clone + BorshDeserialize + 'txs,
+    C: Context,
 >(
     sequencer_commitments: &[SequencerCommitment],
     da_service: &Arc<Da>,
@@ -382,9 +387,24 @@ pub(crate) async fn get_batch_proof_circuit_input_from_commitments<
                 };
                 da_block_headers_to_push.push(filtered_block.header().clone());
             }
-            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
-                .try_into()
-                .context("Failed to parse transactions")?;
+
+            let spec_id = fork_from_block_number(soft_confirmation.l2_height).spec_id;
+            let signed_soft_confirmation: SignedSoftConfirmation<Tx> = if spec_id >= SpecId::Fork2 {
+                let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?;
+                signed_soft_confirmation
+            } else {
+                let signed_soft_confirmation: SignedSoftConfirmationV2<TxOld> = soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?;
+                signed_soft_confirmation
+                    .try_into()
+                    .context("Failed to parse transactions")?
+            };
+            // let signed_soft_confirmation: SignedSoftConfirmation<Tx> = soft_confirmation
+            //     .try_into()
+            //     .context("Failed to parse transactions")?;
             commitment_soft_confirmations.push(signed_soft_confirmation);
         }
         soft_confirmations.push_back(commitment_soft_confirmations);

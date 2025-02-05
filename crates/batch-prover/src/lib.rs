@@ -31,7 +31,7 @@ pub mod rpc;
 mod runner;
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
+pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx, TxOld>(
     prover_config: BatchProverConfig,
     runner_config: RunnerConfig,
     init_params: InitParams<StfBlueprint<C, Da::Spec, RT>, Da::Spec>,
@@ -48,7 +48,7 @@ pub async fn build_services<C, Da, DB, RT, Vm, Ps, StateRoot, Witness, Tx>(
     rpc_module: RpcModule<()>,
 ) -> Result<(
     CitreaBatchProver<C, Da, DB, RT>,
-    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, C>,
+    L1BlockHandler<Vm, Da, Ps, DB, StateRoot, Witness, Tx, TxOld, C>,
     RpcModule<()>,
 )>
 where
@@ -66,7 +66,8 @@ where
         + AsRef<[u8]>
         + Debug,
     Witness: Default + BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
-    Tx: Clone + BorshSerialize + BorshDeserialize,
+    Tx: From<TxOld> + Clone + BorshSerialize + BorshDeserialize,
+    TxOld: Clone + BorshSerialize + BorshDeserialize,
 {
     let l1_block_cache = Arc::new(Mutex::new(L1BlockCache::new()));
 

@@ -8,7 +8,7 @@ use v2::{BatchProofCircuitInputV2Part1, BatchProofCircuitInputV2Part2};
 use v3::{BatchProofCircuitInputV3Part1, BatchProofCircuitInputV3Part2};
 
 use crate::da::DaSpec;
-use crate::soft_confirmation::SignedSoftConfirmation;
+use crate::soft_confirmation::{SignedSoftConfirmation, SignedSoftConfirmationV2};
 
 /// Genesis input module
 pub mod v1;
@@ -80,8 +80,19 @@ where
         );
         let mut x = VecDeque::with_capacity(self.soft_confirmations.len());
 
-        for (confirmations, witnesses) in self
+        // TODO: What happens if a proof has soft confirmations from fork1 and fork2?
+        let v2_confirmations = self
             .soft_confirmations
+            .into_iter()
+            .map(|confirmations| {
+                confirmations
+                    .into_iter()
+                    .map(|confirmation| SignedSoftConfirmationV2::from(confirmation))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<VecDeque<_>>();
+
+        for (confirmations, witnesses) in v2_confirmations
             .into_iter()
             .zip(self.state_transition_witnesses)
         {

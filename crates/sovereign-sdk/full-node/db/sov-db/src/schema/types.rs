@@ -10,7 +10,7 @@ use sov_rollup_interface::rpc::{
     LatestDaStateRpcResponse, LightClientProofOutputRpcResponse, LightClientProofResponse,
     SoftConfirmationResponse, VerifiedBatchProofResponse,
 };
-use sov_rollup_interface::soft_confirmation::SignedSoftConfirmation;
+use sov_rollup_interface::soft_confirmation::{SignedSoftConfirmation, SignedSoftConfirmationV2};
 use sov_rollup_interface::zk::batch_proof::output::CumulativeStateDiff;
 use sov_rollup_interface::zk::light_client_proof::output::{
     BatchProofInfo, LightClientCircuitOutput,
@@ -340,6 +340,39 @@ where
             })
             .collect::<Result<Vec<_>, Self::Error>>()?;
         let res = SignedSoftConfirmation::new(
+            val.l2_height,
+            val.hash,
+            val.prev_hash,
+            val.da_slot_height,
+            val.da_slot_hash,
+            val.da_slot_txs_commitment,
+            val.l1_fee_rate,
+            val.txs.into_iter().map(|tx| tx.body.unwrap()).collect(),
+            parsed_txs.into(),
+            val.deposit_data,
+            val.soft_confirmation_signature,
+            val.pub_key,
+            val.timestamp,
+        );
+        Ok(res)
+    }
+}
+
+impl<'txs, Tx> TryFrom<StoredSoftConfirmation> for SignedSoftConfirmationV2<'txs, Tx>
+where
+    Tx: Clone + BorshDeserialize,
+{
+    type Error = borsh::io::Error;
+    fn try_from(val: StoredSoftConfirmation) -> Result<Self, Self::Error> {
+        let parsed_txs = val
+            .txs
+            .iter()
+            .map(|tx| {
+                let body = tx.body.as_ref().unwrap();
+                borsh::from_slice::<Tx>(body)
+            })
+            .collect::<Result<Vec<_>, Self::Error>>()?;
+        let res = SignedSoftConfirmationV2::new(
             val.l2_height,
             val.hash,
             val.prev_hash,
