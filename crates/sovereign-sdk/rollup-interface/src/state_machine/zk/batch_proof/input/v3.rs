@@ -9,7 +9,7 @@ use crate::da::DaSpec;
 use crate::soft_confirmation::SignedSoftConfirmation;
 
 #[derive(BorshDeserialize, BorshSerialize)]
-/// Second part of the Kumquat elf input
+/// Second part of the Fork2 elf input
 /// This is going to be read per-need basis to not go out of memory
 /// in the zkvm
 pub struct BatchProofCircuitInputV3Part2<'txs, Witness, Tx: Clone>(

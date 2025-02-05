@@ -16,7 +16,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use sov_db::ledger_db::NodeLedgerOps;
 use sov_db::schema::types::{SlotNumber, SoftConfirmationNumber};
 use sov_ledger_rpc::LedgerRpcClient;
-use sov_modules_api::{Context, SignedSoftConfirmation, Spec};
+use sov_modules_api::{Context, SignedSoftConfirmation, Spec, SpecId};
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 use sov_prover_storage_manager::{ProverStorage, ProverStorageManager, SnapshotManager};
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -54,6 +54,7 @@ where
     batch_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     include_tx_body: bool,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
@@ -101,6 +102,7 @@ where
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             phantom: std::marker::PhantomData,
             include_tx_body: runner_config.include_tx_body,
             sync_blocks_count: runner_config.sync_blocks_count,
@@ -150,16 +152,30 @@ where
         self.fork_manager.register_block(l2_height)?;
 
         let current_spec = self.fork_manager.active_fork().spec_id;
-        let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            current_spec,
-            self.sequencer_pub_key.as_slice(),
-            &self.state_root,
-            pre_state,
-            Default::default(),
-            Default::default(),
-            current_l1_block.header(),
-            &mut signed_soft_confirmation,
-        )?;
+
+        let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
+            self.stf.apply_soft_confirmation(
+                current_spec,
+                self.sequencer_k256_pub_key.as_slice(),
+                &self.state_root,
+                pre_state,
+                Default::default(),
+                Default::default(),
+                current_l1_block.header(),
+                &mut signed_soft_confirmation,
+            )?
+        } else {
+            self.stf.apply_soft_confirmation(
+                current_spec,
+                self.sequencer_pub_key.as_slice(),
+                &self.state_root,
+                pre_state,
+                Default::default(),
+                Default::default(),
+                current_l1_block.header(),
+                &mut signed_soft_confirmation,
+            )?
+        };
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;
         // Check if post state root is the same as the one in the soft confirmation

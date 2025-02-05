@@ -517,6 +517,7 @@ fn test_k256_signature_operations() {
 
     let sequ_pub_key = sequ_pk.pub_key();
     let sequ_pub_key_sec1 = sequ_pub_key.pub_key.to_sec1_bytes();
+    println!("sequ_pub_key_sec1: {:?}", sequ_pub_key_sec1.to_vec());
     let sequ_pub_key_sec1_hex = hex::encode(sequ_pub_key_sec1.clone());
 
     let sequ_pub_key = K256PublicKey::try_from(sequ_pub_key_sec1.to_vec().as_slice()).unwrap();

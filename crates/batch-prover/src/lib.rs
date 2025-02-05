@@ -97,6 +97,7 @@ where
     let skip_submission_until_l1 =
         std::env::var("SKIP_PROOF_SUBMISSION_UNTIL_L1").map_or(0u64, |v| v.parse().unwrap_or(0));
 
+    // We do not need to pass the new sequencer public key here, as it is a constant in circuits
     let l1_block_handler = L1BlockHandler::new(
         prover_config,
         prover_service,

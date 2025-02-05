@@ -58,6 +58,7 @@ where
     batch_hash: SoftConfirmationHash,
     sequencer_client: HttpClient,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     phantom: std::marker::PhantomData<C>,
     l1_block_cache: Arc<Mutex<L1BlockCache<Da>>>,
     sync_blocks_count: u64,
@@ -103,6 +104,7 @@ where
             sequencer_client: HttpClientBuilder::default()
                 .build(runner_config.sequencer_client_url)?,
             sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             phantom: std::marker::PhantomData,
             l1_block_cache: Arc::new(Mutex::new(L1BlockCache::new())),
             sync_blocks_count: runner_config.sync_blocks_count,
@@ -255,16 +257,30 @@ where
                 )
             };
 
-        let soft_confirmation_result = self.stf.apply_soft_confirmation(
-            current_spec,
-            self.sequencer_pub_key.as_slice(),
-            &self.state_root,
-            pre_state,
-            Default::default(),
-            Default::default(),
-            current_l1_block.header(),
-            &mut signed_soft_confirmation,
-        )?;
+        let soft_confirmation_result = if current_spec >= SpecId::Fork2 {
+            self.stf.apply_soft_confirmation(
+                current_spec,
+                self.sequencer_k256_pub_key.as_slice(),
+                &self.state_root,
+                pre_state,
+                Default::default(),
+                Default::default(),
+                current_l1_block.header(),
+                &mut signed_soft_confirmation,
+            )?
+        } else {
+            self.stf.apply_soft_confirmation(
+                current_spec,
+                self.sequencer_pub_key.as_slice(),
+                &self.state_root,
+                pre_state,
+                Default::default(),
+                Default::default(),
+                current_l1_block.header(),
+                &mut signed_soft_confirmation,
+            )?
+        };
+
         let txs_bodies = signed_soft_confirmation.blobs().to_owned();
 
         let next_state_root = soft_confirmation_result.state_root_transition.final_root;

@@ -85,6 +85,7 @@ where
     state_root: StateRoot<C, Da::Spec, RT>,
     batch_hash: SoftConfirmationHash,
     sequencer_pub_key: Vec<u8>,
+    sequencer_k256_pub_key: Vec<u8>,
     sequencer_da_pub_key: Vec<u8>,
     fork_manager: ForkManager<'static>,
     soft_confirmation_tx: broadcast::Sender<u64>,
@@ -134,6 +135,7 @@ where
             state_root: init_params.state_root,
             batch_hash: init_params.batch_hash,
             sequencer_pub_key: public_keys.sequencer_public_key,
+            sequencer_k256_pub_key: public_keys.sequencer_k256_public_key,
             sequencer_da_pub_key: public_keys.sequencer_da_pub_key,
             fork_manager,
             soft_confirmation_tx,
@@ -472,13 +474,23 @@ where
                     self.pre_fork1_sign_soft_confirmation_batch(&unsigned_batch, self.batch_hash)?
                 };
 
-                self.stf.end_soft_confirmation(
-                    active_fork_spec,
-                    self.state_root.as_ref().to_vec(),
-                    self.sequencer_pub_key.as_ref(),
-                    &mut signed_soft_confirmation,
-                    &mut working_set,
-                )?;
+                if active_fork_spec >= SpecId::Fork2 {
+                    self.stf.end_soft_confirmation(
+                        active_fork_spec,
+                        self.state_root.as_ref().to_vec(),
+                        self.sequencer_k256_pub_key.as_ref(),
+                        &mut signed_soft_confirmation,
+                        &mut working_set,
+                    )?;
+                } else {
+                    self.stf.end_soft_confirmation(
+                        active_fork_spec,
+                        self.state_root.as_ref().to_vec(),
+                        self.sequencer_pub_key.as_ref(),
+                        &mut signed_soft_confirmation,
+                        &mut working_set,
+                    )?;
+                }
 
                 // Finalize soft confirmation
                 let soft_confirmation_result = self.stf.finalize_soft_confirmation(
