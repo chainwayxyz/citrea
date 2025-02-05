@@ -1,8 +1,8 @@
 use std::iter::Peekable;
 use std::sync::Arc;
 
-use jmt::storage::StaleNodeIndex;
-use sov_db::schema::tables::{JmtNodes, StaleNodes};
+use jmt::storage::{Node, StaleNodeIndex};
+use sov_db::schema::tables::{JmtNodes, JmtValues, KeyHashToKey, StaleNodes};
 use sov_schema_db::{SchemaBatch, SchemaIterator, DB};
 use tracing::{debug, error};
 
@@ -80,13 +80,45 @@ pub(crate) fn prune_state_db(state_db: Arc<sov_schema_db::DB>, up_to_block: u64)
 
     let mut batch = SchemaBatch::new();
     for index in indices {
+        if index.node_key.version() == 1 {
+            continue;
+        }
+        let node = match state_db.get::<JmtNodes>(&index.node_key) {
+            Ok(Some(node)) => node,
+            _ => {
+                error!("Failed to get Jmt node");
+                continue;
+            }
+        };
+
+        let version = index.node_key.version();
+        let key_hash = match node {
+            Node::Null | Node::Internal(_) => continue,
+            Node::Leaf(leaf) => leaf.key_hash(),
+        };
+
+        let key = match state_db.get::<KeyHashToKey>(&key_hash.0) {
+            Ok(Some(key)) => key,
+            _ => {
+                error!("Could not read key from key hash");
+                continue;
+            }
+        };
+
+        if let Err(e) = batch.delete::<JmtValues>(&(key, version)) {
+            error!(
+                "Could not add JMT value deletion to schema batch operation: {:?}",
+                e
+            );
+        }
+
         if let Err(e) = batch.delete::<JmtNodes>(&index.node_key) {
             error!(
                 "Could not add JMT node deletion to schema batch operation: {:?}",
                 e
             );
         }
-        // batch.delete::<JmtValues>(&index.node_key)?;
+
         if let Err(e) = batch.delete::<StaleNodes>(&index) {
             error!(
                 "Could not add stale node deletion to schema batch operation: {:?}",
