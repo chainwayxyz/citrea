@@ -25,7 +25,7 @@ use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, Receipt, ReceiptClaim};
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_rollup_interface::da::{BatchProofMethodId, DaTxRequest};
 use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
-use sov_rollup_interface::zk::BatchProofCircuitOutput;
+use sov_rollup_interface::zk::batch_proof::output::v2::BatchProofCircuitOutputV2;
 
 use super::batch_prover_test::wait_for_zkproofs;
 use super::get_citrea_path;
@@ -1328,7 +1328,7 @@ fn create_serialized_fake_receipt_batch_proof(
         32, 64, 64, 227, 100, 193, 15, 43, 236, 156, 31, 229, 0, 161, 205, 76, 36, 124, 137, 214,
         80, 160, 30, 215, 232, 44, 171, 168, 103, 135, 124, 33,
     ];
-    let batch_proof_output = BatchProofCircuitOutput::<BitcoinSpec, [u8; 32]> {
+    let batch_proof_output = BatchProofCircuitOutputV2::<BitcoinSpec, [u8; 32]> {
         initial_state_root,
         final_state_root,
         last_l2_height,

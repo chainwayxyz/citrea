@@ -27,6 +27,7 @@ async fn test_soft_confirmations_status_one_l1() -> Result<(), anyhow::Error> {
             fullnode_path: fullnode_db_dir.clone(),
             seq_min_soft_confirmations: 3,
             deposit_mempool_fetch_limit: 10,
+            pruning_config: None,
         })
         .await;
 
@@ -90,6 +91,7 @@ async fn test_soft_confirmations_status_two_l1() -> Result<(), anyhow::Error> {
             fullnode_path: fullnode_db_dir.clone(),
             seq_min_soft_confirmations: 3,
             deposit_mempool_fetch_limit: 10,
+            ..Default::default()
         })
         .await;
 

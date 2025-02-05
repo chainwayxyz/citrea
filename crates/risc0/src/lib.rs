@@ -3,7 +3,9 @@
 //!
 //! This crate contains an adapter allowing the Risc0 to be used as a proof system for
 //! Sovereign SDK rollups.
+use anyhow::bail;
 pub use risc0_zkvm::sha::Digest;
+use risc0_zkvm::{InnerReceipt, Receipt};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::Matches;
 
@@ -55,5 +57,41 @@ impl From<Risc0MethodId> for [u32; 8] {
 impl From<[u32; 8]> for Risc0MethodId {
     fn from(value: [u32; 8]) -> Self {
         Risc0MethodId(value)
+    }
+}
+
+/// Try to restore Receipt from InnerReceipt from attached journal
+fn receipt_from_inner(inner: InnerReceipt) -> anyhow::Result<Receipt> {
+    let mb_claim = inner.claim().or_else(|_| bail!("Claim is empty"))?;
+    let claim = mb_claim
+        .value()
+        .or_else(|_| bail!("Claim content is empty"))?;
+    let output = claim
+        .output
+        .value()
+        .or_else(|_| bail!("Output content is empty"))?;
+    let Some(output) = output else {
+        bail!("Output body is empty");
+    };
+    let journal = output
+        .journal
+        .value()
+        .or_else(|_| bail!("Journal content is empty"))?;
+    Ok(Receipt::new(inner, journal))
+}
+
+/// Parse Receipt from serialized proof (based on proof format)
+/// 1. Try to parse proof as InnerReceipt and restore Receipt from it
+/// 2. Otherwise try to parse proof as Receipt
+pub(crate) fn receipt_from_proof(serialized_proof: &[u8]) -> anyhow::Result<Receipt> {
+    match bincode::deserialize::<InnerReceipt>(serialized_proof) {
+        Ok(inner) => {
+            // PostFork2 uses InnerReceipt
+            receipt_from_inner(inner)
+        }
+        Err(_) => {
+            // PreFork2 used full Receipt (with journal duplicates)
+            Ok(bincode::deserialize(serialized_proof)?)
+        }
     }
 }

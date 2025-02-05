@@ -1,8 +1,11 @@
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
 use sov_db::ledger_db::LedgerDB;
+use sov_db::native_db::NativeDB;
 use sov_db::rocks_db_config::RocksdbConfig;
+use sov_prover_storage_manager::SnapshotManager;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
@@ -15,8 +18,16 @@ async fn test_pruner_simple_run() {
     let (sender, receiver) = broadcast::channel(1);
     let cancellation_token = CancellationToken::new();
 
-    let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir.path(), None, None)).unwrap();
-    let pruner = Pruner::new(PruningConfig { distance: 5 }, 0, receiver, ledger_db);
+    let rocksdb_config = RocksdbConfig::new(tmpdir.path(), None, None);
+    let ledger_db = LedgerDB::with_config(&rocksdb_config).unwrap();
+    let native_db = NativeDB::<SnapshotManager>::setup_schema_db(&rocksdb_config).unwrap();
+    let pruner = Pruner::new(
+        PruningConfig { distance: 5 },
+        0,
+        receiver,
+        ledger_db,
+        Arc::new(native_db),
+    );
 
     tokio::spawn(pruner.run(cancellation_token.clone()));
 

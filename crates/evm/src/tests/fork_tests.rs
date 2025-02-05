@@ -738,7 +738,7 @@ fn test_offchain_contract_storage_evm() {
         .get_code_inner(contract_addr, None, &mut working_set, fork_fn)
         .unwrap();
 
-    assert_eq!(genesis_cont_evm_code.original_bytes(), code);
+    assert_eq!(*genesis_cont_evm_code.original_byte_slice(), code);
 
     let offchain_code = evm
         .offchain_code
@@ -785,7 +785,7 @@ fn test_offchain_contract_storage_evm() {
         )
         .unwrap();
 
-    assert_eq!(code, evm_code.original_bytes());
+    assert_eq!(code, *evm_code.original_byte_slice());
 
     // Deploy contract in fork1
     evm.begin_soft_confirmation_hook(&soft_confirmation_info, &mut working_set);
@@ -858,13 +858,13 @@ fn test_offchain_contract_storage_evm() {
     let code = evm
         .get_code_inner(new_contract_address, None, &mut working_set, fork_fn)
         .unwrap();
-    assert_eq!(code, offchain_code.unwrap().original_bytes());
+    assert_eq!(code, *offchain_code.unwrap().original_byte_slice());
 
     // Also try to get code of a contract deployed in genesis fork and expect it to exist as well
     let code = evm
         .get_code_inner(contract_addr, None, &mut working_set, fork_fn)
         .unwrap();
-    assert_eq!(code, genesis_cont_evm_code.original_bytes());
+    assert_eq!(code, *genesis_cont_evm_code.original_byte_slice());
 
     // Now I should be able to read the contract from offchain storage
     let contract_info = evm.accounts.get(&contract_addr, &mut working_set);

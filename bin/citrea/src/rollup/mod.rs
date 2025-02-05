@@ -11,6 +11,7 @@ use citrea_fullnode::CitreaFullnode;
 use citrea_light_client_prover::da_block_handler::L1BlockHandler as LightClientProverL1BlockHandler;
 use citrea_light_client_prover::runner::CitreaLightClientProver;
 use citrea_primitives::forks::get_forks;
+use citrea_pruning::Pruner;
 use citrea_sequencer::CitreaSequencer;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::migrations::{LedgerDBMigrator, Migrations};
@@ -72,10 +73,11 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
     async fn setup_dependencies(
         &self,
         rollup_config: &FullNodeConfig<Self::DaConfig>,
+        require_da_wallet: bool,
     ) -> Result<Dependencies<Self>> {
         let mut task_manager = TaskManager::default();
         let da_service = self
-            .create_da_service(rollup_config, true, &mut task_manager)
+            .create_da_service(rollup_config, require_da_wallet, &mut task_manager)
             .await?;
         let (soft_confirmation_tx, soft_confirmation_rx) = broadcast::channel(10);
         // If subscriptions disabled, pass None
@@ -202,6 +204,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             StorageRootHash,
             LedgerDB,
         >,
+        Option<Pruner<LedgerDB>>,
     )>
     where
         <Self::NativeContext as Spec>::Storage: NativeStorage,
@@ -411,10 +414,9 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             Self::DaSpec,
         >,
     > {
-        let genesis_root = prover_storage.get_root_hash(1);
         if let Some((number, soft_confirmation)) = ledger_db.get_head_soft_confirmation()? {
             // At least one soft confirmation was processed
-            info!("Initialize sequencer at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
+            info!("Initialize node at batch number {:?}. State root: {:?}. Last soft confirmation hash: {:?}.", number, prover_storage.get_root_hash(number.0 + 1)?.as_ref(), soft_confirmation.hash);
 
             return Ok(InitParams {
                 state_root: prover_storage.get_root_hash(number.0 + 1)?,
@@ -422,6 +424,7 @@ pub trait CitreaRollupBlueprint: RollupBlueprint {
             });
         }
 
+        let genesis_root = prover_storage.get_root_hash(1);
         if let Ok(state_root) = genesis_root {
             // Chain was initialized but no soft confirmations was processed
             debug!("Chain is already initialized. Skipping initialization.");

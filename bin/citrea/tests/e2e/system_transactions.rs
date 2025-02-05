@@ -16,7 +16,7 @@ use crate::test_helpers::{tempdir_with_children, wait_for_l1_block, wait_for_l2_
 /// Check if the system transactions are included in the blocks.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_system_transactions() -> Result<(), anyhow::Error> {
-    // citrea::initialize_logging(tracing::Level::INFO);
+    // citrea::initialize_logging(tracing::Level::DEBUG);
 
     let system_contract_address =
         Address::from_str("0x3100000000000000000000000000000000000001").unwrap();

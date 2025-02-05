@@ -34,13 +34,21 @@ lazy_static! {
                 citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ELF.to_vec(),
             ),
         );
+
+        m.insert(
+            SpecId::Fork2,
+            (
+                Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ID),
+                citrea_risc0_batch_proof::BATCH_PROOF_MOCK_ELF.to_vec(),
+            ),
+        );
         m
     };
     pub(crate) static ref LIGHT_CLIENT_LATEST_MOCK_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         let mut m = HashMap::new();
 
         m.insert(
-            SpecId::Kumquat,
+            SpecId::Fork2,
             (
                 Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_MOCK_ID),
                 citrea_risc0_light_client::LIGHT_CLIENT_PROOF_MOCK_ELF.to_vec(),
@@ -57,6 +65,10 @@ lazy_static! {
                 (SpecId::Kumquat,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                     citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
+                ),
+                (SpecId::Fork2,
+                    (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
+                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
                 )
             ]
         )
@@ -66,7 +78,7 @@ lazy_static! {
     pub(crate) static ref BATCH_PROOF_LATEST_BITCOIN_GUESTS: HashMap<SpecId, (Digest, Vec<u8>)> = {
         HashMap::from(
             [
-                (SpecId::Kumquat,
+                (SpecId::Fork2,
                     (Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID),
                     citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec())
                 )
@@ -86,6 +98,13 @@ lazy_static! {
         );
         m.insert(
             SpecId::Kumquat,
+            (
+                Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
+                citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ELF.to_vec(),
+            )
+        );
+        m.insert(
+            SpecId::Fork2,
             (
                 Digest::new(citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ID),
                 citrea_risc0_light_client::LIGHT_CLIENT_PROOF_BITCOIN_ELF.to_vec(),

@@ -22,8 +22,13 @@ async fn initialize_test(
 ) -> (JoinHandle<()>, Box<TestClient>) {
     let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
 
-    let rollup_config =
-        create_default_rollup_config(true, &sequencer_path, &db_path, NodeMode::SequencerNode);
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_path,
+        &db_path,
+        NodeMode::SequencerNode,
+        None,
+    );
     let sequencer_config = SequencerConfig::default();
 
     let seq_task = tokio::spawn(async {

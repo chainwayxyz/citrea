@@ -20,7 +20,7 @@ use crate::da::DaSpec;
 use crate::fork::Fork;
 use crate::soft_confirmation::SignedSoftConfirmation;
 use crate::spec::SpecId;
-use crate::zk::CumulativeStateDiff;
+use crate::zk::batch_proof::output::CumulativeStateDiff;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
